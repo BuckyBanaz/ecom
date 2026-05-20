@@ -8,17 +8,6 @@ export const getAttributes = async (_req: Request, res: Response, next: NextFunc
     const attributes = await prisma.attribute.findMany({
       include: {
         attributeValues: true,
-        categoryAttributes: {
-          include: {
-            category: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-              },
-            },
-          },
-        },
       },
       orderBy: { name: "asc" },
     });

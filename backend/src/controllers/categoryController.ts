@@ -9,15 +9,6 @@ export const getCategories = async (_req: Request, res: Response, next: NextFunc
       include: {
         parent: true,
         children: true,
-        categoryAttributes: {
-          include: {
-            attribute: {
-              include: {
-                attributeValues: true,
-              },
-            },
-          },
-        },
       },
       orderBy: { name: "asc" },
     });
@@ -35,30 +26,42 @@ export const getCategories = async (_req: Request, res: Response, next: NextFunc
   }
 };
 
+export const getCategoryById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const category = await prisma.category.findUnique({
+      where: { id },
+      include: {
+        parent: true,
+        children: true,
+      },
+    });
+
+    if (!category) {
+      res.status(404).json({ success: false, message: "Category not found" });
+      return;
+    }
+
+    res.status(200).json({ success: true, category });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, slug, image, group, parentId, attributeIds } = req.body;
+    const { name, slug, image, group, parentId } = req.body;
 
     const category = await prisma.category.create({
       data: {
         name,
         slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
         image: image || "/assets/cat-pendant.jpg",
-        group: group || "indoor",
+        group: group || "interior-lighting",
         parentId: parentId || null,
       },
     });
 
-    if (attributeIds && Array.isArray(attributeIds)) {
-      for (const attrId of attributeIds) {
-        await prisma.categoryAttribute.create({
-          data: {
-            categoryId: category.id,
-            attributeId: attrId,
-          },
-        });
-      }
-    }
 
     res.status(201).json({ success: true, category });
   } catch (error) {
@@ -69,7 +72,7 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
 export const updateCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, slug, image, group, parentId, attributeIds } = req.body;
+    const { name, slug, image, group, parentId } = req.body;
 
     const category = await prisma.category.update({
       where: { id },
@@ -82,18 +85,6 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
       },
     });
 
-    if (attributeIds && Array.isArray(attributeIds)) {
-      // Sync mappings
-      await prisma.categoryAttribute.deleteMany({ where: { categoryId: id } });
-      for (const attrId of attributeIds) {
-        await prisma.categoryAttribute.create({
-          data: {
-            categoryId: id,
-            attributeId: attrId,
-          },
-        });
-      }
-    }
 
     res.status(200).json({ success: true, category });
   } catch (error) {

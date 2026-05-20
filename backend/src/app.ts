@@ -37,6 +37,7 @@ import authRoutes from "./routes/authRoutes";
 import productRoutes from "./routes/productRoutes";
 import categoryRoutes from "./routes/categoryRoutes";
 import brandRoutes from "./routes/brandRoutes";
+import seriesRoutes from "./routes/seriesRoutes";
 import attributeRoutes from "./routes/attributeRoutes";
 import megaMenuRoutes from "./routes/megaMenuRoutes";
 
@@ -45,6 +46,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/brands", brandRoutes);
+app.use("/api/v1/series", seriesRoutes);
 app.use("/api/v1/attributes", attributeRoutes);
 app.use("/api/v1/megamenus", megaMenuRoutes);
 

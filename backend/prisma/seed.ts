@@ -17,11 +17,11 @@ async function main() {
   await prisma.variantAttributeValue.deleteMany();
   await prisma.productVariant.deleteMany();
   await prisma.productAttributeValue.deleteMany();
-  await prisma.categoryAttribute.deleteMany();
   await prisma.attributeValue.deleteMany();
   await prisma.attribute.deleteMany();
   await prisma.product.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.series.deleteMany();
   await prisma.brand.deleteMany();
   await prisma.group.deleteMany();
   await prisma.user.deleteMany();
@@ -84,11 +84,11 @@ async function main() {
   // 3. Create Groups
   console.log("📂 Creating groups...");
   const groupsData = [
-    { id: "indoor", name: "Indoor lighting" },
-    { id: "outdoor", name: "Outdoor lighting" },
-    { id: "bulbs", name: "Light bulbs" },
-    { id: "business", name: "Business lighting" },
-    { id: "smart", name: "Smart home" },
+    { id: "interior-lighting", name: "Indoor lighting" },
+    { id: "outdoor-lighting", name: "Outdoor lighting" },
+    { id: "light-sources", name: "Light bulbs" },
+    { id: "commercial-lighting", name: "Business lighting" },
+    { id: "smart-home", name: "Smart home" },
     { id: "accessories", name: "Accessories" },
   ];
   for (const group of groupsData) {
@@ -113,44 +113,68 @@ async function main() {
     brandsMap[b.name] = b;
   }
 
+  // 4.5. Create Series
+  console.log("📺 Creating series collections...");
+  const seriesData = [
+    { name: "Hue White & Color", brandName: "Philips", logo: "", slug: "hue-white-color" },
+    { name: "Hue Filament", brandName: "Philips", logo: "", slug: "hue-filament" },
+    { name: "Townshend", brandName: "Eglo", logo: "", slug: "townshend" },
+    { name: "Connect Smart", brandName: "Eglo", logo: "", slug: "connect-smart" },
+    { name: "Retro Filament", brandName: "Calex", logo: "", slug: "retro-filament" },
+    { name: "Ligno Collection", brandName: "Lumio", logo: "", slug: "ligno-collection" },
+  ];
+  for (const ser of seriesData) {
+    const brandObj = brandsMap[ser.brandName];
+    if (brandObj) {
+      await prisma.series.create({
+        data: {
+          name: ser.name,
+          brandId: brandObj.id,
+          logo: ser.logo,
+          slug: ser.slug,
+        }
+      });
+    }
+  }
+
   // 5. Create Parent Categories
   console.log("🏷️ Creating parent categories...");
   const parentCats = {
     indoor: await prisma.category.create({
-      data: { slug: "indoor-lighting", name: "Indoor Lighting", image: "/assets/cat-pendant.jpg", group: "indoor" }
+      data: { slug: "indoor-lighting", name: "Indoor Lighting", image: "/assets/cat-pendant.jpg", group: "interior-lighting" }
     }),
     outdoor: await prisma.category.create({
-      data: { slug: "outdoor-lighting", name: "Outdoor Lighting", image: "/assets/cat-outdoor.jpg", group: "outdoor" }
+      data: { slug: "outdoor-lighting", name: "Outdoor Lighting", image: "/assets/cat-outdoor.jpg", group: "outdoor-lighting" }
     }),
     bulbs: await prisma.category.create({
-      data: { slug: "light-bulbs", name: "Light Bulbs", image: "/assets/cat-bulbs.jpg", group: "bulbs" }
+      data: { slug: "light-bulbs", name: "Light Bulbs", image: "/assets/cat-bulbs.jpg", group: "light-sources" }
     }),
     smart: await prisma.category.create({
-      data: { slug: "smart-home", name: "Smart Home", image: "/assets/cat-smart.jpg", group: "smart" }
+      data: { slug: "smart-home", name: "Smart Home", image: "/assets/cat-smart.jpg", group: "light-sources" }
     }),
     accessories: await prisma.category.create({
-      data: { slug: "accessories", name: "Accessories", image: "/assets/cat-shades.jpg", group: "accessories" }
+      data: { slug: "accessories", name: "Accessories", image: "/assets/cat-shades.jpg", group: "interior-lighting" }
     }),
     business: await prisma.category.create({
-      data: { slug: "business-lighting", name: "Business Lighting", image: "/assets/cat-office.jpg", group: "business" }
+      data: { slug: "business-lighting", name: "Business Lighting", image: "/assets/cat-office.jpg", group: "commercial-lighting" }
     }),
   };
 
   // Create Subcategories referencing parent categories
   console.log("🏷️ Creating subcategories...");
   const subCategoriesData = [
-    { slug: "pendant-lamps", name: "Pendant lamps", image: "/assets/cat-pendant.jpg", group: "indoor", parentId: parentCats.indoor.id },
-    { slug: "string-lights", name: "String lights", image: "/assets/cat-string.jpg", group: "outdoor", parentId: parentCats.outdoor.id },
-    { slug: "ceiling-lamps", name: "Ceiling lamps", image: "/assets/cat-ceiling.jpg", group: "indoor", parentId: parentCats.indoor.id },
-    { slug: "wall-lamps", name: "Wall lamps", image: "/assets/cat-wall.jpg", group: "indoor", parentId: parentCats.indoor.id },
-    { slug: "outdoor-lamps", name: "Outdoor lamps", image: "/assets/cat-outdoor.jpg", group: "outdoor", parentId: parentCats.outdoor.id },
-    { slug: "floor-lamps", name: "Floor lamps", image: "/assets/cat-floor.jpg", group: "indoor", parentId: parentCats.indoor.id },
-    { slug: "smart-bulbs", name: "Smart bulbs", image: "/assets/cat-smart.jpg", group: "smart", parentId: parentCats.smart.id },
-    { slug: "lampshades", name: "Lampshades", image: "/assets/cat-shades.jpg", group: "accessories", parentId: parentCats.accessories.id },
-    { slug: "table-lamps", name: "Table lamps", image: "/assets/cat-table.jpg", group: "indoor", parentId: parentCats.indoor.id },
-    { slug: "chandeliers", name: "Chandeliers", image: "/assets/cat-chandelier.jpg", group: "indoor", parentId: parentCats.indoor.id },
-    { slug: "led-bulbs", name: "LED bulbs", image: "/assets/cat-bulbs.jpg", group: "bulbs", parentId: parentCats.bulbs.id },
-    { slug: "office-lighting", name: "Office lighting", image: "/assets/cat-office.jpg", group: "business", parentId: parentCats.business.id },
+    { slug: "pendant-lamps", name: "Pendant lamps", image: "/assets/cat-pendant.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "string-lights", name: "String lights", image: "/assets/cat-string.jpg", group: "outdoor-lighting", parentId: parentCats.outdoor.id },
+    { slug: "ceiling-lamps", name: "Ceiling lamps", image: "/assets/cat-ceiling.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "wall-lamps", name: "Wall lamps", image: "/assets/cat-wall.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "outdoor-lamps", name: "Outdoor lamps", image: "/assets/cat-outdoor.jpg", group: "outdoor-lighting", parentId: parentCats.outdoor.id },
+    { slug: "floor-lamps", name: "Floor lamps", image: "/assets/cat-floor.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "smart-bulbs", name: "Smart bulbs", image: "/assets/cat-smart.jpg", group: "light-sources", parentId: parentCats.smart.id },
+    { slug: "lampshades", name: "Lampshades", image: "/assets/cat-shades.jpg", group: "interior-lighting", parentId: parentCats.accessories.id },
+    { slug: "table-lamps", name: "Table lamps", image: "/assets/cat-table.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "chandeliers", name: "Chandeliers", image: "/assets/cat-chandelier.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "led-bulbs", name: "LED bulbs", image: "/assets/cat-bulbs.jpg", group: "light-sources", parentId: parentCats.bulbs.id },
+    { slug: "office-lighting", name: "Office lighting", image: "/assets/cat-office.jpg", group: "commercial-lighting", parentId: parentCats.business.id },
   ];
 
   const categoriesMap: Record<string, any> = {};
@@ -268,37 +292,6 @@ async function main() {
     }
   }
 
-  // 8. Map Category Attributes
-  console.log("🔗 Linking Category Attributes...");
-  const categoryAttributesMapping: Record<string, string[]> = {
-    "pendant-lamps": ["color", "material", "style", "room", "fitting", "dimmable", "length", "diameter"],
-    "string-lights": ["color", "material", "style", "room", "dimmable", "ip-rating", "length"],
-    "ceiling-lamps": ["color", "material", "style", "room", "fitting", "dimmable", "diameter"],
-    "wall-lamps": ["color", "material", "style", "room", "fitting", "dimmable", "ip-rating"],
-    "outdoor-lamps": ["color", "material", "style", "room", "fitting", "dimmable", "ip-rating"],
-    "floor-lamps": ["color", "material", "style", "room", "fitting", "dimmable"],
-    "smart-bulbs": ["color", "fitting", "dimmable"],
-    "led-bulbs": ["color", "fitting", "dimmable"],
-    lampshades: ["color", "material", "style", "diameter"],
-    "table-lamps": ["color", "material", "style", "room", "fitting", "dimmable"],
-    chandeliers: ["color", "material", "style", "room", "fitting", "dimmable", "diameter"],
-    "office-lighting": ["color", "material", "style", "fitting", "dimmable", "ip-rating"],
-  };
-
-  for (const [catSlug, attrSlugs] of Object.entries(categoryAttributesMapping)) {
-    const cat = categoriesMap[catSlug];
-    if (!cat) continue;
-    for (const attrSlug of attrSlugs) {
-      const attr = attributesMap[attrSlug];
-      if (!attr) continue;
-      await prisma.categoryAttribute.create({
-        data: {
-          categoryId: cat.id,
-          attributeId: attr.id
-        }
-      });
-    }
-  }
 
   // 9. Create Products
   console.log("📦 Creating EAV Products...");
@@ -369,8 +362,10 @@ async function main() {
           oldPrice,
           rating: +(4 + ((counter % 10) / 10)).toFixed(1),
           reviewCount: 12 + counter * 7,
-          image: `/assets/cat-${imgShorthand}.jpg`,
+                  image: `/assets/cat-${imgShorthand}.jpg`,
           inStock: counter % 11 !== 0,
+          isNewArrival: counter % 4 === 0,
+          isBestSelling: counter % 3 === 0,
           description: "A beautifully crafted lamp that combines functional lighting with timeless design. Perfect for setting the mood in any room.",
           specs,
           seoTitle: `${n} - Buy Premium E-Commerce Lighting`,
@@ -621,25 +616,6 @@ async function main() {
             ]
           }
         ],
-        pageTitle: "Interior lighting",
-        pageBlocks: [
-          {
-            id: "1",
-            type: "banner",
-            heading: "Interior lighting",
-            content: "<h2><strong>Discover Our Premium Selection of Interior lighting</strong></h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p>"
-          },
-          {
-            id: "2",
-            type: "product_grid",
-            category: "pendant-lamps",
-            description: ""
-          }
-        ],
-        seoTitle: "Interior lighting | Buy Premium Lighting Online",
-        seoDescription: "Shop our selection of premium Interior lighting. Free shipping on orders over $50, fast delivery, and modern designs.",
-        seoKeywords: "lighting, interior lighting, modern decor, lights",
-        seoImage: ""
       },
       {
         menu: "Outdoor lighting",
@@ -655,12 +631,6 @@ async function main() {
             ]
           }
         ],
-        pageTitle: "Outdoor lighting",
-        pageBlocks: [],
-        seoTitle: "Outdoor lighting | Buy Premium Lighting Online",
-        seoDescription: "Shop our selection of premium Outdoor lighting.",
-        seoKeywords: "outdoor lighting, garden lights",
-        seoImage: ""
       },
       {
         menu: "Light sources",
@@ -675,14 +645,55 @@ async function main() {
             ]
           }
         ],
-        pageTitle: "Light sources",
-        pageBlocks: [],
-        seoTitle: "Light sources | Buy Premium Lighting Online",
-        seoDescription: "Shop our selection of premium Light sources.",
-        seoKeywords: "light bulbs, led, smart bulbs",
-        seoImage: ""
       }
     ]
+  });
+
+  // 14. Seed Landing Pages data
+  console.log("🧭 Seeding CMS Page blocks and SEO metadata...");
+  await prisma.cmsConfig.create({
+    data: {
+      key: "landing_pages_data",
+      value: {
+        "interior-lighting": {
+          pageTitle: "Interior lighting",
+          pageBlocks: [
+            {
+              id: "1",
+              type: "banner",
+              heading: "Interior lighting",
+              content: "<h2><strong>Discover Our Premium Selection of Interior lighting</strong></h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p>"
+            },
+            {
+              id: "2",
+              type: "product_grid",
+              category: "pendant-lamps",
+              description: ""
+            }
+          ],
+          seoTitle: "Interior lighting | Buy Premium Lighting Online",
+          seoDescription: "Shop our selection of premium Interior lighting. Free shipping on orders over $50, fast delivery, and modern designs.",
+          seoKeywords: "lighting, interior lighting, modern decor, lights",
+          seoImage: ""
+        },
+        "outdoor-lighting": {
+          pageTitle: "Outdoor lighting",
+          pageBlocks: [],
+          seoTitle: "Outdoor lighting | Buy Premium Lighting Online",
+          seoDescription: "Shop our selection of premium Outdoor lighting.",
+          seoKeywords: "outdoor lighting, garden lights",
+          seoImage: ""
+        },
+        "light-sources": {
+          pageTitle: "Light sources",
+          pageBlocks: [],
+          seoTitle: "Light sources | Buy Premium Lighting Online",
+          seoDescription: "Shop our selection of premium Light sources.",
+          seoKeywords: "light bulbs, led, smart bulbs",
+          seoImage: ""
+        }
+      }
+    }
   });
 
   console.log("✨ Seeding completed successfully!");

@@ -14,6 +14,8 @@ const parseFilters = (query: any) => {
     sort = "relevance",
     page = "1",
     limit = "20",
+    isNewArrival,
+    isBestSelling,
     ...attributeParams
   } = query;
 
@@ -35,6 +37,8 @@ const parseFilters = (query: any) => {
     sort: sort as string,
     page: parseInt(page as string, 10),
     limit: parseInt(limit as string, 10),
+    isNewArrival: isNewArrival === "true",
+    isBestSelling: isBestSelling === "true",
     attributeFilters: filters,
   };
 };
@@ -50,10 +54,20 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       sort,
       page,
       limit,
+      isNewArrival,
+      isBestSelling,
       attributeFilters,
     } = parseFilters(req.query);
 
     const whereConditions: any = { AND: [] };
+
+    // New Arrival & Best Selling filters
+    if (isNewArrival) {
+      whereConditions.AND.push({ isNewArrival: true });
+    }
+    if (isBestSelling) {
+      whereConditions.AND.push({ isBestSelling: true });
+    }
 
     // Search query
     if (search) {
@@ -329,6 +343,8 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       oldPrice,
       image,
       inStock,
+      isNewArrival,
+      isBestSelling,
       description,
       shortDescription,
       specs,
@@ -350,6 +366,8 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
         oldPrice: oldPrice ? parseFloat(oldPrice) : null,
         image: image || "/assets/cat-pendant.jpg",
         inStock: inStock !== undefined ? inStock : true,
+        isNewArrival: isNewArrival !== undefined ? isNewArrival : false,
+        isBestSelling: isBestSelling !== undefined ? isBestSelling : false,
         description: description || "",
         shortDescription: shortDescription || "",
         specs: specs || {},
@@ -464,6 +482,8 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       oldPrice,
       image,
       inStock,
+      isNewArrival,
+      isBestSelling,
       description,
       shortDescription,
       specs,
@@ -492,6 +512,8 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
         oldPrice: oldPrice !== undefined ? (oldPrice ? parseFloat(oldPrice) : null) : undefined,
         image,
         inStock,
+        isNewArrival: isNewArrival !== undefined ? isNewArrival : undefined,
+        isBestSelling: isBestSelling !== undefined ? isBestSelling : undefined,
         description,
         shortDescription,
         specs: specs || undefined,
