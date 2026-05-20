@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+**/node_modules/
+jspm_packages/
+web_modules/
+
+# Build and distribution
+dist/
+tmp/
+out/
+build/
+.next/
+.nuxt/
+.cache/
+
+# Environments and Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+**/.env
+**/.env.local
+
+# IDE and Editor configs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# System logs and temp files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+logs/
+*.log
+.DS_Store
+Thumbs.db
