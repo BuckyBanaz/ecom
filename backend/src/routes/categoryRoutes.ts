@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 import {
   getCategories,
   getCategoryById,
@@ -99,7 +100,7 @@ router.get("/:id", getCategoryById);
  *       201:
  *         description: Category created successfully
  */
-router.post("/", createCategory);
+router.post("/", authenticateJWT, requireAdmin, createCategory);
 
 /**
  * @swagger
@@ -136,7 +137,7 @@ router.post("/", createCategory);
  *       404:
  *         description: Category not found
  */
-router.put("/:id", updateCategory);
+router.put("/:id", authenticateJWT, requireAdmin, updateCategory);
 
 /**
  * @swagger
@@ -156,6 +157,6 @@ router.put("/:id", updateCategory);
  *       404:
  *         description: Category not found
  */
-router.delete("/:id", deleteCategory);
+router.delete("/:id", authenticateJWT, requireAdmin, deleteCategory);
 
 export default router;

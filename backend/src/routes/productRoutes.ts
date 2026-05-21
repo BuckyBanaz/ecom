@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 import {
   getProducts,
   getProductBySlug,
@@ -183,7 +184,7 @@ router.get("/:slug", getProductBySlug);
  *       500:
  *         description: Internal server error
  */
-router.post("/", createProduct);
+router.post("/", authenticateJWT, requireAdmin, createProduct);
 
 /**
  * @swagger
@@ -243,7 +244,7 @@ router.post("/", createProduct);
  *       500:
  *         description: Internal server error
  */
-router.put("/:id", updateProduct);
+router.put("/:id", authenticateJWT, requireAdmin, updateProduct);
 
 /**
  * @swagger
@@ -264,6 +265,6 @@ router.put("/:id", updateProduct);
  *       500:
  *         description: Internal server error
  */
-router.delete("/:id", deleteProduct);
+router.delete("/:id", authenticateJWT, requireAdmin, deleteProduct);
 
 export default router;

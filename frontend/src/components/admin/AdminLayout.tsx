@@ -1,9 +1,14 @@
+import { useEffect } from "react";
 import { Outlet, Navigate } from "react-router-dom";
 import { useAdmin } from "@/context/AdminContext";
 import { AdminSidebar } from "./AdminSidebar";
 
 export function AdminLayout() {
   const { isLoggedIn } = useAdmin();
+  useEffect(() => {
+    document.body.classList.add("admin-lock");
+    return () => document.body.classList.remove("admin-lock");
+  }, []);
   if (!isLoggedIn) return <Navigate to="/admin/login" replace />;
 
   return (

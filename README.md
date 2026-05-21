@@ -1,5 +1,25 @@
 # E-Commerce Lighting Platform Architecture
 
+## 🎯 Overall Project Status & Progress (v0.1)
+
+### ✅ Completed Features
+- [x] **Admin Panel & Architecture:** Full setup of the E-commerce backend using Node.js, Express, Prisma, PostgreSQL.
+- [x] **Dynamic Pages (CMS):** A flexible CMS with UI Blocks (Hero banners, Sliders, Category carousels).
+- [x] **Rich Text Editor Fixes:** Solved focus and selection loss issues when adding shortcodes to dynamic pages.
+- [x] **Category Multi-Select:** Built API-driven category multi-select dropdown for CMS blocks (with search and "All Categories" toggle).
+- [x] **Shortcode Rendering Engine:** Added mixed-content rendering capability so dynamic pages can cleanly interleave HTML content with block shortcodes.
+- [x] **Storage / Media Library:** Built a professional Google Drive-style file manager within the Admin Panel. Features include folder navigation, file uploads, rename, bulk delete to trash, URL copying, and a visual grid/list layout.
+- [x] **Swagger Documentation:** API documentation integration available at `/api-docs`.
+
+### 🚧 Pending Features
+- [ ] **Frontend Shop Implementation:** Integrating the actual user-facing E-commerce storefront with the database.
+- [ ] **Product Management:** Full CRUD for Products, Variants, and EAV Attributes in the admin panel.
+- [ ] **Cart & Checkout Flow:** User cart state management and payment gateway integration.
+- [ ] **Order Management:** Tracking and updating order statuses from the admin panel.
+- [ ] **User Authentication:** Robust login/registration and role-based access for customers and admins.
+
+---
+
 This document provides a visual and structured walkthrough of the platform's routing flow and database schema relationships.
 
 ![E-Commerce Catalog Architecture](file:///C:/Users/Parikshit/.gemini/antigravity-ide/brain/44536a3f-c458-4e66-a52f-24c9733d9503/ecom_architecture_diagram_1779272280064.png)
@@ -157,4 +177,6 @@ erDiagram
    - `Attribute` holds the definition of a parameter (like *Material*, *IP Rating*).
    - `AttributeValue` holds the allowed values (like *Rattan*, *IP44*).
    - `ProductAttributeValue` links a specific `Product` to its selected `Attribute` and `AttributeValue`.
+3. **Static Specifications**: Mapped as a JSON object `specs` on the `Product` model for flat, non-filterable details like *Warranty* and *Product Dimensions*.
+
 3. **Static Specifications**: Mapped as a JSON object `specs` on the `Product` model for flat, non-filterable details like *Warranty* and *Product Dimensions*.

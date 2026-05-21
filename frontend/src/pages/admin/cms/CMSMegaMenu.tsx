@@ -7,16 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { megaMenuData as defaultMegaMenu, MegaMenu, MegaMenuSection, MegaMenuItem } from "@/data/megaMenu";
+import { MegaMenu, MegaMenuSection, MegaMenuItem } from "@/data/megaMenu";
 import { useAdmin } from "@/context/AdminContext";
-import { products } from "@/data/products";
-import { categories as defaultCategories } from "@/data/categories";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
-import axios from "axios";
 import { initialBlogs } from "@/data/blogs";
 import { faqs as defaultFaqs } from "@/data/faqs";
-
-const API_URL = "http://localhost:5000/api/v1/megamenus";
+import { megaMenuRepository, categoryRepository, productRepository } from "@/client/apiClient";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type MegaMenuWithId = MegaMenu & { id?: string };
 
@@ -42,6 +39,7 @@ export default function CMSMegaMenu() {
   const [seoImage, setSeoImage] = useState("");
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [blogsList, setBlogsList] = useState<any[]>([]);
+  const [productsList, setProductsList] = useState<any[]>([]);
 
   // Dialog states
   const [menuDialogOpen, setMenuDialogOpen] = useState(false);
@@ -58,37 +56,82 @@ export default function CMSMegaMenu() {
   const [itemEditIndex, setItemEditIndex] = useState<number | null>(null);
   const [itemName, setItemName] = useState("");
   const [itemSlug, setItemSlug] = useState("");
+  
+  // Loading state
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load from backend API
   useEffect(() => {
-    const loadMenus = async () => {
+    const initData = async () => {
+      setIsLoading(true);
+      let categoriesResponse: any = null;
       try {
-        const response = await axios.get(API_URL);
-        if (response.data.success) {
-          if (response.data.menus && response.data.menus.length > 0) {
-            setMenus(response.data.menus);
+        // 1. Fetch mega menus
+        try {
+          const menuRes = await megaMenuRepository.getAll();
+          if (menuRes.success && menuRes.menus) {
+            setMenus(menuRes.menus);
           } else {
-            setMenus(defaultMegaMenu);
+            setMenus([]);
           }
-          if (response.data.landingPages) {
-            localStorage.setItem("landing_pages_data", JSON.stringify(response.data.landingPages));
+          if (menuRes.landingPages) {
+            localStorage.setItem("landing_pages_data", JSON.stringify(menuRes.landingPages));
           }
+        } catch (e) {
+          console.error("Failed to load menus from API:", e);
+          setMenus([]);
         }
-      } catch (error) {
-        console.error("Failed to fetch mega menus from API", error);
-        const saved = localStorage.getItem("mega_menu_data");
-        if (saved) {
-          try { setMenus(JSON.parse(saved)); } catch (e) { setMenus(defaultMegaMenu); }
-        } else {
-          setMenus(defaultMegaMenu);
+
+        // 2. Fetch categories
+        try {
+          categoriesResponse = await categoryRepository.getAll();
+          if (categoriesResponse.success && categoriesResponse.categories) {
+            setCategoriesList(categoriesResponse.categories);
+          } else {
+            setCategoriesList([]);
+          }
+        } catch (e) {
+          console.error("Failed to load categories from API:", e);
+          setCategoriesList([]);
         }
+
+        // 3. Fetch products
+        try {
+          const prodRes = await productRepository.getAll();
+          if (prodRes.success && prodRes.products) {
+            const categoriesById = new Map(
+              (categoriesResponse?.categories || []).map((c: any) => [c.id, c.slug])
+            );
+            setProductsList(
+              prodRes.products.map((p: any) => {
+                const categorySlug =
+                  (p.category && typeof p.category === "object" && p.category.slug) ||
+                  p.category ||
+                  (p.categoryId ? categoriesById.get(p.categoryId) : "") ||
+                  "";
+                return {
+                  ...p,
+                  categorySlug,
+                };
+              })
+            );
+          } else {
+            setProductsList([]);
+          }
+        } catch (e) {
+          console.error("Failed to load products from API:", e);
+          setProductsList([]);
+        }
+      } finally {
+        setIsLoading(false);
       }
     };
-    loadMenus();
+    initData();
   }, []);
 
-  // Restore page builder state from URL
+  // Restore page builder state from URL — wait until menus are loaded
   useEffect(() => {
+    if (isLoading) return; // wait for menus to load first
     const editId = searchParams.get("id");
     const editType = searchParams.get("type") as "menu" | "item";
     const editName = searchParams.get("name");
@@ -96,7 +139,7 @@ export default function CMSMegaMenu() {
     if (editId && editType && editName && !activePageBuilder) {
       handleOpenPageBuilder(editId, editName, editType, false);
     }
-  }, [searchParams]);
+  }, [searchParams, isLoading]);
 
   const handleOpenPageBuilder = (slug: string, name: string, type: "menu" | "item", updateUrl = true) => {
     setActivePageBuilder({ slug, name, type });
@@ -106,37 +149,6 @@ export default function CMSMegaMenu() {
       setSearchParams({ id: slug, type, name });
     }
     
-    // Load categories dynamically
-    const savedCats = localStorage.getItem("categories_data");
-    let loadedCats = defaultCategories;
-    if (savedCats) {
-      try {
-        loadedCats = JSON.parse(savedCats);
-      } catch (e) {
-        loadedCats = defaultCategories;
-      }
-    }
-    const groupMapping: Record<string, string> = {
-      "indoor": "interior-lighting",
-      "outdoor": "outdoor-lighting",
-      "smart": "light-sources",
-      "bulbs": "light-sources",
-      "business": "commercial-lighting",
-      "accessories": "interior-lighting"
-    };
-    let migrated = false;
-    const mappedCats = loadedCats.map((c: any) => {
-      if (groupMapping[c.group]) {
-        migrated = true;
-        return { ...c, group: groupMapping[c.group] };
-      }
-      return c;
-    });
-    if (migrated) {
-      localStorage.setItem("categories_data", JSON.stringify(mappedCats));
-    }
-    setCategoriesList(mappedCats);
-
     // Load blogs dynamically
     const savedBlogs = localStorage.getItem("blogs_data");
     if (savedBlogs) {
@@ -267,16 +279,16 @@ export default function CMSMegaMenu() {
     }
 
     try {
-      const response = await axios.post(`${API_URL}/sync`, {
+      const data = await megaMenuRepository.sync({
         menus: normalizedMenus,
         landingPages: pages || {}
       });
-      if (response.data?.menus) {
-        setMenus(response.data.menus);
-        localStorage.setItem("mega_menu_data", JSON.stringify(response.data.menus));
+      if (data?.menus) {
+        setMenus(data.menus);
+        localStorage.setItem("mega_menu_data", JSON.stringify(data.menus));
       }
-      if (response.data?.landingPages) {
-        localStorage.setItem("landing_pages_data", JSON.stringify(response.data.landingPages));
+      if (data?.landingPages) {
+        localStorage.setItem("landing_pages_data", JSON.stringify(data.landingPages));
       }
       toast.success("Mega Menu configuration successfully synced to backend!");
     } catch (error) {
@@ -287,7 +299,7 @@ export default function CMSMegaMenu() {
 
   const handleReset = () => {
     if (window.confirm("Are you sure you want to reset the mega menu to defaults?")) {
-      handleSaveAll(defaultMegaMenu);
+      handleSaveAll([]);
       setSelectedMenuIndex(0);
       toast.success("Reset to default configuration");
     }
@@ -313,50 +325,19 @@ export default function CMSMegaMenu() {
 
     const updated = [...menus];
     if (menuEditIndex !== null) {
-      const existing = updated[menuEditIndex];
-      try {
-        if (existing?.id) {
-          const response = await axios.put(`${API_URL}/${existing.id}`, {
-            menu: menuName,
-            slug: menuSlug,
-            sections: existing.sections,
-          });
-          updated[menuEditIndex] = response.data.menu;
-        } else {
-          updated[menuEditIndex] = {
-            ...existing,
-            menu: menuName,
-            slug: menuSlug,
-          };
-        }
-        toast.success("Menu updated");
-      } catch (error) {
-        console.error("Menu update failed", error);
-        updated[menuEditIndex] = {
-          ...existing,
-          menu: menuName,
-          slug: menuSlug,
-        };
-        toast.error("Failed to update menu on server. Saved locally.");
-      }
+      updated[menuEditIndex] = {
+        ...updated[menuEditIndex],
+        menu: menuName,
+        slug: menuSlug,
+      };
+      toast.success("Menu updated");
     } else {
-      try {
-        const response = await axios.post(API_URL, {
-          menu: menuName,
-          slug: menuSlug,
-          sections: [],
-        });
-        updated.push(response.data.menu);
-        toast.success("New menu created");
-      } catch (error) {
-        console.error("Menu create failed", error);
-        updated.push({
-          menu: menuName,
-          slug: menuSlug,
-          sections: [],
-        });
-        toast.error("Failed to create menu on server. Saved locally.");
-      }
+      updated.push({
+        menu: menuName,
+        slug: menuSlug,
+        sections: [],
+      });
+      toast.success("New menu created");
     }
     saveToLocalStorage(updated);
     setMenuDialogOpen(false);
@@ -364,22 +345,10 @@ export default function CMSMegaMenu() {
 
   const handleDeleteMenu = async (index: number) => {
     if (!window.confirm(`Delete entire menu "${menus[index].menu}"?`)) return;
-
-    const target = menus[index];
     const updated = menus.filter((_, i) => i !== index);
-
-    try {
-      if (target?.id) {
-        await axios.delete(`${API_URL}/${target.id}`);
-      }
-      toast.success("Menu deleted");
-    } catch (error) {
-      console.error("Menu delete failed", error);
-      toast.error("Failed to delete menu on server. Removed locally.");
-    }
-
     saveToLocalStorage(updated);
     setSelectedMenuIndex(0);
+    toast.success("Menu deleted");
   };
 
   const moveMenu = (index: number, direction: "up" | "down") => {
@@ -540,11 +509,15 @@ export default function CMSMegaMenu() {
     };
 
     const addProductsBlock = () => {
+      if (categoriesList.length === 0) {
+        toast.error("No categories found from API. Please add categories first.");
+        return;
+      }
       setPageBlocks([
         ...pageBlocks,
         {
           type: "products",
-          categorySlug: categoriesList[0]?.slug || "pendant-lamps",
+          categorySlug: categoriesList[0].slug,
           description: ""
         }
       ]);
@@ -776,7 +749,15 @@ export default function CMSMegaMenu() {
 
                             {block.componentType === "categories" && (() => {
                               const menuSlug = getActiveMenuSlug();
-                              const filteredCats = categoriesList.filter(c => c.group === menuSlug);
+                              // Match categories by group — handle both old (e.g. "indoor") and new slugs (e.g. "interior-lighting")
+                              const groupAliases: Record<string, string[]> = {
+                                "interior-lighting": ["interior-lighting", "indoor", "accessories"],
+                                "outdoor-lighting": ["outdoor-lighting", "outdoor"],
+                                "light-sources": ["light-sources", "smart", "bulbs"],
+                                "commercial-lighting": ["commercial-lighting", "business"],
+                              };
+                              const validGroups = groupAliases[menuSlug] || [menuSlug];
+                              const filteredCats = categoriesList.filter(c => validGroups.includes(c.group));
                               const allSelected = filteredCats.length > 0 && filteredCats.every(c => block.selectedItems?.includes(c.slug));
                               
                               return (
@@ -992,12 +973,17 @@ export default function CMSMegaMenu() {
                                   setPageBlocks(updated);
                                 }}
                                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={categoriesList.length === 0}
                               >
-                                {categoriesList.map((c) => (
-                                  <option key={c.slug} value={c.slug}>
-                                    {c.name} ({c.slug})
-                                  </option>
-                                ))}
+                                {categoriesList.length === 0 ? (
+                                  <option value="">No categories available</option>
+                                ) : (
+                                  categoriesList.map((c) => (
+                                    <option key={c.slug} value={c.slug}>
+                                      {c.name} ({c.slug})
+                                    </option>
+                                  ))
+                                )}
                               </select>
                             </div>
 
@@ -1017,10 +1003,18 @@ export default function CMSMegaMenu() {
                             <div className="space-y-1">
                               <Label className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
                                 <Eye className="h-3 w-3" />
-                                <span>Preview Products in Category ({products.filter(p => p.category === block.categorySlug).length} found)</span>
+                                <span>Preview Products in Category ({productsList.filter(p => {
+                                     const catSlug = p.categorySlug || (p.category && typeof p.category === "object" ? p.category.slug : p.category);
+                                     return catSlug === block.categorySlug;
+                                   }).length} found)</span>
                               </Label>
                               <div className="grid grid-cols-6 gap-2 border rounded p-2 bg-muted/10 max-h-36 overflow-y-auto">
-                                {products.filter((p) => p.category === block.categorySlug).map((p) => (
+                                {productsList
+                                   .filter((p) => {
+                                     const catSlug = p.categorySlug || (p.category && typeof p.category === "object" ? p.category.slug : p.category);
+                                     return catSlug === block.categorySlug;
+                                   })
+                                   .map((p) => (
                                   <div key={p.id} className="text-center p-1 rounded bg-background border flex flex-col justify-between">
                                     <img src={p.image} className="h-8 w-8 object-cover rounded mx-auto border" />
                                     <div className="text-[8px] truncate mt-1 text-foreground font-medium">{p.name}</div>
@@ -1055,7 +1049,7 @@ export default function CMSMegaMenu() {
                   <Label>Google Search Preview</Label>
                   <div className="border rounded-xl p-4 bg-muted/20 space-y-1 text-left shadow-xs">
                     <div className="text-[11px] text-muted-foreground truncate">
-                      https://yourshop.com{activePageBuilder.type === "menu" ? "/relief/" : "/category/"}{pageSlug}
+                      {(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '')}{activePageBuilder.type === "menu" ? "/relief/" : "/category/"}{pageSlug}
                     </div>
                     <div className="text-blue-600 dark:text-blue-400 font-medium text-base hover:underline cursor-pointer truncate">
                       {seoTitle || pageTitle || "Page Title"}
@@ -1174,159 +1168,219 @@ export default function CMSMegaMenu() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Left column: Menu list */}
-        <Card className="md:col-span-1">
-          <CardHeader className="p-4">
-            <CardTitle className="text-lg flex items-center justify-between">
-              <span>Menus</span>
-              {hasPermission("admin") && (
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openMenuDialog()}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              )}
-            </CardTitle>
-            <CardDescription>Top-level navigation tabs</CardDescription>
-          </CardHeader>
-          <CardContent className="p-2 space-y-1">
-            {menus.map((menu, idx) => (
-              <div
-                key={menu.slug}
-                onClick={() => setSelectedMenuIndex(idx)}
-                className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors text-sm font-medium ${
-                  idx === selectedMenuIndex
-                    ? "bg-primary/10 text-primary"
-                    : "text-foreground hover:bg-muted"
-                }`}
-              >
-                <div className="truncate pr-2">
-                  <div className="font-semibold">{menu.menu}</div>
-                  <div className="text-[10px] text-muted-foreground">/relief/{menu.slug}</div>
+        {isLoading ? (
+          <>
+            {/* Left column: Menu list Skeleton */}
+            <Card className="md:col-span-1">
+              <CardHeader className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-20" />
+                  <Skeleton className="h-8 w-8 rounded-lg" />
                 </div>
-                
-                {idx === selectedMenuIndex && hasPermission("admin") && (
-                  <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => moveMenu(idx, "up")} disabled={idx === 0} className="p-1 hover:text-primary disabled:opacity-30">
-                      <ArrowUp className="h-3 w-3" />
-                    </button>
-                    <button onClick={() => moveMenu(idx, "down")} disabled={idx === menus.length - 1} className="p-1 hover:text-primary disabled:opacity-30">
-                      <ArrowDown className="h-3 w-3" />
-                    </button>
-                    <button onClick={() => handleOpenPageBuilder(menu.slug, menu.menu, "menu")} className="p-1 hover:text-primary" title="Edit Custom Page & SEO">
-                      <FileText className="h-3 w-3" />
-                    </button>
-                    <button onClick={() => openMenuDialog(idx)} className="p-1 hover:text-primary">
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button onClick={() => handleDeleteMenu(idx)} className="p-1 text-destructive hover:text-destructive/80">
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                <Skeleton className="h-3 w-32" />
+              </CardHeader>
+              <CardContent className="p-2 space-y-2.5">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="flex flex-col gap-2 p-3 border rounded-lg">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-2.5 w-32" />
                   </div>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+                ))}
+              </CardContent>
+            </Card>
 
-        {/* Right column: Sections & Items inside the selected menu */}
-        <div className="md:col-span-3 space-y-6">
-          {currentMenu ? (
-            <>
-              {/* Sections Header */}
+            {/* Right column: Sections & Items Skeleton */}
+            <div className="md:col-span-3 space-y-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    <span>{currentMenu.menu}</span>
-                    <span className="text-xs font-normal text-muted-foreground">(/relief/{currentMenu.slug})</span>
-                  </h2>
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-36" />
+                  <Skeleton className="h-3 w-48" />
                 </div>
-                {hasPermission("admin") && (
-                  <Button size="sm" onClick={() => openSectionDialog()} className="gap-2 rounded-full">
-                    <FolderPlus className="h-4 w-4" /> Add Section
-                  </Button>
-                )}
+                <Skeleton className="h-8 w-28 rounded-full" />
               </div>
-
-              {/* Sections list */}
-              {currentMenu.sections.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                    No sections in this menu. Click "Add Section" to create one.
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {currentMenu.sections.map((section, sIdx) => (
-                    <Card key={section.title} className="relative group/section flex flex-col">
-                      <CardHeader className="pb-3 border-b bg-muted/30 flex flex-row items-center justify-between space-y-0 py-3 px-4">
-                        <div className="font-bold text-sm text-foreground truncate pr-2">{section.title}</div>
-                        {hasPermission("admin") && (
-                          <div className="flex items-center gap-0.5">
-                            <button onClick={() => moveSection(sIdx, "up")} disabled={sIdx === 0} className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30">
-                              <ArrowUp className="h-3.5 w-3.5" />
-                            </button>
-                            <button onClick={() => moveSection(sIdx, "down")} disabled={sIdx === currentMenu.sections.length - 1} className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30">
-                              <ArrowDown className="h-3.5 w-3.5" />
-                            </button>
-                            <button onClick={() => openSectionDialog(sIdx)} className="p-1 text-muted-foreground hover:text-primary">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button onClick={() => handleDeleteSection(sIdx)} className="p-1 text-muted-foreground hover:text-destructive">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.from({ length: 3 }).map((_, sIdx) => (
+                  <Card key={sIdx} className="flex flex-col space-y-4 p-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <Skeleton className="h-4.5 w-24" />
+                      <div className="flex gap-1">
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {Array.from({ length: 3 }).map((_, iIdx) => (
+                        <div key={iIdx} className="flex items-center justify-between">
+                          <div className="space-y-1.5 flex-1 pr-4">
+                            <Skeleton className="h-3.5 w-20" />
+                            <Skeleton className="h-2 w-28" />
                           </div>
-                        )}
-                      </CardHeader>
-                      <CardContent className="p-4 flex-1 flex flex-col justify-between">
-                        {/* Items list */}
-                        <ul className="space-y-2 mb-4">
-                          {section.items.length === 0 ? (
-                            <li className="text-xs text-muted-foreground italic py-2 text-center">No links in this section</li>
-                          ) : (
-                            section.items.map((item, iIdx) => (
-                              <li key={item.slug} className="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 text-xs transition-colors">
-                                <div className="truncate pr-2">
-                                  <div className="font-semibold">{item.name}</div>
-                                  <div className="text-[9px] text-muted-foreground truncate">/category/{item.slug}</div>
-                                </div>
-                                {hasPermission("admin") && (
-                                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/section:opacity-100 transition-opacity">
-                                    <button onClick={() => moveItem(sIdx, iIdx, "up")} disabled={iIdx === 0} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
-                                      <ArrowUp className="h-3 w-3" />
-                                    </button>
-                                    <button onClick={() => moveItem(sIdx, iIdx, "down")} disabled={iIdx === section.items.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
-                                      <ArrowDown className="h-3 w-3" />
-                                    </button>
-                                    <button onClick={() => handleOpenPageBuilder(item.slug, item.name, "item")} className="p-0.5 text-muted-foreground hover:text-primary" title="Edit Custom Page & SEO">
-                                      <FileText className="h-3 w-3" />
-                                    </button>
-                                    <button onClick={() => openItemDialog(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-primary">
-                                      <Pencil className="h-3 w-3" />
-                                    </button>
-                                    <button onClick={() => handleDeleteItem(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-destructive">
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
-                                  </div>
-                                )}
-                              </li>
-                            ))
-                          )}
-                        </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Left column: Menu list */}
+            <Card className="md:col-span-1">
+              <CardHeader className="p-4">
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span>Menus</span>
+                  {hasPermission("admin") && (
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openMenuDialog()}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  )}
+                </CardTitle>
+                <CardDescription>Top-level navigation tabs</CardDescription>
+              </CardHeader>
+              <CardContent className="p-2 space-y-1">
+                {menus.map((menu, idx) => (
+                  <div
+                    key={menu.slug}
+                    onClick={() => setSelectedMenuIndex(idx)}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors text-sm font-medium ${
+                      idx === selectedMenuIndex
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <div className="truncate pr-2">
+                      <div className="font-semibold">{menu.menu}</div>
+                      <div className="text-[10px] text-muted-foreground">/relief/{menu.slug}</div>
+                    </div>
+                    
+                    {idx === selectedMenuIndex && hasPermission("admin") && (
+                      <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => moveMenu(idx, "up")} disabled={idx === 0} className="p-1 hover:text-primary disabled:opacity-30">
+                          <ArrowUp className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => moveMenu(idx, "down")} disabled={idx === menus.length - 1} className="p-1 hover:text-primary disabled:opacity-30">
+                          <ArrowDown className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => handleOpenPageBuilder(menu.slug, menu.menu, "menu")} className="p-1 hover:text-primary" title="Edit Custom Page & SEO">
+                          <FileText className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => openMenuDialog(idx)} className="p-1 hover:text-primary">
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => handleDeleteMenu(idx)} className="p-1 text-destructive hover:text-destructive/80">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
 
-                        {hasPermission("admin") && (
-                          <Button size="sm" variant="outline" className="w-full text-xs h-8 gap-1.5" onClick={() => openItemDialog(sIdx)}>
-                            <ListPlus className="h-3.5 w-3.5" /> Add Link
-                          </Button>
-                        )}
+            {/* Right column: Sections & Items inside the selected menu */}
+            <div className="md:col-span-3 space-y-6">
+              {currentMenu ? (
+                <>
+                  {/* Sections Header */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold flex items-center gap-2">
+                        <span>{currentMenu.menu}</span>
+                        <span className="text-xs font-normal text-muted-foreground">(/relief/{currentMenu.slug})</span>
+                      </h2>
+                    </div>
+                    {hasPermission("admin") && (
+                      <Button size="sm" onClick={() => openSectionDialog()} className="gap-2 rounded-full">
+                        <FolderPlus className="h-4 w-4" /> Add Section
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Sections list */}
+                  {currentMenu.sections.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                        No sections in this menu. Click "Add Section" to create one.
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {currentMenu.sections.map((section, sIdx) => (
+                        <Card key={section.title} className="relative group/section flex flex-col">
+                          <CardHeader className="pb-3 border-b bg-muted/30 flex flex-row items-center justify-between space-y-0 py-3 px-4">
+                            <div className="font-bold text-sm text-foreground truncate pr-2">{section.title}</div>
+                            {hasPermission("admin") && (
+                              <div className="flex items-center gap-0.5">
+                                <button onClick={() => moveSection(sIdx, "up")} disabled={sIdx === 0} className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30">
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => moveSection(sIdx, "down")} disabled={sIdx === currentMenu.sections.length - 1} className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30">
+                                  <ArrowDown className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => openSectionDialog(sIdx)} className="p-1 text-muted-foreground hover:text-primary">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => handleDeleteSection(sIdx)} className="p-1 text-muted-foreground hover:text-destructive">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </CardHeader>
+                          <CardContent className="p-4 flex-1 flex flex-col justify-between">
+                            {/* Items list */}
+                            <ul className="space-y-2 mb-4">
+                              {section.items.length === 0 ? (
+                                <li className="text-xs text-muted-foreground italic py-2 text-center">No links in this section</li>
+                              ) : (
+                                section.items.map((item, iIdx) => (
+                                  <li key={item.slug} className="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 text-xs transition-colors">
+                                    <div className="truncate pr-2">
+                                      <div className="font-semibold">{item.name}</div>
+                                      <div className="text-[9px] text-muted-foreground truncate">/category/{item.slug}</div>
+                                    </div>
+                                    {hasPermission("admin") && (
+                                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/section:opacity-100 transition-opacity">
+                                        <button onClick={() => moveItem(sIdx, iIdx, "up")} disabled={iIdx === 0} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
+                                          <ArrowUp className="h-3 w-3" />
+                                        </button>
+                                        <button onClick={() => moveItem(sIdx, iIdx, "down")} disabled={iIdx === section.items.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
+                                          <ArrowDown className="h-3 w-3" />
+                                        </button>
+                                        <button onClick={() => handleOpenPageBuilder(item.slug, item.name, "item")} className="p-0.5 text-muted-foreground hover:text-primary" title="Edit Custom Page & SEO">
+                                          <FileText className="h-3 w-3" />
+                                        </button>
+                                        <button onClick={() => openItemDialog(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-primary">
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
+                                        <button onClick={() => handleDeleteItem(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-destructive">
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+
+                            {hasPermission("admin") && (
+                              <Button size="sm" variant="outline" className="w-full text-xs h-8 gap-1.5" onClick={() => openItemDialog(sIdx)}>
+                                <ListPlus className="h-3.5 w-3.5" /> Add Link
+                              </Button>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">Select a menu to start managing its columns.</div>
               )}
-            </>
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">Select a menu to start managing its columns.</div>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* --- DIALOGS --- */}

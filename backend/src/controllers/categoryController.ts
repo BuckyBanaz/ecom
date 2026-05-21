@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/db";
 
 export const getCategories = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -9,6 +7,9 @@ export const getCategories = async (_req: Request, res: Response, next: NextFunc
       include: {
         parent: true,
         children: true,
+        _count: {
+          select: { products: true }
+        }
       },
       orderBy: { name: "asc" },
     });
@@ -34,6 +35,9 @@ export const getCategoryById = async (req: Request, res: Response, next: NextFun
       include: {
         parent: true,
         children: true,
+        _count: {
+          select: { products: true }
+        }
       },
     });
 

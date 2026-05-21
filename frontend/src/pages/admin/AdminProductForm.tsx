@@ -7,11 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Brand, Series } from "@/data/brands";
 import { Attribute } from "@/data/attributes";
+import { brandRepository, categoryRepository, attributeRepository, productRepository, seriesRepository } from "@/client/apiClient";
+
 
 export interface SpecItem {
   id: string;
@@ -26,6 +29,10 @@ const AdminProductForm = () => {
   const { hasPermission } = useAdmin();
 
   const isEdit = id !== undefined && id !== "new";
+
+  // Loading states
+  const [isMetadataLoading, setIsMetadataLoading] = useState(true);
+  const [isProductLoading, setIsProductLoading] = useState(isEdit);
 
   // Data states
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -60,61 +67,61 @@ const AdminProductForm = () => {
   // Load brands, categories, attributes, series
   useEffect(() => {
     const loadMetadata = async () => {
-      // 1. Brands
+      setIsMetadataLoading(true);
       try {
-        const res = await fetch("/api/v1/brands");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.brands) setBrands(data.brands);
-        } else {
-          throw new Error();
-        }
-      } catch (e) {
-        const saved = localStorage.getItem("brands_data");
-        if (saved) setBrands(JSON.parse(saved));
-        else {
-          const { brands: initialBrands } = await import("@/data/brands");
-          setBrands(initialBrands);
-        }
-      }
-
-      // 1.5. Series
-      const savedSeries = localStorage.getItem("series_data");
-      if (savedSeries) {
+        // 1. Brands
         try {
-          setSeriesList(JSON.parse(savedSeries));
+          const data = await brandRepository.getAll();
+          if (data.success && data.brands) setBrands(data.brands);
         } catch (e) {
-          const { series: initialSeries } = await import("@/data/brands");
-          setSeriesList(initialSeries);
+          const saved = localStorage.getItem("brands_data");
+          if (saved) setBrands(JSON.parse(saved));
+          else {
+            const { brands: initialBrands } = await import("@/data/brands");
+            setBrands(initialBrands);
+          }
         }
-      } else {
-        const { series: initialSeries } = await import("@/data/brands");
-        setSeriesList(initialSeries);
-      }
 
-      // 2. Categories
-      try {
-        const res = await fetch("/api/v1/categories");
-        if (res.ok) {
-          const data = await res.json();
+        // 1.5. Series
+        try {
+          const data = await seriesRepository.getAll();
+          if (data.success && data.series) {
+            setSeriesList(data.series);
+          } else {
+            throw new Error("Failed to fetch series");
+          }
+        } catch (e) {
+          const savedSeries = localStorage.getItem("series_data");
+          if (savedSeries) {
+            try {
+              setSeriesList(JSON.parse(savedSeries));
+            } catch (err) {
+              const { series: initialSeries } = await import("@/data/brands");
+              setSeriesList(initialSeries);
+            }
+          } else {
+            const { series: initialSeries } = await import("@/data/brands");
+            setSeriesList(initialSeries);
+          }
+        }
+
+
+        // 2. Categories
+        try {
+          const data = await categoryRepository.getAll();
           if (data.success && data.categories) setCategoriesList(data.categories);
-        } else {
-          throw new Error();
+        } catch (e) {
+          const saved = localStorage.getItem("categories_data");
+          if (saved) setCategoriesList(JSON.parse(saved));
+          else {
+            const { categories: initialCategories } = await import("@/data/categories");
+            setCategoriesList(initialCategories);
+          }
         }
-      } catch (e) {
-        const saved = localStorage.getItem("categories_data");
-        if (saved) setCategoriesList(JSON.parse(saved));
-        else {
-          const { categories: initialCategories } = await import("@/data/categories");
-          setCategoriesList(initialCategories);
-        }
-      }
 
-      // 3. Attributes
-      try {
-        const res = await fetch("/api/v1/attributes");
-        if (res.ok) {
-          const data = await res.json();
+        // 3. Attributes
+        try {
+          const data = await attributeRepository.getAll();
           if (data.success && data.attributes) {
             const mapped = data.attributes.map((a: any) => ({
               id: a.id,
@@ -126,16 +133,16 @@ const AdminProductForm = () => {
             }));
             setAttributes(mapped);
           }
-        } else {
-          throw new Error();
+        } catch (e) {
+          const saved = localStorage.getItem("attributes_data");
+          if (saved) setAttributes(JSON.parse(saved));
+          else {
+            const { attributes: initialAttributes } = await import("@/data/attributes");
+            setAttributes(initialAttributes);
+          }
         }
-      } catch (e) {
-        const saved = localStorage.getItem("attributes_data");
-        if (saved) setAttributes(JSON.parse(saved));
-        else {
-          const { attributes: initialAttributes } = await import("@/data/attributes");
-          setAttributes(initialAttributes);
-        }
+      } finally {
+        setIsMetadataLoading(false);
       }
     };
 
@@ -217,11 +224,11 @@ const AdminProductForm = () => {
     }
 
     const loadProduct = async () => {
-      // 1. Try backend
+      setIsProductLoading(true);
       try {
-        const res = await fetch(`/api/v1/products/${id}`);
-        if (res.ok) {
-          const data = await res.json();
+        // 1. Try backend
+        try {
+          const data = await productRepository.getByIdOrSlug(id);
           if (data.success && data.product) {
             const p = data.product;
             setName(p.title || p.name || "");
@@ -254,6 +261,75 @@ const AdminProductForm = () => {
             // Parse specs
             let foundNumLights = "";
             let foundSeries = "";
+            if (Array.isArray(p.specs)) {
+              p.specs.forEach((s: any) => {
+                if (s && s.key === "Number of lights") foundNumLights = String(s.value);
+                if (s && s.key === "Series") foundSeries = String(s.value);
+              });
+            } else {
+              Object.entries(p.specs || {}).forEach(([k, val]) => {
+                const cleanKey = k.includes("::") ? k.split("::")[1] : k;
+                if (cleanKey === "Number of lights") {
+                  foundNumLights = String(val);
+                }
+                if (cleanKey === "Series") {
+                  foundSeries = String(val);
+                }
+              });
+            }
+            setNumberOfLights(foundNumLights);
+            setSelectedSeries(foundSeries || "none");
+
+            const parsed = parseSpecs(p.specs || {});
+            setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+            return;
+          }
+        } catch (e) {
+          console.warn("Backend API not reachable for product fetch, using local fallback.");
+        }
+
+        // 2. Try localStorage / static mockup fallback
+        const savedProducts = localStorage.getItem("products_data");
+        let allProducts = [];
+        if (savedProducts) {
+          try { allProducts = JSON.parse(savedProducts); } catch (e) {}
+        } else {
+          const { products: initialProducts } = await import("@/data/products");
+          allProducts = initialProducts;
+        }
+
+        const p = allProducts.find((x: any) => String(x.id) === id);
+        if (p) {
+          setName(p.name || "");
+          setPrice(String(p.price || ""));
+          setOldPrice(p.oldPrice ? String(p.oldPrice) : "");
+          setThumbnail(p.image || null);
+          setGalleryImages(p.images || (p.image ? [p.image] : []));
+          setDescription(p.description || "");
+          setShortDescription(p.shortDescription || "");
+          setInStock(p.inStock ?? true);
+          setIsNewArrival(p.isNewArrival ?? false);
+          setIsBestSelling(p.isBestSelling ?? false);
+          setSelectedCategory(p.category || "");
+          setSelectedBrand(p.brand || "");
+
+          // Initialize from local flat fields
+          const initialAttrVals: Record<string, string[]> = {};
+          if (p.color) initialAttrVals["color"] = [p.color];
+          if (p.material) initialAttrVals["material"] = [p.material];
+          if (p.style) initialAttrVals["style"] = [p.style];
+          if (p.fitting) initialAttrVals["fitting"] = [p.fitting];
+          setSelectedAttributeValues(initialAttrVals);
+
+          // Parse specs
+          let foundNumLights = "";
+          let foundSeries = "";
+          if (Array.isArray(p.specs)) {
+            p.specs.forEach((s: any) => {
+              if (s && s.key === "Number of lights") foundNumLights = String(s.value);
+              if (s && s.key === "Series") foundSeries = String(s.value);
+            });
+          } else {
             Object.entries(p.specs || {}).forEach(([k, val]) => {
               const cleanKey = k.includes("::") ? k.split("::")[1] : k;
               if (cleanKey === "Number of lights") {
@@ -263,68 +339,15 @@ const AdminProductForm = () => {
                 foundSeries = String(val);
               }
             });
-            setNumberOfLights(foundNumLights);
-            setSelectedSeries(foundSeries || "none");
-
-            const parsed = parseSpecs(p.specs || {});
-            setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
-            return;
           }
+          setNumberOfLights(foundNumLights);
+          setSelectedSeries(foundSeries || "none");
+
+          const parsed = parseSpecs(p.specs || {});
+          setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
         }
-      } catch (e) {
-        console.warn("Backend API not reachable for product fetch, using local fallback.");
-      }
-
-      // 2. Try localStorage / static mockup fallback
-      const savedProducts = localStorage.getItem("products_data");
-      let allProducts = [];
-      if (savedProducts) {
-        try { allProducts = JSON.parse(savedProducts); } catch (e) {}
-      } else {
-        const { products: initialProducts } = await import("@/data/products");
-        allProducts = initialProducts;
-      }
-
-      const p = allProducts.find((x: any) => String(x.id) === id);
-      if (p) {
-        setName(p.name || "");
-        setPrice(String(p.price || ""));
-        setOldPrice(p.oldPrice ? String(p.oldPrice) : "");
-        setThumbnail(p.image || null);
-        setGalleryImages(p.images || (p.image ? [p.image] : []));
-        setDescription(p.description || "");
-        setShortDescription(p.shortDescription || "");
-        setInStock(p.inStock ?? true);
-        setIsNewArrival(p.isNewArrival ?? false);
-        setIsBestSelling(p.isBestSelling ?? false);
-        setSelectedCategory(p.category || "");
-        setSelectedBrand(p.brand || "");
-
-        // Initialize from local flat fields
-        const initialAttrVals: Record<string, string[]> = {};
-        if (p.color) initialAttrVals["color"] = [p.color];
-        if (p.material) initialAttrVals["material"] = [p.material];
-        if (p.style) initialAttrVals["style"] = [p.style];
-        if (p.fitting) initialAttrVals["fitting"] = [p.fitting];
-        setSelectedAttributeValues(initialAttrVals);
-
-        // Parse specs
-        let foundNumLights = "";
-        let foundSeries = "";
-        Object.entries(p.specs || {}).forEach(([k, val]) => {
-          const cleanKey = k.includes("::") ? k.split("::")[1] : k;
-          if (cleanKey === "Number of lights") {
-            foundNumLights = String(val);
-          }
-          if (cleanKey === "Series") {
-            foundSeries = String(val);
-          }
-        });
-        setNumberOfLights(foundNumLights);
-        setSelectedSeries(foundSeries || "none");
-
-        const parsed = parseSpecs(p.specs || {});
-        setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+      } finally {
+        setIsProductLoading(false);
       }
     };
 
@@ -383,6 +406,116 @@ const AdminProductForm = () => {
     return (
       <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
         <p>You do not have permission to access this page.</p>
+      </div>
+    );
+  }
+
+  const isLoading = isMetadataLoading || (isEdit && isProductLoading);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-8 pb-12">
+        {/* Header Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/45 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
+          <div className="flex items-center gap-4 w-full">
+            <Skeleton className="rounded-full shrink-0 h-10 w-10" />
+            <div className="space-y-2 flex-grow">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-80" />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          {/* LEFT COLUMN — Main Forms (2/3 Width) */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Basic Info */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden p-6 space-y-6">
+              <div className="space-y-2 border-b pb-4">
+                <Skeleton className="h-5 w-36" />
+                <Skeleton className="h-3.5 w-64" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-2 space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-12" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
+            </Card>
+
+            {/* Description Card */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden p-6 space-y-4">
+              <div className="space-y-2 border-b pb-4">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-3.5 w-72" />
+              </div>
+              <Skeleton className="h-48 w-full" />
+            </Card>
+
+            {/* Media & Gallery Uploads */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden p-6 space-y-4">
+              <div className="space-y-2 border-b pb-4">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-3.5 w-56" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Skeleton className="aspect-square w-full rounded-2xl" />
+                <div className="md:col-span-2 space-y-4">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-28 w-full rounded-2xl" />
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="space-y-8">
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden p-6 space-y-6">
+              <div className="space-y-2 border-b pb-4">
+                <Skeleton className="h-5 w-44" />
+                <Skeleton className="h-3.5 w-60" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-4 pt-4 border-t">
+                <Skeleton className="h-4 w-32" />
+                <div className="space-y-3">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -496,21 +629,14 @@ const AdminProductForm = () => {
 
     // 1. Try saving to backend API
     try {
-      const url = isEdit ? `/api/v1/products/${id}` : "/api/v1/products";
-      const method = isEdit ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const data = isEdit
+        ? await productRepository.update(id, payload)
+        : await productRepository.create(payload);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          toast.success(isEdit ? `Product "${name}" updated` : `Product "${name}" created`);
-          navigate("/admin/products");
-          return;
-        }
+      if (data.success) {
+        toast.success(isEdit ? `Product "${name}" updated` : `Product "${name}" created`);
+        navigate("/admin/products");
+        return;
       }
     } catch (err) {
       console.warn("Backend API save failed, syncing to local storage / mock data only.");

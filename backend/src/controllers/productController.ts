@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/db";
 
 // Helper to extract filters from query parameters
 const parseFilters = (query: any) => {
@@ -286,8 +284,13 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
 export const getProductBySlug = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { slug } = req.params;
-    const product = await prisma.product.findUnique({
-      where: { slug },
+    const product = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { id: slug },
+          { slug }
+        ]
+      },
       include: {
         brand: true,
         category: {

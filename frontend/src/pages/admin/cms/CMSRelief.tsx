@@ -122,7 +122,12 @@ export default function CMSRelief() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Relief Page CMS</h1>
-          <p className="text-muted-foreground">Customize layout, hero descriptions, and active category sections shown on the /relief page.</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-muted-foreground">Customize layout, hero descriptions, and active category sections.</p>
+            <a href={(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '') + "/relief"} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md transition-colors border flex items-center gap-1">
+              Live URL: {(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '')}/relief
+            </a>
+          </div>
         </div>
         <Button onClick={handleSave} className="gap-2 shadow-xs transition-all duration-200">
           <Save className="h-4 w-4" /> Save Changes

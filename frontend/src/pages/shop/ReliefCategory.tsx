@@ -3,11 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { categories } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
 import { ProductCard } from "@/components/shop/ProductCard";
-import { products } from "@/data/products";
+import { productRepository } from "@/client/apiClient";
 import { initialBlogs } from "@/data/blogs";
 import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { BlogCard } from "@/components/shop/BlogCard";
 
 const resolveCategorySlug = (menuItemSlug: string) => {
   const mappings: Record<string, string> = {
@@ -51,7 +51,7 @@ export default function ReliefCategory() {
   const [landingPage, setLandingPage] = useState<any>(null);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [blogsList, setBlogsList] = useState<any[]>([]);
-  const [activeBlog, setActiveBlog] = useState<any | null>(null);
+  const [productsList, setProductsList] = useState<any[]>([]);
 
   useEffect(() => {
     const savedMenus = localStorage.getItem("mega_menu_data");
@@ -105,6 +105,23 @@ export default function ReliefCategory() {
     } else {
       setBlogsList(initialBlogs);
     }
+
+    // Load products from backend
+    const loadProducts = async () => {
+      try {
+        const prodData = await productRepository.getAll();
+        if (prodData.success && prodData.products) {
+          setProductsList(prodData.products.map((p: any) => ({
+            ...p,
+            brand: p.brand && typeof p.brand === "object" ? p.brand.name : p.brand,
+            category: p.category && typeof p.category === "object" ? p.category.slug : p.category,
+          })));
+        }
+      } catch (e) {
+        console.error("Failed to load products:", e);
+      }
+    };
+    loadProducts();
 
     const savedPages = localStorage.getItem("landing_pages_data");
     if (savedPages) {
@@ -176,7 +193,7 @@ export default function ReliefCategory() {
 
       {landingPage ? (
         <div className="space-y-12">
-          {landingPage.blocks.map((block: any, idx: number) => {
+          {(Array.isArray(landingPage.blocks) ? landingPage.blocks : []).map((block: any, idx: number) => {
             if (block.type === "text") {
               return (
                 <div key={idx} className="prose max-w-none dark:prose-invert">
@@ -188,8 +205,7 @@ export default function ReliefCategory() {
             if (block.type === "products") {
               const targetCategory = block.categorySlug;
               const isDeals = targetCategory === "deals";
-              let list = isDeals ? products.filter((p) => p.oldPrice) : products.filter((p) => p.category === targetCategory);
-              if (list.length === 0 && !isDeals) list = products;
+              const list = isDeals ? productsList.filter((p) => p.oldPrice) : productsList.filter((p) => p.category === targetCategory);
 
               return (
                 <div key={idx} className="space-y-6">
@@ -205,11 +221,15 @@ export default function ReliefCategory() {
                       className="text-muted-foreground leading-relaxed prose max-w-none text-sm dark:prose-invert"
                     />
                   )}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {list.map((p) => (
-                      <ProductCard key={p.id} product={p} />
-                    ))}
-                  </div>
+                  {list.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">No products found for this category.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                      {list.map((p) => (
+                        <ProductCard key={p.id} product={p} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             }
@@ -231,7 +251,7 @@ export default function ReliefCategory() {
                     )}
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                       {selectedCats.map((c) => {
-                        const count = products.filter(p => p.category === c.slug).length;
+                        const count = productsList.filter(p => p.category === c.slug).length;
                         return (
                           <Link
                             key={c.slug}
@@ -282,44 +302,7 @@ export default function ReliefCategory() {
                     ) : (
                       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {selectedBlogs.map((b) => (
-                          <div
-                            key={b.id}
-                            onClick={() => setActiveBlog(b)}
-                            className="group rounded-2xl border bg-card overflow-hidden shadow-xs hover:shadow-md hover:border-primary/20 transition-all duration-300 cursor-pointer flex flex-col justify-between"
-                          >
-                            <div>
-                              <div className="aspect-video w-full overflow-hidden bg-muted relative">
-                                {b.cover ? (
-                                  <img
-                                    src={b.cover}
-                                    alt={b.title}
-                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                  />
-                                ) : (
-                                  <div className="flex h-full items-center justify-center text-muted-foreground text-xs font-semibold">
-                                    No cover image
-                                  </div>
-                                )}
-                              </div>
-                              <div className="p-5 space-y-2">
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                  <span>By {b.author || "Guest"}</span>
-                                  <span>{b.date}</span>
-                                </div>
-                                <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                                  {b.title}
-                                </h3>
-                                <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                                  {b.excerpt}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="p-5 pt-0">
-                              <span className="text-xs font-bold text-primary flex items-center gap-1 group-hover:underline">
-                                Read Article &rarr;
-                              </span>
-                            </div>
-                          </div>
+                          <BlogCard key={b.id} blog={b} />
                         ))}
                       </div>
                     )}
@@ -475,47 +458,6 @@ export default function ReliefCategory() {
           </div>
         </>
       )}
-      {/* Blog Details Modal */}
-      <Dialog open={!!activeBlog} onOpenChange={(open) => !open && setActiveBlog(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border p-0 shadow-lg bg-card">
-          {activeBlog && (
-            <div>
-              <div className="aspect-video w-full overflow-hidden bg-muted relative">
-                {activeBlog.cover ? (
-                  <img src={activeBlog.cover} alt={activeBlog.title} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground text-sm font-semibold">No cover image</div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-6 left-6 right-6 text-white">
-                  <span className="bg-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                    Article
-                  </span>
-                  <h2 className="text-xl md:text-3xl font-extrabold mt-3 tracking-tight">
-                    {activeBlog.title}
-                  </h2>
-                </div>
-              </div>
-              <div className="p-6 md:p-8 space-y-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground border-b pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">By {activeBlog.author || "Guest"}</span>
-                  </div>
-                  <span>Published on {activeBlog.date}</span>
-                </div>
-                <div className="prose dark:prose-invert max-w-none">
-                  <p className="text-lg text-foreground/90 font-medium italic border-l-4 border-primary pl-4 py-1 bg-muted/30 rounded-r-md">
-                    {activeBlog.excerpt}
-                  </p>
-                  <div className="text-muted-foreground leading-relaxed whitespace-pre-line mt-6 text-sm md:text-base">
-                    {activeBlog.body}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

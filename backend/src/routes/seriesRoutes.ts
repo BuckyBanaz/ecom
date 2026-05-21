@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 import {
   getSeries,
   getSeriesById,
@@ -82,7 +83,7 @@ router.get("/:id", getSeriesById);
  *       201:
  *         description: Series created successfully
  */
-router.post("/", createSeries);
+router.post("/", authenticateJWT, requireAdmin, createSeries);
 
 /**
  * @swagger
@@ -117,7 +118,7 @@ router.post("/", createSeries);
  *       404:
  *         description: Series not found
  */
-router.put("/:id", updateSeries);
+router.put("/:id", authenticateJWT, requireAdmin, updateSeries);
 
 /**
  * @swagger
@@ -137,6 +138,6 @@ router.put("/:id", updateSeries);
  *       404:
  *         description: Series not found
  */
-router.delete("/:id", deleteSeries);
+router.delete("/:id", authenticateJWT, requireAdmin, deleteSeries);
 
 export default router;

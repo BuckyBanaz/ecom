@@ -253,6 +253,22 @@ model Wishlist {
   @@map("wishlists")
 }
 
+// 7.5. Blogs Model
+model Blog {
+  id        String   @id @default(uuid())
+  title     String
+  slug      String   @unique
+  excerpt   String   @default("")
+  body      String   @default("")
+  cover     String?
+  author    String   @default("")
+  published Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("blogs")
+}
+
 // 8. CMS Configuration Model
 model CmsConfig {
   key       String   @id
@@ -272,4 +288,21 @@ model MegaMenu {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("mega_menus")
+}
+
+// 10. CMS Pages Model
+model CmsPage {
+  id          String   @id @default(uuid())
+  title       String
+  slug        String   @unique
+  body        String   @default("")
+  published   Boolean  @default(false)
+  seoTitle    String?  @map("seo_title")
+  seoDesc     String?  @map("seo_desc")
+  seoKeywords String?  @map("seo_keywords")
+  seoImage    String?  @map("seo_image")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("cms_pages")
 }

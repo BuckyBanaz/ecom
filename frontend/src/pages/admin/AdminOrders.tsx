@@ -102,7 +102,14 @@ const AdminOrders = () => {
                 <p className="font-semibold text-sm mb-2">Items</p>
                 {viewOrder.items.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-3 py-2">
-                    <img src={item.productImage} alt={item.productName} className="h-10 w-10 rounded-lg object-cover" />
+                    <img
+                      src={item.productImage}
+                      alt={item.productName}
+                      className="h-10 w-10 rounded-lg object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/placeholder.svg";
+                      }}
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{item.productName}</p>
                       <p className="text-xs text-muted-foreground">Qty: {item.quantity} {item.variant && `· ${item.variant}`}</p>

@@ -1,6 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Heart, Menu, Search, ShoppingCart, User, ChevronDown } from "lucide-react";
+import { ChevronDown, Heart, Menu, Search, ShoppingCart, User } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { iconMap } from "@/utils/fontawesome";
 import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +19,10 @@ export function Header() {
   const { ids } = useWishlist();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [menuList, setMenuList] = useState<any[]>([]);
+  const [topLeft, setTopLeft] = useState<any[]>([]);
+  const [topRight, setTopRight] = useState<any[]>([]);
+
+  const resolveIcon = (value: string) => iconMap.get(value) || iconMap.get("star");
 
   useEffect(() => {
     const loadData = () => {
@@ -29,6 +35,18 @@ export function Header() {
         }
       } else {
         setMenuList(megaMenuData);
+      }
+
+      const savedHeaderFooter = localStorage.getItem("header_footer_data");
+      if (savedHeaderFooter) {
+        try {
+          const parsed = JSON.parse(savedHeaderFooter);
+          setTopLeft(parsed.topLeft || []);
+          setTopRight(parsed.topRight || []);
+        } catch (e) {
+          setTopLeft([]);
+          setTopRight([]);
+        }
       }
     };
 
@@ -44,6 +62,30 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+      {topLeft.length > 0 || topRight.length > 0 ? (
+        <div className="border-b bg-muted/30">
+          <div className="container-page flex flex-wrap items-center justify-between gap-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center gap-4">
+              {topLeft.map((item, idx) => {
+                const icon = resolveIcon(item.icon);
+                return (
+                  <span key={`${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
+                    {icon && <FontAwesomeIcon icon={icon} className="h-4 w-4 text-primary" />}
+                    {item.text}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-4 text-muted-foreground">
+              {topRight.map((link, idx) => (
+                <Link key={`${link.label}-${idx}`} to={link.href} className="hover:text-primary">
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="container-page flex items-center gap-4 py-3 md:gap-6 md:py-4">
         <Sheet>
           <SheetTrigger asChild>

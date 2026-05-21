@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/db";
 
 // GET /api/v1/megamenus
 export const getMegaMenus = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {

@@ -13,15 +13,21 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [isLoading, setIsLoading] = useState(false);
+
   if (isLoggedIn) return <Navigate to="/admin" replace />;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(email, password)) {
+    setIsLoading(true);
+    const success = await login(email, password);
+    setIsLoading(false);
+    
+    if (success) {
       toast.success("Welcome back!");
       navigate("/admin");
     } else {
-      toast.error("Invalid credentials. Try super@lamp.com / admin123");
+      toast.error("Invalid credentials.");
     }
   };
 
@@ -44,7 +50,9 @@ const AdminLogin = () => {
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="admin123" className="mt-1" />
           </div>
-          <Button className="w-full rounded-full" type="submit">Sign in</Button>
+          <Button className="w-full rounded-full" type="submit" disabled={isLoading}>
+            {isLoading ? "Signing in..." : "Sign in"}
+          </Button>
         </form>
         <div className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
           <p className="font-semibold mb-1">Demo accounts:</p>

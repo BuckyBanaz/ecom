@@ -8,6 +8,7 @@ async function main() {
 
   // 1. Clean existing records in reverse order of foreign key dependencies
   console.log("🧹 Clearing old database records...");
+  await prisma.blog.deleteMany();
   await prisma.megaMenu.deleteMany();
   await prisma.cmsConfig.deleteMany();
   await prisma.wishlist.deleteMany();
@@ -342,14 +343,35 @@ async function main() {
       const diameterVal = ["20-40 cm", "40-60 cm"][counter % 2];
       const lengthVal = "40-60 cm";
 
-      // Specs Backup
-      const specs = {
-        Material: materialVal,
-        "Bulb fitting": fittingVal,
-        Dimmable: dimmableVal,
-        "IP rating": ipRatingVal,
-        Warranty: "2 years",
-      };
+      // Series association
+      const brandSeriesList = seriesData.filter((s) => s.brandName === brandName);
+      const chosenSeries = brandSeriesList.length > 0 ? brandSeriesList[counter % brandSeriesList.length].name : null;
+
+      const specs = [
+        { key: "Maximum wattage", value: `${[7, 10, 15, 25][counter % 4]}W`, link: "" },
+        { key: "Connection voltage", value: "220-240V", link: "" },
+        { key: "Type of fitting", value: fittingVal, link: "" },
+        { key: "Includes light", value: counter % 3 === 0 ? "Yes" : "No", link: "" },
+        { key: "Dimmable", value: dimmableVal === "Yes" ? "Yes (not included)" : "No", link: "" },
+        { key: "Length in cm", value: `${30 + (counter % 5) * 10}`, link: "" },
+        { key: "Width in cm", value: `${30 + (counter % 5) * 10}`, link: "" },
+        { key: "Height in cm", value: `${120 + (counter % 5) * 20}`, link: "" },
+        { key: "Base/mounting plate width in cm", value: `${12 + (counter % 3) * 2}`, link: "" },
+        { key: "Foot/mounting plate length", value: `${12 + (counter % 3) * 2}`, link: "" },
+        { key: "Height of foot/mounting plate", value: "2.5", link: "" },
+        { key: "Colour", value: colorVal, link: "" },
+        { key: "Material", value: materialVal, link: "" },
+        { key: "Style", value: styleVal, link: "" },
+        { key: "Warranty", value: "2 years", link: "" },
+        { key: "Article number", value: `Q10${750 + counter}`, link: "" },
+        { key: "IP rating", value: ipRatingVal === "IP44" ? "IP44 (splashproof)" : "IP20 (dustproof)", link: "" },
+        { key: "Installation Manual", value: "Download PDF", link: "" },
+        { key: "Number of lights", value: `${(counter % 3) + 1}`, link: "" }
+      ];
+
+      if (chosenSeries) {
+        specs.push({ key: "Series", value: chosenSeries, link: "" });
+      }
 
       const product = await prisma.product.create({
         data: {
@@ -546,32 +568,76 @@ async function main() {
     }
   }
 
+  // 11.5 Create Mock Blogs
+  console.log("📝 Creating blogs...");
+  await prisma.blog.createMany({
+    data: [
+      {
+        title: "How to Choose the Perfect Living Room Lighting",
+        slug: "how-to-choose-living-room-lighting",
+        excerpt: "A comprehensive guide to layering light in your living space.",
+        body: "<p>When designing your living room, lighting is often an afterthought. However, it is one of the most crucial elements in creating a warm and inviting atmosphere. Start with ambient lighting...</p>",
+        cover: "/assets/cat-floor.jpg",
+        author: "Interior Design Team",
+        published: true,
+      },
+      {
+        title: "5 Trends in Outdoor Lighting for 2026",
+        slug: "5-trends-outdoor-lighting-2026",
+        excerpt: "Discover what's new and exciting in outdoor illumination.",
+        body: "<p>Outdoor lighting has evolved far beyond simple floodlights. Today, it's about creating outdoor living spaces. From solar-powered string lights to smart path lighting...</p>",
+        cover: "/assets/cat-outdoor.jpg",
+        author: "Lighting Expert",
+        published: true,
+      },
+      {
+        title: "Understanding LED Color Temperatures",
+        slug: "understanding-led-color-temperatures",
+        excerpt: "Warm white, cool white, daylight—what does it all mean?",
+        body: "<p>Choosing the right LED color temperature can dramatically affect the mood of a room. Measured in Kelvin (K), color temperature dictates whether a light appears warm (yellowish) or cool (bluish)...</p>",
+        cover: "/assets/cat-bulbs.jpg",
+        author: "Tech Corner",
+        published: true,
+      }
+    ]
+  });
+
   // 12. Seed CMS dynamic config templates
   console.log("📺 Seeding CMS Dynamic configurations...");
+  const wrapBlock = (shortcode: string, name: string) => `<div class="cms-block" style="background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b;"><span contenteditable="false" style="position: absolute; top: -1px; right: -1px; background-color: #71717a; color: white; padding: 4px 8px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none;">${name}</span>${shortcode}</div>`;
+  const defaultHomepageBlocks = [
+    wrapBlock('[hero-banner title="Spring Deals" subtitle="Up to 50% off" primary_button_text="Shop now" primary_button_link="/category/deals" background_image="/src/assets/hero-spring.jpg"][/hero-banner]', 'Hero Banner'),
+    wrapBlock('[category-block title="Categories"][/category-block]', 'Category Block'),
+    wrapBlock('[product-block title="Bestsellers" type="bestsellers"][/product-block]', 'Product Block'),
+    wrapBlock('[features-block count="4" icon_1="truck-fast" title_1="Fast delivery" desc_1="Order before 22:00, delivered next day" icon_2="rotate-left" title_2="30-day returns" desc_2="Not happy? Send it back for free" icon_3="shield" title_3="2-year warranty" desc_3="Quality you can trust" icon_4="headset" title_4="Expert support" desc_4="7 days a week"][/features-block]', 'Features Block'),
+    wrapBlock('[product-block title="Spring deals" type="deals"][/product-block]', 'Product Block'),
+    wrapBlock('[brands-block title="Popular brands"][/brands-block]', 'Brands Block'),
+    wrapBlock('[reviews-block title="What our customers say"][/reviews-block]', 'Reviews Block'),
+    wrapBlock('[blogs-block title="Latest from the journal" description="Design inspiration, trends, and lighting advice."][/blogs-block]', 'Blogs Block')
+  ].join('<p><br/></p>');
+
   await prisma.cmsConfig.create({
     data: {
-      key: "homepage_slider",
+      key: "homepage_data",
       value: {
-        slides: [
-          {
-            id: 1,
-            title: "Light Up Your Living Room",
-            subtitle: "Spring Clearance Deals - Up to 40% Off on Pendant Lights",
-            buttonText: "Shop Pendant Lights",
-            link: "/category/pendant-lamps",
-            image: "/assets/cat-pendant.jpg",
-          },
-          {
-            id: 2,
-            title: "Bring Light Outdoors",
-            subtitle: "Stunning String Lights & Wall Lanterns for Balcony & Garden",
-            buttonText: "Shop Outdoor",
-            link: "/category/string-lights",
-            image: "/assets/cat-string.jpg",
-          },
-        ],
+        content: defaultHomepageBlocks,
+        seoTitle: "Premium Lighting & Home Decor | YourStore",
+        seoDesc: "Shop the best curated lighting collection for your home. Spring deals up to 50% off.",
+        seoKeywords: "lighting, lamps, pendant lights, home decor",
+        seoImage: null
       },
     },
+  });
+
+  // 12.5 Seed CMS Pages
+  console.log("📄 Seeding CMS Pages...");
+  await prisma.cmsPage.createMany({
+    data: [
+      { title: "About Us", slug: "about", body: '[hero-banner title="About Us" subtitle="Our story"][/hero-banner]', published: true },
+      { title: "Shipping Info", slug: "shipping", body: "<p>Delivery details...</p>", published: true },
+      { title: "Returns", slug: "returns", body: "<p>30-day returns...</p>", published: true },
+      { title: "Contact", slug: "contact", body: "<p>Get in touch...</p>", published: false }
+    ]
   });
 
   // 13. Seed Mega Menu structure
@@ -656,19 +722,23 @@ async function main() {
       key: "landing_pages_data",
       value: {
         "interior-lighting": {
-          pageTitle: "Interior lighting",
-          pageBlocks: [
+          title: "Interior lighting",
+          blocks: [
             {
-              id: "1",
-              type: "banner",
-              heading: "Interior lighting",
-              content: "<h2><strong>Discover Our Premium Selection of Interior lighting</strong></h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p>"
+              type: "text",
+              title: "Interior lighting",
+              description: "<h2><strong>Discover Our Premium Selection of Interior lighting</strong></h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p>"
             },
             {
-              id: "2",
-              type: "product_grid",
-              category: "pendant-lamps",
+              type: "products",
+              categorySlug: "pendant-lamps",
               description: ""
+            },
+            {
+              type: "component",
+              componentType: "categories",
+              title: "Browse Interior Categories",
+              selectedItems: []
             }
           ],
           seoTitle: "Interior lighting | Buy Premium Lighting Online",
@@ -677,16 +747,50 @@ async function main() {
           seoImage: ""
         },
         "outdoor-lighting": {
-          pageTitle: "Outdoor lighting",
-          pageBlocks: [],
+          title: "Outdoor lighting",
+          blocks: [
+            {
+              type: "text",
+              title: "Outdoor lighting",
+              description: "<h2><strong>Upgrade Your Outdoors</strong></h2><p>Discover durable, stylish outdoor lighting for gardens, patios, and entrances.</p>"
+            },
+            {
+              type: "products",
+              categorySlug: "outdoor-lamps",
+              description: ""
+            },
+            {
+              type: "component",
+              componentType: "categories",
+              title: "Outdoor Categories",
+              selectedItems: []
+            }
+          ],
           seoTitle: "Outdoor lighting | Buy Premium Lighting Online",
           seoDescription: "Shop our selection of premium Outdoor lighting.",
           seoKeywords: "outdoor lighting, garden lights",
           seoImage: ""
         },
         "light-sources": {
-          pageTitle: "Light sources",
-          pageBlocks: [],
+          title: "Light sources",
+          blocks: [
+            {
+              type: "text",
+              title: "Light sources",
+              description: "<h2><strong>Find the Right Bulb</strong></h2><p>LED, smart, and classic bulbs for every room and fixture.</p>"
+            },
+            {
+              type: "products",
+              categorySlug: "led-bulbs",
+              description: ""
+            },
+            {
+              type: "component",
+              componentType: "categories",
+              title: "Popular Bulb Categories",
+              selectedItems: []
+            }
+          ],
           seoTitle: "Light sources | Buy Premium Lighting Online",
           seoDescription: "Shop our selection of premium Light sources.",
           seoKeywords: "light bulbs, led, smart bulbs",

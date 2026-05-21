@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { brandRepository, categoryRepository, attributeRepository } from "@/client/apiClient";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -12,7 +13,7 @@ import { Attribute } from "@/data/attributes";
 import { initialBlogs } from "@/data/blogs";
 import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { BlogCard } from "@/components/shop/BlogCard";
 
 const resolveCategorySlug = (menuItemSlug: string) => {
   const mappings: Record<string, string> = {
@@ -46,7 +47,6 @@ const Category = () => {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [blogsList, setBlogsList] = useState<any[]>([]);
-  const [activeBlog, setActiveBlog] = useState<any | null>(null);
 
   // Filter values
   const [price, setPrice] = useState<[number, number]>([0, 400]);
@@ -79,13 +79,8 @@ const Category = () => {
     const loadMetadata = async () => {
       // 1. Brands
       try {
-        const res = await fetch("/api/v1/brands");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.brands) setBrands(data.brands);
-        } else {
-          throw new Error();
-        }
+        const data = await brandRepository.getAll();
+        if (data.success && data.brands) setBrands(data.brands);
       } catch (e) {
         const saved = localStorage.getItem("brands_data");
         if (saved) {
@@ -99,13 +94,8 @@ const Category = () => {
       // 2. Categories
       let loadedCats = categories;
       try {
-        const res = await fetch("/api/v1/categories");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.categories) loadedCats = data.categories;
-        } else {
-          throw new Error();
-        }
+        const data = await categoryRepository.getAll();
+        if (data.success && data.categories) loadedCats = data.categories;
       } catch (e) {
         const saved = localStorage.getItem("categories_data");
         if (saved) {
@@ -142,22 +132,17 @@ const Category = () => {
 
       // 3. Attributes
       try {
-        const res = await fetch("/api/v1/attributes");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.attributes) {
-            const mapped = data.attributes.map((a: any) => ({
-              id: a.id,
-              name: a.name,
-              slug: a.slug,
-              type: a.type,
-              values: a.attributeValues || [],
-              visibility: a.visibility || "both",
-            }));
-            setAttributes(mapped);
-          }
-        } else {
-          throw new Error();
+        const data = await attributeRepository.getAll();
+        if (data.success && data.attributes) {
+          const mapped = data.attributes.map((a: any) => ({
+            id: a.id,
+            name: a.name,
+            slug: a.slug,
+            type: a.type,
+            values: a.attributeValues || [],
+            visibility: a.visibility || "both",
+          }));
+          setAttributes(mapped);
         }
       } catch (e) {
         const saved = localStorage.getItem("attributes_data");
@@ -536,44 +521,7 @@ const Category = () => {
                     ) : (
                       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {selectedBlogs.map((b) => (
-                          <div
-                            key={b.id}
-                            onClick={() => setActiveBlog(b)}
-                            className="group rounded-2xl border bg-card overflow-hidden shadow-xs hover:shadow-md hover:border-primary/20 transition-all duration-300 cursor-pointer flex flex-col justify-between"
-                          >
-                            <div>
-                              <div className="aspect-video w-full overflow-hidden bg-muted relative">
-                                {b.cover ? (
-                                  <img
-                                    src={b.cover}
-                                    alt={b.title}
-                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                  />
-                                ) : (
-                                  <div className="flex h-full items-center justify-center text-muted-foreground text-xs font-semibold">
-                                    No cover image
-                                  </div>
-                                )}
-                              </div>
-                              <div className="p-5 space-y-2">
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                  <span>By {b.author || "Guest"}</span>
-                                  <span>{b.date}</span>
-                                </div>
-                                <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                                  {b.title}
-                                </h3>
-                                <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                                  {b.excerpt}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="p-5 pt-0">
-                              <span className="text-xs font-bold text-primary flex items-center gap-1 group-hover:underline">
-                                Read Article &rarr;
-                              </span>
-                            </div>
-                          </div>
+                          <BlogCard key={b.id} blog={b} />
                         ))}
                       </div>
                     )}
@@ -708,47 +656,6 @@ const Category = () => {
           </div>
         </>
       )}
-      {/* Blog Details Modal */}
-      <Dialog open={!!activeBlog} onOpenChange={(open) => !open && setActiveBlog(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border p-0 shadow-lg bg-card">
-          {activeBlog && (
-            <div>
-              <div className="aspect-video w-full overflow-hidden bg-muted relative">
-                {activeBlog.cover ? (
-                  <img src={activeBlog.cover} alt={activeBlog.title} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground text-sm font-semibold">No cover image</div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-6 left-6 right-6 text-white">
-                  <span className="bg-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                    Article
-                  </span>
-                  <h2 className="text-xl md:text-3xl font-extrabold mt-3 tracking-tight">
-                    {activeBlog.title}
-                  </h2>
-                </div>
-              </div>
-              <div className="p-6 md:p-8 space-y-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground border-b pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">By {activeBlog.author || "Guest"}</span>
-                  </div>
-                  <span>Published on {activeBlog.date}</span>
-                </div>
-                <div className="prose dark:prose-invert max-w-none">
-                  <p className="text-lg text-foreground/90 font-medium italic border-l-4 border-primary pl-4 py-1 bg-muted/30 rounded-r-md">
-                    {activeBlog.excerpt}
-                  </p>
-                  <div className="text-muted-foreground leading-relaxed whitespace-pre-line mt-6 text-sm md:text-base">
-                    {activeBlog.body}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

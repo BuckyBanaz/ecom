@@ -1,7 +1,25 @@
+import { useEffect, useState } from "react";
 import { Star, Truck, Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function TopBar() {
+  const [hasCmsTopBar, setHasCmsTopBar] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("header_footer_data");
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      const hasLeft = Array.isArray(parsed.topLeft) && parsed.topLeft.length > 0;
+      const hasRight = Array.isArray(parsed.topRight) && parsed.topRight.length > 0;
+      setHasCmsTopBar(hasLeft || hasRight);
+    } catch {
+      setHasCmsTopBar(false);
+    }
+  }, []);
+
+  if (hasCmsTopBar) return null;
+
   return (
     <div className="hidden border-b bg-topbar text-xs text-foreground md:block">
       <div className="container-page flex h-9 items-center justify-between">

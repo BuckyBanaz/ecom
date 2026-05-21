@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Search, Building2, LayoutGrid } from "lucide-react";
+import { brandRepository, seriesRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdmin } from "@/context/AdminContext";
@@ -10,7 +11,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { brands as initialBrands, Brand, series as initialSeries, Series } from "@/data/brands";
+import type { Brand, Series } from "@/data/brands";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const AdminBrands = () => {
   const { hasPermission } = useAdmin();
@@ -29,52 +31,35 @@ const AdminBrands = () => {
   const [seriesSearch, setSeriesSearch] = useState("");
   const [seriesLogoPreview, setSeriesLogoPreview] = useState<string>("");
   const [selectedSeriesBrand, setSelectedSeriesBrand] = useState<string>("");
+  
+  // Loading state
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load brands and series
   useEffect(() => {
     const fetchBrandsAndSeries = async () => {
-      // 1. Load Brands
+      setIsLoading(true);
       try {
-        const res = await fetch("/api/v1/brands");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.brands) {
-            setBrandsList(data.brands);
-          }
+        const brandData = await brandRepository.getAll();
+        if (brandData.success && brandData.brands) {
+          setBrandsList(brandData.brands);
         } else {
-          throw new Error();
+          setBrandsList([]);
         }
-      } catch (e) {
-        const savedBrands = localStorage.getItem("brands_data");
-        if (savedBrands) {
-          try { setBrandsList(JSON.parse(savedBrands)); } catch (e) { setBrandsList(initialBrands); }
+        
+        const seriesData = await seriesRepository.getAll();
+        if (seriesData.success && seriesData.series) {
+          setSeriesList(seriesData.series);
         } else {
-          setBrandsList(initialBrands);
+          setSeriesList([]);
         }
-      }
-
-      // 2. Load Series
-      try {
-        const res = await fetch("/api/v1/series");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.series) {
-            setSeriesList(data.series);
-          }
-        } else {
-          throw new Error();
-        }
-      } catch (e) {
-        const savedSeries = localStorage.getItem("series_data");
-        if (savedSeries) {
-          try {
-            setSeriesList(JSON.parse(savedSeries));
-          } catch (e) {
-            setSeriesList(initialSeries);
-          }
-        } else {
-          setSeriesList(initialSeries);
-        }
+      } catch (err) {
+        console.error("Failed to fetch brands and series:", err);
+        toast.error("Failed to load data from server");
+        setBrandsList([]);
+        setSeriesList([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -113,59 +98,28 @@ const AdminBrands = () => {
       return;
     }
 
-    let updatedList: Brand[] = [];
-
-    // Attempt backend save
     try {
-      const url = editBrand ? `/api/v1/brands/${editBrand.id}` : "/api/v1/brands";
-      const method = editBrand ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, logo }),
-      });
+      const data = editBrand 
+        ? await brandRepository.update(editBrand.id, { name, logo })
+        : await brandRepository.create({ name, logo });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.brand) {
-          if (editBrand) {
-            updatedList = brandsList.map((b) => (b.id === editBrand.id ? data.brand : b));
-            toast.success(`Brand "${name}" updated successfully`);
-          } else {
-            updatedList = [...brandsList, data.brand];
-            toast.success(`Brand "${name}" added successfully`);
-          }
-          setBrandsList(updatedList);
-          localStorage.setItem("brands_data", JSON.stringify(updatedList));
-          setDialogOpen(false);
-          setEditBrand(null);
-          return;
+      if (data.success && data.brand) {
+        if (editBrand) {
+          setBrandsList(prev => prev.map((b) => (b.id === editBrand.id ? data.brand : b)));
+          toast.success(`Brand "${name}" updated successfully`);
+        } else {
+          setBrandsList(prev => [...prev, data.brand]);
+          toast.success(`Brand "${name}" added successfully`);
         }
+        setDialogOpen(false);
+        setEditBrand(null);
+      } else {
+        toast.error("Failed to save brand");
       }
     } catch (err) {
-      console.warn("Backend API save failed, syncing to local storage only.");
+      console.error("Failed to save brand via API:", err);
+      toast.error("Error communicating with server to save brand");
     }
-
-    // Local Storage Fallback
-    if (editBrand) {
-      updatedList = brandsList.map((b) =>
-        b.id === editBrand.id ? { ...b, name, logo } : b
-      );
-      toast.success(`Brand "${name}" updated (Local Mode)`);
-    } else {
-      const newBrand: Brand = {
-        id: `b-${Date.now()}`,
-        name,
-        logo,
-      };
-      updatedList = [...brandsList, newBrand];
-      toast.success(`Brand "${name}" added (Local Mode)`);
-    }
-
-    setBrandsList(updatedList);
-    localStorage.setItem("brands_data", JSON.stringify(updatedList));
-    setDialogOpen(false);
-    setEditBrand(null);
   };
 
   // Delete Brand Handler
@@ -176,26 +130,18 @@ const AdminBrands = () => {
     }
 
     if (window.confirm(`Are you sure you want to delete brand "${name}"?`)) {
-      let updatedList = brandsList.filter((b) => b.id !== id);
-
       try {
-        const res = await fetch(`/api/v1/brands/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            toast.success(`Brand "${name}" deleted`);
-            setBrandsList(updatedList);
-            localStorage.setItem("brands_data", JSON.stringify(updatedList));
-            return;
-          }
+        const data = await brandRepository.delete(id);
+        if (data.success) {
+          toast.success(`Brand "${name}" deleted`);
+          setBrandsList(prev => prev.filter((b) => b.id !== id));
+        } else {
+          toast.error("Failed to delete brand");
         }
       } catch (err) {
-        console.warn("Backend API delete failed, syncing to local storage only.");
+        console.error("Failed to delete brand via API:", err);
+        toast.error("Error communicating with server to delete brand");
       }
-
-      toast.success(`Brand "${name}" deleted (Local Mode)`);
-      setBrandsList(updatedList);
-      localStorage.setItem("brands_data", JSON.stringify(updatedList));
     }
   };
 
@@ -216,60 +162,28 @@ const AdminBrands = () => {
       return;
     }
 
-    let updatedList: Series[] = [];
-
-    // Attempt backend save
     try {
-      const url = editSeries ? `/api/v1/series/${editSeries.id}` : "/api/v1/series";
-      const method = editSeries ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, brandId, logo }),
-      });
+      const data = editSeries
+        ? await seriesRepository.update(editSeries.id, { name, brandId, logo })
+        : await seriesRepository.create({ name, brandId, logo });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.series) {
-          if (editSeries) {
-            updatedList = seriesList.map((s) => (s.id === editSeries.id ? data.series : s));
-            toast.success(`Series "${name}" updated successfully`);
-          } else {
-            updatedList = [...seriesList, data.series];
-            toast.success(`Series "${name}" added successfully`);
-          }
-          setSeriesList(updatedList);
-          localStorage.setItem("series_data", JSON.stringify(updatedList));
-          setSeriesDialogOpen(false);
-          setEditSeries(null);
-          return;
+      if (data.success && data.series) {
+        if (editSeries) {
+          setSeriesList(prev => prev.map((s) => (s.id === editSeries.id ? data.series : s)));
+          toast.success(`Series "${name}" updated successfully`);
+        } else {
+          setSeriesList(prev => [...prev, data.series]);
+          toast.success(`Series "${name}" added successfully`);
         }
+        setSeriesDialogOpen(false);
+        setEditSeries(null);
+      } else {
+        toast.error("Failed to save series");
       }
     } catch (err) {
-      console.warn("Backend API save failed, syncing to local storage only.");
+      console.error("Failed to save series via API:", err);
+      toast.error("Error communicating with server to save series");
     }
-
-    // Local Storage Fallback
-    if (editSeries) {
-      updatedList = seriesList.map((s) =>
-        s.id === editSeries.id ? { ...s, name, brandId, logo } : s
-      );
-      toast.success(`Series "${name}" updated (Local Mode)`);
-    } else {
-      const newS: Series = {
-        id: `s-${Date.now()}`,
-        name,
-        brandId,
-        logo,
-      };
-      updatedList = [...seriesList, newS];
-      toast.success(`Series "${name}" added (Local Mode)`);
-    }
-
-    setSeriesList(updatedList);
-    localStorage.setItem("series_data", JSON.stringify(updatedList));
-    setSeriesDialogOpen(false);
-    setEditSeries(null);
   };
 
   // Delete Series Handler
@@ -280,26 +194,18 @@ const AdminBrands = () => {
     }
 
     if (window.confirm(`Are you sure you want to delete series "${name}"?`)) {
-      let updatedList = seriesList.filter((s) => s.id !== id);
-
       try {
-        const res = await fetch(`/api/v1/series/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            toast.success(`Series "${name}" deleted`);
-            setSeriesList(updatedList);
-            localStorage.setItem("series_data", JSON.stringify(updatedList));
-            return;
-          }
+        const data = await seriesRepository.delete(id);
+        if (data.success) {
+          toast.success(`Series "${name}" deleted`);
+          setSeriesList(prev => prev.filter((s) => s.id !== id));
+        } else {
+          toast.error("Failed to delete series");
         }
       } catch (err) {
-        console.warn("Backend API delete failed, syncing to local storage only.");
+        console.error("Failed to delete series via API:", err);
+        toast.error("Error communicating with server to delete series");
       }
-
-      toast.success(`Series "${name}" deleted (Local Mode)`);
-      setSeriesList(updatedList);
-      localStorage.setItem("series_data", JSON.stringify(updatedList));
     }
   };
 
@@ -437,48 +343,62 @@ const AdminBrands = () => {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {filteredBrands.map((b) => (
-              <div key={b.id} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300 hover:shadow-md hover:border-muted-foreground/25">
-                <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
-                    {b.logo ? (
-                      <img src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain" />
-                    ) : (
-                      <Building2 className="h-9 w-9 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm tracking-tight text-foreground/90">{b.name}</h3>
-                    <p className="text-[10px] text-muted-foreground font-semibold mt-0.5 uppercase bg-muted/60 px-2 py-0.5 rounded-full">Catalog Brand</p>
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, idx) => (
+                <div key={idx} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <Skeleton className="h-20 w-20 rounded-2xl shrink-0" />
+                    <div className="space-y-1.5 flex flex-col items-center">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-4.5 w-24 rounded-full" />
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : (
+              filteredBrands.map((b) => (
+                <div key={b.id} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300 hover:shadow-md hover:border-muted-foreground/25">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
+                      {b.logo ? (
+                        <img src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <Building2 className="h-9 w-9 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm tracking-tight text-foreground/90">{b.name}</h3>
+                      <p className="text-[10px] text-muted-foreground font-semibold mt-0.5 uppercase bg-muted/60 px-2 py-0.5 rounded-full">Catalog Brand</p>
+                    </div>
+                  </div>
 
-                <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
-                    onClick={() => { setEditBrand(b); setDialogOpen(true); }}
-                    title="Edit Brand"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  {hasPermission("admin") && (
+                  <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
-                      onClick={() => handleDeleteBrand(b.id, b.name)}
-                      title="Delete Brand"
+                      className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
+                      onClick={() => { setEditBrand(b); setDialogOpen(true); }}
+                      title="Edit Brand"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                  )}
+                    {hasPermission("admin") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
+                        onClick={() => handleDeleteBrand(b.id, b.name)}
+                        title="Delete Brand"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
 
-            {filteredBrands.length === 0 && (
+            {!isLoading && filteredBrands.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground text-xs font-semibold bg-muted/10 border rounded-2xl">
                 No brands found matching your search.
               </div>
@@ -596,57 +516,71 @@ const AdminBrands = () => {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {filteredSeries.map((s) => {
-              const brandObj = brandsList.find((b) => b.id === s.brandId);
-              return (
-                <div key={s.id} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300 hover:shadow-md hover:border-muted-foreground/25">
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, idx) => (
+                <div key={idx} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300">
                   <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
-                      {s.logo ? (
-                        <img src={s.logo} alt={s.name} className="max-h-full max-w-full object-contain" />
-                      ) : brandObj?.logo ? (
-                        <img src={brandObj.logo} alt={brandObj.name} className="max-h-full max-w-full object-contain opacity-50 filter grayscale" />
-                      ) : (
-                        <LayoutGrid className="h-8 w-8 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <h3 className="font-bold text-sm tracking-tight text-foreground/90">{s.name}</h3>
-                      <div className="flex flex-col items-center gap-1.5">
-                        <span className="text-[9px] text-primary font-extrabold uppercase tracking-wider bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
-                          {brandObj ? brandObj.name : "Unknown Brand"}
-                        </span>
-                      </div>
+                    <Skeleton className="h-20 w-20 rounded-2xl shrink-0" />
+                    <div className="space-y-1.5 flex flex-col items-center">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-4.5 w-24 rounded-full" />
                     </div>
                   </div>
+                </div>
+              ))
+            ) : (
+              filteredSeries.map((s) => {
+                const brandObj = brandsList.find((b) => b.id === s.brandId);
+                return (
+                  <div key={s.id} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300 hover:shadow-md hover:border-muted-foreground/25">
+                    <div className="flex flex-col items-center text-center space-y-4">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
+                        {s.logo ? (
+                          <img src={s.logo} alt={s.name} className="max-h-full max-w-full object-contain" />
+                        ) : brandObj?.logo ? (
+                          <img src={brandObj.logo} alt={brandObj.name} className="max-h-full max-w-full object-contain opacity-50 filter grayscale" />
+                        ) : (
+                          <LayoutGrid className="h-8 w-8 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <h3 className="font-bold text-sm tracking-tight text-foreground/90">{s.name}</h3>
+                        <div className="flex flex-col items-center gap-1.5">
+                          <span className="text-[9px] text-primary font-extrabold uppercase tracking-wider bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
+                            {brandObj ? brandObj.name : "Unknown Brand"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-                  <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
-                      onClick={() => { setEditSeries(s); setSeriesDialogOpen(true); }}
-                      title="Edit Series"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    {hasPermission("admin") && (
+                    <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
-                        onClick={() => handleDeleteSeries(s.id, s.name)}
-                        title="Delete Series"
+                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
+                        onClick={() => { setEditSeries(s); setSeriesDialogOpen(true); }}
+                        title="Edit Series"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                    )}
+                      {hasPermission("admin") && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
+                          onClick={() => handleDeleteSeries(s.id, s.name)}
+                          title="Delete Series"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
 
-            {filteredSeries.length === 0 && (
+            {!isLoading && filteredSeries.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground text-xs font-semibold bg-muted/10 border rounded-2xl">
                 No series collections found. Click "Add Series" to create one.
               </div>

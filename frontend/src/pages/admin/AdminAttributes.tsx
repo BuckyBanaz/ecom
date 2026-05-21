@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Search, Sliders, ChevronDown, ChevronUp } from "lucide-react";
+import { attributeRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdmin } from "@/context/AdminContext";
@@ -8,7 +9,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { attributes as initialAttributes, Attribute, AttributeType } from "@/data/attributes";
+import type { Attribute, AttributeType } from "@/data/attributes";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const AdminAttributes = () => {
   const { hasPermission } = useAdmin();
@@ -24,41 +26,36 @@ const AdminAttributes = () => {
   const [newColorCode, setNewColorCode] = useState("#000000");
   const [selectedType, setSelectedType] = useState<AttributeType>("select");
   const [selectedVisibility, setSelectedVisibility] = useState<"admin" | "filter" | "both">("both");
+  
+  // Loading state
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load attributes
   useEffect(() => {
     const fetchAttributes = async () => {
+      setIsLoading(true);
       try {
-        const res = await fetch("/api/v1/attributes");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.attributes) {
-            // Map backend schema to frontend expectation
-            const mapped = data.attributes.map((a: any) => ({
-              id: a.id,
-              name: a.name,
-              slug: a.slug,
-              type: a.type as AttributeType,
-              values: a.attributeValues || [],
-              visibility: a.visibility || "both",
-            }));
-            setAttributesList(mapped);
-            return;
-          }
+        const data = await attributeRepository.getAll();
+        if (data.success && data.attributes) {
+          // Map backend schema to frontend expectation
+          const mapped = data.attributes.map((a: any) => ({
+            id: a.id,
+            name: a.name,
+            slug: a.slug,
+            type: a.type as AttributeType,
+            values: a.attributeValues || [],
+            visibility: a.visibility || "both",
+          }));
+          setAttributesList(mapped);
+        } else {
+          setAttributesList([]);
         }
       } catch (e) {
-        console.warn("Backend API not reachable, falling back to local storage / mock data.");
-      }
-
-      const savedAttrs = localStorage.getItem("attributes_data");
-      if (savedAttrs) {
-        try {
-          setAttributesList(JSON.parse(savedAttrs));
-        } catch (e) {
-          setAttributesList(initialAttributes);
-        }
-      } else {
-        setAttributesList(initialAttributes);
+        console.error("Failed to fetch attributes:", e);
+        toast.error("Failed to load attributes from server");
+        setAttributesList([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -121,90 +118,38 @@ const AdminAttributes = () => {
       ? [{ value: "Yes" }, { value: "No" }] 
       : incomingValues;
 
-    let updatedList: Attribute[] = [];
-
-    // Attempt backend save
     try {
-      const url = editAttr ? `/api/v1/attributes/${editAttr.id}` : "/api/v1/attributes";
-      const method = editAttr ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, slug, type, values: finalValues, visibility }),
-      });
+      const data = editAttr
+        ? await attributeRepository.update(editAttr.id, { name, slug, type, values: finalValues, visibility })
+        : await attributeRepository.create({ name, slug, type, values: finalValues, visibility });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.attribute) {
-          const mappedAttr: Attribute = {
-            id: data.attribute.id,
-            name: data.attribute.name,
-            slug: data.attribute.slug,
-            type: data.attribute.type as AttributeType,
-            values: data.attribute.attributeValues || [],
-            visibility: data.attribute.visibility || "both",
-          };
+      if (data.success && data.attribute) {
+        const mappedAttr: Attribute = {
+          id: data.attribute.id,
+          name: data.attribute.name,
+          slug: data.attribute.slug,
+          type: data.attribute.type as AttributeType,
+          values: data.attribute.attributeValues || [],
+          visibility: data.attribute.visibility || "both",
+        };
 
-          if (editAttr) {
-            updatedList = attributesList.map((a) => (a.id === editAttr.id ? mappedAttr : a));
-            toast.success(`Attribute "${name}" updated`);
-          } else {
-            updatedList = [...attributesList, mappedAttr];
-            toast.success(`Attribute "${name}" created`);
-          }
-
-          setAttributesList(updatedList);
-          localStorage.setItem("attributes_data", JSON.stringify(updatedList));
-          setDialogOpen(false);
-          setEditAttr(null);
-          return;
+        if (editAttr) {
+          setAttributesList(prev => prev.map((a) => (a.id === editAttr.id ? mappedAttr : a)));
+          toast.success(`Attribute "${name}" updated`);
+        } else {
+          setAttributesList(prev => [...prev, mappedAttr]);
+          toast.success(`Attribute "${name}" created`);
         }
+
+        setDialogOpen(false);
+        setEditAttr(null);
+      } else {
+        toast.error("Failed to save attribute");
       }
     } catch (err) {
-      console.warn("Backend API save failed, using local storage mode.");
+      console.error("Failed to save attribute via API:", err);
+      toast.error("Error communicating with server to save attribute");
     }
-
-    // Local Storage Mode
-    if (editAttr) {
-      updatedList = attributesList.map((a) =>
-        a.id === editAttr.id
-          ? {
-              ...a,
-              name,
-              slug,
-              type,
-              visibility,
-              values: finalValues.map((v, i) => ({
-                id: `v-${editAttr.id}-${i}-${Date.now()}`,
-                value: v.value,
-                colorCode: v.colorCode,
-              })),
-            }
-          : a
-      );
-      toast.success(`Attribute "${name}" updated (Local Mode)`);
-    } else {
-      const newAttrId = `a-${Date.now()}`;
-      const newAttr: Attribute = {
-        id: newAttrId,
-        name,
-        slug,
-        type,
-        visibility,
-        values: finalValues.map((v, i) => ({
-          id: `v-${newAttrId}-${i}`,
-          value: v.value,
-          colorCode: v.colorCode,
-        })),
-      };
-      updatedList = [...attributesList, newAttr];
-      toast.success(`Attribute "${name}" created (Local Mode)`);
-    }
-
-    setAttributesList(updatedList);
-    localStorage.setItem("attributes_data", JSON.stringify(updatedList));
-    setDialogOpen(false);
-    setEditAttr(null);
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -214,26 +159,18 @@ const AdminAttributes = () => {
     }
 
     if (window.confirm(`Are you sure you want to delete attribute "${name}"? All product mappings will be cleared.`)) {
-      let updatedList = attributesList.filter((a) => a.id !== id);
-
       try {
-        const res = await fetch(`/api/v1/attributes/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            toast.success(`Attribute "${name}" deleted`);
-            setAttributesList(updatedList);
-            localStorage.setItem("attributes_data", JSON.stringify(updatedList));
-            return;
-          }
+        const data = await attributeRepository.delete(id);
+        if (data.success) {
+          toast.success(`Attribute "${name}" deleted`);
+          setAttributesList(prev => prev.filter((a) => a.id !== id));
+        } else {
+          toast.error("Failed to delete attribute");
         }
       } catch (err) {
-        console.warn("Backend API delete failed, using local storage mode.");
+        console.error("Failed to delete attribute via API:", err);
+        toast.error("Error communicating with server to delete attribute");
       }
-
-      toast.success(`Attribute "${name}" deleted (Local Mode)`);
-      setAttributesList(updatedList);
-      localStorage.setItem("attributes_data", JSON.stringify(updatedList));
     }
   };
 
@@ -442,95 +379,117 @@ const AdminAttributes = () => {
       </div>
 
       <div className="space-y-4">
-        {filteredAttrs.map((a) => {
-          const isExpanded = expandedAttr === a.id;
-          return (
-            <div key={a.id} className="rounded-xl border bg-card shadow-sm overflow-hidden transition-all">
-              <div
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/10"
-                onClick={() => setExpandedAttr(isExpanded ? null : a.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Sliders className="h-5 w-5" />
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, idx) => (
+            <div key={idx} className="rounded-xl border bg-card shadow-sm p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-lg shrink-0" />
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3.5 w-16" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-base">{a.name}</h3>
-                      <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">{a.slug}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Type: <span className="capitalize">{a.type.replace("_", " ")}</span> · Target: <span className="capitalize font-semibold text-primary">{a.visibility || "both"}</span> · {a.type === "boolean" ? 2 : a.values.length} option values
-                    </p>
-                  </div>
+                  <Skeleton className="h-3 w-64" />
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+              </div>
+            </div>
+          ))
+        ) : (
+          filteredAttrs.map((a) => {
+            const isExpanded = expandedAttr === a.id;
+            return (
+              <div key={a.id} className="rounded-xl border bg-card shadow-sm overflow-hidden transition-all">
+                <div
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/10"
+                  onClick={() => setExpandedAttr(isExpanded ? null : a.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Sliders className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-base">{a.name}</h3>
+                        <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">{a.slug}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Type: <span className="capitalize">{a.type.replace("_", " ")}</span> · Target: <span className="capitalize font-semibold text-primary">{a.visibility || "both"}</span> · {a.type === "boolean" ? 2 : a.values.length} option values
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => { setEditAttr(a); setDialogOpen(true); }}
-                  >
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                  {hasPermission("admin") && (
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDelete(a.id, a.name)}
+                      className="h-8 w-8"
+                      onClick={() => { setEditAttr(a); setDialogOpen(true); }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setExpandedAttr(isExpanded ? null : a.id)}
-                  >
-                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="border-t bg-muted/20 px-6 py-4">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Available Value Options</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {a.type === "boolean" ? (
-                      <>
-                        <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm">Yes</span>
-                        <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm">No</span>
-                      </>
-                    ) : (
-                      a.values.map((val) => (
-                        <span
-                          key={val.id}
-                          className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm"
-                        >
-                          {a.type === "color" && val.colorCode && (
-                            <span
-                              className="h-3.5 w-3.5 rounded-full border border-black/10 shadow-sm"
-                              style={{ backgroundColor: val.colorCode }}
-                            />
-                          )}
-                          {val.value}
-                        </span>
-                      ))
+                    {hasPermission("admin") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(a.id, a.name)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
-                    {a.type !== "boolean" && a.values.length === 0 && (
-                      <p className="text-xs text-muted-foreground italic">No value options defined for this attribute.</p>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setExpandedAttr(isExpanded ? null : a.id)}
+                    >
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
                   </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
 
-        {filteredAttrs.length === 0 && (
+                {isExpanded && (
+                  <div className="border-t bg-muted/20 px-6 py-4">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Available Value Options</Label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {a.type === "boolean" ? (
+                        <>
+                          <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm">Yes</span>
+                          <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm">No</span>
+                        </>
+                      ) : (
+                        a.values.map((val) => (
+                          <span
+                            key={val.id}
+                            className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm"
+                          >
+                            {a.type === "color" && val.colorCode && (
+                              <span
+                                className="h-3.5 w-3.5 rounded-full border border-black/10 shadow-sm"
+                                style={{ backgroundColor: val.colorCode }}
+                              />
+                            )}
+                            {val.value}
+                          </span>
+                        ))
+                      )}
+                      {a.type !== "boolean" && a.values.length === 0 && (
+                        <p className="text-xs text-muted-foreground italic">No value options defined for this attribute.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+
+        {!isLoading && filteredAttrs.length === 0 && (
           <div className="py-12 text-center text-muted-foreground">
             No attributes found matching your search.
           </div>

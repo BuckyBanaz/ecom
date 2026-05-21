@@ -111,6 +111,10 @@ All colors MUST be HSL.
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
+
+  body.admin-lock {
+    overflow: hidden;
+  }
 }
 
 @layer components {
@@ -139,3 +143,24 @@ All colors MUST be HSL.
   margin-top: 0.25rem !important;
   margin-bottom: 0.25rem !important;
 }
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted) / 0.6) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+

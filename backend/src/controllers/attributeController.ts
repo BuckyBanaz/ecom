@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/db";
 
 export const getAttributes = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -12,6 +10,25 @@ export const getAttributes = async (_req: Request, res: Response, next: NextFunc
       orderBy: { name: "asc" },
     });
     res.status(200).json({ success: true, attributes });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAttributeById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const attribute = await prisma.attribute.findUnique({
+      where: { id },
+      include: {
+        attributeValues: true,
+      },
+    });
+    if (!attribute) {
+      res.status(404).json({ success: false, message: "Attribute not found" });
+      return;
+    }
+    res.status(200).json({ success: true, attribute });
   } catch (error) {
     next(error);
   }

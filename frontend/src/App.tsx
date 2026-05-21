@@ -12,7 +12,10 @@ import Checkout from "./pages/shop/Checkout.tsx";
 import Search from "./pages/shop/Search.tsx";
 import Account from "./pages/shop/Account.tsx";
 import Help from "./pages/shop/Help.tsx";
+import Faqs from "./pages/shop/Faqs.tsx";
 import Wishlist from "./pages/shop/Wishlist.tsx";
+import Blogs from "./pages/shop/Blogs.tsx";
+import BlogDetail from "./pages/shop/BlogDetail.tsx";
 import { SiteLayout } from "./components/layout/SiteLayout.tsx";
 import { CartProvider } from "./context/CartContext.tsx";
 import { WishlistProvider } from "./context/WishlistContext.tsx";
@@ -28,6 +31,7 @@ import AdminAttributes from "./pages/admin/AdminAttributes.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
+import AdminTestimonials from "./pages/admin/AdminTestimonials.tsx";
 import CMSHomepage from "./pages/admin/cms/CMSHomepage.tsx";
 import CMSMegaMenu from "./pages/admin/cms/CMSMegaMenu.tsx";
 import CMSRelief from "./pages/admin/cms/CMSRelief.tsx";
@@ -35,11 +39,15 @@ import CMSLegal from "./pages/admin/cms/CMSLegal.tsx";
 import CMSPages from "./pages/admin/cms/CMSPages.tsx";
 import CMSBlogs from "./pages/admin/cms/CMSBlogs.tsx";
 import CMSSeo from "./pages/admin/cms/CMSSeo.tsx";
+import CMSHeaderFooter from "./pages/admin/cms/CMSHeaderFooter.tsx";
+import CMSFaqs from "./pages/admin/cms/CMSFaqs.tsx";
+import MediaLibrary from "./pages/admin/media/MediaLibrary.tsx";
 import { Navigate } from "react-router-dom";
 import UserDashboard from "./pages/shop/UserDashboard.tsx";
 
 import Relief from "./pages/shop/Relief.tsx";
 import ReliefCategory from "./pages/shop/ReliefCategory.tsx";
+import DynamicPage from "./pages/shop/DynamicPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -59,14 +67,20 @@ const App = () => (
                   <Route path="/relief" element={<Relief />} />
                   <Route path="/relief/category/:slug" element={<Category />} />
                   <Route path="/relief/:slug" element={<ReliefCategory />} />
+                  <Route path="/category" element={<Category />} />
                   <Route path="/category/:slug" element={<Category />} />
+                  <Route path="/deals" element={<Navigate to="/category/deals" replace />} />
                   <Route path="/product/:slug" element={<ProductPage />} />
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/search" element={<Search />} />
                   <Route path="/account" element={<UserDashboard />} />
                   <Route path="/help" element={<Help />} />
+                  <Route path="/faqs" element={<Faqs />} />
+                  <Route path="/blogs" element={<Blogs />} />
+                  <Route path="/blogs/:slug" element={<BlogDetail />} />
                   <Route path="/wishlist" element={<Wishlist />} />
+                  <Route path="/:slug" element={<DynamicPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Route>
 
@@ -81,14 +95,18 @@ const App = () => (
                   <Route path="brands" element={<AdminBrands />} />
                   <Route path="attributes" element={<AdminAttributes />} />
                   <Route path="orders" element={<AdminOrders />} />
+                  <Route path="testimonials" element={<AdminTestimonials />} />
                   <Route path="cms" element={<Navigate to="/admin/cms/homepage" replace />} />
                   <Route path="cms/homepage" element={<CMSHomepage />} />
                   <Route path="cms/megamenu" element={<CMSMegaMenu />} />
+                  <Route path="cms/header-footer" element={<CMSHeaderFooter />} />
+                  <Route path="cms/faqs" element={<CMSFaqs />} />
                   <Route path="cms/relief" element={<CMSRelief />} />
                   <Route path="cms/:kind" element={<CMSLegal />} />
                   <Route path="cms/pages" element={<CMSPages />} />
                   <Route path="cms/blogs" element={<CMSBlogs />} />
                   <Route path="cms/seo" element={<CMSSeo />} />
+                  <Route path="storage" element={<MediaLibrary />} />
                   <Route path="users" element={<AdminUsers />} />
                   <Route path="settings" element={<AdminSettings />} />
                 </Route>

@@ -1,11 +1,16 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
 import { env } from "./config/env";
 import { errorHandler, AppError } from "./middlewares/errorMiddleware";
 import { setupSwagger } from "./config/swagger";
+import { requestLogger } from "./middlewares/loggerMiddleware";
 import "./config/redis";
 
 const app = express();
+
+// Register HTTP request logger middleware
+app.use(requestLogger);
 
 // Configure Cross-Origin Resource Sharing matching our React client URL
 app.use(
@@ -18,6 +23,9 @@ app.use(
 // Standard HTTP middleware parsers (increased limits for base64 image uploads)
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Serve uploaded media statically
+app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
 
 // Serve Swagger API Interactive documentation UI
 setupSwagger(app);
@@ -40,6 +48,9 @@ import brandRoutes from "./routes/brandRoutes";
 import seriesRoutes from "./routes/seriesRoutes";
 import attributeRoutes from "./routes/attributeRoutes";
 import megaMenuRoutes from "./routes/megaMenuRoutes";
+import blogRoutes from "./routes/blogRoutes";
+import cmsRoutes from "./routes/cmsRoutes";
+import mediaRoutes from "./routes/mediaRoutes";
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -49,6 +60,9 @@ app.use("/api/v1/brands", brandRoutes);
 app.use("/api/v1/series", seriesRoutes);
 app.use("/api/v1/attributes", attributeRoutes);
 app.use("/api/v1/megamenus", megaMenuRoutes);
+app.use("/api/v1/blogs", blogRoutes);
+app.use("/api/v1/cms", cmsRoutes);
+app.use("/api/v1/media", mediaRoutes);
 
 // Catch-all route for 404 undefined paths
 app.all("*", (req, _res, next) => {

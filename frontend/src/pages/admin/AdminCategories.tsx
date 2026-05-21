@@ -2,18 +2,15 @@ import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { categories as initialCategories, Category } from "@/data/categories";
-import { products } from "@/data/products";
+import { Category } from "@/data/categories";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { megaMenuData } from "@/data/megaMenu";
-import axios from "axios";
-
-const API_URL = "http://localhost:5000/api/v1/megamenus";
+import { categoryRepository, megaMenuRepository } from "@/client/apiClient";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const AdminCategories = () => {
   const { hasPermission } = useAdmin();
@@ -23,6 +20,7 @@ const AdminCategories = () => {
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
   const [menus, setMenus] = useState<any[]>([]);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const groupMapping: Record<string, string> = {
@@ -36,9 +34,9 @@ const AdminCategories = () => {
 
     const loadCategories = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/api/v1/categories");
-        if (response.data.success && response.data.categories) {
-          const apiCats = response.data.categories;
+        const data = await categoryRepository.getAll();
+        if (data.success && data.categories) {
+          const apiCats = data.categories;
           const mappedCats = apiCats.map((c: any) => {
             if (groupMapping[c.group]) {
               return { ...c, group: groupMapping[c.group] };
@@ -46,59 +44,37 @@ const AdminCategories = () => {
             return c;
           });
           setCategoriesList(mappedCats);
-          localStorage.setItem("categories_data", JSON.stringify(mappedCats));
         }
       } catch (error) {
-        console.error("Failed to fetch categories from API, loading local backup", error);
-        const savedCats = localStorage.getItem("categories_data");
-        let loadedCats = initialCategories;
-        if (savedCats) {
-          try {
-            loadedCats = JSON.parse(savedCats);
-          } catch (e) {
-            loadedCats = initialCategories;
-          }
-        }
-        const mappedCats = loadedCats.map((c: any) => {
-          if (groupMapping[c.group]) {
-            return { ...c, group: groupMapping[c.group] };
-          }
-          return c;
-        });
-        setCategoriesList(mappedCats);
+        console.error("Failed to fetch categories from API", error);
+        toast.error("Failed to load categories from server");
+        setCategoriesList([]);
       }
     };
 
-    // Load menus from backend API
     const loadMenus = async () => {
       try {
-        const response = await axios.get(API_URL);
-        if (response.data.success && response.data.menus) {
-          setMenus(response.data.menus);
+        const data = await megaMenuRepository.getAll();
+        if (data.success && data.menus) {
+          setMenus(data.menus);
         } else {
-          loadFromLocalstorage();
+          setMenus([]);
         }
       } catch (error) {
         console.error("Failed to fetch menus from API", error);
-        loadFromLocalstorage();
+        setMenus([]);
       }
     };
 
-    const loadFromLocalstorage = () => {
-      const savedMenus = localStorage.getItem("mega_menu_data");
-      if (savedMenus) {
-        try {
-          setMenus(JSON.parse(savedMenus));
-        } catch (e) {
-          setMenus(megaMenuData);
-        }
-      } else {
-        setMenus(megaMenuData);
+    const init = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([loadCategories(), loadMenus()]);
+      } finally {
+        setIsLoading(false);
       }
     };
-
-    loadCategories();
-    loadMenus();
+    init();
   }, []);
 
   useEffect(() => {
@@ -123,23 +99,21 @@ const AdminCategories = () => {
     }
 
     if (editCat) {
-      // Edit existing
       try {
         const catId = (editCat as any).id;
         const matchedDbCat = categoriesList.find((c) => c.slug === editCat.slug);
         const actualId = catId || (matchedDbCat as any)?.id;
 
-        let response;
+        let data;
         if (actualId) {
-          response = await axios.put(`http://localhost:5000/api/v1/categories/${actualId}`, {
+          data = await categoryRepository.update(actualId, {
             name,
             slug,
             image,
             group,
           });
         } else {
-          // If no DB ID is found, fallback to creating it
-          response = await axios.post("http://localhost:5000/api/v1/categories", {
+          data = await categoryRepository.create({
             name,
             slug,
             image,
@@ -147,44 +121,31 @@ const AdminCategories = () => {
           });
         }
 
-        const updatedCat = response.data.category;
+        const updatedCat = data.category;
         const updated = categoriesList.map((c) =>
           c.slug === editCat.slug ? updatedCat : c
         );
         setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
         toast.success("Category updated successfully");
       } catch (error) {
         console.error("Failed to update category on backend", error);
-        // Fallback to local update
-        const updated = categoriesList.map((c) =>
-          c.slug === editCat.slug ? { ...c, name, slug, image, group } : c
-        );
-        setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category updated locally");
+        toast.error("Failed to update category on server");
       }
     } else {
-      // Add new
       try {
-        const response = await axios.post("http://localhost:5000/api/v1/categories", {
+        const data = await categoryRepository.create({
           name,
           slug,
           image,
           group,
         });
-        const newCat = response.data.category;
+        const newCat = data.category;
         const updated = [...categoriesList, newCat];
         setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
         toast.success("Category added successfully");
       } catch (error) {
         console.error("Failed to create category on backend", error);
-        // Fallback to local save
-        const updated = [...categoriesList, { name, slug, image, group }];
-        setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category added locally");
+        toast.error("Failed to add category to server");
       }
     }
 
@@ -199,19 +160,14 @@ const AdminCategories = () => {
 
       try {
         if (catId) {
-          await axios.delete(`http://localhost:5000/api/v1/categories/${catId}`);
+          await categoryRepository.delete(catId);
         }
         const updated = categoriesList.filter((c) => c.slug !== slug);
         setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
         toast.success("Category deleted successfully");
       } catch (error) {
         console.error("Failed to delete category from backend", error);
-        // Fallback to local delete
-        const updated = categoriesList.filter((c) => c.slug !== slug);
-        setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category deleted locally");
+        toast.error("Failed to delete category from server");
       }
     }
   };
@@ -310,35 +266,55 @@ const AdminCategories = () => {
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {categoriesList.map((c) => {
-          const count = products.filter((p) => p.category === c.slug).length;
-          const matchedMenu = menus.find((m) => m.slug === c.group);
-          const menuLabel = matchedMenu ? matchedMenu.menu : c.group;
-
-          return (
-            <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
-              <img src={c.image} alt={c.name} className="h-40 w-full object-cover" />
-              <div className="p-4">
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="overflow-hidden rounded-xl border bg-card shadow-sm space-y-4 pb-4">
+              <Skeleton className="h-40 w-full rounded-t-xl rounded-b-none" />
+              <div className="px-4 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold">{c.name}</h3>
-                    <p className="text-xs text-muted-foreground">{count} products · Menu: {menuLabel}</p>
+                  <div className="space-y-1.5 flex-1 pr-4">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-40" />
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditCat(c); setDialogOpen(true); }}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    {hasPermission("admin") && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(c.slug, c.name)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <div className="flex gap-1 shrink-0">
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                    <Skeleton className="h-8 w-8 rounded-lg" />
                   </div>
                 </div>
               </div>
             </div>
-          );
-        })}
+          ))
+        ) : (
+          categoriesList.map((c) => {
+            const count = (c as any)._count?.products ?? 0;
+            const matchedMenu = menus.find((m) => m.slug === c.group);
+            const menuLabel = matchedMenu ? matchedMenu.menu : c.group;
+
+            return (
+              <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                <img src={c.image} alt={c.name} className="h-40 w-full object-cover" />
+                <div className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold">{c.name}</h3>
+                      <p className="text-xs text-muted-foreground">{count} products · Menu: {menuLabel}</p>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditCat(c); setDialogOpen(true); }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      {hasPermission("admin") && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(c.slug, c.name)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

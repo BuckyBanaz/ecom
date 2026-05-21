@@ -11,6 +11,8 @@ import { formatPrice, useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { cn } from "@/lib/utils";
 import NotFound from "@/pages/NotFound";
+import { productRepository } from "@/client/apiClient";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const ProductPage = () => {
   const { slug = "" } = useParams();
@@ -25,35 +27,32 @@ const ProductPage = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const res = await fetch(`/api/v1/products/${slug}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.product) {
-            const p = data.product;
-            const mappedColor = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "color")?.attributeValue?.value || "Black";
-            const mappedFitting = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "fitting")?.attributeValue?.value || "E27";
-            setLiveProduct({
-              id: p.id,
-              slug: p.slug,
-              name: p.name,
-              brand: p.brand?.name || "Lumio",
-              category: p.category?.slug || "general",
-              price: p.price,
-              oldPrice: p.oldPrice || undefined,
-              rating: p.rating || 5,
-              reviewCount: p.reviewCount || 12,
-              image: p.images?.[0] || "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?q=80&w=800",
-              images: p.images || [],
-              inStock: p.stock > 0,
-              description: p.description || "",
-              shortDescription: p.shortDescription || "",
-              specs: p.specs || {},
-              color: mappedColor,
-              fitting: mappedFitting,
-            });
-            setColor(mappedColor);
-            setFitting(mappedFitting);
-          }
+        const data = await productRepository.getByIdOrSlug(slug);
+        if (data.success && data.product) {
+          const p = data.product;
+          const mappedColor = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "color")?.attributeValue?.value || "Black";
+          const mappedFitting = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "fitting")?.attributeValue?.value || "E27";
+          setLiveProduct({
+            id: p.id,
+            slug: p.slug,
+            name: p.name,
+            brand: p.brand?.name || "Lumio",
+            category: p.category?.slug || "general",
+            price: p.price,
+            oldPrice: p.oldPrice || undefined,
+            rating: p.rating || 5,
+            reviewCount: p.reviewCount || 12,
+            image: p.images?.[0] || "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?q=80&w=800",
+            images: p.images || [],
+            inStock: p.stock > 0,
+            description: p.description || "",
+            shortDescription: p.shortDescription || "",
+            specs: p.specs || {},
+            color: mappedColor,
+            fitting: mappedFitting,
+          });
+          setColor(mappedColor);
+          setFitting(mappedFitting);
         }
       } catch (err) {
         console.error("Failed to fetch product:", err);
@@ -71,7 +70,11 @@ const ProductPage = () => {
   const product = liveProduct || findProduct(slug);
   if (!product) return <NotFound />;
 
-  const related = products.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4);
+  const productCatSlug = typeof product.category === "object" ? product.category.slug : product.category;
+  const related = products.filter((p) => {
+    const pCatSlug = typeof p.category === "object" ? p.category.slug : p.category;
+    return pCatSlug === productCatSlug && p.id !== product.id;
+  }).slice(0, 4);
   const fav = has(product.id);
 
   const renderSpecs = () => {
@@ -136,30 +139,44 @@ const ProductPage = () => {
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
         <Link to="/" className="hover:text-primary">Home</Link> /{" "}
-        <Link to={`/category/${product.category}`} className="hover:text-primary capitalize">{product.category.replace(/-/g, " ")}</Link> /{" "}
+        <Link to={`/category/${typeof product.category === "object" ? product.category.slug : product.category}`} className="hover:text-primary capitalize">{(typeof product.category === "object" ? (product.category.name || product.category.slug) : product.category).replace(/-/g, " ")}</Link> /{" "}
         <span className="text-foreground">{product.name}</span>
       </nav>
 
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="space-y-3">
           <div className="overflow-hidden rounded-2xl border bg-muted">
-            <img src={product.image} alt={product.name} className="aspect-square w-full object-cover" />
+            <SafeImage
+              src={product.image}
+              alt={product.name}
+              fallbackType="product"
+              className="aspect-square w-full object-cover"
+            />
           </div>
           <div className="grid grid-cols-4 gap-2">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className={cn("aspect-square overflow-hidden rounded-lg border bg-muted", i === 0 && "ring-2 ring-primary")}>
-                <img src={product.image} alt="" className="h-full w-full object-cover" />
+                <SafeImage
+                  src={product.image}
+                  alt=""
+                  fallbackType="product"
+                  className="h-full w-full object-cover"
+                />
               </div>
             ))}
           </div>
         </div>
 
         <div>
-          <div className="text-sm uppercase tracking-wider text-muted-foreground">{product.brand}</div>
+          <div className="text-sm uppercase tracking-wider text-muted-foreground">
+            {typeof product.brand === "object" ? product.brand.name : product.brand}
+          </div>
           <h1 className="mt-1 text-3xl font-bold md:text-4xl">{product.name}</h1>
           <div className="mt-3 flex items-center gap-3">
             <StarRating value={product.rating} size={16} />
-            <span className="text-sm text-muted-foreground">{product.rating.toFixed(1)} · {product.reviewCount} reviews</span>
+            <span className="text-sm text-muted-foreground">
+              {(product.rating || 0).toFixed(1)} · {product.reviewCount || 0} reviews
+            </span>
             <span className="text-xs text-muted-foreground">SKU: {String(product.id).substring(0, 8).toUpperCase()}</span>
           </div>
 

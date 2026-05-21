@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { 
   Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Link, Image, Table, Minus, Undo, Redo, Code, Quote, Eraser, 
+  Link, Image as ImageIcon, Table, Minus, Undo, Redo, Code, Quote, Eraser, 
   Palette, Highlighter, Indent, Outdent
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { UIBlocksDialog } from "./UIBlocksDialog";
+import { LayoutTemplate } from "lucide-react";
 
 interface RichTextEditorProps {
   value: string;
@@ -19,6 +22,15 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const [isFocused, setIsFocused] = useState(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [htmlSource, setHtmlSource] = useState(value || "");
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
+  const [imageUrl, setImageUrl] = useState("");
+  const [compressedDataUrl, setCompressedDataUrl] = useState("");
+  const [compressedInfo, setCompressedInfo] = useState<{ size: number; type: string; width: number; height: number } | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const [isUIBlocksOpen, setIsUIBlocksOpen] = useState(false);
+  const [savedSelection, setSavedSelection] = useState<Range | null>(null);
 
   // Color picker states
   const textColorInputRef = useRef<HTMLInputElement>(null);
@@ -35,13 +47,29 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     }
   }, [value, isSourceMode]);
 
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      setSavedSelection(sel.getRangeAt(0));
+    }
+  };
+
+  const restoreSelection = () => {
+    if (savedSelection) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelection);
+      }
+    } else if (editorRef.current) {
+      editorRef.current.focus();
+    }
+  };
+
   const executeCommand = (command: string, arg: string = "") => {
     if (isSourceMode) return;
     
-    // Focus the editor first to ensure command targets the correct selection
-    if (editorRef.current) {
-      editorRef.current.focus();
-    }
+    restoreSelection();
     
     document.execCommand(command, false, arg);
     handleInput();
@@ -81,11 +109,109 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     }
   };
 
+  const readFileAsDataUrl = (file: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+
+  const loadImage = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = src;
+    });
+
+  const compressImage = async (file: File) => {
+    const dataUrl = await readFileAsDataUrl(file);
+    const img = await loadImage(dataUrl);
+    const maxWidth = 1600;
+    const maxHeight = 1600;
+    const ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
+    const targetWidth = Math.round(img.width * ratio);
+    const targetHeight = Math.round(img.height * ratio);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not supported");
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+    const preferredTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const normalizedType = file.type === "image/jpg" ? "image/jpeg" : file.type;
+    const outputType = preferredTypes.includes(normalizedType) ? normalizedType : "image/jpeg";
+    const quality = outputType === "image/png" ? undefined : 0.8;
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("Compression failed"))),
+        outputType,
+        quality
+      );
+    }).catch(async () => {
+      const dataUrlFallback = canvas.toDataURL(outputType, quality);
+      const fetched = await fetch(dataUrlFallback);
+      return fetched.blob();
+    });
+
+    const compressedUrl = await readFileAsDataUrl(blob);
+
+    return {
+      dataUrl: compressedUrl,
+      size: blob.size,
+      type: outputType,
+      width: targetWidth,
+      height: targetHeight,
+    };
+  };
+
   const handleImageInsert = () => {
-    const url = prompt("Enter image URL:");
-    if (url) {
-      executeCommand("insertImage", url);
+    saveSelection();
+    setImageMode("upload");
+    setImageUrl("");
+    setCompressedDataUrl("");
+    setCompressedInfo(null);
+    setImageError("");
+    setIsImageDialogOpen(true);
+  };
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsCompressing(true);
+    setImageError("");
+    try {
+      const compressed = await compressImage(file);
+      setCompressedDataUrl(compressed.dataUrl);
+      setCompressedInfo({
+        size: compressed.size,
+        type: compressed.type,
+        width: compressed.width,
+        height: compressed.height,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Compression error";
+      setImageError(`Failed to compress image. ${message}`);
+    } finally {
+      setIsCompressing(false);
     }
+  };
+
+  const handleInsertFromDialog = () => {
+    if (imageMode === "url") {
+      if (!imageUrl.trim()) return;
+      setIsImageDialogOpen(false);
+      setTimeout(() => executeCommand("insertImage", imageUrl.trim()), 50);
+      return;
+    }
+
+    if (!compressedDataUrl) return;
+    setIsImageDialogOpen(false);
+    setTimeout(() => executeCommand("insertImage", compressedDataUrl), 50);
   };
 
   const handleTableInsert = () => {
@@ -331,7 +457,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           />
           <ToolbarButton 
             disabled={isSourceMode} 
-            icon={Image} 
+            icon={ImageIcon} 
             label="Insert Image" 
             onClick={handleImageInsert} 
           />
@@ -346,6 +472,15 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
             icon={Minus} 
             label="Insert Horizontal Line" 
             onClick={() => executeCommand("insertHorizontalRule")} 
+          />
+          <ToolbarButton 
+            disabled={isSourceMode} 
+            icon={LayoutTemplate} 
+            label="UI Blocks" 
+            onClick={() => {
+              saveSelection();
+              setIsUIBlocksOpen(true);
+            }} 
           />
 
           <div className="w-[1px] h-6 bg-border mx-1" />
@@ -395,6 +530,75 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           </div>
         </div>
       </div>
+
+      <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Insert Image</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={imageMode === "upload" ? "secondary" : "outline"}
+              onClick={() => setImageMode("upload")}
+            >
+              Upload
+            </Button>
+            <Button
+              type="button"
+              variant={imageMode === "url" ? "secondary" : "outline"}
+              onClick={() => setImageMode("url")}
+            >
+              Insert URL
+            </Button>
+          </div>
+
+          {imageMode === "upload" ? (
+            <div className="space-y-2">
+              <input type="file" accept="image/*" onChange={handleImageFileChange} />
+              {isCompressing && <div className="text-xs text-muted-foreground">Compressing image...</div>}
+              {compressedInfo && (
+                <div className="text-xs text-muted-foreground">
+                  Compressed: {compressedInfo.width}x{compressedInfo.height} ({Math.round(compressedInfo.size / 1024)} KB)
+                </div>
+              )}
+              {imageError && <div className="text-xs text-destructive">{imageError}</div>}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsImageDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleInsertFromDialog}
+              disabled={imageMode === "upload" ? !compressedDataUrl || isCompressing : !imageUrl.trim()}
+            >
+              Insert Image
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <UIBlocksDialog 
+        open={isUIBlocksOpen} 
+        onOpenChange={setIsUIBlocksOpen} 
+        onInsert={(shortcode) => {
+          setTimeout(() => executeCommand("insertHTML", shortcode), 50);
+        }} 
+      />
     </div>
   );
 }
@@ -422,6 +626,7 @@ function ToolbarButton({
         active ? "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15" : ""
       }`}
       onClick={onClick}
+      onMouseDown={(e) => e.preventDefault()}
       title={label}
     >
       <Icon className="h-4 w-4" />

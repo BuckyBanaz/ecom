@@ -6,6 +6,7 @@ import { formatPrice, useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import type { Product } from "@/data/products";
 import { cn } from "@/lib/utils";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 export function ProductCard({ product }: { product: Product }) {
   const { add } = useCart();
@@ -33,15 +34,18 @@ export function ProductCard({ product }: { product: Product }) {
         >
           <Heart size={16} className={cn(fav && "fill-primary text-primary")} />
         </button>
-        <img
+        <SafeImage
           src={product.image}
           alt={product.name}
           loading="lazy"
+          fallbackType="product"
           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         />
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">{product.brand}</div>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+          {typeof product.brand === "object" ? product.brand.name : product.brand}
+        </div>
         <Link to={`/product/${product.slug}`} className="line-clamp-2 text-sm font-medium hover:text-primary">
           {product.name}
         </Link>

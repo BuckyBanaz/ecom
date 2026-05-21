@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, FolderTree, ShoppingCart, Users, Settings,
   FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown,
-  Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders,
+  Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders, Quote, HardDrive
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
@@ -16,12 +16,16 @@ const navItems = [
   { to: "/admin/brands", icon: Tag, label: "Brands", role: "moderator" as const },
   { to: "/admin/attributes", icon: Sliders, label: "Attributes", role: "moderator" as const },
   { to: "/admin/orders", icon: ShoppingCart, label: "Orders", role: "moderator" as const },
+  { to: "/admin/testimonials", icon: Quote, label: "Testimonials", role: "moderator" as const },
+  { to: "/admin/storage", icon: HardDrive, label: "Storage", role: "admin" as const },
   { to: "/admin/users", icon: Users, label: "Users", role: "admin" as const },
   { to: "/admin/settings", icon: Settings, label: "Settings", role: "superadmin" as const },
 ];
 
 const cmsChildren = [
   { to: "/admin/cms/homepage", icon: Home, label: "Homepage" },
+  { to: "/admin/cms/header-footer", icon: FileText, label: "Header & Footer" },
+  { to: "/admin/cms/faqs", icon: FileText, label: "FAQs" },
   { to: "/admin/cms/megamenu", icon: FolderTree, label: "Mega Menu" },
   { to: "/admin/cms/relief", icon: FileText, label: "Relief Page" },
   { to: "/admin/cms/privacy-policy", icon: ScrollText, label: "Privacy Policy" },
