@@ -11,15 +11,17 @@ import {
 import { Label } from "@/components/ui/label";
 import { categoryRepository, megaMenuRepository } from "@/client/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { resolveImgUrl } from "@/utils/image";
 
 const AdminCategories = () => {
   const { hasPermission } = useAdmin();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCat, setEditCat] = useState<Category | null>(null);
-  
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
   const [menus, setMenus] = useState<any[]>([]);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -213,32 +215,28 @@ const AdminCategories = () => {
                   <div className="mt-1.5 flex items-center gap-4">
                     {imagePreview && (
                       <img
-                        src={imagePreview}
+                        src={resolveImgUrl(imagePreview)}
                         alt="Preview"
                         className="h-16 w-16 rounded-lg object-cover border bg-muted"
                       />
                     )}
                     <div className="flex-1">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setImagePreview(reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="cursor-pointer"
-                      />
+                      <Button type="button" variant="outline" className="w-full text-left justify-start" onClick={() => setIsMediaLibraryOpen(true)}>
+                        {imagePreview ? "Change Image" : "Browse Media Storage"}
+                      </Button>
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Choose a local image file.
+                        Select an image from your media library.
                       </p>
                     </div>
                   </div>
+                  <MediaLibraryDialog
+                    open={isMediaLibraryOpen}
+                    onOpenChange={setIsMediaLibraryOpen}
+                    onSelect={(url) => {
+                      setImagePreview(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+                      setIsMediaLibraryOpen(false);
+                    }}
+                  />
                 </div>
                 <div>
                   <Label>Menu</Label>
@@ -292,7 +290,7 @@ const AdminCategories = () => {
 
             return (
               <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
-                <img src={c.image} alt={c.name} className="h-40 w-full object-cover" />
+                <img src={resolveImgUrl(c.image)} alt={c.name} className="h-40 w-full object-cover" />
                 <div className="p-4">
                   <div className="flex items-center justify-between">
                     <div>

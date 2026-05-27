@@ -5,64 +5,86 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { Plus, Pencil, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { initialBlogs, Blog } from "@/data/blogs";
+import { blogRepository } from "@/client/apiClient";
 
 const CMSBlogs = () => {
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [edit, setEdit] = useState<Blog | null>(null);
   const [form, setForm] = useState<Omit<Blog, "id" | "date">>({ title: "", slug: "", excerpt: "", body: "", cover: null, author: "", published: true });
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+
+  const fetchBlogs = async () => {
+    try {
+      const res = await blogRepository.getAll();
+      if (res.success && res.blogs) {
+        setBlogs(res.blogs);
+      }
+    } catch (e) {
+      // Fallback
+      const saved = localStorage.getItem("blogs_data");
+      if (saved) {
+        try { setBlogs(JSON.parse(saved)); } catch { setBlogs(initialBlogs); }
+      } else {
+        setBlogs(initialBlogs);
+        localStorage.setItem("blogs_data", JSON.stringify(initialBlogs));
+      }
+    }
+  };
 
   useEffect(() => {
-    const saved = localStorage.getItem("blogs_data");
-    if (saved) {
-      try {
-        setBlogs(JSON.parse(saved));
-      } catch (e) {
-        setBlogs(initialBlogs);
-      }
-    } else {
-      setBlogs(initialBlogs);
-      localStorage.setItem("blogs_data", JSON.stringify(initialBlogs));
-    }
+    fetchBlogs();
   }, []);
 
   const openNew = () => { setEdit(null); setForm({ title: "", slug: "", excerpt: "", body: "", cover: null, author: "", published: true }); setIsEditorOpen(true); };
   const openEdit = (b: Blog) => { setEdit(b); setForm({ title: b.title, slug: b.slug, excerpt: b.excerpt, body: b.body, cover: b.cover, author: b.author, published: b.published }); setIsEditorOpen(true); };
 
-  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (f.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
-    const r = new FileReader();
-    r.onload = (ev) => setForm((p) => ({ ...p, cover: ev.target?.result as string }));
-    r.readAsDataURL(f);
-  };
-
-  const save = (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const today = new Date().toISOString().slice(0, 10);
-    let updated: Blog[] = [];
-    if (edit) {
-      updated = blogs.map((b) => (b.id === edit.id ? { ...b, ...form, date: today } : b));
-      toast.success("Blog updated");
-    } else {
-      updated = [...blogs, { id: Date.now().toString(), ...form, date: today }];
-      toast.success("Blog created");
+    try {
+      if (edit) {
+        await blogRepository.update(edit.id, form);
+        toast.success("Blog updated successfully");
+      } else {
+        await blogRepository.create(form);
+        toast.success("Blog created successfully");
+      }
+      fetchBlogs();
+      setIsEditorOpen(false);
+    } catch (err) {
+      // Local Storage Fallback
+      let updated: Blog[] = [];
+      if (edit) {
+        updated = blogs.map((b) => (b.id === edit.id ? { ...b, ...form, date: today } : b));
+        toast.success("Blog updated (Local Mode)");
+      } else {
+        updated = [...blogs, { id: Date.now().toString(), ...form, date: today }];
+        toast.success("Blog created (Local Mode)");
+      }
+      setBlogs(updated);
+      localStorage.setItem("blogs_data", JSON.stringify(updated));
+      setIsEditorOpen(false);
     }
-    setBlogs(updated);
-    localStorage.setItem("blogs_data", JSON.stringify(updated));
-    setIsEditorOpen(false);
   };
 
-  const del = (id: string) => {
-    const updated = blogs.filter((b) => b.id !== id);
-    setBlogs(updated);
-    localStorage.setItem("blogs_data", JSON.stringify(updated));
-    toast.success("Blog deleted");
+  const del = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this blog?")) {
+      try {
+        await blogRepository.delete(id);
+        toast.success("Blog deleted successfully");
+        fetchBlogs();
+      } catch (err) {
+        const updated = blogs.filter((b) => b.id !== id);
+        setBlogs(updated);
+        localStorage.setItem("blogs_data", JSON.stringify(updated));
+        toast.success("Blog deleted (Local Mode)");
+      }
+    }
   };
 
   return (
@@ -89,10 +111,17 @@ const CMSBlogs = () => {
                     <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Upload className="h-6 w-6" /></div>
                   )}
                 </div>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImage} />
-                <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-2"><Upload className="h-4 w-4" /> {form.cover ? "Change" : "Upload"}</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsMediaLibraryOpen(true)} className="gap-2"><Upload className="h-4 w-4" /> {form.cover ? "Change" : "Browse Media"}</Button>
               </div>
             </div>
+            <MediaLibraryDialog
+              open={isMediaLibraryOpen}
+              onOpenChange={setIsMediaLibraryOpen}
+              onSelect={(url) => {
+                setForm((p) => ({ ...p, cover: url.startsWith("http") ? url : `http://localhost:5000${url}` }));
+                setIsMediaLibraryOpen(false);
+              }}
+            />
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-1" required /></div>
               <div><Label>Slug</Label><Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className="mt-1" required /></div>

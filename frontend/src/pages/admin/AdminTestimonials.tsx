@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { toast } from "sonner";
 
 const STORAGE_KEY = "testimonials_data";
@@ -35,7 +36,7 @@ const AdminTestimonials = () => {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Testimonial | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -70,18 +71,6 @@ const AdminTestimonials = () => {
       published: t.published,
     });
     setOpen(true);
-  };
-
-  const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      toast.error("Max 4MB image size");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => setForm((prev) => ({ ...prev, avatar: String(ev.target?.result || "") }));
-    reader.readAsDataURL(file);
   };
 
   const save = (e: React.FormEvent) => {
@@ -147,12 +136,20 @@ const AdminTestimonials = () => {
                       </div>
                     )}
                   </div>
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatar} />
-                  <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
-                    <Upload className="h-4 w-4" /> {form.avatar ? "Change" : "Upload"}
+                  <Button type="button" variant="outline" size="sm" onClick={() => setIsMediaLibraryOpen(true)} className="gap-2">
+                    <Upload className="h-4 w-4" /> {form.avatar ? "Change" : "Browse Media"}
                   </Button>
                 </div>
               </div>
+
+              <MediaLibraryDialog
+                open={isMediaLibraryOpen}
+                onOpenChange={setIsMediaLibraryOpen}
+                onSelect={(url) => {
+                  setForm((prev) => ({ ...prev, avatar: url.startsWith("http") ? url : `http://localhost:5000${url}` }));
+                  setIsMediaLibraryOpen(false);
+                }}
+              />
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

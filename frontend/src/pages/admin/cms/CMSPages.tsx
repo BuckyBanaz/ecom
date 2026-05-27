@@ -10,31 +10,25 @@ import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Switch } from "@/components/ui/switch";
 import { cmsPagesRepository } from "@/client/apiClient";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 
 type ImgState = string | null;
 
 function ImageUploader({ label, value, onChange }: { label: string; value: ImgState; onChange: (v: ImgState) => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const handle = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (f.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
-    const r = new FileReader();
-    r.onload = (ev) => onChange(ev.target?.result as string);
-    r.readAsDataURL(f);
-  };
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
   return (
     <div className="space-y-3">
       <Label className="text-sm font-medium">{label}</Label>
       <div 
-        onClick={() => !value && ref.current?.click()}
+        onClick={() => !value && setIsDialogOpen(true)}
         className={`group relative overflow-hidden rounded-xl border-2 border-dashed transition-all ${value ? 'border-border' : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5 cursor-pointer'} bg-muted/30`}
       >
         {value ? (
           <div className="relative aspect-video w-full">
             <img src={value} alt="" className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center gap-2">
-              <Button type="button" variant="secondary" size="sm" onClick={() => ref.current?.click()}>Change</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setIsDialogOpen(true)}>Change</Button>
               <Button type="button" variant="destructive" size="sm" onClick={() => onChange(null)}>Remove</Button>
             </div>
           </div>
@@ -43,11 +37,17 @@ function ImageUploader({ label, value, onChange }: { label: string; value: ImgSt
             <div className="rounded-full bg-background p-3 shadow-sm mb-3 group-hover:scale-110 transition-transform">
               <ImageIcon className="h-6 w-6 text-primary/70" />
             </div>
-            <p className="text-sm font-medium">Click to upload image</p>
+            <p className="text-sm font-medium">Click to browse media</p>
           </div>
         )}
-        <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handle} />
       </div>
+      <MediaLibraryDialog 
+        open={isDialogOpen} 
+        onOpenChange={setIsDialogOpen} 
+        onSelect={(url) => {
+          onChange(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+        }} 
+      />
     </div>
   );
 }

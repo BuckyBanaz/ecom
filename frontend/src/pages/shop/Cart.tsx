@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice, useCart } from "@/context/CartContext";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const Cart = () => {
   const { items, subtotal, remove, setQty } = useCart();
@@ -25,7 +26,7 @@ const Cart = () => {
         <ul className="divide-y rounded-xl border bg-card">
           {items.map((i) => (
             <li key={i.id} className="flex gap-4 p-4">
-              <img src={i.product.image} alt="" className="h-24 w-24 rounded-lg object-cover" />
+              <SafeImage src={i.product.image} alt="" className="h-24 w-24 rounded-lg object-cover" fallbackType="product" />
               <div className="flex flex-1 flex-col">
                 <Link to={`/product/${i.product.slug}`} className="font-semibold hover:text-primary">{i.product.name}</Link>
                 <span className="text-xs text-muted-foreground">{i.product.brand} · {i.product.color}</span>

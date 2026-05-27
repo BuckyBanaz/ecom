@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
-import { listMedia, createFolder, deleteMedia, upload, renameMedia } from "../controllers/mediaController";
+import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia } from "../controllers/mediaController";
 
 const router = Router();
 
@@ -122,6 +122,10 @@ router.delete("/", deleteMedia);
  *         description: Not found
  */
 router.put("/rename", renameMedia);
+
+router.put("/move", moveMedia);
+
+router.post("/copy", copyMedia);
 
 /**
  * @swagger

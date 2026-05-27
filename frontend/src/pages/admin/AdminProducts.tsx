@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { productRepository } from "@/client/apiClient";
+import { resolveImgUrl } from "@/utils/image";
 
 const AdminProducts = () => {
   const { hasPermission } = useAdmin();
@@ -142,7 +143,7 @@ const AdminProducts = () => {
                   <tr key={p.id} className="border-t hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <img src={p.image} alt={p.name} className="h-10 w-10 rounded-lg object-cover border" />
+                        <img src={resolveImgUrl(p.image)} alt={p.name} className="h-10 w-10 rounded-lg object-cover border" />
                         <div>
                           <p className="font-semibold">{p.name}</p>
                           <p className="text-xs text-muted-foreground">{brandName || "Generic"}</p>

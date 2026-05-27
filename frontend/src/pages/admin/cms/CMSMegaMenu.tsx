@@ -14,6 +14,7 @@ import { initialBlogs } from "@/data/blogs";
 import { faqs as defaultFaqs } from "@/data/faqs";
 import { megaMenuRepository, categoryRepository, productRepository } from "@/client/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 
 type MegaMenuWithId = MegaMenu & { id?: string };
 
@@ -32,11 +33,12 @@ export default function CMSMegaMenu() {
   
   const [pageTitle, setPageTitle] = useState("");
   const [pageSlug, setPageSlug] = useState("");
-  const [pageBlocks, setPageBlocks] = useState<any[]>([]);
+  const [pageContent, setPageContent] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [seoKeywords, setSeoKeywords] = useState("");
   const [seoImage, setSeoImage] = useState("");
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [blogsList, setBlogsList] = useState<any[]>([]);
   const [productsList, setProductsList] = useState<any[]>([]);
@@ -169,7 +171,14 @@ export default function CMSMegaMenu() {
         if (pages[slug]) {
           const p = pages[slug];
           setPageTitle(p.title || name);
-          setPageBlocks(p.blocks || []);
+          
+          let migratedContent = p.content || "";
+          if (!migratedContent && p.blocks && Array.isArray(p.blocks)) {
+            // Attempt a best-effort migration of old descriptions
+            migratedContent = p.blocks.map((b: any) => b.description || "").filter(Boolean).join("<br/>");
+          }
+          setPageContent(migratedContent);
+
           setSeoTitle(p.seoTitle || name);
           setSeoDescription(p.seoDescription || "");
           setSeoKeywords(p.seoKeywords || "");
@@ -181,17 +190,7 @@ export default function CMSMegaMenu() {
     
     // Default values
     setPageTitle(name);
-    setPageBlocks([
-      {
-        type: "text",
-        title: name,
-        description: `<h2>Discover Our Premium Selection of ${name}</h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p>`
-      },
-      {
-        type: "products",
-        categorySlug: slug
-      }
-    ]);
+    setPageContent(`<h2>Discover Our Premium Selection of ${name}</h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p>`);
     setSeoTitle(`${name} | Buy Premium Lighting Online`);
     setSeoDescription(`Shop our selection of premium ${name}. Free shipping on orders over $50, fast delivery, and modern designs.`);
     setSeoKeywords(`lighting, ${name.toLowerCase()}, modern decor, lights`);
@@ -238,7 +237,7 @@ export default function CMSMegaMenu() {
 
     pages[pageSlug] = {
       title: pageTitle,
-      blocks: pageBlocks,
+      content: pageContent,
       seoTitle,
       seoDescription,
       seoKeywords,
@@ -496,73 +495,6 @@ export default function CMSMegaMenu() {
   const currentMenu = menus[selectedMenuIndex];
 
   if (activePageBuilder) {
-    const addTextBlock = () => {
-      setPageBlocks([
-        ...pageBlocks,
-        {
-          type: "text",
-          title: "New Banner Section",
-          description: "<h2>Enter Banner Heading</h2><p>Provide a detailed description or banner notes here...</p>"
-        }
-      ]);
-      toast.success("Added Banner (Text) Section block");
-    };
-
-    const addProductsBlock = () => {
-      if (categoriesList.length === 0) {
-        toast.error("No categories found from API. Please add categories first.");
-        return;
-      }
-      setPageBlocks([
-        ...pageBlocks,
-        {
-          type: "products",
-          categorySlug: categoriesList[0].slug,
-          description: ""
-        }
-      ]);
-      toast.success("Added Dynamic Product Grid block");
-    };
-
-    const getActiveMenuSlug = () => {
-      if (!activePageBuilder) return "";
-      if (activePageBuilder.type === "menu") return activePageBuilder.slug;
-      const parentMenu = menus.find(m =>
-        m.sections?.some((s: any) => s.items?.some((i: any) => i.slug === activePageBuilder.slug))
-      );
-      return parentMenu ? parentMenu.slug : (menus[selectedMenuIndex]?.slug || "");
-    };
-
-    const addComponentBlock = () => {
-      setPageBlocks([
-        ...pageBlocks,
-        {
-          type: "component",
-          componentType: "categories",
-          title: "Category List",
-          selectedItems: []
-        }
-      ]);
-      toast.success("Added Dynamic Component block");
-    };
-
-    const deleteBlock = (index: number) => {
-      if (window.confirm("Remove this layout block?")) {
-        setPageBlocks(pageBlocks.filter((_, i) => i !== index));
-        toast.success("Block removed");
-      }
-    };
-
-    const moveBlock = (index: number, direction: "up" | "down") => {
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= pageBlocks.length) return;
-      const updated = [...pageBlocks];
-      const temp = updated[index];
-      updated[index] = updated[targetIndex];
-      updated[targetIndex] = temp;
-      setPageBlocks(updated);
-    };
-
     return (
       <div className="space-y-6 pb-12">
         {/* Page Builder Header */}
@@ -634,402 +566,21 @@ export default function CMSMegaMenu() {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  <span>Layout Sections Composer ({pageBlocks.length} sections)</span>
+                  <span>Landing Page Content (HTML)</span>
                 </h3>
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={addTextBlock} className="gap-1 text-xs">
-                    <Plus className="h-3.5 w-3.5" /> Add Banner Block
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={addProductsBlock} className="gap-1 text-xs">
-                    <ListPlus className="h-3.5 w-3.5" /> Add Product Grid Block
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={addComponentBlock} className="gap-1 text-xs">
-                    <Sparkles className="h-3.5 w-3.5" /> Add Component Block
-                  </Button>
-                </div>
               </div>
-
-              {pageBlocks.length === 0 ? (
-                <div className="border-2 border-dashed rounded-xl p-12 text-center bg-muted/10">
-                  <div className="text-muted-foreground font-medium mb-1">Your landing page is empty</div>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto mb-4">Click the buttons above to build a custom banner or attach a live product collection grid.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {pageBlocks.map((block, idx) => (
-                    <Card key={idx} className="border bg-card shadow-xs relative overflow-hidden group/block">
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/40" />
-                      <CardHeader className="py-3 px-4 flex flex-row items-center justify-between bg-muted/30 border-b">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-muted-foreground bg-background px-2 py-0.5 rounded border">
-                            Section #{idx + 1}
-                          </span>
-                          <span className="text-sm font-semibold text-foreground">
-                            {block.type === "text"
-                              ? "Banner (HTML Content)"
-                              : block.type === "products"
-                              ? "Live Product Collection"
-                              : `Component: ${block.componentType === "categories" ? "Categories" : block.componentType === "blogs" ? "Blogs" : "FAQs"}`}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => moveBlock(idx, "up")}
-                            disabled={idx === 0}
-                          >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => moveBlock(idx, "down")}
-                            disabled={idx === pageBlocks.length - 1}
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                            onClick={() => deleteBlock(idx)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4 space-y-4">
-                        {block.type === "component" ? (
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="grid gap-1">
-                                <Label className="text-xs">Component Type</Label>
-                                <select
-                                  value={block.componentType || "categories"}
-                                  onChange={(e) => {
-                                    const updated = [...pageBlocks];
-                                    updated[idx].componentType = e.target.value;
-                                    updated[idx].selectedItems = []; // reset selection on change
-                                    if (e.target.value === "categories") {
-                                      updated[idx].title = "Category List";
-                                    } else if (e.target.value === "blogs") {
-                                      updated[idx].title = "Related Blogs";
-                                    } else {
-                                      updated[idx].title = "Frequently Asked Questions";
-                                    }
-                                    setPageBlocks(updated);
-                                  }}
-                                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <option value="categories">Categories (Filtered by Menu)</option>
-                                  <option value="blogs">Blogs (Articles Grid)</option>
-                                  <option value="faq">FAQ (Accordion List)</option>
-                                </select>
-                              </div>
-
-                              <div className="grid gap-1">
-                                <Label className="text-xs">Section Heading</Label>
-                                <Input
-                                  value={block.title || ""}
-                                  onChange={(e) => {
-                                    const updated = [...pageBlocks];
-                                    updated[idx].title = e.target.value;
-                                    setPageBlocks(updated);
-                                  }}
-                                  placeholder="e.g. Featured Categories..."
-                                />
-                              </div>
-                            </div>
-
-                            {block.componentType === "categories" && (() => {
-                              const menuSlug = getActiveMenuSlug();
-                              // Match categories by group — handle both old (e.g. "indoor") and new slugs (e.g. "interior-lighting")
-                              const groupAliases: Record<string, string[]> = {
-                                "interior-lighting": ["interior-lighting", "indoor", "accessories"],
-                                "outdoor-lighting": ["outdoor-lighting", "outdoor"],
-                                "light-sources": ["light-sources", "smart", "bulbs"],
-                                "commercial-lighting": ["commercial-lighting", "business"],
-                              };
-                              const validGroups = groupAliases[menuSlug] || [menuSlug];
-                              const filteredCats = categoriesList.filter(c => validGroups.includes(c.group));
-                              const allSelected = filteredCats.length > 0 && filteredCats.every(c => block.selectedItems?.includes(c.slug));
-                              
-                              return (
-                                <div className="space-y-2 border rounded-lg p-3 bg-muted/10">
-                                  <div className="flex items-center justify-between border-b pb-2">
-                                    <span className="text-xs font-bold text-foreground">
-                                      Select Categories of Menu: <code className="bg-muted px-1 rounded">{menuSlug || "unknown"}</code>
-                                    </span>
-                                    {filteredCats.length > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = [...pageBlocks];
-                                          if (allSelected) {
-                                            updated[idx].selectedItems = [];
-                                          } else {
-                                            updated[idx].selectedItems = filteredCats.map(c => c.slug);
-                                          }
-                                          setPageBlocks(updated);
-                                        }}
-                                        className="text-[10px] text-primary hover:underline font-semibold"
-                                      >
-                                        {allSelected ? "Deselect All" : "Select All"}
-                                      </button>
-                                    )}
-                                  </div>
-                                  {filteredCats.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground italic">
-                                      No categories configured for menu group "{menuSlug}". You can change category menus under Categories settings page.
-                                    </p>
-                                  ) : (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-40 overflow-y-auto">
-                                      {filteredCats.map(c => {
-                                        const isChecked = block.selectedItems?.includes(c.slug);
-                                        return (
-                                          <label key={c.slug} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 p-1.5 rounded transition-colors select-none">
-                                            <input
-                                              type="checkbox"
-                                              checked={isChecked}
-                                              onChange={() => {
-                                                const updated = [...pageBlocks];
-                                                const curSelected = block.selectedItems || [];
-                                                if (isChecked) {
-                                                  updated[idx].selectedItems = curSelected.filter((item: string) => item !== c.slug);
-                                                } else {
-                                                  updated[idx].selectedItems = [...curSelected, c.slug];
-                                                }
-                                                setPageBlocks(updated);
-                                              }}
-                                              className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
-                                            />
-                                            <span className="truncate font-medium">{c.name}</span>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-
-                            {block.componentType === "blogs" && (() => {
-                              const allSelected = blogsList.length > 0 && blogsList.every(b => block.selectedItems?.includes(b.slug));
-                              
-                              return (
-                                <div className="space-y-2 border rounded-lg p-3 bg-muted/10">
-                                  <div className="flex items-center justify-between border-b pb-2">
-                                    <span className="text-xs font-bold text-foreground">Select Published Blogs</span>
-                                    {blogsList.length > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = [...pageBlocks];
-                                          if (allSelected) {
-                                            updated[idx].selectedItems = [];
-                                          } else {
-                                            updated[idx].selectedItems = blogsList.map(b => b.slug);
-                                          }
-                                          setPageBlocks(updated);
-                                        }}
-                                        className="text-[10px] text-primary hover:underline font-semibold"
-                                      >
-                                        {allSelected ? "Deselect All" : "Select All"}
-                                      </button>
-                                    )}
-                                  </div>
-                                  {blogsList.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground italic">No blogs found.</p>
-                                  ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
-                                      {blogsList.map(b => {
-                                        const isChecked = block.selectedItems?.includes(b.slug);
-                                        return (
-                                          <label key={b.slug} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 p-1.5 rounded transition-colors select-none">
-                                            <input
-                                              type="checkbox"
-                                              checked={isChecked}
-                                              onChange={() => {
-                                                const updated = [...pageBlocks];
-                                                const curSelected = block.selectedItems || [];
-                                                if (isChecked) {
-                                                  updated[idx].selectedItems = curSelected.filter((item: string) => item !== b.slug);
-                                                } else {
-                                                  updated[idx].selectedItems = [...curSelected, b.slug];
-                                                }
-                                                setPageBlocks(updated);
-                                              }}
-                                              className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
-                                            />
-                                            <span className="truncate font-medium">{b.title}</span>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-
-                            {block.componentType === "faq" && (() => {
-                              const allSelected = defaultFaqs.length > 0 && defaultFaqs.every(f => block.selectedItems?.includes(f.q));
-                              
-                              return (
-                                <div className="space-y-2 border rounded-lg p-3 bg-muted/10">
-                                  <div className="flex items-center justify-between border-b pb-2">
-                                    <span className="text-xs font-bold text-foreground">Select FAQs</span>
-                                    {defaultFaqs.length > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = [...pageBlocks];
-                                          if (allSelected) {
-                                            updated[idx].selectedItems = [];
-                                          } else {
-                                            updated[idx].selectedItems = defaultFaqs.map(f => f.q);
-                                          }
-                                          setPageBlocks(updated);
-                                        }}
-                                        className="text-[10px] text-primary hover:underline font-semibold"
-                                      >
-                                        {allSelected ? "Deselect All" : "Select All"}
-                                      </button>
-                                    )}
-                                  </div>
-                                  <div className="space-y-2 pt-1 max-h-40 overflow-y-auto">
-                                    {defaultFaqs.map(f => {
-                                      const isChecked = block.selectedItems?.includes(f.q);
-                                      return (
-                                        <label key={f.q} className="flex items-start gap-2 text-xs cursor-pointer hover:bg-muted/50 p-1.5 rounded transition-colors select-none">
-                                          <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => {
-                                              const updated = [...pageBlocks];
-                                              const curSelected = block.selectedItems || [];
-                                              if (isChecked) {
-                                                updated[idx].selectedItems = curSelected.filter((item: string) => item !== f.q);
-                                              } else {
-                                                updated[idx].selectedItems = [...curSelected, f.q];
-                                              }
-                                              setPageBlocks(updated);
-                                            }}
-                                            className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5 mt-0.5"
-                                          />
-                                          <div>
-                                            <div className="font-semibold text-foreground">{f.q}</div>
-                                            <div className="text-[10px] text-muted-foreground line-clamp-1">{f.a}</div>
-                                          </div>
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        ) : block.type === "text" ? (
-                          <div className="space-y-3">
-                            <div className="grid gap-1">
-                              <Label className="text-xs">Section Heading</Label>
-                              <Input
-                                value={block.title || ""}
-                                onChange={(e) => {
-                                  const updated = [...pageBlocks];
-                                  updated[idx].title = e.target.value;
-                                  setPageBlocks(updated);
-                                }}
-                                placeholder="Enter block heading..."
-                              />
-                            </div>
-                             <div className="grid gap-1">
-                              <RichTextEditor
-                                label="Rich Text Content (HTML)"
-                                value={block.description || ""}
-                                onChange={(val) => {
-                                  const updated = [...pageBlocks];
-                                  updated[idx].description = val;
-                                  setPageBlocks(updated);
-                                }}
-                                placeholder="Enter banner rich text content here..."
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="grid gap-1">
-                              <Label className="text-xs">Select Category Collection</Label>
-                              <select
-                                value={block.categorySlug || ""}
-                                onChange={(e) => {
-                                  const updated = [...pageBlocks];
-                                  updated[idx].categorySlug = e.target.value;
-                                  setPageBlocks(updated);
-                                }}
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                disabled={categoriesList.length === 0}
-                              >
-                                {categoriesList.length === 0 ? (
-                                  <option value="">No categories available</option>
-                                ) : (
-                                  categoriesList.map((c) => (
-                                    <option key={c.slug} value={c.slug}>
-                                      {c.name} ({c.slug})
-                                    </option>
-                                  ))
-                                )}
-                              </select>
-                            </div>
-
-                            <div className="space-y-1 pt-1">
-                              <Label className="text-xs font-semibold">Collection Description (HTML Content)</Label>
-                              <RichTextEditor
-                                value={block.description || ""}
-                                onChange={(val) => {
-                                  const updated = [...pageBlocks];
-                                  updated[idx].description = val;
-                                  setPageBlocks(updated);
-                                }}
-                                placeholder="Provide optional rich text description or layout notes above the product grid..."
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
-                                <Eye className="h-3 w-3" />
-                                <span>Preview Products in Category ({productsList.filter(p => {
-                                     const catSlug = p.categorySlug || (p.category && typeof p.category === "object" ? p.category.slug : p.category);
-                                     return catSlug === block.categorySlug;
-                                   }).length} found)</span>
-                              </Label>
-                              <div className="grid grid-cols-6 gap-2 border rounded p-2 bg-muted/10 max-h-36 overflow-y-auto">
-                                {productsList
-                                   .filter((p) => {
-                                     const catSlug = p.categorySlug || (p.category && typeof p.category === "object" ? p.category.slug : p.category);
-                                     return catSlug === block.categorySlug;
-                                   })
-                                   .map((p) => (
-                                  <div key={p.id} className="text-center p-1 rounded bg-background border flex flex-col justify-between">
-                                    <img src={p.image} className="h-8 w-8 object-cover rounded mx-auto border" />
-                                    <div className="text-[8px] truncate mt-1 text-foreground font-medium">{p.name}</div>
-                                    <div className="text-[8px] text-muted-foreground">€{p.price}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+              
+              <Card className="border bg-card shadow-xs relative overflow-hidden group/block">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/40" />
+                <CardContent className="p-0 border-0">
+                  <RichTextEditor
+                    label=""
+                    value={pageContent}
+                    onChange={setPageContent}
+                    placeholder="Write page content and insert dynamic shortcode components..."
+                  />
+                </CardContent>
+              </Card>
             </div>
           </div>
 
@@ -1117,19 +668,18 @@ export default function CMSMegaMenu() {
                         </button>
                       </div>
                     )}
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (ev) => setSeoImage(ev.target?.result as string);
-                        reader.readAsDataURL(file);
-                      }}
-                      className="cursor-pointer file:mr-4 file:py-1 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                    />
+                    <Button type="button" variant="outline" onClick={() => setIsMediaLibraryOpen(true)}>
+                      Browse Media Storage
+                    </Button>
                   </div>
+                  <MediaLibraryDialog 
+                    open={isMediaLibraryOpen} 
+                    onOpenChange={setIsMediaLibraryOpen} 
+                    onSelect={(url) => {
+                      setSeoImage(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+                      setIsMediaLibraryOpen(false);
+                    }} 
+                  />
                   <p className="text-[10px] text-muted-foreground">Recommended size: 1200 x 630 pixels. Used when sharing the link on social media platforms.</p>
                 </div>
               </CardContent>
@@ -1347,9 +897,6 @@ export default function CMSMegaMenu() {
                                         </button>
                                         <button onClick={() => moveItem(sIdx, iIdx, "down")} disabled={iIdx === section.items.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
                                           <ArrowDown className="h-3 w-3" />
-                                        </button>
-                                        <button onClick={() => handleOpenPageBuilder(item.slug, item.name, "item")} className="p-0.5 text-muted-foreground hover:text-primary" title="Edit Custom Page & SEO">
-                                          <FileText className="h-3 w-3" />
                                         </button>
                                         <button onClick={() => openItemDialog(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-primary">
                                           <Pencil className="h-3 w-3" />

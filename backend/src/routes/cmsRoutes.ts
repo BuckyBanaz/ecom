@@ -2,6 +2,8 @@ import { Router } from "express";
 import {
   getHomepage,
   updateHomepage,
+  getReliefPage,
+  updateReliefPage,
   getAllPages,
   getPageBySlug,
   createPage,
@@ -54,6 +56,43 @@ router.get("/homepage", getHomepage);
  *         description: Server error
  */
 router.put("/homepage", updateHomepage);
+
+/**
+ * @swagger
+ * /api/v1/cms/relief:
+ *   get:
+ *     summary: Get relief page configuration
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: Relief page configuration data
+ *       404:
+ *         description: Configuration not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/relief", getReliefPage);
+
+/**
+ * @swagger
+ * /api/v1/cms/relief:
+ *   put:
+ *     summary: Update relief page configuration
+ *     tags: [CMS]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: The entire JSON configuration for the relief page
+ *     responses:
+ *       200:
+ *         description: Relief page configuration successfully updated
+ *       500:
+ *         description: Server error
+ */
+router.put("/relief", updateReliefPage);
 
 /**
  * @swagger

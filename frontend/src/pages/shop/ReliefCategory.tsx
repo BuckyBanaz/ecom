@@ -3,11 +3,15 @@ import { Link, useParams } from "react-router-dom";
 import { categories } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
 import { ProductCard } from "@/components/shop/ProductCard";
-import { productRepository } from "@/client/apiClient";
+import { productRepository, categoryRepository, megaMenuRepository } from "@/client/apiClient";
 import { initialBlogs } from "@/data/blogs";
 import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BlogCard } from "@/components/shop/BlogCard";
+import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
+import { resolveImgUrl } from "@/utils/image";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ReliefCategorySkeleton } from "@/components/ui/SkeletonLoader";
 
 const resolveCategorySlug = (menuItemSlug: string) => {
   const mappings: Record<string, string> = {
@@ -31,11 +35,7 @@ const resolveCategorySlug = (menuItemSlug: string) => {
   return mappings[menuItemSlug] || menuItemSlug;
 };
 
-const getCategoryImage = (itemSlug: string) => {
-  const resolved = resolveCategorySlug(itemSlug);
-  const matched = categories.find(c => c.slug === resolved);
-  return matched ? matched.image : "";
-};
+
 
 const styleDescriptions: Record<string, string> = {
   Industrial: "Are you looking for a cool lamp with a robust shape? Then industrial indoor lighting is definitely for you! Steel, wood, and glass are the most commonly used materials for industrial indoor lighting. The most common colors within this style are black, gray, and rust brown.",
@@ -52,28 +52,17 @@ export default function ReliefCategory() {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [blogsList, setBlogsList] = useState<any[]>([]);
   const [productsList, setProductsList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const getCategoryImage = (itemSlug: string) => {
+    const resolved = resolveCategorySlug(itemSlug);
+    const matchedDb = categoriesList.find(c => c.slug === resolved);
+    if (matchedDb && matchedDb.image) return matchedDb.image;
+    const matched = categories.find(c => c.slug === resolved);
+    return matched ? matched.image : "";
+  };
 
   useEffect(() => {
-    const savedMenus = localStorage.getItem("mega_menu_data");
-    if (savedMenus) {
-      try {
-        setMenus(JSON.parse(savedMenus));
-      } catch (e) {
-        setMenus(megaMenuData);
-      }
-    } else {
-      setMenus(megaMenuData);
-    }
-
-    const savedCats = localStorage.getItem("categories_data");
-    let loadedCats = categories;
-    if (savedCats) {
-      try {
-        loadedCats = JSON.parse(savedCats);
-      } catch (e) {
-        loadedCats = categories;
-      }
-    }
     const groupMapping: Record<string, string> = {
       "indoor": "interior-lighting",
       "outdoor": "outdoor-lighting",
@@ -82,18 +71,70 @@ export default function ReliefCategory() {
       "business": "commercial-lighting",
       "accessories": "interior-lighting"
     };
-    let migrated = false;
-    const mappedCats = loadedCats.map((c: any) => {
-      if (groupMapping[c.group]) {
-        migrated = true;
-        return { ...c, group: groupMapping[c.group] };
+
+    const loadRealData = async () => {
+      setIsLoading(true);
+      try {
+        const [catRes, prodRes, menuRes] = await Promise.all([
+          categoryRepository.getAll().catch(() => null),
+          productRepository.getAll().catch(() => null),
+          megaMenuRepository.getAll().catch(() => null),
+        ]);
+
+        if (menuRes && menuRes.success && menuRes.megaMenus) {
+          setMenus(menuRes.megaMenus);
+        } else {
+          const savedMenus = localStorage.getItem("mega_menu_data");
+          if (savedMenus) {
+            try {
+              setMenus(JSON.parse(savedMenus));
+            } catch (e) {
+              setMenus(megaMenuData);
+            }
+          } else {
+            setMenus(megaMenuData);
+          }
+        }
+
+        if (catRes && catRes.success && catRes.categories) {
+          const apiCats = catRes.categories;
+          const mappedCats = apiCats.map((c: any) => {
+            if (groupMapping[c.group]) {
+              return { ...c, group: groupMapping[c.group] };
+            }
+            return c;
+          });
+          setCategoriesList(mappedCats);
+        } else {
+          // Fallback to static
+          const savedCats = localStorage.getItem("categories_data");
+          let loadedCats = categories;
+          if (savedCats) {
+            try { loadedCats = JSON.parse(savedCats); } catch { loadedCats = categories; }
+          }
+          const mappedCats = loadedCats.map((c: any) => {
+            if (groupMapping[c.group]) {
+              return { ...c, group: groupMapping[c.group] };
+            }
+            return c;
+          });
+          setCategoriesList(mappedCats);
+        }
+
+        if (prodRes && prodRes.success && prodRes.products) {
+          setProductsList(prodRes.products.map((p: any) => ({
+            ...p,
+            brand: p.brand && typeof p.brand === "object" ? p.brand.name : p.brand,
+            category: p.category && typeof p.category === "object" ? p.category.slug : p.category,
+          })));
+        }
+      } catch (e) {
+        console.error("Failed to load ReliefCategory api data", e);
+      } finally {
+        setIsLoading(false);
       }
-      return c;
-    });
-    if (migrated) {
-      localStorage.setItem("categories_data", JSON.stringify(mappedCats));
-    }
-    setCategoriesList(mappedCats);
+    };
+    loadRealData();
 
     const savedBlogs = localStorage.getItem("blogs_data");
     if (savedBlogs) {
@@ -105,23 +146,6 @@ export default function ReliefCategory() {
     } else {
       setBlogsList(initialBlogs);
     }
-
-    // Load products from backend
-    const loadProducts = async () => {
-      try {
-        const prodData = await productRepository.getAll();
-        if (prodData.success && prodData.products) {
-          setProductsList(prodData.products.map((p: any) => ({
-            ...p,
-            brand: p.brand && typeof p.brand === "object" ? p.brand.name : p.brand,
-            category: p.category && typeof p.category === "object" ? p.category.slug : p.category,
-          })));
-        }
-      } catch (e) {
-        console.error("Failed to load products:", e);
-      }
-    };
-    loadProducts();
 
     const savedPages = localStorage.getItem("landing_pages_data");
     if (savedPages) {
@@ -160,6 +184,10 @@ export default function ReliefCategory() {
     }
   }, [slug]);
 
+  if (isLoading) {
+    return <ReliefCategorySkeleton />;
+  }
+
   const matchedMenuObj = menus.find((m) => m.slug === slug);
 
   if (!matchedMenuObj) {
@@ -192,155 +220,14 @@ export default function ReliefCategory() {
       </nav>
 
       {landingPage ? (
-        <div className="space-y-12">
-          {(Array.isArray(landingPage.blocks) ? landingPage.blocks : []).map((block: any, idx: number) => {
-            if (block.type === "text") {
-              return (
-                <div key={idx} className="prose max-w-none dark:prose-invert">
-                  {block.title && <h2 className="text-2xl font-bold mb-4">{block.title}</h2>}
-                  <div dangerouslySetInnerHTML={{ __html: block.description }} className="text-muted-foreground leading-relaxed" />
-                </div>
-              );
-            }
-            if (block.type === "products") {
-              const targetCategory = block.categorySlug;
-              const isDeals = targetCategory === "deals";
-              const list = isDeals ? productsList.filter((p) => p.oldPrice) : productsList.filter((p) => p.category === targetCategory);
-
-              return (
-                <div key={idx} className="space-y-6">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <h2 className="text-2xl font-bold text-foreground">
-                      {categories.find(c => c.slug === targetCategory)?.name || "Featured Products"}
-                    </h2>
-                    <span className="text-sm text-muted-foreground font-medium">{list.length} products</span>
-                  </div>
-                  {block.description && (
-                    <div 
-                      dangerouslySetInnerHTML={{ __html: block.description }} 
-                      className="text-muted-foreground leading-relaxed prose max-w-none text-sm dark:prose-invert"
-                    />
-                  )}
-                  {list.length === 0 ? (
-                    <p className="text-sm text-muted-foreground italic">No products found for this category.</p>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                      {list.map((p) => (
-                        <ProductCard key={p.id} product={p} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            if (block.type === "component") {
-              const heading = block.title || "";
-              
-              if (block.componentType === "categories") {
-                const menuSlug = matchedMenuObj.slug;
-                const selectedCats = (block.selectedItems && block.selectedItems.length > 0)
-                  ? categoriesList.filter(c => block.selectedItems.includes(c.slug))
-                  : categoriesList.filter(c => c.group === menuSlug);
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                      {selectedCats.map((c) => {
-                        const count = productsList.filter(p => p.category === c.slug).length;
-                        return (
-                          <Link
-                            key={c.slug}
-                            to={`/category/${c.slug}`}
-                            className="group relative flex flex-col overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
-                          >
-                            <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                              {c.image ? (
-                                <img
-                                  src={c.image}
-                                  alt={c.name}
-                                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
-                                  {c.name}
-                                </div>
-                              )}
-                            </div>
-                            <div className="w-full bg-background py-3 px-4 text-center border-t flex flex-col items-center">
-                              <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                                {c.name}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground mt-0.5">{count} products</span>
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              }
-
-              if (block.componentType === "blogs") {
-                const selectedBlogs = (block.selectedItems && block.selectedItems.length > 0)
-                  ? blogsList.filter(b => block.selectedItems.includes(b.slug) && b.published)
-                  : blogsList.filter(b => b.published);
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    {selectedBlogs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground italic">No articles to show.</p>
-                    ) : (
-                      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {selectedBlogs.map((b) => (
-                          <BlogCard key={b.id} blog={b} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              if (block.componentType === "faq") {
-                const selectedFaqs = (block.selectedItems && block.selectedItems.length > 0)
-                  ? faqs.filter(f => block.selectedItems.includes(f.q))
-                  : faqs;
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    <Accordion type="single" collapsible className="w-full border rounded-2xl bg-card p-4 shadow-xs">
-                      {selectedFaqs.map((f, i) => (
-                        <AccordionItem key={i} value={`faq-${i}`} className={i === selectedFaqs.length - 1 ? "border-b-0" : ""}>
-                          <AccordionTrigger className="text-left font-semibold text-foreground hover:no-underline hover:text-primary transition-colors py-4">
-                            {f.q}
-                          </AccordionTrigger>
-                          <AccordionContent className="text-muted-foreground leading-relaxed text-sm pb-4">
-                            {f.a}
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </div>
-                );
-              }
-            }
-            return null;
-          })}
-        </div>
+        <ShortcodeRenderer 
+          content={
+            landingPage.content || 
+            (Array.isArray(landingPage.blocks) 
+              ? landingPage.blocks.map((b: any) => b.description || "").filter(Boolean).join("<br/>") 
+              : "")
+          } 
+        />
       ) : (
         <>
           {/* Hero Section */}
@@ -363,38 +250,49 @@ export default function ReliefCategory() {
 
           {/* Subcategories Grid */}
           <div className="mb-16">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-              {subCategories.map((item: any) => {
-                const imgUrl = getCategoryImage(item.slug);
-                const resolved = resolveCategorySlug(item.slug);
-                return (
-                  <Link
-                    key={item.slug}
-                    to={`/category/${resolved}`}
-                    className="group relative flex flex-col items-center overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
-                  >
-                    <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                      {imgUrl ? (
-                        <img
-                          src={imgUrl}
-                          alt={item.name}
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
+            {isLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6 animate-pulse">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+                    <Skeleton className="aspect-[4/3] w-full rounded-lg" />
+                    <Skeleton className="h-4 w-3/4 mx-auto mt-2" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                {subCategories.map((item: any) => {
+                  const imgUrl = getCategoryImage(item.slug);
+                  const resolved = resolveCategorySlug(item.slug);
+                  return (
+                    <Link
+                      key={item.slug}
+                      to={`/category/${resolved}`}
+                      className="group relative flex flex-col items-center overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
+                    >
+                      <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+                        {imgUrl ? (
+                          <img
+                            src={resolveImgUrl(imgUrl)}
+                            alt={item.name}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
+                            {item.name}
+                          </div>
+                        )}
+                      </div>
+                      <div className="w-full bg-background py-3 px-4 text-center border-t">
+                        <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
                           {item.name}
-                        </div>
-                      )}
-                    </div>
-                    <div className="w-full bg-background py-3 px-4 text-center border-t">
-                      <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                        {item.name}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Styles Sections */}
@@ -435,7 +333,7 @@ export default function ReliefCategory() {
                           <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
                             {imgUrl ? (
                               <img
-                                src={imgUrl}
+                                src={resolveImgUrl(imgUrl)}
                                 alt={`${styleName} ${item.name}`}
                                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                               />

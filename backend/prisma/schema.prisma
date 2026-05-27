@@ -95,6 +95,7 @@ model Product {
   rating                 Float                   @default(0.0)
   reviewCount            Int                     @default(0) @map("review_count")
   image                  String
+  images                 String[]                @default([])
   inStock                Boolean                 @default(true) @map("in_stock")
   isNewArrival           Boolean                 @default(false) @map("is_new_arrival")
   isBestSelling          Boolean                 @default(false) @map("is_best_selling")

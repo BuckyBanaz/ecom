@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatPrice, useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const steps = ["Contact", "Shipping", "Payment"] as const;
 
@@ -127,7 +128,7 @@ const Checkout = () => {
           <ul className="divide-y">
             {items.map((i) => (
               <li key={i.id} className="flex gap-3 py-3">
-                <img src={i.product.image} alt="" className="h-14 w-14 rounded-md object-cover" />
+                <SafeImage src={i.product.image} alt="" className="h-14 w-14 rounded-md object-cover" fallbackType="product" />
                 <div className="flex-1 text-sm">
                   <div className="line-clamp-1 font-medium">{i.product.name}</div>
                   <div className="text-xs text-muted-foreground">Qty {i.qty}</div>

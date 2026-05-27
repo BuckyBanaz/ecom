@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Image as ImageIcon, Package, Folder, Building2, Layers } from "lucide-react";
+import { resolveImgUrl } from "@/utils/image";
 
 interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fallbackType?: "product" | "category" | "brand" | "series";
@@ -35,7 +36,7 @@ export function SafeImage({ src, alt, className, fallbackType, ...props }: SafeI
 
   return (
     <img
-      src={src}
+      src={resolveImgUrl(src)}
       alt={alt}
       className={className}
       onError={() => setHasError(true)}

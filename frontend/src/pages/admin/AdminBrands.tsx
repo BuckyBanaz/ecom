@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Brand, Series } from "@/data/brands";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { resolveImgUrl } from "@/utils/image";
 
 const AdminBrands = () => {
   const { hasPermission } = useAdmin();
@@ -31,6 +33,8 @@ const AdminBrands = () => {
   const [seriesSearch, setSeriesSearch] = useState("");
   const [seriesLogoPreview, setSeriesLogoPreview] = useState<string>("");
   const [selectedSeriesBrand, setSelectedSeriesBrand] = useState<string>("");
+  const [isBrandMediaLibraryOpen, setIsBrandMediaLibraryOpen] = useState(false);
+  const [isSeriesMediaLibraryOpen, setIsSeriesMediaLibraryOpen] = useState(false);
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -287,7 +291,7 @@ const AdminBrands = () => {
                         {logoPreview ? (
                           <div className="flex h-16 w-16 items-center justify-center rounded-xl border bg-card p-1">
                             <img
-                              src={logoPreview}
+                              src={resolveImgUrl(logoPreview)}
                               alt="Logo Preview"
                               className="max-h-full max-w-full object-contain"
                               onError={(e) => {
@@ -301,26 +305,22 @@ const AdminBrands = () => {
                           </div>
                         )}
                         <div className="flex-1 space-y-1">
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setLogoPreview(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                            className="cursor-pointer text-xs h-9 file:text-[10px] file:font-bold file:rounded-md file:bg-primary file:text-primary-foreground border-muted-foreground/20 rounded-lg bg-background/50"
-                          />
+                          <Button type="button" variant="outline" className="w-full text-left justify-start" onClick={() => setIsBrandMediaLibraryOpen(true)}>
+                            {logoPreview ? "Change Logo" : "Browse Media Storage"}
+                          </Button>
                           <p className="text-[9px] text-muted-foreground">
                             Upload a png or jpg file.
                           </p>
                         </div>
                       </div>
+                      <MediaLibraryDialog
+                        open={isBrandMediaLibraryOpen}
+                        onOpenChange={setIsBrandMediaLibraryOpen}
+                        onSelect={(url) => {
+                          setLogoPreview(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+                          setIsBrandMediaLibraryOpen(false);
+                        }}
+                      />
                     </div>
 
                     <div className="flex gap-2 justify-end pt-2">
@@ -361,7 +361,7 @@ const AdminBrands = () => {
                   <div className="flex flex-col items-center text-center space-y-4">
                     <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
                       {b.logo ? (
-                        <img src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain" />
+                        <img src={resolveImgUrl(b.logo)} alt={b.name} className="max-h-full max-w-full object-contain" />
                       ) : (
                         <Building2 className="h-9 w-9 text-muted-foreground" />
                       )}
@@ -466,7 +466,7 @@ const AdminBrands = () => {
                         {seriesLogoPreview ? (
                           <div className="flex h-16 w-16 items-center justify-center rounded-xl border bg-card p-1">
                             <img
-                              src={seriesLogoPreview}
+                              src={resolveImgUrl(seriesLogoPreview)}
                               alt="Series Logo Preview"
                               className="max-h-full max-w-full object-contain"
                             />
@@ -477,23 +477,19 @@ const AdminBrands = () => {
                           </div>
                         )}
                         <div className="flex-1 space-y-1">
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setSeriesLogoPreview(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                            className="cursor-pointer text-xs h-9 file:text-[10px] file:font-bold file:rounded-md file:bg-primary file:text-primary-foreground border-muted-foreground/20 rounded-lg bg-background/50"
-                          />
+                          <Button type="button" variant="outline" className="w-full text-left justify-start" onClick={() => setIsSeriesMediaLibraryOpen(true)}>
+                            {seriesLogoPreview ? "Change Logo" : "Browse Media Storage"}
+                          </Button>
                         </div>
                       </div>
+                      <MediaLibraryDialog
+                        open={isSeriesMediaLibraryOpen}
+                        onOpenChange={setIsSeriesMediaLibraryOpen}
+                        onSelect={(url) => {
+                          setSeriesLogoPreview(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+                          setIsSeriesMediaLibraryOpen(false);
+                        }}
+                      />
                     </div>
 
                     <div className="flex gap-2 justify-end pt-2">
@@ -536,9 +532,9 @@ const AdminBrands = () => {
                     <div className="flex flex-col items-center text-center space-y-4">
                       <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
                         {s.logo ? (
-                          <img src={s.logo} alt={s.name} className="max-h-full max-w-full object-contain" />
+                          <img src={resolveImgUrl(s.logo)} alt={s.name} className="max-h-full max-w-full object-contain" />
                         ) : brandObj?.logo ? (
-                          <img src={brandObj.logo} alt={brandObj.name} className="max-h-full max-w-full object-contain opacity-50 filter grayscale" />
+                          <img src={resolveImgUrl(brandObj.logo)} alt={brandObj.name} className="max-h-full max-w-full object-contain opacity-50 filter grayscale" />
                         ) : (
                           <LayoutGrid className="h-8 w-8 text-muted-foreground" />
                         )}

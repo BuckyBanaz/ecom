@@ -178,6 +178,67 @@ export const renameMedia = async (req: Request, res: Response) => {
   }
 };
 
+// Move: relocate items to a destination folder
+export const moveMedia = async (req: Request, res: Response) => {
+  try {
+    const { paths, destination } = req.body as { paths: string[]; destination: string };
+    if (!Array.isArray(paths) || paths.length === 0) {
+      return res.status(400).json({ success: false, message: "paths[] required" });
+    }
+    const { fullPath: destFull } = getSafePath(destination || "");
+    await fs.mkdir(destFull, { recursive: true });
+
+    for (const p of paths) {
+      const { fullPath: srcFull } = getSafePath(p);
+      const destFile = path.join(destFull, path.basename(srcFull));
+      await fs.rename(srcFull, destFile);
+    }
+    res.status(200).json({ success: true, message: "Moved successfully" });
+  } catch (error: any) {
+    console.error("Error moving media:", error);
+    res.status(500).json({ success: false, message: error.message || "Server error" });
+  }
+};
+
+// Recursive copy helper
+const copyRecursive = async (src: string, dest: string) => {
+  const stat = await fs.stat(src);
+  if (stat.isDirectory()) {
+    await fs.mkdir(dest, { recursive: true });
+    const children = await fs.readdir(src);
+    for (const child of children) {
+      await copyRecursive(path.join(src, child), path.join(dest, child));
+    }
+  } else {
+    await fs.copyFile(src, dest);
+  }
+};
+
+// Copy: duplicate items into a destination folder
+export const copyMedia = async (req: Request, res: Response) => {
+  try {
+    const { paths, destination } = req.body as { paths: string[]; destination: string };
+    if (!Array.isArray(paths) || paths.length === 0) {
+      return res.status(400).json({ success: false, message: "paths[] required" });
+    }
+    const { fullPath: destFull } = getSafePath(destination || "");
+    await fs.mkdir(destFull, { recursive: true });
+
+    for (const p of paths) {
+      const { fullPath: srcFull } = getSafePath(p);
+      const baseName = path.basename(srcFull);
+      let destFile = path.join(destFull, baseName);
+      // If destination exists, suffix with _copy
+      try { await fs.stat(destFile); destFile = path.join(destFull, `copy_${baseName}`); } catch { /* doesn't exist, fine */ }
+      await copyRecursive(srcFull, destFile);
+    }
+    res.status(200).json({ success: true, message: "Copied successfully" });
+  } catch (error: any) {
+    console.error("Error copying media:", error);
+    res.status(500).json({ success: false, message: error.message || "Server error" });
+  }
+};
+
 // Multer storage setup
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {

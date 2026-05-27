@@ -10,6 +10,7 @@ async function main() {
   console.log("🧹 Clearing old database records...");
   await prisma.blog.deleteMany();
   await prisma.megaMenu.deleteMany();
+  await prisma.cmsPage.deleteMany();
   await prisma.cmsConfig.deleteMany();
   await prisma.wishlist.deleteMany();
   await prisma.orderItem.deleteMany();
@@ -723,24 +724,7 @@ async function main() {
       value: {
         "interior-lighting": {
           title: "Interior lighting",
-          blocks: [
-            {
-              type: "text",
-              title: "Interior lighting",
-              description: "<h2><strong>Discover Our Premium Selection of Interior lighting</strong></h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p>"
-            },
-            {
-              type: "products",
-              categorySlug: "pendant-lamps",
-              description: ""
-            },
-            {
-              type: "component",
-              componentType: "categories",
-              title: "Browse Interior Categories",
-              selectedItems: []
-            }
-          ],
+          content: '<h2><strong>Discover Our Premium Selection of Interior lighting</strong></h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p><br/>[product-block title="Popular Products" type="pendant-lamps"][/product-block]<br/>[category-block title="Browse Interior Categories"][/category-block]',
           seoTitle: "Interior lighting | Buy Premium Lighting Online",
           seoDescription: "Shop our selection of premium Interior lighting. Free shipping on orders over $50, fast delivery, and modern designs.",
           seoKeywords: "lighting, interior lighting, modern decor, lights",
@@ -748,24 +732,7 @@ async function main() {
         },
         "outdoor-lighting": {
           title: "Outdoor lighting",
-          blocks: [
-            {
-              type: "text",
-              title: "Outdoor lighting",
-              description: "<h2><strong>Upgrade Your Outdoors</strong></h2><p>Discover durable, stylish outdoor lighting for gardens, patios, and entrances.</p>"
-            },
-            {
-              type: "products",
-              categorySlug: "outdoor-lamps",
-              description: ""
-            },
-            {
-              type: "component",
-              componentType: "categories",
-              title: "Outdoor Categories",
-              selectedItems: []
-            }
-          ],
+          content: '<h2><strong>Upgrade Your Outdoors</strong></h2><p>Discover durable, stylish outdoor lighting for gardens, patios, and entrances.</p><br/>[product-block title="Popular Outdoor Lamps" type="outdoor-lamps"][/product-block]<br/>[category-block title="Outdoor Categories"][/category-block]',
           seoTitle: "Outdoor lighting | Buy Premium Lighting Online",
           seoDescription: "Shop our selection of premium Outdoor lighting.",
           seoKeywords: "outdoor lighting, garden lights",
@@ -773,29 +740,35 @@ async function main() {
         },
         "light-sources": {
           title: "Light sources",
-          blocks: [
-            {
-              type: "text",
-              title: "Light sources",
-              description: "<h2><strong>Find the Right Bulb</strong></h2><p>LED, smart, and classic bulbs for every room and fixture.</p>"
-            },
-            {
-              type: "products",
-              categorySlug: "led-bulbs",
-              description: ""
-            },
-            {
-              type: "component",
-              componentType: "categories",
-              title: "Popular Bulb Categories",
-              selectedItems: []
-            }
-          ],
+          content: '<h2><strong>Find the Right Bulb</strong></h2><p>LED, smart, and classic bulbs for every room and fixture.</p><br/>[product-block title="Popular Bulbs" type="led-bulbs"][/product-block]<br/>[category-block title="Popular Bulb Categories"][/category-block]',
           seoTitle: "Light sources | Buy Premium Lighting Online",
           seoDescription: "Shop our selection of premium Light sources.",
           seoKeywords: "light bulbs, led, smart bulbs",
           seoImage: ""
         }
+      }
+    }
+  });
+
+  // 12. CMS Configuration
+  console.log("Creating CMS configs...");
+  
+  const defaultReliefContent = `[text-hero title="Relief" subtitle="Buying lighting? Choose a category"][/text-hero]
+<p>We are spending more and more time at home. Many people also still work from home, so you want your home to feel comfortable. A pleasant living environment inspires, energizes, and provides peace! Therefore, pay more attention to lighting. Make the interior even cozier by bringing new lamps into your home. Not just a large lamp above the dining table and one above the seating area, but also a desk lamp on the cabinet, a floor lamp next to the sofa, and a few candles on the coffee table.</p><br/>
+[menu-category menu_slug="interior-lighting"][/menu-category]
+<p>With interior lighting, the possibilities are endless. There are various styles and categories. It is important to choose the right lighting because it creates atmosphere in your home.</p><br/>
+[menu-category menu_slug="outdoor-lighting"][/menu-category]
+<p>Illuminate your garden, patio, or driveway with our high-quality outdoor lighting options designed to withstand all weather conditions.</p><br/>
+[menu-category menu_slug="light-sources"][/menu-category]
+<p>Find the perfect bulb with the right fitting, temperature, and brightness for your home lights.</p>`;
+
+  await prisma.cmsConfig.upsert({
+    where: { key: "relief_page_data" },
+    update: {},
+    create: {
+      key: "relief_page_data",
+      value: {
+        content: defaultReliefContent
       }
     }
   });

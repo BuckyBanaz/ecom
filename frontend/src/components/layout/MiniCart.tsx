@@ -3,6 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { formatPrice, useCart } from "@/context/CartContext";
 import { Trash2 } from "lucide-react";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 export function MiniCart() {
   const { drawerOpen, setDrawerOpen, items, subtotal, remove, setQty } = useCart();
@@ -22,7 +23,7 @@ export function MiniCart() {
             <ul className="divide-y">
               {items.map((i) => (
                 <li key={i.id} className="flex gap-3 p-4">
-                  <img src={i.product.image} alt="" className="h-20 w-20 rounded-md object-cover" />
+                  <SafeImage src={i.product.image} alt="" className="h-20 w-20 rounded-md object-cover" fallbackType="product" />
                   <div className="flex flex-1 flex-col">
                     <Link
                       to={`/product/${i.product.slug}`}

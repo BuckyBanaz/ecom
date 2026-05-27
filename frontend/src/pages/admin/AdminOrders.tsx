@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { orders, Order } from "@/data/orders";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { resolveImgUrl } from "@/utils/image";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -103,7 +104,7 @@ const AdminOrders = () => {
                 {viewOrder.items.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-3 py-2">
                     <img
-                      src={item.productImage}
+                      src={resolveImgUrl(item.productImage)}
                       alt={item.productName}
                       className="h-10 w-10 rounded-lg object-cover"
                       onError={(e) => {

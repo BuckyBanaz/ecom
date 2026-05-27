@@ -3,11 +3,12 @@ import {
   Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Link, Image as ImageIcon, Table, Minus, Undo, Redo, Code, Quote, Eraser, 
-  Palette, Highlighter, Indent, Outdent
+  Palette, Highlighter, Indent, Outdent, ArrowUp, ArrowDown, Edit, Trash, Type
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UIBlocksDialog } from "./UIBlocksDialog";
+import { MediaLibraryDialog } from "./media/MediaLibraryDialog";
 import { LayoutTemplate } from "lucide-react";
 
 interface RichTextEditorProps {
@@ -23,7 +24,8 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [htmlSource, setHtmlSource] = useState(value || "");
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
-  const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
+  const [imageMode, setImageMode] = useState<"url" | "upload">("url");
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [compressedDataUrl, setCompressedDataUrl] = useState("");
   const [compressedInfo, setCompressedInfo] = useState<{ size: number; type: string; width: number; height: number } | null>(null);
@@ -36,11 +38,125 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const textColorInputRef = useRef<HTMLInputElement>(null);
   const bgColorInputRef = useRef<HTMLInputElement>(null);
 
+  const [activeBlockNode, setActiveBlockNode] = useState<HTMLElement | null>(null);
+  const [editingShortcode, setEditingShortcode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (editorRef.current && !editorRef.current.contains(e.target as Node) && !((e.target as HTMLElement).closest('.block-toolbar'))) {
+        setActiveBlockNode(null);
+      }
+    };
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, []);
+
   // Sync prop value to DOM if it changed externally (and not in source mode)
   useEffect(() => {
     if (!isSourceMode) {
-      if (editorRef.current && editorRef.current.innerHTML !== value) {
-        editorRef.current.innerHTML = value || "";
+      let processedValue = value || "";
+      
+      // Auto-wrap raw shortcodes into visual blocks
+      try {
+        if (processedValue && processedValue.includes('[')) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(processedValue, 'text/html');
+          const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+          let node;
+          const textNodes = [];
+          while (node = walker.nextNode()) {
+            if (node.nodeValue && node.nodeValue.includes('[')) {
+              if (!(node.parentElement?.closest('.cms-block'))) {
+                textNodes.push(node);
+              }
+            }
+          }
+          
+          let changed = false;
+          textNodes.forEach(textNode => {
+            let text = textNode.nodeValue || "";
+            const regex = /\[([a-zA-Z0-9-]+)([^\]]*)\]\[\/\1\]/g;
+            if (regex.test(text)) {
+              changed = true;
+              const fragment = document.createDocumentFragment();
+              let lastIndex = 0;
+              let match;
+              regex.lastIndex = 0;
+              
+              while ((match = regex.exec(text)) !== null) {
+                if (match.index > lastIndex) {
+                  fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+                }
+                const shortcodeType = match[1];
+                const fullShortcode = match[0];
+                const friendlyName = shortcodeType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+                
+                const wrapper = document.createElement("div");
+                wrapper.className = "cms-block";
+                wrapper.contentEditable = "false";
+                wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
+                wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span>
+  <button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button>
+  <button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button>
+  <button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button>
+  <button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button>
+  <button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button>
+  <button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button>
+</span>${fullShortcode}`;
+                
+                fragment.appendChild(wrapper);
+                lastIndex = regex.lastIndex;
+              }
+              
+              if (lastIndex < text.length) {
+                fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+              }
+              
+              textNode.parentNode?.replaceChild(fragment, textNode);
+            }
+          });
+          
+          if (changed) {
+            processedValue = doc.body.innerHTML;
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing shortcodes to blocks", e);
+      }
+
+      if (editorRef.current && editorRef.current.innerHTML !== processedValue) {
+        editorRef.current.innerHTML = processedValue;
+      }
+      
+      // Aggressively enforce contenteditable="false" and user-select on all blocks
+      if (editorRef.current) {
+        const blocks = editorRef.current.querySelectorAll('.cms-block');
+        blocks.forEach(b => {
+          if (!b.textContent?.trim()) {
+            b.remove();
+            return;
+          }
+          b.setAttribute('contenteditable', 'false');
+          (b as HTMLElement).style.userSelect = 'none';
+          
+          // Inject missing inline buttons for legacy blocks
+          if (!b.querySelector('.cms-block-edit-btn')) {
+            const span = b.querySelector('span[style*="position: absolute"]');
+            if (span) {
+              const friendlyName = span.textContent?.trim() || 'Block';
+              span.innerHTML = `
+                <span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span>
+                <button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button>
+                <button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button>
+                <button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button>
+                <button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button>
+                <button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button>
+                <button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button>
+              `;
+            }
+          }
+        });
       }
     } else {
       setHtmlSource(value || "");
@@ -77,9 +193,246 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
 
   const handleInput = () => {
     if (editorRef.current) {
+      // Also enforce during input just in case browsers try to strip it
+      const blocks = editorRef.current.querySelectorAll('.cms-block');
+      let changed = false;
+      blocks.forEach(b => {
+        if (!b.textContent?.trim()) {
+          b.remove();
+          changed = true;
+          return;
+        }
+        if (b.getAttribute('contenteditable') !== 'false') {
+          b.setAttribute('contenteditable', 'false');
+          (b as HTMLElement).style.userSelect = 'none';
+          changed = true;
+        }
+      });
+      
       const currentHTML = editorRef.current.innerHTML;
       onChange(currentHTML);
       setHtmlSource(currentHTML);
+    }
+  };
+
+  const handleEditorClick = (e: React.MouseEvent) => {
+    if (isSourceMode) return;
+    const target = e.target as HTMLElement;
+    
+    // Check direct inline controls clicks
+    if (target.classList.contains('cms-block-above-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block && editorRef.current) {
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        editorRef.current.insertBefore(p, block);
+        handleInput();
+        const range = document.createRange();
+        range.setStart(p, 0);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-below-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block && editorRef.current) {
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        if (block.nextSibling) {
+          editorRef.current.insertBefore(p, block.nextSibling);
+        } else {
+          editorRef.current.appendChild(p);
+        }
+        handleInput();
+        const range = document.createRange();
+        range.setStart(p, 0);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-up-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block && editorRef.current) {
+        const prev = block.previousElementSibling;
+        if (prev) {
+          editorRef.current.insertBefore(block, prev);
+          handleInput();
+        }
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-down-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block && editorRef.current) {
+        const next = block.nextElementSibling;
+        if (next) {
+          if (next.nextSibling) {
+            editorRef.current.insertBefore(block, next.nextSibling);
+          } else {
+            editorRef.current.appendChild(block);
+          }
+          handleInput();
+        }
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-edit-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block) {
+        setActiveBlockNode(block);
+        let shortcode = "";
+        block.childNodes.forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (node.textContent?.trim().startsWith('[')) {
+              shortcode = node.textContent.trim();
+            }
+          }
+        });
+        if (!shortcode) {
+          const match = block.innerHTML.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+          if (match) shortcode = match[0];
+        }
+        if (shortcode) {
+          setEditingShortcode(shortcode);
+          saveSelection();
+          setIsUIBlocksOpen(true);
+        }
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-delete-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block) {
+        block.remove();
+        setActiveBlockNode(null);
+        handleInput();
+      }
+      return;
+    }
+
+    const block = target.closest('.cms-block') as HTMLElement;
+    if (block && editorRef.current?.contains(block)) {
+      setActiveBlockNode(block);
+    } else {
+      setActiveBlockNode(null);
+    }
+  };
+
+  const handleEditorKeyDown = () => {
+    if (activeBlockNode) setActiveBlockNode(null);
+  };
+
+  const moveBlockUp = () => {
+    if (!activeBlockNode || !editorRef.current) return;
+    const prev = activeBlockNode.previousElementSibling;
+    if (prev) {
+      editorRef.current.insertBefore(activeBlockNode, prev);
+      handleInput();
+      setActiveBlockNode(activeBlockNode); 
+    }
+  };
+
+  const moveBlockDown = () => {
+    if (!activeBlockNode || !editorRef.current) return;
+    const next = activeBlockNode.nextElementSibling;
+    if (next) {
+      if (next.nextSibling) {
+        editorRef.current.insertBefore(activeBlockNode, next.nextSibling);
+      } else {
+        editorRef.current.appendChild(activeBlockNode);
+      }
+      handleInput();
+      setActiveBlockNode(activeBlockNode);
+    }
+  };
+
+  const insertSpaceAbove = () => {
+    if (!activeBlockNode || !editorRef.current) return;
+    const p = document.createElement('p');
+    p.innerHTML = '<br>';
+    editorRef.current.insertBefore(p, activeBlockNode);
+    handleInput();
+    
+    // Move cursor to the new line
+    const range = document.createRange();
+    range.setStart(p, 0);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  const insertSpaceBelow = () => {
+    if (!activeBlockNode || !editorRef.current) return;
+    const p = document.createElement('p');
+    p.innerHTML = '<br>';
+    if (activeBlockNode.nextSibling) {
+      editorRef.current.insertBefore(p, activeBlockNode.nextSibling);
+    } else {
+      editorRef.current.appendChild(p);
+    }
+    handleInput();
+    
+    // Move cursor to the new line
+    const range = document.createRange();
+    range.setStart(p, 0);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  const deleteBlock = () => {
+    if (!activeBlockNode) return;
+    activeBlockNode.remove();
+    setActiveBlockNode(null);
+    handleInput();
+  };
+
+  const handleEditBlockClick = () => {
+    if (!activeBlockNode) return;
+    
+    let shortcode = "";
+    activeBlockNode.childNodes.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node.textContent?.trim().startsWith('[')) {
+          shortcode = node.textContent.trim();
+        }
+      }
+    });
+
+    if (!shortcode) {
+      const match = activeBlockNode.innerHTML.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+      if (match) shortcode = match[0];
+    }
+
+    if (shortcode) {
+      setEditingShortcode(shortcode);
+      saveSelection();
+      setIsUIBlocksOpen(true);
     }
   };
 
@@ -117,57 +470,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
       reader.readAsDataURL(file);
     });
 
-  const loadImage = (src: string) =>
-    new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new window.Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("Failed to load image"));
-      img.src = src;
-    });
 
-  const compressImage = async (file: File) => {
-    const dataUrl = await readFileAsDataUrl(file);
-    const img = await loadImage(dataUrl);
-    const maxWidth = 1600;
-    const maxHeight = 1600;
-    const ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
-    const targetWidth = Math.round(img.width * ratio);
-    const targetHeight = Math.round(img.height * ratio);
-
-    const canvas = document.createElement("canvas");
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas not supported");
-    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-
-    const preferredTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-    const normalizedType = file.type === "image/jpg" ? "image/jpeg" : file.type;
-    const outputType = preferredTypes.includes(normalizedType) ? normalizedType : "image/jpeg";
-    const quality = outputType === "image/png" ? undefined : 0.8;
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error("Compression failed"))),
-        outputType,
-        quality
-      );
-    }).catch(async () => {
-      const dataUrlFallback = canvas.toDataURL(outputType, quality);
-      const fetched = await fetch(dataUrlFallback);
-      return fetched.blob();
-    });
-
-    const compressedUrl = await readFileAsDataUrl(blob);
-
-    return {
-      dataUrl: compressedUrl,
-      size: blob.size,
-      type: outputType,
-      width: targetWidth,
-      height: targetHeight,
-    };
-  };
 
   const handleImageInsert = () => {
     saveSelection();
@@ -182,20 +485,20 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setIsCompressing(true);
+    setIsCompressing(true); // Keeping state for visual loading indicator
     setImageError("");
     try {
-      const compressed = await compressImage(file);
-      setCompressedDataUrl(compressed.dataUrl);
+      const dataUrl = await readFileAsDataUrl(file);
+      setCompressedDataUrl(dataUrl);
       setCompressedInfo({
-        size: compressed.size,
-        type: compressed.type,
-        width: compressed.width,
-        height: compressed.height,
+        size: file.size,
+        type: file.type,
+        width: 0,
+        height: 0,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Compression error";
-      setImageError(`Failed to compress image. ${message}`);
+      const message = err instanceof Error ? err.message : "Read error";
+      setImageError(`Failed to read image. ${message}`);
     } finally {
       setIsCompressing(false);
     }
@@ -508,6 +811,8 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
               <div
                 ref={editorRef}
                 contentEditable
+                onClick={handleEditorClick}
+                onKeyDown={handleEditorKeyDown}
                 onInput={handleInput}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
@@ -556,13 +861,10 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
 
           {imageMode === "upload" ? (
             <div className="space-y-2">
-              <input type="file" accept="image/*" onChange={handleImageFileChange} />
-              {isCompressing && <div className="text-xs text-muted-foreground">Compressing image...</div>}
-              {compressedInfo && (
-                <div className="text-xs text-muted-foreground">
-                  Compressed: {compressedInfo.width}x{compressedInfo.height} ({Math.round(compressedInfo.size / 1024)} KB)
-                </div>
-              )}
+              <Button type="button" variant="outline" className="w-full" onClick={() => setIsMediaLibraryOpen(true)}>
+                Browse Media Storage
+              </Button>
+              {compressedDataUrl && <div className="text-xs text-green-600">Image selected from storage.</div>}
               {imageError && <div className="text-xs text-destructive">{imageError}</div>}
             </div>
           ) : (
@@ -592,12 +894,37 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
         </DialogContent>
       </Dialog>
 
+      <MediaLibraryDialog 
+        open={isMediaLibraryOpen}
+        onOpenChange={setIsMediaLibraryOpen}
+        onSelect={(url) => {
+          setCompressedDataUrl(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+          setIsMediaLibraryOpen(false);
+        }}
+      />
+
       <UIBlocksDialog 
         open={isUIBlocksOpen} 
-        onOpenChange={setIsUIBlocksOpen} 
-        onInsert={(shortcode) => {
-          setTimeout(() => executeCommand("insertHTML", shortcode), 50);
+        onOpenChange={(open) => {
+          setIsUIBlocksOpen(open);
+          if (!open) setEditingShortcode(null);
         }} 
+        onInsert={(shortcode, isEdit) => {
+          if (isEdit && activeBlockNode && editorRef.current) {
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = shortcode;
+            const newBlock = tempDiv.firstElementChild;
+            if (newBlock) {
+              activeBlockNode.replaceWith(newBlock);
+              setActiveBlockNode(newBlock as HTMLElement);
+            }
+            setEditingShortcode(null);
+            handleInput();
+          } else {
+            setTimeout(() => executeCommand("insertHTML", shortcode), 50);
+          }
+        }} 
+        editingShortcode={editingShortcode}
       />
     </div>
   );

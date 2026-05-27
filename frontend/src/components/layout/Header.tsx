@@ -11,10 +11,17 @@ import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { navGroups } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
+import { useDebounce } from "@/hooks/use-debounce";
+import { productRepository, megaMenuRepository } from "@/client/apiClient";
 
 export function Header() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
+  const debouncedQ = useDebounce(q, 300);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   const { count, setDrawerOpen } = useCart();
   const { ids } = useWishlist();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -25,16 +32,34 @@ export function Header() {
   const resolveIcon = (value: string) => iconMap.get(value) || iconMap.get("star");
 
   useEffect(() => {
-    const loadData = () => {
-      const saved = localStorage.getItem("mega_menu_data");
-      if (saved) {
-        try {
-          setMenuList(JSON.parse(saved));
-        } catch (e) {
+    const loadData = async () => {
+      try {
+        const res = await megaMenuRepository.getAll();
+        if (res.success && res.menus && res.menus.length > 0) {
+          setMenuList(res.menus);
+        } else {
+          // Fallback to localStorage or default
+          const saved = localStorage.getItem("mega_menu_data");
+          if (saved) {
+            try { 
+              const parsed = JSON.parse(saved);
+              setMenuList(parsed.length > 0 ? parsed : megaMenuData); 
+            } catch (e) { setMenuList(megaMenuData); }
+          } else {
+            setMenuList(megaMenuData);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load mega menu:", e);
+        const saved = localStorage.getItem("mega_menu_data");
+        if (saved) {
+          try { 
+            const parsed = JSON.parse(saved);
+            setMenuList(parsed.length > 0 ? parsed : megaMenuData); 
+          } catch (e) { setMenuList(megaMenuData); }
+        } else {
           setMenuList(megaMenuData);
         }
-      } else {
-        setMenuList(megaMenuData);
       }
 
       const savedHeaderFooter = localStorage.getItem("header_footer_data");
@@ -55,9 +80,53 @@ export function Header() {
     return () => window.removeEventListener("megaMenuDataChanged", loadData);
   }, []);
 
+  useEffect(() => {
+    if (!debouncedQ.trim()) {
+      setSuggestions([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const fetchSuggestions = async () => {
+      setIsSearching(true);
+      try {
+        const res = await productRepository.getAll({ search: debouncedQ, limit: 5 });
+        if (res.success) {
+          setSuggestions(res.products || []);
+        } else {
+          setSuggestions([]);
+        }
+      } catch (error) {
+        // Fallback to local filtering if backend fails
+        const savedProducts = localStorage.getItem("products_data");
+        let allProductsList = [];
+        if (savedProducts) {
+          try { allProductsList = JSON.parse(savedProducts); } catch (e) {}
+        } else {
+          const { products } = await import("@/data/products");
+          allProductsList = products;
+        }
+        
+        const sq = debouncedQ.toLowerCase();
+        const filtered = allProductsList.filter((p: any) => 
+          p.name.toLowerCase().includes(sq) || 
+          p.category.toLowerCase().includes(sq)
+        ).slice(0, 5);
+        setSuggestions(filtered);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    fetchSuggestions();
+  }, [debouncedQ]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (q.trim()) navigate(`/search?q=${encodeURIComponent(q)}`);
+    if (q.trim()) {
+      setShowSuggestions(false);
+      navigate(`/category?search=${encodeURIComponent(q)}`);
+    }
   };
 
   return (
@@ -130,20 +199,69 @@ export function Header() {
 
         <Logo />
 
-        <form onSubmit={submit} className="relative ml-2 hidden flex-1 md:block">
+        <form onSubmit={submit} className="relative ml-2 hidden flex-1 md:block" onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}>
           <Input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => {
+              if (q.trim()) setShowSuggestions(true);
+            }}
             placeholder="Search the entire store"
-            className="h-12 rounded-full border-2 pl-5 pr-14 text-base"
+            className="h-12 rounded-full border-2 pl-5 pr-14 text-base focus-visible:ring-primary/20"
           />
           <button
             type="submit"
             aria-label="Search"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Search size={18} />
           </button>
+          
+          {/* Autocomplete Dropdown */}
+          {showSuggestions && (q.trim().length > 0) && (
+            <div className="absolute left-0 top-[calc(100%+8px)] w-full bg-background rounded-2xl shadow-2xl border overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
+              <div className="p-2">
+                {isSearching ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">Searching...</div>
+                ) : suggestions.length > 0 ? (
+                  <ul className="flex flex-col">
+                    {suggestions.map((p) => (
+                      <li key={p.id}>
+                        <Link
+                          to={`/category?search=${encodeURIComponent(p.name)}`}
+                          onClick={() => {
+                            setQ(p.name);
+                            setShowSuggestions(false);
+                          }}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-muted rounded-xl transition-colors"
+                        >
+                          <Search size={14} className="text-muted-foreground shrink-0" />
+                          <div className="flex flex-col overflow-hidden">
+                            <span className="text-sm font-semibold truncate text-foreground">{p.name}</span>
+                            <span className="text-xs text-muted-foreground truncate capitalize">{typeof p.category === 'object' ? p.category.name : p.category?.replace(/-/g, ' ')}</span>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                    <li className="border-t mt-1 pt-1">
+                      <button
+                        type="submit"
+                        className="w-full text-left px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/5 rounded-xl transition-colors flex items-center gap-2"
+                      >
+                        <Search size={14} />
+                        View all results for "{q}"
+                      </button>
+                    </li>
+                  </ul>
+                ) : (
+                  <div className="p-4 text-center text-sm text-muted-foreground">No matching products found.</div>
+                )}
+              </div>
+            </div>
+          )}
         </form>
 
         <div className="ml-auto flex items-center gap-1">
@@ -183,7 +301,7 @@ export function Header() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search…"
-          className="h-11 rounded-full pl-4 pr-12"
+          className="h-11 rounded-full pl-4 pr-12 focus-visible:ring-primary/20"
         />
         <button
           type="submit"

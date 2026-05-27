@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,9 @@ import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Brand, Series } from "@/data/brands";
 import { Attribute } from "@/data/attributes";
 import { brandRepository, categoryRepository, attributeRepository, productRepository, seriesRepository } from "@/client/apiClient";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { cn } from "@/lib/utils";
+import { resolveImgUrl } from "@/utils/image";
 
 
 export interface SpecItem {
@@ -33,6 +36,7 @@ const AdminProductForm = () => {
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
   const [isProductLoading, setIsProductLoading] = useState(isEdit);
+  const [mediaDialogTarget, setMediaDialogTarget] = useState<"thumbnail" | "gallery" | null>(null);
 
   // Data states
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -60,9 +64,6 @@ const AdminProductForm = () => {
   // Dynamic Specification states
   const [specs, setSpecs] = useState<SpecItem[]>([]);
   const [newParamName, setNewParamName] = useState("");
-
-  const thumbnailInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // Load brands, categories, attributes, series
   useEffect(() => {
@@ -553,26 +554,6 @@ const AdminProductForm = () => {
     return true; // Show all if category has no specific mappings defined
   });
 
-  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setThumbnail(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const handleGalleryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setGalleryImages((prev) => [...prev, ev.target?.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = "";
-  };
-
   const removeGalleryImage = (index: number) => {
     setGalleryImages((prev) => prev.filter((_, i) => i !== index));
   };
@@ -678,6 +659,7 @@ const AdminProductForm = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-12">
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/45 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-4">
@@ -874,12 +856,15 @@ const AdminProductForm = () => {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-foreground/80">Cover Image</Label>
                     <div
-                      className="relative aspect-square w-full overflow-hidden rounded-2xl border-2 border-dashed border-muted-foreground/30 hover:border-primary bg-muted/40 backdrop-blur-sm flex items-center justify-center cursor-pointer group transition-all duration-300 hover:bg-muted/60"
-                      onClick={() => thumbnailInputRef.current?.click()}
+                      className={cn(
+                        "relative aspect-square w-full overflow-hidden rounded-2xl border-2 border-dashed border-muted-foreground/30 hover:border-primary bg-muted/40 backdrop-blur-sm flex items-center justify-center cursor-pointer group transition-all duration-300 hover:bg-muted/60",
+                        thumbnail && "border-solid border-border bg-muted/50"
+                      )}
+                      onClick={() => setMediaDialogTarget("thumbnail")}
                     >
                       {thumbnail ? (
                         <>
-                          <img src={thumbnail} alt="Thumbnail" className="h-full w-full object-cover rounded-2xl" />
+                          <img src={resolveImgUrl(thumbnail)} alt="Thumbnail" className="h-full w-full object-cover rounded-2xl" />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl">
                             <Upload className="h-5 w-5 text-white animate-bounce" />
                           </div>
@@ -899,7 +884,6 @@ const AdminProductForm = () => {
                         </div>
                       )}
                     </div>
-                    <input ref={thumbnailInputRef} type="file" accept="image/*" className="hidden" onChange={handleThumbnailChange} />
                   </div>
 
                   {/* Slider Gallery Grid */}
@@ -911,25 +895,16 @@ const AdminProductForm = () => {
                         variant="ghost"
                         size="sm"
                         className="h-6 text-[10px] font-bold text-primary gap-1 px-2 hover:bg-primary/10 transition-colors"
-                        onClick={() => galleryInputRef.current?.click()}
+                        onClick={() => setMediaDialogTarget("gallery")}
                       >
                         <Plus className="h-3 w-3" /> Add Images
                       </Button>
                     </div>
 
-                    <input
-                      ref={galleryInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleGalleryChange}
-                    />
-
                     {galleryImages.length === 0 ? (
                       <div
                         className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-2xl h-[120px] text-muted-foreground cursor-pointer hover:border-primary hover:bg-muted/20 transition-all duration-300"
-                        onClick={() => galleryInputRef.current?.click()}
+                        onClick={() => setMediaDialogTarget("gallery")}
                       >
                         <ImageIcon className="h-6 w-6 mb-1 text-primary/70 opacity-40 animate-pulse" />
                         <p className="text-[11px] font-semibold text-foreground/80">No images added</p>
@@ -939,7 +914,7 @@ const AdminProductForm = () => {
                       <div className="grid grid-cols-3 gap-3">
                         {galleryImages.map((src, i) => (
                           <div key={i} className="group relative aspect-square rounded-xl border overflow-hidden bg-muted/50 shadow-sm hover:shadow transition-all duration-300">
-                            <img src={src} alt={`Product ${i + 1}`} className="h-full w-full object-cover" />
+                            <img src={resolveImgUrl(src)} alt={`Product ${i + 1}`} className="h-full w-full object-cover" />
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1 rounded-xl">
                               <button
                                 type="button"
@@ -1291,6 +1266,20 @@ const AdminProductForm = () => {
           </div>
         </div>
       </form>
+
+      <MediaLibraryDialog
+        open={mediaDialogTarget !== null}
+        onOpenChange={(open) => !open && setMediaDialogTarget(null)}
+        onSelect={(url) => {
+          const formattedUrl = url.startsWith("http") ? url : `http://localhost:5000${url}`;
+          if (mediaDialogTarget === "thumbnail") {
+            setThumbnail(formattedUrl);
+          } else if (mediaDialogTarget === "gallery") {
+            setGalleryImages((prev) => [...prev, formattedUrl]);
+          }
+          setMediaDialogTarget(null);
+        }}
+      />
     </div>
   );
 };

@@ -149,6 +149,11 @@ router.get("/:slug", getProductBySlug);
  *               image:
  *                 type: string
  *                 example: /assets/cat-chandelier.jpg
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["/assets/cat-chandelier.jpg"]
  *               inStock:
  *                 type: boolean
  *                 default: true
@@ -220,6 +225,10 @@ router.post("/", authenticateJWT, requireAdmin, createProduct);
  *                 type: number
  *               image:
  *                 type: string
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               inStock:
  *                 type: boolean
  *               isNewArrival:

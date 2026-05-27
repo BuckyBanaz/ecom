@@ -49,6 +49,51 @@ export const updateHomepage = async (req: Request, res: Response) => {
 };
 
 // ==========================================
+// RELIEF PAGE CMS METHODS
+// ==========================================
+
+export const getReliefPage = async (req: Request, res: Response) => {
+  try {
+    const config = await prisma.cmsConfig.findUnique({
+      where: { key: "relief_page_data" },
+    });
+
+    if (!config) {
+      return res.status(404).json({ success: false, message: "Relief page configuration not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error fetching relief page config:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const updateReliefPage = async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+
+    const config = await prisma.cmsConfig.upsert({
+      where: { key: "relief_page_data" },
+      update: { value: data },
+      create: { key: "relief_page_data", value: data },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Relief page configuration updated",
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error updating relief page config:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ==========================================
 // DYNAMIC PAGES CMS METHODS
 // ==========================================
 

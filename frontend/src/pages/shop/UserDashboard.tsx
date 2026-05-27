@@ -10,6 +10,7 @@ import { useWishlist } from "@/context/WishlistContext";
 import { products } from "@/data/products";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { toast } from "sonner";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const statusColors: Record<string, string> = {
   delivered: "bg-green-100 text-green-700",
@@ -116,7 +117,7 @@ function OrdersTab({ orders }: { orders: Order[] }) {
           <div className="space-y-3">
             {selectedOrder.items.map((item, idx) => (
               <div key={idx} className="flex items-center gap-4 rounded-lg border p-3">
-                <img src={item.productImage} alt={item.productName} className="h-16 w-16 rounded-lg object-cover" />
+                <SafeImage src={item.productImage} alt={item.productName} className="h-16 w-16 rounded-lg object-cover" fallbackType="product" />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold">{item.productName}</p>
                   <p className="text-sm text-muted-foreground">Qty: {item.quantity} {item.variant && `· ${item.variant}`}</p>
@@ -163,7 +164,7 @@ function OrdersTab({ orders }: { orders: Order[] }) {
         <div className="space-y-3">
           {orders.map((o) => (
             <button key={o.id} onClick={() => setSelectedOrder(o)} className="w-full flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm hover:bg-muted/30 transition text-left">
-              <img src={o.items[0].productImage} alt="" className="h-14 w-14 rounded-lg object-cover" />
+              <SafeImage src={o.items[0].productImage} alt="" className="h-14 w-14 rounded-lg object-cover" fallbackType="product" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{o.orderNumber}</span>

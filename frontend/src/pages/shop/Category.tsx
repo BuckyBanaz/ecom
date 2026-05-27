@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { brandRepository, categoryRepository, attributeRepository } from "@/client/apiClient";
+import { brandRepository, categoryRepository, attributeRepository, productRepository } from "@/client/apiClient";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -14,6 +14,10 @@ import { initialBlogs } from "@/data/blogs";
 import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BlogCard } from "@/components/shop/BlogCard";
+import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
+import { Skeleton } from "@/components/ui/skeleton";
+import { resolveImgUrl } from "@/utils/image";
+import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
 
 const resolveCategorySlug = (menuItemSlug: string) => {
   const mappings: Record<string, string> = {
@@ -47,6 +51,8 @@ const Category = () => {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [blogsList, setBlogsList] = useState<any[]>([]);
+  const [productsList, setProductsList] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
 
   // Filter values
   const [price, setPrice] = useState<[number, number]>([0, 400]);
@@ -74,67 +80,78 @@ const Category = () => {
     }));
   };
 
-  // Load brands, categories, and attributes on mount
+  // Load brands, categories, attributes, and products in parallel on mount
   useEffect(() => {
-    const loadMetadata = async () => {
-      // 1. Brands
+    const loadAllData = async () => {
+      setProductsLoading(true);
       try {
-        const data = await brandRepository.getAll();
-        if (data.success && data.brands) setBrands(data.brands);
-      } catch (e) {
-        const saved = localStorage.getItem("brands_data");
-        if (saved) {
-          setBrands(JSON.parse(saved));
-        } else {
-          const { brands: initialBrands } = await import("@/data/brands");
-          setBrands(initialBrands);
-        }
-      }
+        const [prodData, brandData, catData, attrData] = await Promise.all([
+          productRepository.getAll().catch(() => null),
+          brandRepository.getAll().catch(() => null),
+          categoryRepository.getAll().catch(() => null),
+          attributeRepository.getAll().catch(() => null),
+        ]);
 
-      // 2. Categories
-      let loadedCats = categories;
-      try {
-        const data = await categoryRepository.getAll();
-        if (data.success && data.categories) loadedCats = data.categories;
-      } catch (e) {
-        const saved = localStorage.getItem("categories_data");
-        if (saved) {
-          try {
-            loadedCats = JSON.parse(saved);
-          } catch (err) {
-            loadedCats = categories;
+        // Products
+        if (prodData && prodData.success && prodData.products) {
+          setProductsList(prodData.products);
+        } else {
+          const saved = localStorage.getItem("products_data");
+          if (saved) {
+            try { setProductsList(JSON.parse(saved)); } catch { setProductsList(products); }
+          } else {
+            setProductsList(products);
           }
+        }
+
+        // Brands
+        if (brandData && brandData.success && brandData.brands) {
+          setBrands(brandData.brands);
         } else {
-          loadedCats = categories;
+          const saved = localStorage.getItem("brands_data");
+          if (saved) {
+            setBrands(JSON.parse(saved));
+          } else {
+            const { brands: initialBrands } = await import("@/data/brands");
+            setBrands(initialBrands);
+          }
         }
-      }
 
-      const groupMapping: Record<string, string> = {
-        "indoor": "interior-lighting",
-        "outdoor": "outdoor-lighting",
-        "smart": "light-sources",
-        "bulbs": "light-sources",
-        "business": "commercial-lighting",
-        "accessories": "interior-lighting"
-      };
-      let migrated = false;
-      const mappedCats = loadedCats.map((c: any) => {
-        if (groupMapping[c.group]) {
-          migrated = true;
-          return { ...c, group: groupMapping[c.group] };
+        // Categories
+        let loadedCats = categories;
+        if (catData && catData.success && catData.categories) {
+          loadedCats = catData.categories;
+        } else {
+          const saved = localStorage.getItem("categories_data");
+          if (saved) {
+            try { loadedCats = JSON.parse(saved); } catch { loadedCats = categories; }
+          }
         }
-        return c;
-      });
-      if (migrated) {
-        localStorage.setItem("categories_data", JSON.stringify(mappedCats));
-      }
-      setCategoriesList(mappedCats);
 
-      // 3. Attributes
-      try {
-        const data = await attributeRepository.getAll();
-        if (data.success && data.attributes) {
-          const mapped = data.attributes.map((a: any) => ({
+        const groupMapping: Record<string, string> = {
+          "indoor": "interior-lighting",
+          "outdoor": "outdoor-lighting",
+          "smart": "light-sources",
+          "bulbs": "light-sources",
+          "business": "commercial-lighting",
+          "accessories": "interior-lighting"
+        };
+        let migrated = false;
+        const mappedCats = loadedCats.map((c: any) => {
+          if (groupMapping[c.group]) {
+            migrated = true;
+            return { ...c, group: groupMapping[c.group] };
+          }
+          return c;
+        });
+        if (migrated) {
+          localStorage.setItem("categories_data", JSON.stringify(mappedCats));
+        }
+        setCategoriesList(mappedCats);
+
+        // Attributes
+        if (attrData && attrData.success && attrData.attributes) {
+          const mapped = attrData.attributes.map((a: any) => ({
             id: a.id,
             name: a.name,
             slug: a.slug,
@@ -143,31 +160,31 @@ const Category = () => {
             visibility: a.visibility || "both",
           }));
           setAttributes(mapped);
-        }
-      } catch (e) {
-        const saved = localStorage.getItem("attributes_data");
-        if (saved) {
-          setAttributes(JSON.parse(saved));
         } else {
-          const { attributes: initialAttributes } = await import("@/data/attributes");
-          setAttributes(initialAttributes);
+          const saved = localStorage.getItem("attributes_data");
+          if (saved) {
+            setAttributes(JSON.parse(saved));
+          } else {
+            const { attributes: initialAttributes } = await import("@/data/attributes");
+            setAttributes(initialAttributes);
+          }
         }
-      }
 
-      // 4. Blogs
-      const savedBlogs = localStorage.getItem("blogs_data");
-      if (savedBlogs) {
-        try {
-          setBlogsList(JSON.parse(savedBlogs));
-        } catch (e) {
+        // Blogs
+        const savedBlogs = localStorage.getItem("blogs_data");
+        if (savedBlogs) {
+          try { setBlogsList(JSON.parse(savedBlogs)); } catch { setBlogsList(initialBlogs); }
+        } else {
           setBlogsList(initialBlogs);
         }
-      } else {
-        setBlogsList(initialBlogs);
+      } catch (err) {
+        console.warn("Failed to fetch Category metadata in parallel:", err);
+      } finally {
+        setProductsLoading(false);
       }
     };
 
-    loadMetadata();
+    loadAllData();
   }, []);
 
   // Sync CMS Landing Pages details
@@ -252,15 +269,14 @@ const Category = () => {
     const targetCategory = landingPage?.categorySlug || resolvedSlug;
     const isDeals = targetCategory === "deals";
 
-    const savedProducts = localStorage.getItem("products_data");
-    let allProductsList = products;
-    if (savedProducts) {
-      try { allProductsList = JSON.parse(savedProducts); } catch (e) {}
-    }
+    let allProductsList = productsList.length > 0 ? productsList : products;
 
     let list = isDeals
       ? allProductsList.filter((p) => p.oldPrice)
-      : allProductsList.filter((p) => p.category === targetCategory);
+      : allProductsList.filter((p) => {
+          const pCatSlug = typeof p.category === "object" ? p.category.slug : p.category;
+          return pCatSlug === targetCategory;
+        });
     
     if (list.length === 0 && !isDeals) list = allProductsList;
 
@@ -338,20 +354,31 @@ const Category = () => {
     const isDeals = targetCategory === "deals";
 
     // Load active products list
-    const savedProducts = localStorage.getItem("products_data");
-    let allProductsList = products;
-    if (savedProducts) {
-      try { allProductsList = JSON.parse(savedProducts); } catch (e) {}
-    }
+    let allProductsList = productsList.length > 0 ? productsList : products;
 
     let list = isDeals
       ? allProductsList.filter((p) => p.oldPrice)
-      : allProductsList.filter((p) => p.category === targetCategory);
+      : allProductsList.filter((p) => {
+          const pCatSlug = typeof p.category === "object" ? p.category.slug : p.category;
+          return pCatSlug === targetCategory;
+        });
     
     if (list.length === 0 && !isDeals) list = allProductsList;
 
     // 1. Price slider
     list = list.filter((p) => p.price >= price[0] && p.price <= price[1]);
+
+    // 1.5 Text Search
+    const sq = searchParams.get("search")?.toLowerCase();
+    if (sq) {
+      list = list.filter(p => 
+        p.name.toLowerCase().includes(sq) || 
+        p.description?.toLowerCase().includes(sq) ||
+        p.shortDescription?.toLowerCase().includes(sq) ||
+        (typeof p.category === 'string' && p.category.toLowerCase().includes(sq)) ||
+        (typeof p.category === 'object' && p.category.name && p.category.name.toLowerCase().includes(sq))
+      );
+    }
 
     // 2. Brands
     if (selectedBrands.length > 0) {
@@ -394,6 +421,10 @@ const Category = () => {
 
   const title = landingPage?.title || (slug === "deals" ? "Spring deals" : cat?.name ?? "All products");
 
+  if (productsLoading) {
+    return <CategorySkeleton />;
+  }
+
   return (
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
@@ -410,155 +441,17 @@ const Category = () => {
         />
       )}
       
-      {landingPage?.blocks && landingPage.blocks.length > 0 ? (
-        <div className="mt-8 space-y-12">
-          {landingPage.blocks.map((block: any, idx: number) => {
-            if (block.type === "text") {
-              return (
-                <div key={idx} className="p-8 border rounded-2xl bg-card shadow-xs prose max-w-none dark:prose-invert transition-all hover:shadow-md">
-                  {block.title && <h2 className="text-2xl font-bold text-foreground mb-4">{block.title}</h2>}
-                  {block.description && (
-                    <div dangerouslySetInnerHTML={{ __html: block.description }} className="text-muted-foreground leading-relaxed" />
-                  )}
-                </div>
-              );
-            }
-            if (block.type === "products") {
-              const targetCategory = block.categorySlug;
-              const isDeals = targetCategory === "deals";
-              let list = isDeals ? products.filter((p) => p.oldPrice) : products.filter((p) => p.category === targetCategory);
-              if (list.length === 0 && !isDeals) list = products;
-
-              return (
-                <div key={idx} className="space-y-6">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <h2 className="text-2xl font-bold text-foreground">
-                      {categories.find(c => c.slug === targetCategory)?.name || "Featured Products"}
-                    </h2>
-                    <span className="text-sm text-muted-foreground font-medium">{list.length} products</span>
-                  </div>
-                  {block.description && (
-                    <div 
-                      dangerouslySetInnerHTML={{ __html: block.description }} 
-                      className="text-muted-foreground leading-relaxed prose max-w-none text-sm dark:prose-invert"
-                    />
-                  )}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {list.map((p) => (
-                      <ProductCard key={p.id} product={p} />
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            if (block.type === "component") {
-              const heading = block.title || "";
-              
-              if (block.componentType === "categories") {
-                const catObj = categoriesList.find(c => c.slug === resolvedSlug);
-                const menuSlug = catObj ? catObj.group : "";
-                const selectedCats = (block.selectedItems && block.selectedItems.length > 0)
-                  ? categoriesList.filter(c => block.selectedItems.includes(c.slug))
-                  : categoriesList.filter(c => c.group === menuSlug);
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                      {selectedCats.map((c) => {
-                        const count = products.filter(p => p.category === c.slug).length;
-                        return (
-                          <Link
-                            key={c.slug}
-                            to={`/category/${c.slug}`}
-                            className="group relative flex flex-col overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
-                          >
-                            <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                              {c.image ? (
-                                <img
-                                  src={c.image}
-                                  alt={c.name}
-                                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
-                                  {c.name}
-                                </div>
-                              )}
-                            </div>
-                            <div className="w-full bg-background py-3 px-4 text-center border-t flex flex-col items-center">
-                              <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                                {c.name}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground mt-0.5">{count} products</span>
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              }
-
-              if (block.componentType === "blogs") {
-                const selectedBlogs = (block.selectedItems && block.selectedItems.length > 0)
-                  ? blogsList.filter(b => block.selectedItems.includes(b.slug) && b.published)
-                  : blogsList.filter(b => b.published);
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    {selectedBlogs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground italic">No articles to show.</p>
-                    ) : (
-                      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {selectedBlogs.map((b) => (
-                          <BlogCard key={b.id} blog={b} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              if (block.componentType === "faq") {
-                const selectedFaqs = (block.selectedItems && block.selectedItems.length > 0)
-                  ? faqs.filter(f => block.selectedItems.includes(f.q))
-                  : faqs;
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    <Accordion type="single" collapsible className="w-full border rounded-2xl bg-card p-4 shadow-xs">
-                      {selectedFaqs.map((f, i) => (
-                        <AccordionItem key={i} value={`faq-${i}`} className={i === selectedFaqs.length - 1 ? "border-b-0" : ""}>
-                          <AccordionTrigger className="text-left font-semibold text-foreground hover:no-underline hover:text-primary transition-colors py-4">
-                            {f.q}
-                          </AccordionTrigger>
-                          <AccordionContent className="text-muted-foreground leading-relaxed text-sm pb-4">
-                            {f.a}
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </div>
-                );
-              }
-            }
-            return null;
-          })}
+      {landingPage?.content || landingPage?.blocks?.length > 0 ? (
+        <div className="mt-8">
+          <ShortcodeRenderer 
+            content={
+              landingPage.content || 
+              (Array.isArray(landingPage.blocks) 
+                ? landingPage.blocks.map((b: any) => b.description || "").filter(Boolean).join("<br/>") 
+                : "")
+            } 
+            prefetchedData={{ products: productsList, categories: categoriesList, blogs: blogsList }}
+          />
         </div>
       ) : (
         <>
@@ -645,13 +538,27 @@ const Category = () => {
                   <option value="rating">Top rated</option>
                 </select>
               </div>
-              {filtered.length === 0 ? (
-                <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">No products match your filters.</div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                  {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
-                </div>
-              )}
+               {productsLoading ? (
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 animate-pulse">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
+                        <Skeleton className="aspect-square w-full rounded-lg" />
+                        <Skeleton className="h-3 w-1/3" />
+                        <Skeleton className="h-4 w-full" />
+                        <div className="flex justify-between items-center mt-2">
+                          <Skeleton className="h-5 w-1/4" />
+                          <Skeleton className="h-8 w-8 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">No products match your filters.</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                    {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
+                  </div>
+                )}
             </div>
           </div>
         </>

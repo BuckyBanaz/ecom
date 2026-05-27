@@ -224,6 +224,20 @@ export const cmsHomepageRepository = {
   },
 };
 
+// 8.5 CMS Relief Repository
+export const cmsReliefRepository = {
+  get: async () => {
+    return request<any>(ENDPOINTS.CMS_RELIEF, { method: "GET" });
+  },
+  
+  update: async (data: any) => {
+    return request<any>(ENDPOINTS.CMS_RELIEF, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // 9. CMS Pages Repository
 export const cmsPagesRepository = {
   getAll: async () => {
@@ -277,27 +291,93 @@ export const mediaRepository = {
     });
   },
   
-  upload: async (folder: string, file: File) => {
+  upload: (
+    folder: string,
+    file: File,
+    onProgress?: (percent: number) => void
+  ): { promise: Promise<any>; abort: () => void } => {
     const formData = new FormData();
     formData.append("file", file);
-    
-    const token = localStorage.getItem("admin_token");
-    const headers: HeadersInit = {};
-    if (token) {
-      (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-    }
 
-    const response = await fetch(`${ENDPOINTS.MEDIA}/upload?path=${encodeURIComponent(folder)}`, {
-      method: "POST",
-      headers,
-      body: formData, // do not set Content-Type, fetch will set it automatically with boundary
+    const token = localStorage.getItem("admin_token");
+    const xhr = new XMLHttpRequest();
+
+    const promise = new Promise<any>((resolve, reject) => {
+      xhr.open("POST", `${ENDPOINTS.MEDIA}/upload?path=${encodeURIComponent(folder)}`);
+
+      if (token) {
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      }
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            resolve({});
+          }
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText);
+            reject(new Error(err.message || `HTTP Error ${xhr.status}`));
+          } catch {
+            reject(new Error(`HTTP Error ${xhr.status}`));
+          }
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.onabort = () => reject(new Error("ABORTED"));
+
+      xhr.send(formData);
     });
-    
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
-      throw new Error(errorBody.message || `HTTP Error ${response.status}`);
-    }
-    
-    return response.json();
+
+    return { promise, abort: () => xhr.abort() };
+  },
+
+  move: async (paths: string[], destination: string) => {
+    return request<any>(`${ENDPOINTS.MEDIA}/move`, {
+      method: "PUT",
+      body: JSON.stringify({ paths, destination }),
+    });
+  },
+
+  copy: async (paths: string[], destination: string) => {
+    return request<any>(`${ENDPOINTS.MEDIA}/copy`, {
+      method: "POST",
+      body: JSON.stringify({ paths, destination }),
+    });
+  },
+};
+
+// 11. Blogs Repository
+export const blogRepository = {
+  getAll: async (params: { published?: boolean } = {}) => {
+    const query = params.published !== undefined ? `?published=${params.published}` : "";
+    return request<any>(`${ENDPOINTS.BLOGS}${query}`, { method: "GET" });
+  },
+  getById: async (id: string) => {
+    return request<any>(`${ENDPOINTS.BLOGS}/${id}`, { method: "GET" });
+  },
+  create: async (data: any) => {
+    return request<any>(ENDPOINTS.BLOGS, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: any) => {
+    return request<any>(`${ENDPOINTS.BLOGS}/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  delete: async (id: string) => {
+    return request<any>(`${ENDPOINTS.BLOGS}/${id}`, { method: "DELETE" });
   },
 };
