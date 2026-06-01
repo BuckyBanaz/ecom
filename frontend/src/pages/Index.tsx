@@ -70,15 +70,17 @@ const Index = () => {
                 e.preventDefault();
                 (e.target as HTMLFormElement).reset();
               }}
-              className="mx-auto mt-6 flex max-w-lg gap-2"
+              className="mx-auto mt-6 flex max-w-lg flex-col sm:flex-row gap-3"
             >
               <input
                 type="email"
                 required
                 placeholder="your@email.com"
-                className="flex-1 rounded-full border-0 bg-white/10 px-5 py-3 text-sm text-secondary-foreground placeholder:text-secondary-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="flex-1 w-full rounded-full border-0 bg-white/10 px-5 py-3 text-sm text-secondary-foreground placeholder:text-secondary-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              <button type="submit" className="rounded-full px-6 bg-primary text-primary-foreground font-semibold h-10 hover:bg-primary/90 transition-colors">Sign up</button>
+              <button type="submit" className="shrink-0 rounded-full bg-primary px-8 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 whitespace-nowrap">
+                Sign up
+              </button>
             </form>
           </div>
         </div>

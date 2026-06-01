@@ -32,7 +32,7 @@ export function MiniCart() {
                     >
                       {i.product.name}
                     </Link>
-                    <span className="text-xs text-muted-foreground">{i.product.brand}</span>
+                    <span className="text-xs text-muted-foreground">{typeof i.product.brand === "object" ? i.product.brand?.name : i.product.brand}</span>
                     <div className="mt-auto flex items-center justify-between">
                       <div className="flex items-center rounded-full border">
                         <button onClick={() => setQty(i.id, i.qty - 1)} className="px-2 py-1 text-sm" aria-label="Decrease">−</button>

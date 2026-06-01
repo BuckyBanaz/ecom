@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { BlogCard } from "@/components/shop/BlogCard";
 import { categories } from "@/data/categories";
-import { brandsList, dealProducts, featuredProducts, reviews } from "@/data/products";
+import { dealProducts, featuredProducts, reviews } from "@/data/products";
 import { initialBlogs } from "@/data/blogs";
 import { StarRating } from "@/components/shop/StarRating";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -14,7 +14,8 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { megaMenuData } from "@/data/megaMenu";
 import { resolveImgUrl } from "@/utils/image";
 import { Skeleton } from "@/components/ui/skeleton";
-import { productRepository, categoryRepository, blogRepository } from "@/client/apiClient";
+import { productRepository, categoryRepository, blogRepository, brandRepository } from "@/client/apiClient";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 interface ShortcodeRendererProps {
   content: string;
@@ -22,6 +23,7 @@ interface ShortcodeRendererProps {
     products?: any[];
     categories?: any[];
     blogs?: any[];
+    brands?: any[];
   };
 }
 
@@ -30,28 +32,41 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
   const [dbProducts, setDbProducts] = useState<any[]>(prefetchedData?.products || []);
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
   const [dbBlogs, setDbBlogs] = useState<any[]>(prefetchedData?.blogs || []);
+  const [dbBrands, setDbBrands] = useState<any[]>(prefetchedData?.brands || []);
 
   useEffect(() => {
+    let active = true;
+
     if (prefetchedData) {
       if (prefetchedData.products) setDbProducts(prefetchedData.products);
       if (prefetchedData.categories) setDbCategories(prefetchedData.categories);
       if (prefetchedData.blogs) setDbBlogs(prefetchedData.blogs);
+      
+      if (prefetchedData.brands) {
+        setDbBrands(prefetchedData.brands);
+      } else {
+        brandRepository.getAll().then(res => {
+          if (active && res.success && res.brands) setDbBrands(res.brands);
+        }).catch(err => console.warn("Failed to fetch brands", err));
+      }
+      
       setLoading(false);
-      return;
+      return () => { active = false; };
     }
 
-    let active = true;
     const fetchRealData = async () => {
       try {
-        const [prodRes, catRes, blogRes] = await Promise.all([
+        const [prodRes, catRes, blogRes, brandRes] = await Promise.all([
           productRepository.getAll({ limit: 40 }),
           categoryRepository.getAll(),
           blogRepository.getAll({ published: true }).catch(() => ({ success: false })),
+          brandRepository.getAll().catch(() => ({ success: false })),
         ]);
         if (!active) return;
         if (prodRes.success && prodRes.products) setDbProducts(prodRes.products);
         if (catRes.success && catRes.categories) setDbCategories(catRes.categories);
         if (blogRes.success && blogRes.blogs) setDbBlogs(blogRes.blogs);
+        if (brandRes.success && brandRes.brands) setDbBrands(brandRes.brands);
       } catch (err) {
         console.warn("Failed to load real data for Shortcodes:", err);
       } finally {
@@ -229,10 +244,11 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                       >
                         <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
                           {imgUrl ? (
-                            <img
-                              src={resolveImgUrl(imgUrl)}
+                            <SafeImage
+                              src={imgUrl}
                               alt={item.name}
                               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              fallbackType="category"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
@@ -274,18 +290,17 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                   <CarouselContent>
                     {slides.map((slide, sIndex) => (
                       <CarouselItem key={sIndex}>
-                        <div className="relative overflow-hidden rounded-2xl">
-                          {slide.bgImage && (
-                            <img src={resolveImgUrl(slide.bgImage)} alt="Hero" className="h-[280px] w-full object-cover md:h-[440px]" />
-                          )}
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center bg-black/10">
+                        <div className="relative h-full overflow-hidden rounded-xl">
+                          <SafeImage src={slide.bgImage} alt="Hero" className="h-[280px] w-full object-cover md:h-[440px]" fallbackType="category" />
+                          <div className="absolute inset-0 bg-black/40" />
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white">
                             {slide.title && (
                               <h1 className="text-5xl font-black text-primary drop-shadow-sm md:text-7xl" style={{ fontFamily: "Inter" }}>
                                 {slide.title}
                               </h1>
                             )}
                             {slide.subtitle && (
-                              <p className="mt-2 text-lg font-medium text-foreground md:text-2xl">{slide.subtitle}</p>
+                              <p className="mt-2 text-lg font-medium text-white md:text-2xl">{slide.subtitle}</p>
                             )}
                             {slide.btnText && slide.btnLink && (
                               <Button asChild size="lg" className="mt-6 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
@@ -325,11 +340,12 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                 ) : (
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
                     {categoriesToRender.map((c) => (
-                      <Link key={c.slug} to={`/category/${c.slug}`} className="group overflow-hidden rounded-xl border bg-card shadow-sm transition hover:shadow-md">
-                        <div className="aspect-square overflow-hidden bg-muted">
-                          <img src={resolveImgUrl(c.image)} alt={c.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                      <Link key={c.slug} to={`/category/${c.slug}`} className="group relative overflow-hidden rounded-xl bg-muted aspect-square">
+                        <div className="absolute inset-0">
+                          <SafeImage src={c.image} alt={c.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" fallbackType="category" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-80" />
                         </div>
-                        <div className="p-3 text-center text-sm font-semibold">{c.name}</div>
+                        <div className="absolute bottom-3 left-3 right-3 text-white font-semibold text-sm truncate">{c.name}</div>
                       </Link>
                     ))}
                   </div>
@@ -418,9 +434,9 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
               <section key={index} className="container-page">
                 {attributes.title && <h2 className="mb-6 text-2xl font-bold md:text-3xl">{attributes.title}</h2>}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-                  {brandsList.map((b) => (
-                    <div key={b} className="grid h-20 place-items-center rounded-xl border bg-card text-sm font-bold uppercase tracking-wider text-muted-foreground transition hover:text-primary">
-                      {b}
+                  {dbBrands.map((b) => (
+                    <div key={b.id} className="grid h-20 place-items-center rounded-xl border bg-card text-sm font-bold uppercase tracking-wider text-muted-foreground transition hover:text-primary">
+                      {b.name}
                     </div>
                   ))}
                 </div>

@@ -15,6 +15,7 @@ import type { Brand, Series } from "@/data/brands";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { resolveImgUrl } from "@/utils/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminBrands = () => {
   const { hasPermission } = useAdmin();
@@ -24,7 +25,7 @@ const AdminBrands = () => {
   const [editBrand, setEditBrand] = useState<Brand | null>(null);
   const [brandsList, setBrandsList] = useState<Brand[]>([]);
   const [search, setSearch] = useState("");
-  const [logoPreview, setLogoPreview] = useState<string>("");
+
 
   // Series states
   const [seriesDialogOpen, setSeriesDialogOpen] = useState(false);
@@ -70,14 +71,7 @@ const AdminBrands = () => {
     fetchBrandsAndSeries();
   }, []);
 
-  // Sync logo preview for Brands
-  useEffect(() => {
-    if (editBrand) {
-      setLogoPreview(editBrand.logo || "");
-    } else {
-      setLogoPreview("");
-    }
-  }, [editBrand, dialogOpen]);
+
 
   // Sync state for Series
   useEffect(() => {
@@ -95,7 +89,6 @@ const AdminBrands = () => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget as HTMLFormElement);
     const name = formData.get("name") as string;
-    const logo = logoPreview || "/assets/brand-generic.png";
 
     if (!name.trim()) {
       toast.error("Brand name is required");
@@ -104,8 +97,8 @@ const AdminBrands = () => {
 
     try {
       const data = editBrand 
-        ? await brandRepository.update(editBrand.id, { name, logo })
-        : await brandRepository.create({ name, logo });
+        ? await brandRepository.update(editBrand.id, { name })
+        : await brandRepository.create({ name });
 
       if (data.success && data.brand) {
         if (editBrand) {
@@ -285,43 +278,7 @@ const AdminBrands = () => {
                       />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-foreground/80">Brand Logo</Label>
-                      <div className="flex items-center gap-4 mt-1 bg-muted/20 p-3 rounded-xl border border-muted-foreground/10">
-                        {logoPreview ? (
-                          <div className="flex h-16 w-16 items-center justify-center rounded-xl border bg-card p-1">
-                            <img
-                              src={resolveImgUrl(logoPreview)}
-                              alt="Logo Preview"
-                              className="max-h-full max-w-full object-contain"
-                              onError={(e) => {
-                                (e.target as HTMLElement).style.display = "none";
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex h-16 w-16 items-center justify-center rounded-xl border bg-muted">
-                            <Building2 className="h-7 w-7 text-muted-foreground/60" />
-                          </div>
-                        )}
-                        <div className="flex-1 space-y-1">
-                          <Button type="button" variant="outline" className="w-full text-left justify-start" onClick={() => setIsBrandMediaLibraryOpen(true)}>
-                            {logoPreview ? "Change Logo" : "Browse Media Storage"}
-                          </Button>
-                          <p className="text-[9px] text-muted-foreground">
-                            Upload a png or jpg file.
-                          </p>
-                        </div>
-                      </div>
-                      <MediaLibraryDialog
-                        open={isBrandMediaLibraryOpen}
-                        onOpenChange={setIsBrandMediaLibraryOpen}
-                        onSelect={(url) => {
-                          setLogoPreview(url.startsWith("http") ? url : `http://localhost:5000${url}`);
-                          setIsBrandMediaLibraryOpen(false);
-                        }}
-                      />
-                    </div>
+
 
                     <div className="flex gap-2 justify-end pt-2">
                       <Button
@@ -361,7 +318,7 @@ const AdminBrands = () => {
                   <div className="flex flex-col items-center text-center space-y-4">
                     <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
                       {b.logo ? (
-                        <img src={resolveImgUrl(b.logo)} alt={b.name} className="max-h-full max-w-full object-contain" />
+                        <SafeImage src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain" fallbackType="brand" />
                       ) : (
                         <Building2 className="h-9 w-9 text-muted-foreground" />
                       )}
@@ -532,9 +489,9 @@ const AdminBrands = () => {
                     <div className="flex flex-col items-center text-center space-y-4">
                       <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
                         {s.logo ? (
-                          <img src={resolveImgUrl(s.logo)} alt={s.name} className="max-h-full max-w-full object-contain" />
+                          <SafeImage src={s.logo} alt={s.name} className="max-h-full max-w-full object-contain" fallbackType="series" />
                         ) : brandObj?.logo ? (
-                          <img src={resolveImgUrl(brandObj.logo)} alt={brandObj.name} className="max-h-full max-w-full object-contain opacity-50 filter grayscale" />
+                          <SafeImage src={brandObj.logo} alt={brandObj.name} className="max-h-full max-w-full object-contain opacity-50 filter grayscale" fallbackType="brand" />
                         ) : (
                           <LayoutGrid className="h-8 w-8 text-muted-foreground" />
                         )}

@@ -25,6 +25,7 @@ import AdminLogin from "./pages/admin/AdminLogin.tsx";
 import Dashboard from "./pages/admin/Dashboard.tsx";
 import AdminProducts from "./pages/admin/AdminProducts.tsx";
 import AdminProductForm from "./pages/admin/AdminProductForm.tsx";
+import AdminReviews from "./pages/admin/AdminReviews.tsx";
 import AdminCategories from "./pages/admin/AdminCategories.tsx";
 import AdminBrands from "./pages/admin/AdminBrands.tsx";
 import AdminAttributes from "./pages/admin/AdminAttributes.tsx";
@@ -91,6 +92,7 @@ const App = () => (
                   <Route path="products" element={<AdminProducts />} />
                   <Route path="products/new" element={<AdminProductForm />} />
                   <Route path="products/:id/edit" element={<AdminProductForm />} />
+                  <Route path="products/:id/reviews" element={<AdminReviews />} />
                   <Route path="categories" element={<AdminCategories />} />
                   <Route path="brands" element={<AdminBrands />} />
                   <Route path="attributes" element={<AdminAttributes />} />

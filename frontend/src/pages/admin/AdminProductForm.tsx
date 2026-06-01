@@ -152,8 +152,10 @@ const AdminProductForm = () => {
 
   // Reset series when brand changes
   useEffect(() => {
+    if (brands.length === 0 || seriesList.length === 0) return; // Wait for metadata to load
+
     if (!selectedBrand) {
-      setSelectedSeries("");
+      if (selectedSeries !== "") setSelectedSeries("");
       return;
     }
     const brandId = brands.find((b) => b.name === selectedBrand)?.id;
@@ -165,26 +167,7 @@ const AdminProductForm = () => {
     }
   }, [selectedBrand, brands, seriesList, selectedSeries]);
 
-  const DEFAULT_SPECS_STRUCTURE: SpecItem[] = [
-    { id: "e1", key: "Maximum wattage", value: "7W" },
-    { id: "e2", key: "Connection voltage", value: "220-240V" },
-    { id: "e4", key: "Type of fitting", value: "E27" },
-    { id: "e5", key: "Includes light", value: "No" },
-    { id: "e6", key: "Dimmable", value: "Yes (not included)" },
-    { id: "p1", key: "Length in cm", value: "50" },
-    { id: "p2", key: "Width in cm", value: "50" },
-    { id: "p3", key: "Height in cm", value: "120" },
-    { id: "p4", key: "Base/mounting plate width in cm", value: "12" },
-    { id: "p5", key: "Foot/mounting plate length", value: "12" },
-    { id: "p6", key: "Height of foot/mounting plate", value: "2.5" },
-    { id: "m1", key: "Colour", value: "Black" },
-    { id: "m2", key: "Material", value: "Metal" },
-    { id: "m3", key: "Style", value: "Modern" },
-    { id: "m4", key: "Warranty", value: "2 years" },
-    { id: "l1", key: "Article number", value: "Q10757" },
-    { id: "l2", key: "IP rating", value: "IP20 (dustproof)" },
-    { id: "l3", key: "Installation Manual", value: "Download PDF", link: "" }
-  ];
+  const DEFAULT_SPECS_STRUCTURE: SpecItem[] = [];
 
   const parseSpecs = (specsObj: any): SpecItem[] => {
     if (Array.isArray(specsObj)) {
@@ -530,25 +513,6 @@ const AdminProductForm = () => {
     // DB categories attributes mapping
     if (activeCatObj?.categoryAttributes && activeCatObj.categoryAttributes.length > 0) {
       return activeCatObj.categoryAttributes.some((ca: any) => ca.attribute.slug === attr.slug);
-    }
-
-    // Local Storage / Static mockups fallback category-attributes mapping
-    const fallbackCategoryMapping: Record<string, string[]> = {
-      "pendant-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height", "width", "diameter"],
-      "ceiling-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height", "width", "diameter"],
-      "wall-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "ip-rating", "dimmer-type", "length", "height", "width", "diameter"],
-      "outdoor-lamps": ["color", "light-color", "material", "style", "room", "dimmable", "ip-rating", "length", "height", "width", "diameter"],
-      "floor-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height"],
-      "table-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height"],
-      "chandeliers": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "length", "height", "diameter"],
-      "smart-bulbs": ["color", "light-color", "fitting", "dimmable", "dimmer-type"],
-      "led-bulbs": ["color", "light-color", "fitting", "dimmable"],
-      "string-lights": ["color", "light-color", "room", "dimmable", "ip-rating", "length"],
-    };
-
-    const mapping = fallbackCategoryMapping[selectedCategory];
-    if (mapping) {
-      return mapping.includes(attr.slug);
     }
 
     return true; // Show all if category has no specific mappings defined

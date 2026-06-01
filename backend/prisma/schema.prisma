@@ -145,7 +145,6 @@ model AttributeValue {
   @@map("attribute_values")
 }
 
-
 // 5.5. Product Attribute Values Mapping Model
 model ProductAttributeValue {
   id               String         @id @default(uuid())
@@ -200,6 +199,7 @@ model Review {
   rating    Int
   title     String
   text      String
+  images    String[] @default([])
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("reviews")

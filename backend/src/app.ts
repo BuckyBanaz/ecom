@@ -51,6 +51,7 @@ import megaMenuRoutes from "./routes/megaMenuRoutes";
 import blogRoutes from "./routes/blogRoutes";
 import cmsRoutes from "./routes/cmsRoutes";
 import mediaRoutes from "./routes/mediaRoutes";
+import reviewRoutes from "./routes/reviewRoutes";
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -58,6 +59,7 @@ app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/brands", brandRoutes);
 app.use("/api/v1/series", seriesRoutes);
+app.use("/api/v1/reviews", reviewRoutes);
 app.use("/api/v1/attributes", attributeRoutes);
 app.use("/api/v1/megamenus", megaMenuRoutes);
 app.use("/api/v1/blogs", blogRoutes);

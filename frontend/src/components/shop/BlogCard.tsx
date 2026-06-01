@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 
+import { SafeImage } from "@/components/ui/SafeImage";
+
 export type BlogCardItem = {
   id: string;
   slug: string;
@@ -19,7 +21,7 @@ export function BlogCard({ blog }: { blog: BlogCardItem }) {
       <div>
         <div className="aspect-video w-full overflow-hidden bg-muted relative">
           {blog.cover ? (
-            <img
+            <SafeImage
               src={blog.cover}
               alt={blog.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"

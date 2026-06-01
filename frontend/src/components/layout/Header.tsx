@@ -129,28 +129,97 @@ export function Header() {
     }
   };
 
+  const renderDropdown = () => {
+    if (!showSuggestions || q.trim().length === 0) return null;
+    return (
+      <div className="absolute left-0 top-[calc(100%+8px)] w-full bg-background rounded-2xl shadow-2xl border overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
+        <div className="p-2">
+          {isSearching ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">Searching...</div>
+          ) : suggestions.length > 0 ? (
+            <ul className="flex flex-col">
+              {suggestions.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    to={`/category?search=${encodeURIComponent(p.name)}`}
+                    onClick={() => {
+                      setQ(p.name);
+                      setShowSuggestions(false);
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted rounded-xl transition-colors"
+                  >
+                    <Search size={14} className="text-muted-foreground shrink-0" />
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="text-sm font-semibold truncate text-foreground">{p.name}</span>
+                      <span className="text-xs text-muted-foreground truncate capitalize">{typeof p.category === 'object' ? p.category.name : p.category?.replace(/-/g, ' ')}</span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+              <li className="border-t mt-1 pt-1">
+                <button
+                  type="submit"
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/5 rounded-xl transition-colors flex items-center gap-2"
+                >
+                  <Search size={14} />
+                  View all results for "{q}"
+                </button>
+              </li>
+            </ul>
+          ) : (
+            <div className="p-4 text-center text-sm text-muted-foreground">No matching products found.</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
       {topLeft.length > 0 || topRight.length > 0 ? (
-        <div className="border-b bg-muted/30">
-          <div className="container-page flex flex-wrap items-center justify-between gap-3 py-2 text-xs">
-            <div className="flex flex-wrap items-center gap-4">
-              {topLeft.map((item, idx) => {
-                const icon = resolveIcon(item.icon);
-                return (
-                  <span key={`${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
-                    {icon && <FontAwesomeIcon icon={icon} className="h-4 w-4 text-primary" />}
-                    {item.text}
-                  </span>
-                );
-              })}
+        <div className="border-b bg-muted/30 overflow-hidden">
+          <div className="container-page py-2 text-xs">
+            {/* Desktop Layout */}
+            <div className="hidden md:flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-4">
+                {topLeft.map((item, idx) => {
+                  const icon = resolveIcon(item.icon);
+                  return (
+                    <span key={`desk-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
+                      {icon && <FontAwesomeIcon icon={icon} className="h-4 w-4 text-primary" />}
+                      {item.text}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-4 text-muted-foreground">
+                {topRight.map((link, idx) => (
+                  <Link key={`desk-r-${link.label}-${idx}`} to={link.href} className="hover:text-primary font-medium">
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-4 text-muted-foreground">
-              {topRight.map((link, idx) => (
-                <Link key={`${link.label}-${idx}`} to={link.href} className="hover:text-primary">
-                  {link.label}
-                </Link>
-              ))}
+
+            {/* Mobile Layout (Marquee) */}
+            <div className="md:hidden flex">
+              <div className="flex w-max animate-marquee items-center gap-6">
+                {[...topLeft, ...topRight, ...topLeft, ...topRight].map((item: any, idx) => {
+                  const isLink = item.href !== undefined;
+                  const icon = !isLink ? resolveIcon(item.icon) : null;
+                  
+                  return isLink ? (
+                    <Link key={`mob-r-${item.label}-${idx}`} to={item.href} className="hover:text-primary font-medium whitespace-nowrap">
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <span key={`mob-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground whitespace-nowrap">
+                      {icon && <FontAwesomeIcon icon={icon} className="h-4 w-4 text-primary" />}
+                      {item.text}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -221,47 +290,7 @@ export function Header() {
           </button>
           
           {/* Autocomplete Dropdown */}
-          {showSuggestions && (q.trim().length > 0) && (
-            <div className="absolute left-0 top-[calc(100%+8px)] w-full bg-background rounded-2xl shadow-2xl border overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
-              <div className="p-2">
-                {isSearching ? (
-                  <div className="p-4 text-center text-sm text-muted-foreground">Searching...</div>
-                ) : suggestions.length > 0 ? (
-                  <ul className="flex flex-col">
-                    {suggestions.map((p) => (
-                      <li key={p.id}>
-                        <Link
-                          to={`/category?search=${encodeURIComponent(p.name)}`}
-                          onClick={() => {
-                            setQ(p.name);
-                            setShowSuggestions(false);
-                          }}
-                          className="flex items-center gap-3 px-4 py-3 hover:bg-muted rounded-xl transition-colors"
-                        >
-                          <Search size={14} className="text-muted-foreground shrink-0" />
-                          <div className="flex flex-col overflow-hidden">
-                            <span className="text-sm font-semibold truncate text-foreground">{p.name}</span>
-                            <span className="text-xs text-muted-foreground truncate capitalize">{typeof p.category === 'object' ? p.category.name : p.category?.replace(/-/g, ' ')}</span>
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
-                    <li className="border-t mt-1 pt-1">
-                      <button
-                        type="submit"
-                        className="w-full text-left px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/5 rounded-xl transition-colors flex items-center gap-2"
-                      >
-                        <Search size={14} />
-                        View all results for "{q}"
-                      </button>
-                    </li>
-                  </ul>
-                ) : (
-                  <div className="p-4 text-center text-sm text-muted-foreground">No matching products found.</div>
-                )}
-              </div>
-            </div>
-          )}
+          {renderDropdown()}
         </form>
 
         <div className="ml-auto flex items-center gap-1">
@@ -296,21 +325,32 @@ export function Header() {
       </div>
 
       {/* Mobile search */}
-      <form onSubmit={submit} className="container-page relative pb-3 md:hidden">
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search…"
-          className="h-11 rounded-full pl-4 pr-12 focus-visible:ring-primary/20"
-        />
-        <button
-          type="submit"
-          aria-label="Search"
-          className="absolute right-5 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
-        >
-          <Search size={16} />
-        </button>
-      </form>
+      <div className="container-page pb-3 md:hidden">
+        <form onSubmit={submit} className="relative" onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}>
+          <Input
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => {
+              if (q.trim()) setShowSuggestions(true);
+            }}
+            placeholder="Search…"
+            className="h-11 rounded-full pl-5 pr-14 focus-visible:ring-primary/20"
+          />
+          <button
+            type="submit"
+            aria-label="Search"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
+          >
+            <Search size={16} />
+          </button>
+          
+          {/* Autocomplete Dropdown */}
+          {renderDropdown()}
+        </form>
+      </div>
 
       {/* Mega nav (Desktop) */}
       <nav className="hidden border-t lg:block relative z-50">

@@ -4,6 +4,8 @@ import {
   updateHomepage,
   getReliefPage,
   updateReliefPage,
+  getStoreFeatures,
+  updateStoreFeatures,
   getAllPages,
   getPageBySlug,
   createPage,
@@ -93,6 +95,53 @@ router.get("/relief", getReliefPage);
  *         description: Server error
  */
 router.put("/relief", updateReliefPage);
+
+/**
+ * @swagger
+ * /api/v1/cms/features:
+ *   get:
+ *     summary: Get store features configuration
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: Store features data
+ *       404:
+ *         description: Configuration not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/features", getStoreFeatures);
+
+/**
+ * @swagger
+ * /api/v1/cms/features:
+ *   put:
+ *     summary: Update store features configuration
+ *     tags: [CMS]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: array
+ *             items:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: number
+ *                 icon:
+ *                   type: string
+ *                 title:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Store features successfully updated
+ *       500:
+ *         description: Server error
+ */
+router.put("/features", updateStoreFeatures);
 
 /**
  * @swagger

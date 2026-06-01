@@ -15,4 +15,6 @@ export const ENDPOINTS = {
   MEDIA: `${BASE_URL}${API_PREFIX}/media`,
   AUTH: `${BASE_URL}${API_PREFIX}/auth`,
   BLOGS: `${BASE_URL}${API_PREFIX}/blogs`,
+  REVIEWS: `${BASE_URL}${API_PREFIX}/reviews`,
+  CMS_FEATURES: `${BASE_URL}${API_PREFIX}/cms/features`,
 };

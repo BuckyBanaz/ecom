@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,9 +6,50 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { IconPicker } from "@/components/admin/IconPicker";
+import { Trash2, Plus, Loader2 } from "lucide-react";
+import { cmsFeaturesRepository } from "@/client/apiClient";
 
 const AdminSettings = () => {
-  const [tab, setTab] = useState("general");
+  const [tab, setTab] = useState("features");
+  
+  const [featureItems, setFeatureItems] = useState([
+    { id: 1, icon: "truck-fast", title: "Fast delivery", description: "Order before 22:00, delivered next day" },
+    { id: 2, icon: "arrow-rotate-left", title: "30-day returns", description: "Not happy? Send it back for free" },
+    { id: 3, icon: "shield-check", title: "2-year warranty", description: "Quality you can trust" },
+    { id: 4, icon: "headset", title: "Expert support", description: "7 days a week" },
+  ]);
+
+  const [isLoadingFeatures, setIsLoadingFeatures] = useState(true);
+
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      try {
+        const res = await cmsFeaturesRepository.get();
+        if (res.success && res.data && Array.isArray(res.data) && res.data.length > 0) {
+          setFeatureItems(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching features:", error);
+      } finally {
+        setIsLoadingFeatures(false);
+      }
+    };
+    fetchFeatures();
+  }, []);
+
+  const handleSaveFeatures = async () => {
+    try {
+      const res = await cmsFeaturesRepository.update(featureItems);
+      if (res.success) {
+        toast.success("Features settings saved successfully");
+      } else {
+        toast.error("Failed to save features settings");
+      }
+    } catch (error) {
+      toast.error("An error occurred while saving features");
+    }
+  };
 
   const handleSave = (section: string) => (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +64,7 @@ const AdminSettings = () => {
       <Tabs value={tab} onValueChange={setTab} className="mt-6">
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
           <TabsTrigger value="smtp">SMTP / Email</TabsTrigger>
           <TabsTrigger value="auth">Login & Auth</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
@@ -40,6 +82,76 @@ const AdminSettings = () => {
             <div className="flex items-center gap-2"><Switch defaultChecked /><Label>Maintenance Mode</Label></div>
             <Button type="submit" className="rounded-full">Save Changes</Button>
           </form>
+        </TabsContent>
+
+        <TabsContent value="features">
+          <div className="max-w-4xl space-y-4 rounded-xl border bg-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Features Items</h3>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setFeatureItems([...featureItems, { id: Date.now(), icon: "star", title: "", description: "" }])}
+                className="gap-2"
+              >
+                <Plus size={16} /> Add Item
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-[1fr_2fr_3fr_auto] gap-4 mb-2 text-sm font-medium text-muted-foreground">
+                <div>Icon</div>
+                <div>Title</div>
+                <div>Description</div>
+                <div className="w-8"></div>
+              </div>
+              
+              {featureItems.map((item, index) => (
+                <div key={item.id} className="grid grid-cols-[1fr_2fr_3fr_auto] gap-4 items-start">
+                  <IconPicker 
+                    value={item.icon} 
+                    onChange={(val) => {
+                      const newItems = [...featureItems];
+                      newItems[index].icon = val;
+                      setFeatureItems(newItems);
+                    }} 
+                  />
+                  <Input 
+                    value={item.title} 
+                    onChange={(e) => {
+                      const newItems = [...featureItems];
+                      newItems[index].title = e.target.value;
+                      setFeatureItems(newItems);
+                    }} 
+                    placeholder="E.g. Fast delivery" 
+                  />
+                  <Input 
+                    value={item.description} 
+                    onChange={(e) => {
+                      const newItems = [...featureItems];
+                      newItems[index].description = e.target.value;
+                      setFeatureItems(newItems);
+                    }} 
+                    placeholder="E.g. Order before 22:00..." 
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setFeatureItems(featureItems.filter(i => i.id !== item.id))}
+                  >
+                    <Trash2 size={16} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            
+            <div className="pt-4 border-t mt-6">
+              <Button onClick={handleSaveFeatures} className="rounded-full">
+                Save Features
+              </Button>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="smtp">

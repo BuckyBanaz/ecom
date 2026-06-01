@@ -13,6 +13,7 @@ import { categoryRepository, megaMenuRepository } from "@/client/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { resolveImgUrl } from "@/utils/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminCategories = () => {
   const { hasPermission } = useAdmin();
@@ -290,7 +291,7 @@ const AdminCategories = () => {
 
             return (
               <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
-                <img src={resolveImgUrl(c.image)} alt={c.name} className="h-40 w-full object-cover" />
+                <SafeImage src={c.image} alt={c.name} className="h-40 w-full object-cover" fallbackType="category" />
                 <div className="p-4">
                   <div className="flex items-center justify-between">
                     <div>

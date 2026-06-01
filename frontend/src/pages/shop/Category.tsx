@@ -86,7 +86,7 @@ const Category = () => {
       setProductsLoading(true);
       try {
         const [prodData, brandData, catData, attrData] = await Promise.all([
-          productRepository.getAll().catch(() => null),
+          productRepository.getAll({ limit: 1000 }).catch(() => null),
           brandRepository.getAll().catch(() => null),
           categoryRepository.getAll().catch(() => null),
           attributeRepository.getAll().catch(() => null),
@@ -217,7 +217,7 @@ const Category = () => {
   }, [slug]);
 
   const resolvedSlug = useMemo(() => resolveCategorySlug(slug), [slug]);
-  const cat = categories.find((c) => c.slug === resolvedSlug);
+  const cat = categoriesList.find((c) => c.slug === resolvedSlug) || categories.find((c) => c.slug === resolvedSlug);
 
   // Sync style filter from search queries
   useEffect(() => {
@@ -417,7 +417,7 @@ const Category = () => {
       case "rating": list = [...list].sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
     }
     return list;
-  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort]);
+  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList]);
 
   const title = landingPage?.title || (slug === "deals" ? "Spring deals" : cat?.name ?? "All products");
 

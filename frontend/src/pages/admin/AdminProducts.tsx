@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +8,7 @@ import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { productRepository } from "@/client/apiClient";
 import { resolveImgUrl } from "@/utils/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminProducts = () => {
   const { hasPermission } = useAdmin();
@@ -143,7 +144,7 @@ const AdminProducts = () => {
                   <tr key={p.id} className="border-t hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <img src={resolveImgUrl(p.image)} alt={p.name} className="h-10 w-10 rounded-lg object-cover border" />
+                        <SafeImage src={p.image} alt={p.name} className="h-10 w-10 rounded-lg object-cover border" fallbackType="product" />
                         <div>
                           <p className="font-semibold">{p.name}</p>
                           <p className="text-xs text-muted-foreground">{brandName || "Generic"}</p>
@@ -175,6 +176,15 @@ const AdminProducts = () => {
                           onClick={() => navigate(`/admin/products/${p.id}/edit`)}
                         >
                           <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="View Reviews"
+                          className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                          onClick={() => navigate(`/admin/products/${p.id}/reviews`)}
+                        >
+                          <MessageSquare className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"

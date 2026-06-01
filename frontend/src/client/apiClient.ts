@@ -238,6 +238,20 @@ export const cmsReliefRepository = {
   },
 };
 
+// 8.6 CMS Features Repository
+export const cmsFeaturesRepository = {
+  get: async () => {
+    return request<any>(ENDPOINTS.CMS_FEATURES, { method: "GET" });
+  },
+  
+  update: async (data: any) => {
+    return request<any>(ENDPOINTS.CMS_FEATURES, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // 9. CMS Pages Repository
 export const cmsPagesRepository = {
   getAll: async () => {
@@ -379,5 +393,24 @@ export const blogRepository = {
   },
   delete: async (id: string) => {
     return request<any>(`${ENDPOINTS.BLOGS}/${id}`, { method: "DELETE" });
+  },
+};
+
+// 12. Reviews Repository
+export const reviewRepository = {
+  getByProduct: async (productId: string) => {
+    return request<any>(`${ENDPOINTS.REVIEWS}/product/${productId}`, { method: "GET" });
+  },
+  create: async (productId: string, data: any) => {
+    return request<any>(`${ENDPOINTS.REVIEWS}/product/${productId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  getAll: async () => {
+    return request<any>(ENDPOINTS.REVIEWS, { method: "GET" });
+  },
+  delete: async (id: string) => {
+    return request<any>(`${ENDPOINTS.REVIEWS}/${id}`, { method: "DELETE" });
   },
 };

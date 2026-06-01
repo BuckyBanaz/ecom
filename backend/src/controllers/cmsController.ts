@@ -94,6 +94,51 @@ export const updateReliefPage = async (req: Request, res: Response) => {
 };
 
 // ==========================================
+// STORE FEATURES CMS METHODS
+// ==========================================
+
+export const getStoreFeatures = async (req: Request, res: Response) => {
+  try {
+    const config = await prisma.cmsConfig.findUnique({
+      where: { key: "store_features" },
+    });
+
+    if (!config) {
+      return res.status(404).json({ success: false, message: "Store features not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error fetching store features:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const updateStoreFeatures = async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+
+    const config = await prisma.cmsConfig.upsert({
+      where: { key: "store_features" },
+      update: { value: data },
+      create: { key: "store_features", value: data },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Store features updated",
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error updating store features:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ==========================================
 // DYNAMIC PAGES CMS METHODS
 // ==========================================
 
