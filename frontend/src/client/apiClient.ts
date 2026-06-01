@@ -202,8 +202,32 @@ export const megaMenuRepository = {
 
 // 7. Auth Repository
 export const authRepository = {
+  login: async (data: any) => {
+    return request<any>(`${ENDPOINTS.AUTH}/login`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  register: async (data: any) => {
+    return request<any>(`${ENDPOINTS.AUTH}/register`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
   loginAdmin: async (data: { email: string; password: string; role: string }) => {
     return request<any>(`${ENDPOINTS.AUTH}/login-admin`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  sendOTP: async (phone: string) => {
+    return request<any>(`${ENDPOINTS.AUTH}/send-otp`, {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    });
+  },
+  verifyOTP: async (data: { phone: string; otp: string }) => {
+    return request<any>(`${ENDPOINTS.AUTH}/verify-otp`, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -414,3 +438,5 @@ export const reviewRepository = {
     return request<any>(`${ENDPOINTS.REVIEWS}/${id}`, { method: "DELETE" });
   },
 };
+
+

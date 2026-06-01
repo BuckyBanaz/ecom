@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Package, Heart, MapPin, User, LogOut, ChevronRight, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,11 +21,39 @@ const statusColors: Record<string, string> = {
 };
 
 const UserDashboard = () => {
+  const navigate = useNavigate();
   const [tab, setTab] = useState("orders");
   const { ids: wishlistIds } = useWishlist();
+  
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("customer_token");
+    const storedUser = localStorage.getItem("customer_user");
+    
+    if (!token || !storedUser) {
+      navigate("/account", { replace: true });
+    } else {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        navigate("/account", { replace: true });
+      }
+    }
+  }, [navigate]);
+
   const wishlistProducts = products.filter((p) => wishlistIds.includes(p.id));
   // Demo: show orders for user-0
   const userOrders = orders.filter((o) => o.userId === "user-0");
+
+  const handleLogout = () => {
+    localStorage.removeItem("customer_token");
+    localStorage.removeItem("customer_user");
+    toast.success("Logged out successfully");
+    navigate("/account");
+  };
+
+  if (!user) return null;
 
   return (
     <div className="container-page py-8">
@@ -34,10 +62,12 @@ const UserDashboard = () => {
         <aside className="w-full lg:w-64 shrink-0">
           <div className="rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
-              <div className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary font-bold text-lg">S</div>
+              <div className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary font-bold text-lg">
+                {user?.firstName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
+              </div>
               <div>
-                <p className="font-semibold">Sophie V.</p>
-                <p className="text-xs text-muted-foreground">sophie@example.com</p>
+                <p className="font-semibold">{user?.firstName ? `${user.firstName} ${user.lastName || ""}` : "User"}</p>
+                <p className="text-xs text-muted-foreground truncate w-40">{user?.email || user?.phone || "customer@example.com"}</p>
               </div>
             </div>
             <nav className="space-y-1">
@@ -59,10 +89,14 @@ const UserDashboard = () => {
                   {item.label}
                 </button>
               ))}
+              <button 
+                onClick={handleLogout}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors mt-4"
+              >
+                <LogOut className="h-4 w-4" />
+                Log Out
+              </button>
             </nav>
-            <Button variant="ghost" className="mt-4 w-full justify-start gap-2 text-destructive">
-              <LogOut className="h-4 w-4" /> Sign out
-            </Button>
           </div>
         </aside>
 

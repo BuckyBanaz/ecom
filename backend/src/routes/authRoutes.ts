@@ -4,6 +4,8 @@ import {
   loginCustomer,
   createAdmin,
   loginAdmin,
+  sendOTP,
+  verifyOTPLogin,
 } from "../controllers/authController";
 
 const router = Router();
@@ -108,7 +110,7 @@ router.post("/register", registerCustomer);
  * /api/v1/auth/login:
  *   post:
  *     summary: Log in as a customer
- *     description: Authenticate by email, phone, or a combined emailOrPhone identifier.
+ *     description: Authenticate by email and password.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -117,19 +119,13 @@ router.post("/register", registerCustomer);
  *           schema:
  *             type: object
  *             required:
+ *               - email
  *               - password
  *             properties:
  *               email:
  *                 type: string
  *                 format: email
  *                 example: john.doe@example.com
- *               phone:
- *                 type: string
- *                 example: "9876543210"
- *               emailOrPhone:
- *                 type: string
- *                 description: Can be email or phone combined field
- *                 example: "john.doe@example.com"
  *               password:
  *                 type: string
  *                 format: password
@@ -318,5 +314,67 @@ router.post("/create-admin", createAdmin);
  *         description: Access Denied (Role mismatch)
  */
 router.post("/login-admin", loginAdmin);
+
+/**
+ * @swagger
+ * /api/v1/auth/send-otp:
+ *   post:
+ *     summary: Send OTP for phone login
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *             properties:
+ *               phone:
+ *                 type: string
+ *                 example: "9876543210"
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       400:
+ *         description: Invalid phone number format
+ *       404:
+ *         description: No account found with this phone number
+ */
+router.post("/send-otp", sendOTP);
+
+/**
+ * @swagger
+ * /api/v1/auth/verify-otp:
+ *   post:
+ *     summary: Verify OTP and log in
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *               - otp
+ *             properties:
+ *               phone:
+ *                 type: string
+ *                 example: "9876543210"
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Phone verified and logged in successfully
+ *       400:
+ *         description: OTP has expired or was not sent
+ *       401:
+ *         description: Invalid OTP entered
+ *       404:
+ *         description: User not found
+ */
+router.post("/verify-otp", verifyOTPLogin);
 
 export default router;

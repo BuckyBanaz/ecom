@@ -49,6 +49,7 @@ import UserDashboard from "./pages/shop/UserDashboard.tsx";
 import Relief from "./pages/shop/Relief.tsx";
 import ReliefCategory from "./pages/shop/ReliefCategory.tsx";
 import DynamicPage from "./pages/shop/DynamicPage.tsx";
+import AccountAuth from "./pages/auth/AccountAuth.tsx";
 
 const queryClient = new QueryClient();
 
@@ -75,7 +76,8 @@ const App = () => (
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/search" element={<Search />} />
-                  <Route path="/account" element={<UserDashboard />} />
+                  <Route path="/account" element={<AccountAuth />} />
+                  <Route path="/dashboard" element={<UserDashboard />} />
                   <Route path="/help" element={<Help />} />
                   <Route path="/faqs" element={<Faqs />} />
                   <Route path="/blogs" element={<Blogs />} />

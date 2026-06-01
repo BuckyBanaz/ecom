@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "../config/db";
 import { env } from "../config/env";
 import { AppError } from "../middlewares/errorMiddleware";
+import redis from "../config/redis";
 
 // Helper to sign JWT Token
 const signToken = (id: string, email: string, role: string): string => {
@@ -105,9 +106,7 @@ export const registerCustomer = async (
 // 2. LOGIN CUSTOMER (BY EMAIL OR PHONE) CONTROLLER
 // ----------------------------------------------------
 const loginSchema = z.object({
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  emailOrPhone: z.string().optional(),
+  email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -123,29 +122,11 @@ export const loginCustomer = async (
       return next(new AppError(`Validation failed: ${errorMsgs}`, 400));
     }
 
-    const { email, phone, emailOrPhone, password } = parsed.data;
-
-    let searchIdentifier = "";
-    let isEmail = true;
-
-    if (email) {
-      searchIdentifier = email.toLowerCase();
-      isEmail = true;
-    } else if (phone) {
-      searchIdentifier = phone;
-      isEmail = false;
-    } else if (emailOrPhone) {
-      searchIdentifier = emailOrPhone;
-      isEmail = searchIdentifier.includes("@");
-    } else {
-      return next(new AppError("Please provide an email, phone number, or emailOrPhone identifier", 400));
-    }
+    const { email, password } = parsed.data;
 
     // Find user in database
-    const user = await prisma.user.findFirst({
-      where: isEmail
-        ? { email: searchIdentifier }
-        : { phone: searchIdentifier },
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
     });
 
     if (!user) {
@@ -306,6 +287,133 @@ export const loginAdmin = async (
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+      },
+    });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 5. SEND OTP CONTROLLER
+// ----------------------------------------------------
+const sendOtpSchema = z.object({
+  phone: z.string().min(10, "Valid phone number is required"),
+});
+
+export const sendOTP = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const parsed = sendOtpSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(new AppError("Invalid phone number format", 400));
+    }
+
+    const { phone } = parsed.data;
+
+    // Verify if user exists
+    const user = await prisma.user.findFirst({
+      where: { phone },
+    });
+
+    if (!user) {
+      return next(new AppError("No account found with this phone number", 404));
+    }
+
+    if (!redis) {
+      return next(new AppError("Redis is not enabled. Cannot send OTP.", 500));
+    }
+
+    // Generate 6-digit OTP (HARDCODED TO 123456 FOR DEMO)
+    const otp = "123456";
+
+    // Save in Redis with 5 minutes expiration
+    const redisKey = `otp:${phone}`;
+    await redis.setex(redisKey, 300, otp);
+
+    // TODO: Integrate actual SMS gateway here.
+    // For now, print to console for demo
+    console.log(`\n========================================`);
+    console.log(`📲 [DEMO SMS] OTP for ${phone} is: ${otp}`);
+    console.log(`========================================\n`);
+
+    res.status(200).json({
+      success: true,
+      message: "OTP sent successfully",
+    });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 6. VERIFY OTP LOGIN CONTROLLER
+// ----------------------------------------------------
+const verifyOtpSchema = z.object({
+  phone: z.string().min(10, "Valid phone number is required"),
+  otp: z.string().length(6, "OTP must be exactly 6 digits"),
+});
+
+export const verifyOTPLogin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const parsed = verifyOtpSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(new AppError("Invalid input format", 400));
+    }
+
+    const { phone, otp } = parsed.data;
+
+    if (!redis) {
+      return next(new AppError("Redis is not enabled.", 500));
+    }
+
+    // Verify OTP in Redis
+    const redisKey = `otp:${phone}`;
+    const storedOtp = await redis.get(redisKey);
+
+    if (!storedOtp) {
+      return next(new AppError("OTP has expired or was not sent", 400));
+    }
+
+    if (storedOtp !== otp) {
+      return next(new AppError("Invalid OTP entered", 401));
+    }
+
+    // OTP matched, fetch the user
+    const user = await prisma.user.findFirst({
+      where: { phone },
+    });
+
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    // Delete OTP from Redis so it cannot be reused
+    await redis.del(redisKey);
+
+    // Sign JWT Token
+    const token = signToken(user.id, user.email, user.role);
+
+    res.status(200).json({
+      success: true,
+      message: "Phone verified and logged in successfully",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
         role: user.role,
         avatar: user.avatar,
       },
