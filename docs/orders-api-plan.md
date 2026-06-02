@@ -89,6 +89,8 @@ Customers receive a simplified checkout progression:
 - **Export format**: PDF format for printing.
 
 ### 2. Shipping Label (Carrier Routing sticker)
+- **Carrier Integration (Primary)**: We will integrate **Sendcloud** API as the default service for generating delivery routing labels and registering shipments.
+- **Carrier Architecture**: The backend architecture will be built via an abstract `ShippingProvider` interface to easily plug in multiple carriers in the future alongside Sendcloud (e.g. direct PostNL, DHL, UPS).
 - **Generation Trigger**: Manual or automatic when order enters "Ready To Ship" state.
 - **Fields**: Carrier name, shipper address, receiver address, barcode/QR code, tracking reference ID, weight.
 - **Export format**: PDF format.

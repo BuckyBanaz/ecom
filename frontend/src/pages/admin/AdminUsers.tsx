@@ -37,8 +37,7 @@ const AdminUsers = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold">Users</h1>
-      <p className="text-muted-foreground">{demoUsers.length} users</p>
+      <p className="text-sm text-muted-foreground mb-4">{demoUsers.length} users</p>
 
       <div className="mt-6 relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

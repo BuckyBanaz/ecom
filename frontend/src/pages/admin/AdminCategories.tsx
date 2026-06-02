@@ -178,10 +178,7 @@ const AdminCategories = () => {
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Categories</h1>
-          <p className="text-muted-foreground">{categoriesList.length} categories</p>
-        </div>
+        <p className="text-sm text-muted-foreground">{categoriesList.length} categories</p>
         {hasPermission("admin") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditCat(null); }}>
             <DialogTrigger asChild>

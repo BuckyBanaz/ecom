@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Order, statusLabels, statusColors } from "./AdminOrders";
 import { Badge } from "@/components/ui/badge";
+import { Logo } from "@/components/layout/Logo";
 
 const STATUS_FLOW = [
   "pending",
@@ -277,7 +278,7 @@ export default function AdminOrderDetails() {
           <div className="bg-white text-black rounded-2xl max-w-2xl w-full p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans">
             <div className="flex justify-between items-start border-b pb-6">
               <div>
-                <h2 className="font-serif text-2xl tracking-tight font-extrabold text-amber-900">SCHIP & STER</h2>
+                <Logo forceLight className="mb-1 pointer-events-none" />
                 <p className="text-xs text-stone-500 mt-1">Invoice Statement</p>
               </div>
               <div className="text-right text-xs space-y-0.5">

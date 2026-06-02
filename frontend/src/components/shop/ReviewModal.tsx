@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Star, Upload, X } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,6 +79,7 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Write a Review for {productName}</DialogTitle>
+          <DialogDescription className="sr-only">Submit a new review for this product</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           

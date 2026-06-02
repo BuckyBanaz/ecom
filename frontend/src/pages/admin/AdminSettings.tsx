@@ -149,10 +149,8 @@ const AdminSettings = () => {
 
   return (
     <div>
-      <h1 className="text-2xl sm:text-3xl font-bold">Settings</h1>
-      <p className="text-muted-foreground text-sm">Only accessible by Superadmin</p>
 
-      <Tabs value={tab} onValueChange={setTab} className="mt-6">
+      <Tabs value={tab} onValueChange={setTab} className="mt-1">
         {/* Scrollable tabs on mobile */}
         <div className="overflow-x-auto pb-1">
           <TabsList className="flex min-w-max w-full sm:w-auto flex-nowrap">

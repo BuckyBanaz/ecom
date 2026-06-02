@@ -145,12 +145,7 @@ export default function AdminCharges() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Fees & Charges</h1>
-          <p className="text-muted-foreground">
-            Manage tax percentages (GST) or flat shipping rates applied during customer checkout
-          </p>
-        </div>
+        <span />
         {hasPermission("admin") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditCharge(null); }}>
             <DialogTrigger asChild>

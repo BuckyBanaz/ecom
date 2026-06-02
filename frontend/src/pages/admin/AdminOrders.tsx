@@ -203,13 +203,7 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Orders</h1>
-          <p className="text-muted-foreground">{ordersList.length} orders total</p>
-        </div>
-      </div>
+      <p className="text-sm text-muted-foreground">{ordersList.length} orders total</p>
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">

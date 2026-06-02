@@ -109,10 +109,7 @@ const AdminTestimonials = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Testimonials</h1>
-          <p className="text-muted-foreground">Manage customer reviews shown on the site.</p>
-        </div>
+        <span />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNew} className="gap-2">

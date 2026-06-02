@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { formatPrice, useCart } from "@/context/CartContext";
 import { Trash2 } from "lucide-react";
@@ -13,6 +13,7 @@ export function MiniCart() {
       <SheetContent className="flex w-full flex-col p-0 sm:max-w-md">
         <SheetHeader className="border-b p-4">
           <SheetTitle>Your cart ({items.length})</SheetTitle>
+          <SheetDescription className="sr-only">Items currently in your shopping cart</SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto">
           {items.length === 0 ? (

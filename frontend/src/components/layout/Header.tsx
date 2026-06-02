@@ -6,7 +6,7 @@ import { iconMap } from "@/utils/fontawesome";
 import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { navGroups } from "@/data/categories";
@@ -232,6 +232,8 @@ export function Header() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[300px] overflow-y-auto p-0">
+            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+            <SheetDescription className="sr-only">Main navigation links</SheetDescription>
             <div className="border-b p-4">
               <Logo />
             </div>
@@ -353,8 +355,8 @@ export function Header() {
       </div>
 
       {/* Mega nav (Desktop) */}
-      <nav className="hidden border-t lg:block relative z-50">
-        <div className="container-page flex items-center gap-4 py-0" onMouseLeave={() => setActiveMenu(null)}>
+      <nav className="hidden border-t lg:block relative z-50 bg-background" onMouseLeave={() => setActiveMenu(null)}>
+        <div className="container-page flex items-center gap-4 py-0">
           {menuList.map((menuObj) => (
             <div
               key={menuObj.slug}
@@ -366,12 +368,12 @@ export function Header() {
                 className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
               >
                 {menuObj.menu}
-                <ChevronDown size={14} className="opacity-70 transition-transform group-hover:rotate-180" />
+                <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === menuObj.slug ? 'rotate-180' : ''}`} />
               </Link>
               
               {/* Dropdown panel */}
               {activeMenu === menuObj.slug && (
-                <div className="absolute left-0 top-full w-full bg-background border-b shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute left-0 top-full w-full bg-background border-b shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 z-[60]">
                   <div className="container-page py-8">
                     <div className="grid grid-cols-4 gap-8">
                       {menuObj.sections.map((section) => (
@@ -384,6 +386,7 @@ export function Header() {
                               <li key={item.slug}>
                                 <Link
                                   to={`/category/${item.slug}`}
+                                  onClick={() => setActiveMenu(null)}
                                   className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors hover:underline underline-offset-4"
                                 >
                                   {item.name}

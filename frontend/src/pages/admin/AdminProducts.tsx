@@ -72,10 +72,7 @@ const AdminProducts = () => {
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Products</h1>
-          <p className="text-muted-foreground">{productsList.length} products total</p>
-        </div>
+        <p className="text-sm text-muted-foreground">{productsList.length} products total</p>
         {hasPermission("admin") && (
           <Button className="rounded-full gap-2" onClick={() => navigate("/admin/products/new")}>
             <Plus className="h-4 w-4" /> Add Product

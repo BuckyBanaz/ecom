@@ -58,6 +58,7 @@ import DynamicPage from "./pages/shop/DynamicPage.tsx";
 import AccountAuth from "./pages/auth/AccountAuth.tsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.tsx";
 import ResetPassword from "./pages/auth/ResetPassword.tsx";
+import { ScrollToTop } from "./components/layout/ScrollToTop.tsx";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ScrollToTop />
         <WishlistProvider>
           <CartProvider>
             <AdminProvider>

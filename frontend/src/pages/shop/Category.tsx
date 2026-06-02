@@ -5,7 +5,7 @@ import { ProductCard } from "@/components/shop/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, ChevronUp, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, Filter } from "lucide-react";
 import { categories } from "@/data/categories";
 import { products } from "@/data/products";
 import { Brand } from "@/data/brands";
@@ -13,6 +13,7 @@ import { Attribute } from "@/data/attributes";
 import { initialBlogs } from "@/data/blogs";
 import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { BlogCard } from "@/components/shop/BlogCard";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -425,6 +426,75 @@ const Category = () => {
     return <CategorySkeleton />;
   }
 
+  const filtersSidebar = (
+    <div className="space-y-4">
+      {/* Price Filter Accordion */}
+      <FilterBlock
+        title="Price"
+        isOpen={openSections["Price"]}
+        onToggle={() => toggleSection("Price")}
+      >
+        <div className="pt-2">
+          <Slider value={price} min={0} max={400} step={5} onValueChange={(v) => setPrice([v[0], v[1]] as [number, number])} />
+          <div className="mt-3 flex justify-between text-xs font-semibold text-muted-foreground">
+            <span>€{price[0]}</span><span>€{price[1]}</span>
+          </div>
+        </div>
+      </FilterBlock>
+
+      {/* Brands Filter Accordion */}
+      {brands.length > 0 && (
+        <CheckBlock
+          title="Brands"
+          options={brands.map(b => b.name)}
+          selected={selectedBrands}
+          onToggle={(brandName) => {
+            setSelectedBrands(prev =>
+              prev.includes(brandName) ? prev.filter(x => x !== brandName) : [...prev, brandName]
+            );
+          }}
+          getOptionCount={(val) => getOptionCount("brand", "", val)}
+          isOpen={openSections["Brands"]}
+          onToggleSection={() => toggleSection("Brands")}
+        />
+      )}
+
+      {/* Dynamic Category specific EAV attributes */}
+      {visibleAttributes.map((attr) => {
+        const sectionName = attr.name;
+        const isSectionOpen = openSections[sectionName] ?? true;
+        const hasInfoIcon = attr.slug === "dimmable" || attr.slug === "fitting" || attr.slug === "ip-rating";
+
+        return (
+          <CheckBlock
+            key={attr.id}
+            title={attr.name}
+            options={attr.values.map(v => v.value)}
+            selected={selectedFilters[attr.slug] || []}
+            onToggle={(val) => toggleFilter(attr.slug, val)}
+            getOptionCount={(val) => getOptionCount("attribute", attr.slug, val)}
+            getColorHex={attr.slug === "color" || attr.slug === "light-color" || attr.slug === "fitting" ? getColorHex : undefined}
+            hasInfo={hasInfoIcon}
+            isOpen={isSectionOpen}
+            onToggleSection={() => toggleSection(sectionName)}
+          />
+        );
+      })}
+
+      <Button
+        variant="outline"
+        className="w-full mt-2"
+        onClick={() => {
+          setSelectedBrands([]);
+          setSelectedFilters({});
+          setPrice([0, 400]);
+        }}
+      >
+        Clear filters
+      </Button>
+    </div>
+  );
+
   return (
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
@@ -458,80 +528,32 @@ const Category = () => {
           <p className="mt-1 text-sm text-muted-foreground">{filtered.length} products</p>
           <div className="mt-6 grid gap-8 lg:grid-cols-[260px_1fr]">
             
-            {/* SIDEBAR FILTERS */}
-            <aside className="space-y-4">
-              
-              {/* Price Filter Accordion */}
-              <FilterBlock
-                title="Price"
-                isOpen={openSections["Price"]}
-                onToggle={() => toggleSection("Price")}
-              >
-                <div className="pt-2">
-                  <Slider value={price} min={0} max={400} step={5} onValueChange={(v) => setPrice([v[0], v[1]] as [number, number])} />
-                  <div className="mt-3 flex justify-between text-xs font-semibold text-muted-foreground">
-                    <span>€{price[0]}</span><span>€{price[1]}</span>
-                  </div>
-                </div>
-              </FilterBlock>
-
-              {/* Brands Filter Accordion */}
-              {brands.length > 0 && (
-                <CheckBlock
-                  title="Brands"
-                  options={brands.map(b => b.name)}
-                  selected={selectedBrands}
-                  onToggle={(brandName) => {
-                    setSelectedBrands(prev =>
-                      prev.includes(brandName) ? prev.filter(x => x !== brandName) : [...prev, brandName]
-                    );
-                  }}
-                  getOptionCount={(val) => getOptionCount("brand", "", val)}
-                  isOpen={openSections["Brands"]}
-                  onToggleSection={() => toggleSection("Brands")}
-                />
-              )}
-
-              {/* Dynamic Category specific EAV attributes */}
-              {visibleAttributes.map((attr) => {
-                const sectionName = attr.name;
-                const isSectionOpen = openSections[sectionName] ?? true;
-                const hasInfoIcon = attr.slug === "dimmable" || attr.slug === "fitting" || attr.slug === "ip-rating";
-
-                return (
-                  <CheckBlock
-                    key={attr.id}
-                    title={attr.name}
-                    options={attr.values.map(v => v.value)}
-                    selected={selectedFilters[attr.slug] || []}
-                    onToggle={(val) => toggleFilter(attr.slug, val)}
-                    getOptionCount={(val) => getOptionCount("attribute", attr.slug, val)}
-                    getColorHex={attr.slug === "color" || attr.slug === "light-color" || attr.slug === "fitting" ? getColorHex : undefined}
-                    hasInfo={hasInfoIcon}
-                    isOpen={isSectionOpen}
-                    onToggleSection={() => toggleSection(sectionName)}
-                  />
-                );
-              })}
-
-              <Button
-                variant="outline"
-                className="w-full mt-2"
-                onClick={() => {
-                  setSelectedBrands([]);
-                  setSelectedFilters({});
-                  setPrice([0, 400]);
-                }}
-              >
-                Clear filters
-              </Button>
+            {/* SIDEBAR FILTERS - DESKTOP */}
+            <aside className="hidden lg:block">
+              {filtersSidebar}
             </aside>
 
             {/* PRODUCT GRID */}
             <div>
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Showing {filtered.length} results</span>
-                <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm">
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Sheet>
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className="lg:hidden gap-2">
+                        <Filter className="h-4 w-4" /> Filters
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="left" className="w-[300px] sm:w-[350px] overflow-y-auto">
+                      <SheetHeader className="mb-4 text-left">
+                        <SheetTitle>Filters</SheetTitle>
+                        <SheetDescription className="sr-only">Filter products</SheetDescription>
+                      </SheetHeader>
+                      {filtersSidebar}
+                    </SheetContent>
+                  </Sheet>
+                  <span className="text-sm text-muted-foreground">Showing {filtered.length} results</span>
+                </div>
+                <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm w-full sm:w-auto">
                   <option value="relevance">Sort: Relevance</option>
                   <option value="price-asc">Price: low to high</option>
                   <option value="price-desc">Price: high to low</option>

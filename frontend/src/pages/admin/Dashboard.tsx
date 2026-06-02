@@ -16,10 +16,9 @@ const Dashboard = () => {
   const { user } = useAdmin();
   return (
     <div>
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-      <p className="mt-1 text-muted-foreground">Welcome back, {user?.name}! Here's your store overview.</p>
+      <p className="text-muted-foreground text-sm mb-6">Welcome back, {user?.name}! Here's your store overview.</p>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((s) => (
           <div key={s.label} className="flex items-center gap-4 rounded-xl border bg-card p-5 shadow-sm">
             <div className={`grid h-12 w-12 place-items-center rounded-xl ${s.color}`}>

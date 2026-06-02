@@ -172,12 +172,7 @@ export default function AdminOffers() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Offers & Coupons</h1>
-          <p className="text-muted-foreground">
-            Manage discount codes, active status, and promotional thresholds
-          </p>
-        </div>
+        <span />
         {hasPermission("moderator") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditCoupon(null); }}>
             <DialogTrigger asChild>

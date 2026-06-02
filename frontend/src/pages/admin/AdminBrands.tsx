@@ -219,16 +219,7 @@ const AdminBrands = () => {
   });
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-card/40 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Brands & Series</h1>
-          <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-0.5">
-            Manage catalog manufacturers, logos, and series collections
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6 pb-12">
 
       <Tabs defaultValue="brands" className="w-full">
         <TabsList className="bg-muted/60 p-1 rounded-xl mb-6 grid w-full max-w-[400px] grid-cols-2">
