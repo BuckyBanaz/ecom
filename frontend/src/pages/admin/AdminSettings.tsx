@@ -149,21 +149,24 @@ const AdminSettings = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold">Settings</h1>
-      <p className="text-muted-foreground">Only accessible by Superadmin</p>
+      <h1 className="text-2xl sm:text-3xl font-bold">Settings</h1>
+      <p className="text-muted-foreground text-sm">Only accessible by Superadmin</p>
 
       <Tabs value={tab} onValueChange={setTab} className="mt-6">
-        <TabsList className="flex flex-wrap">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="features">Features</TabsTrigger>
-          <TabsTrigger value="smtp">SMTP / Email</TabsTrigger>
-          <TabsTrigger value="auth">Login & Auth</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="shipping">Shipping</TabsTrigger>
-        </TabsList>
+        {/* Scrollable tabs on mobile */}
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="flex min-w-max w-full sm:w-auto flex-nowrap">
+            <TabsTrigger value="general" className="text-xs sm:text-sm">General</TabsTrigger>
+            <TabsTrigger value="features" className="text-xs sm:text-sm">Features</TabsTrigger>
+            <TabsTrigger value="smtp" className="text-xs sm:text-sm">SMTP / Email</TabsTrigger>
+            <TabsTrigger value="auth" className="text-xs sm:text-sm">Login & Auth</TabsTrigger>
+            <TabsTrigger value="payments" className="text-xs sm:text-sm">Payments</TabsTrigger>
+            <TabsTrigger value="shipping" className="text-xs sm:text-sm">Shipping</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="general">
-          <form onSubmit={handleSave("General")} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
+          <form onSubmit={handleSave("General")} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
             <div><Label>Store Name</Label><Input defaultValue="SCHIP & STER" className="mt-1" /></div>
             <div><Label>Store URL</Label><Input defaultValue="https://schipandster.nl" className="mt-1" /></div>
             <div><Label>Support Email</Label><Input defaultValue="support@schipandster.nl" className="mt-1" /></div>
@@ -171,12 +174,12 @@ const AdminSettings = () => {
               <Select defaultValue="EUR"><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (€)</SelectItem><SelectItem value="USD">USD ($)</SelectItem><SelectItem value="GBP">GBP (£)</SelectItem></SelectContent></Select>
             </div>
             <div className="flex items-center gap-2"><Switch defaultChecked /><Label>Maintenance Mode</Label></div>
-            <Button type="submit" className="rounded-full">Save Changes</Button>
+            <Button type="submit" className="rounded-full w-full sm:w-auto">Save Changes</Button>
           </form>
         </TabsContent>
 
         <TabsContent value="features">
-          <div className="max-w-4xl space-y-4 rounded-xl border bg-card p-6">
+          <div className="mt-4 w-full space-y-4 rounded-xl border bg-card p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-lg">Features Items</h3>
               <Button 
@@ -190,7 +193,8 @@ const AdminSettings = () => {
             </div>
             
             <div className="space-y-4">
-              <div className="grid grid-cols-[1fr_2fr_3fr_auto] gap-4 mb-2 text-sm font-medium text-muted-foreground">
+              {/* Desktop header */}
+              <div className="hidden sm:grid grid-cols-[1fr_2fr_3fr_auto] gap-4 mb-2 text-sm font-medium text-muted-foreground">
                 <div>Icon</div>
                 <div>Title</div>
                 <div>Description</div>
@@ -198,7 +202,7 @@ const AdminSettings = () => {
               </div>
               
               {featureItems.map((item, index) => (
-                <div key={item.id} className="grid grid-cols-[1fr_2fr_3fr_auto] gap-4 items-start">
+                <div key={item.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_2fr_3fr_auto] sm:gap-4 sm:items-start">
                   <IconPicker 
                     value={item.icon} 
                     onChange={(val) => {
@@ -228,7 +232,7 @@ const AdminSettings = () => {
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 self-end sm:self-auto"
                     onClick={() => setFeatureItems(featureItems.filter(i => i.id !== item.id))}
                   >
                     <Trash2 size={16} />
@@ -238,7 +242,7 @@ const AdminSettings = () => {
             </div>
             
             <div className="pt-4 border-t mt-6">
-              <Button onClick={handleSaveFeatures} className="rounded-full">
+              <Button onClick={handleSaveFeatures} className="rounded-full w-full sm:w-auto">
                 Save Features
               </Button>
             </div>
@@ -249,9 +253,9 @@ const AdminSettings = () => {
           {isLoadingSmtp ? (
             <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
           ) : (
-            <form onSubmit={handleSaveSmtp} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
+            <form onSubmit={handleSaveSmtp} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
               <div><Label>SMTP Host</Label><Input value={smtpSettings.host} onChange={(e) => setSmtpSettings({...smtpSettings, host: e.target.value})} className="mt-1" /></div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><Label>Port</Label><Input value={smtpSettings.port} onChange={(e) => setSmtpSettings({...smtpSettings, port: e.target.value})} className="mt-1" /></div>
                 <div><Label>Encryption</Label>
                   <Select value={smtpSettings.encryption} onValueChange={(v) => setSmtpSettings({...smtpSettings, encryption: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tls">TLS</SelectItem><SelectItem value="ssl">SSL</SelectItem><SelectItem value="none">None</SelectItem></SelectContent></Select>
@@ -262,16 +266,16 @@ const AdminSettings = () => {
               <div><Label>From Name</Label><Input value={smtpSettings.fromName} onChange={(e) => setSmtpSettings({...smtpSettings, fromName: e.target.value})} className="mt-1" /></div>
               <div><Label>From Email</Label><Input value={smtpSettings.fromEmail} onChange={(e) => setSmtpSettings({...smtpSettings, fromEmail: e.target.value})} className="mt-1" /></div>
               <div className="flex items-center gap-2"><Switch checked={smtpSettings.enabled} onCheckedChange={(checked) => setSmtpSettings({...smtpSettings, enabled: checked})} /><Label>Enable Email Notifications</Label></div>
-              <div className="flex gap-2">
-                <Button type="submit" className="rounded-full">Save SMTP</Button>
-                <Button type="button" variant="outline" className="rounded-full" onClick={handleSendTestEmail}>Send Test Email</Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button type="submit" className="rounded-full w-full sm:w-auto">Save SMTP</Button>
+                <Button type="button" variant="outline" className="rounded-full w-full sm:w-auto" onClick={handleSendTestEmail}>Send Test Email</Button>
               </div>
             </form>
           )}
         </TabsContent>
 
         <TabsContent value="auth">
-          <form onSubmit={handleSave("Auth")} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
+          <form onSubmit={handleSave("Auth")} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
             <h3 className="font-semibold text-lg">Login Methods</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-lg border p-3">
@@ -298,7 +302,7 @@ const AdminSettings = () => {
             <div><Label>Account SID / API Key</Label><Input className="mt-1" placeholder="Enter API key" /></div>
             <div><Label>Auth Token</Label><Input type="password" className="mt-1" placeholder="Enter auth token" /></div>
             <div><Label>Sender Phone Number</Label><Input className="mt-1" placeholder="+31612345678" /></div>
-            <Button type="submit" className="rounded-full">Save Auth Settings</Button>
+            <Button type="submit" className="rounded-full w-full sm:w-auto">Save Auth Settings</Button>
           </form>
         </TabsContent>
 
@@ -306,7 +310,7 @@ const AdminSettings = () => {
           {isLoadingPayments ? (
             <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
           ) : (
-            <form onSubmit={handleSavePayments} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
+            <form onSubmit={handleSavePayments} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">iDEAL</p><p className="text-xs text-muted-foreground">Dutch bank transfer</p></div>
@@ -348,19 +352,19 @@ const AdminSettings = () => {
                   placeholder="pk_live_..." 
                 />
               </div>
-              <Button type="submit" className="rounded-full">Save Payment Settings</Button>
+              <Button type="submit" className="rounded-full w-full sm:w-auto">Save Payment Settings</Button>
             </form>
           )}
         </TabsContent>
 
         <TabsContent value="shipping">
-          <form onSubmit={handleSave("Shipping")} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
+          <form onSubmit={handleSave("Shipping")} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
             <div><Label>Free Shipping Threshold (€)</Label><Input type="number" defaultValue="75" className="mt-1" /></div>
             <div><Label>Standard Shipping Fee (€)</Label><Input type="number" step="0.01" defaultValue="5.95" className="mt-1" /></div>
             <div><Label>Express Shipping Fee (€)</Label><Input type="number" step="0.01" defaultValue="9.95" className="mt-1" /></div>
             <div className="flex items-center gap-2"><Switch defaultChecked /><Label>Same-day delivery available</Label></div>
             <div><Label>Delivery Cutoff Time</Label><Input defaultValue="22:00" className="mt-1" /></div>
-            <Button type="submit" className="rounded-full">Save Shipping Settings</Button>
+            <Button type="submit" className="rounded-full w-full sm:w-auto">Save Shipping Settings</Button>
           </form>
         </TabsContent>
       </Tabs>

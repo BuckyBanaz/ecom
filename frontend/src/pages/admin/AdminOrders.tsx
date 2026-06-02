@@ -240,10 +240,10 @@ export default function AdminOrders() {
             <tr className="border-b bg-muted/40 text-muted-foreground font-medium text-xs">
               <th className="p-4">Order</th>
               <th className="p-4">Customer</th>
-              <th className="p-4">Payment Method</th>
+              <th className="p-4 hidden md:table-cell">Payment Method</th>
               <th className="p-4">Total</th>
-              <th className="p-4">Status</th>
-              <th className="p-4">Date</th>
+              <th className="p-4 hidden sm:table-cell">Status</th>
+              <th className="p-4 hidden lg:table-cell">Date</th>
               <th className="p-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -267,14 +267,14 @@ export default function AdminOrders() {
                     <p className="font-semibold text-foreground">{o.customerName}</p>
                     <p className="text-[10px] text-muted-foreground">{o.customerEmail}</p>
                   </td>
-                  <td className="p-4 text-muted-foreground">{o.paymentMethod}</td>
+                  <td className="p-4 hidden md:table-cell text-muted-foreground">{o.paymentMethod}</td>
                   <td className="p-4 font-semibold text-foreground">€{o.total.toFixed(2)}</td>
-                  <td className="p-4">
+                  <td className="p-4 hidden sm:table-cell">
                     <Badge className={`${statusColors[o.status] || "bg-muted"} rounded-full shadow-none font-semibold text-[10px] uppercase py-0.5 px-2`}>
                       {statusLabels[o.status] || o.status}
                     </Badge>
                   </td>
-                  <td className="p-4 text-muted-foreground">
+                  <td className="p-4 text-muted-foreground hidden lg:table-cell">
                     {new Date(o.createdAt).toLocaleDateString(undefined, {
                       year: "numeric",
                       month: "short",

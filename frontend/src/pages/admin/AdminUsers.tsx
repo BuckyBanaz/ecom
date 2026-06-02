@@ -50,9 +50,9 @@ const AdminUsers = () => {
           <thead className="bg-muted/50">
             <tr>
               <th className="px-4 py-3 text-left font-semibold">User</th>
-              <th className="px-4 py-3 text-left font-semibold">Role</th>
-              <th className="px-4 py-3 text-left font-semibold">Status</th>
-              <th className="px-4 py-3 text-left font-semibold">Joined</th>
+              <th className="px-4 py-3 text-left font-semibold hidden sm:table-cell">Role</th>
+              <th className="px-4 py-3 text-left font-semibold hidden sm:table-cell">Status</th>
+              <th className="px-4 py-3 text-left font-semibold hidden md:table-cell">Joined</th>
               <th className="px-4 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
@@ -63,15 +63,15 @@ const AdminUsers = () => {
                   <p className="font-semibold">{u.name}</p>
                   <p className="text-xs text-muted-foreground">{u.email}</p>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 hidden sm:table-cell">
                   <div className="flex items-center gap-1.5 capitalize">
                     {roleIcon(u.role)}{u.role}
                   </div>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 hidden sm:table-cell">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{u.status}</span>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{u.joinDate}</td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{u.joinDate}</td>
                 <td className="px-4 py-3 text-right">
                   {hasPermission("superadmin") && (
                     <Select onValueChange={(v) => toast.success(`Role changed to ${v} (demo)`)}>

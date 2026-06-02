@@ -394,7 +394,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
     s === "completed" ? "bg-green-500" : s === "stopped" ? "bg-orange-400" : s === "error" ? "bg-red-500" : "bg-blue-500";
 
   return (
-    <div className={cn("flex flex-col bg-white", isDialog ? "h-[65vh]" : "h-[calc(100vh-80px)] -m-6")}>
+    <div className={cn("flex flex-col bg-white", isDialog ? "h-[65vh]" : "h-[calc(100vh-80px)] md:-m-6")}>
 
       {/* Breadcrumb */}
       {!isDialog && (
@@ -406,7 +406,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
       )}
 
       {/* Toolbar */}
-      <div className="px-6 py-4 border-b bg-gray-50/50 flex flex-col gap-3">
+      <div className="px-3 sm:px-6 py-3 sm:py-4 border-b bg-gray-50/50 flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className="relative">
@@ -646,9 +646,9 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
           </div>
         </div>
 
-        {/* Right sidebar */}
+        {/* Right sidebar — hidden on mobile, shown via toggle */}
         {showSidebar && (
-          <div className="w-72 border-l bg-gray-50/30 flex flex-col">
+          <div className="hidden md:flex w-72 border-l bg-gray-50/30 flex-col">
             {selectedItemDetails ? (
               <div className="p-6">
                 <div className="aspect-square bg-white border rounded-xl flex items-center justify-center overflow-hidden mb-6 shadow-sm">

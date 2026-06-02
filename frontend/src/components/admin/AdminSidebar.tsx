@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
@@ -44,30 +44,51 @@ const cmsChildren = [
   { to: "/admin/cms/seo", icon: Search, label: "SEO Settings" },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileOpen: (open: boolean) => void }) {
   const { user, logout, hasPermission } = useAdmin();
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [cmsOpen, setCmsOpen] = useState(pathname.startsWith("/admin/cms"));
   const [ordersOpen, setOrdersOpen] = useState(pathname.startsWith("/admin/orders"));
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   return (
-    <aside className={cn(
-      "flex h-screen flex-col border-r bg-sidebar-background text-sidebar-foreground transition-all duration-300",
-      collapsed ? "w-16" : "w-64"
-    )}>
-      {/* Header */}
-      <div className="flex h-16 items-center justify-between border-b px-4">
-        {!collapsed && (
-          <div className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            <span className="text-lg font-bold">Admin</span>
-          </div>
-        )}
-        <Button variant="ghost" size="icon" onClick={() => setCollapsed(!collapsed)} className="ml-auto h-8 w-8">
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
-      </div>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <aside className={cn(
+        "flex h-screen flex-col border-r bg-white text-sidebar-foreground transition-all duration-300 z-50 shrink-0",
+        // Desktop width
+        collapsed ? "md:w-16" : "md:w-64",
+        // Mobile layout & absolute drawer behaviour
+        "fixed md:static left-0 top-0 bottom-0",
+        mobileOpen ? "w-64 translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
+        {/* Header */}
+        <div className="flex h-16 items-center justify-between border-b px-4">
+          {(!collapsed || mobileOpen) && (
+            <div className="flex items-center gap-2">
+              <Shield className="h-6 w-6 text-primary" />
+              <span className="text-lg font-bold">Admin</span>
+            </div>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => setCollapsed(!collapsed)} className="ml-auto h-8 w-8 hidden md:inline-flex">
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+          {/* Mobile Close Button */}
+          <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} className="ml-auto h-8 w-8 md:hidden">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+        </div>
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
@@ -216,5 +237,6 @@ export function AdminSidebar() {
         </Button>
       </div>
     </aside>
+    </>
   );
 }

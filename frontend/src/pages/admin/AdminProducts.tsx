@@ -98,9 +98,9 @@ const AdminProducts = () => {
           <thead className="bg-muted/50">
             <tr>
               <th className="px-4 py-3 text-left font-semibold">Product</th>
-              <th className="px-4 py-3 text-left font-semibold">Category</th>
+              <th className="px-4 py-3 text-left font-semibold hidden md:table-cell">Category</th>
               <th className="px-4 py-3 text-left font-semibold">Price</th>
-              <th className="px-4 py-3 text-left font-semibold">Stock</th>
+              <th className="px-4 py-3 text-left font-semibold hidden sm:table-cell">Stock</th>
               <th className="px-4 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
@@ -151,14 +151,14 @@ const AdminProducts = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 capitalize">{(catName || "").replace(/-/g, " ")}</td>
+                    <td className="px-4 py-3 capitalize hidden md:table-cell">{(catName || "").replace(/-/g, " ")}</td>
                     <td className="px-4 py-3">
                       <span className="font-semibold">€{(p.price || 0).toFixed(2)}</span>
                       {p.oldPrice && (
                         <span className="ml-1 text-xs text-muted-foreground line-through">€{(p.oldPrice || 0).toFixed(2)}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden sm:table-cell">
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                           p.inStock ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
