@@ -19,20 +19,24 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition hover:shadow-md">
       <Link to={`/product/${product.slug}`} className="relative block aspect-square overflow-hidden bg-muted">
-        {discount > 0 && (
+        {product.inStock === false ? (
+          <span className="absolute left-3 top-3 z-10 rounded-full bg-destructive px-2.5 py-1 text-xs font-bold text-destructive-foreground">
+            Out of Stock
+          </span>
+        ) : discount > 0 ? (
           <span className="absolute left-3 top-3 z-10 rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
             -{discount}%
           </span>
-        )}
+        ) : null}
         <button
           onClick={(e) => {
             e.preventDefault();
-            toggle(product.id, product.name);
+            toggle(product.id, product.name, product);
           }}
           className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-background/90 backdrop-blur transition hover:bg-background"
           aria-label="Toggle wishlist"
         >
-          <Heart size={16} className={cn(fav && "fill-primary text-primary")} />
+          <Heart size={16} className={cn(fav ? "fill-red-500 text-red-500" : "text-muted-foreground")} />
         </button>
         <SafeImage
           src={product.image}
@@ -63,6 +67,7 @@ export function ProductCard({ product }: { product: Product }) {
           <Button
             size="icon"
             onClick={() => add(product)}
+            disabled={product.inStock === false}
             aria-label="Add to cart"
             className="h-10 w-10 rounded-full"
           >

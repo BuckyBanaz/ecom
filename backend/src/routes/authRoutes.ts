@@ -6,7 +6,13 @@ import {
   loginAdmin,
   sendOTP,
   verifyOTPLogin,
+  getProfile,
+  updateProfile,
+  changePassword,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/authController";
+import { authenticateJWT } from "../middlewares/authMiddleware";
 
 const router = Router();
 
@@ -369,12 +375,135 @@ router.post("/send-otp", sendOTP);
  *       200:
  *         description: Phone verified and logged in successfully
  *       400:
- *         description: OTP has expired or was not sent
+ *         description: Invalid or missing OTP
  *       401:
- *         description: Invalid OTP entered
+ *         description: Invalid or expired OTP
  *       404:
  *         description: User not found
  */
 router.post("/verify-otp", verifyOTPLogin);
+
+/**
+ * @swagger
+ * /api/v1/auth/profile:
+ *   get:
+ *     summary: Get logged-in user profile
+ *     tags: [Customer APIs]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profile data
+ */
+router.get("/profile", authenticateJWT, getProfile);
+
+/**
+ * @swagger
+ * /api/v1/auth/profile:
+ *   put:
+ *     summary: Update logged-in user profile
+ *     tags: [Customer APIs]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Profile updated
+ */
+router.put("/profile", authenticateJWT, updateProfile);
+
+/**
+ * @swagger
+ * /api/v1/auth/change-password:
+ *   put:
+ *     summary: Change logged-in user password
+ *     tags: [Customer APIs]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password updated successfully
+ *       400:
+ *         description: Incorrect current password
+ */
+router.put("/change-password", authenticateJWT, changePassword);
+
+/**
+ * @swagger
+ * /api/v1/auth/forgot-password:
+ *   post:
+ *     summary: Request a password reset OTP
+ *     tags: [Customer APIs]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password reset OTP sent
+ */
+router.post("/forgot-password", forgotPassword);
+
+/**
+ * @swagger
+ * /api/v1/auth/reset-password:
+ *   post:
+ *     summary: Reset password using OTP
+ *     tags: [Customer APIs]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *               - newPassword
+ *             properties:
+ *               email:
+ *                 type: string
+ *               otp:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ */
+router.post("/reset-password", resetPassword);
 
 export default router;

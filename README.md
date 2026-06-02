@@ -180,3 +180,4 @@ erDiagram
 3. **Static Specifications**: Mapped as a JSON object `specs` on the `Product` model for flat, non-filterable details like *Warranty* and *Product Dimensions*.
 
 3. **Static Specifications**: Mapped as a JSON object `specs` on the `Product` model for flat, non-filterable details like *Warranty* and *Product Dimensions*.
+📲 [DEMO SMS] OTP for 9876543210 is: 123456

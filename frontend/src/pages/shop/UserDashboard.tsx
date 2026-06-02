@@ -11,6 +11,24 @@ import { products } from "@/data/products";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { toast } from "sonner";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { MapSelector } from "@/components/shop/MapSelector";
+import { addressRepository, authRepository } from "@/client/apiClient";
+
+interface Address {
+  id: string | number;
+  label: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  street: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  lat: string;
+  lng: string;
+  isDefault: boolean;
+}
 
 const statusColors: Record<string, string> = {
   delivered: "bg-green-100 text-green-700",
@@ -22,8 +40,8 @@ const statusColors: Record<string, string> = {
 
 const UserDashboard = () => {
   const navigate = useNavigate();
+  const { items: wishlistProducts } = useWishlist();
   const [tab, setTab] = useState("orders");
-  const { ids: wishlistIds } = useWishlist();
   
   const [user, setUser] = useState<any>(null);
 
@@ -42,7 +60,6 @@ const UserDashboard = () => {
     }
   }, [navigate]);
 
-  const wishlistProducts = products.filter((p) => wishlistIds.includes(p.id));
   // Demo: show orders for user-0
   const userOrders = orders.filter((o) => o.userId === "user-0");
 
@@ -238,65 +255,302 @@ function WishlistTab({ products: items }: { products: typeof products }) {
 }
 
 function AddressesTab() {
-  const addresses = [
-    { id: 1, label: "Home", name: "Sophie V.", line: "123 Main St, 1012 AB Amsterdam, Netherlands", isDefault: true },
-    { id: 2, label: "Work", name: "Sophie V.", line: "456 Office Ave, 1017 CD Amsterdam, Netherlands", isDefault: false },
-  ];
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [fetching, setFetching] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  const fetchAddresses = async () => {
+    try {
+      setFetching(true);
+      const res = await addressRepository.getAll();
+      setAddresses(res.data || []);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load addresses");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAddresses();
+  }, []);
+
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | number | null>(null);
+  
+  const [formData, setFormData] = useState<Partial<Address>>({
+    label: "Home", firstName: "", lastName: "", phone: "", street: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false
+  });
+
+  const handleOpenForm = (address?: Address) => {
+    if (address) {
+      setEditingId(address.id);
+      setFormData(address);
+    } else {
+      setEditingId(null);
+      setFormData({ label: "Home", firstName: "", lastName: "", phone: "", street: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false });
+    }
+    setIsFormOpen(true);
+  };
+
+  const handleDelete = async (id: string | number) => {
+    try {
+      await addressRepository.delete(id.toString());
+      toast.success("Address deleted");
+      fetchAddresses();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete address");
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (editingId) {
+        await addressRepository.update(editingId.toString(), formData);
+        toast.success("Address updated");
+      } else {
+        await addressRepository.create(formData);
+        toast.success("Address added");
+      }
+      setIsFormOpen(false);
+      fetchAddresses();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save address");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMapSelect = (loc: any) => {
+    setFormData({
+      ...formData,
+      lat: loc.lat,
+      lng: loc.lng,
+      street: loc.street || formData.street,
+      city: loc.city || formData.city,
+      state: loc.state || formData.state,
+      pincode: loc.pincode || formData.pincode,
+      country: loc.country || formData.country,
+    });
+    setIsMapOpen(false);
+    toast.success("Location extracted from map!");
+  };
+
+  if (isFormOpen) {
+    return (
+      <div className="bg-card border rounded-xl p-6 shadow-sm max-w-2xl relative">
+        {isMapOpen && <MapSelector onSelect={handleMapSelect} onCancel={() => setIsMapOpen(false)} />}
+        
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">{editingId ? "Edit Address" : "Add New Address"}</h2>
+          <Button type="button" variant="outline" size="sm" onClick={() => setIsMapOpen(true)} className="rounded-full gap-2 border-primary text-primary hover:bg-primary/5">
+            <MapPin size={16} /> Choose on Map
+          </Button>
+        </div>
+        
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>First Name</Label><Input value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} required className="mt-1" /></div>
+            <div><Label>Last Name</Label><Input value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} required className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Phone</Label><Input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required className="mt-1" /></div>
+            <div>
+              <Label>Address Label</Label>
+              <select 
+                value={formData.label} 
+                onChange={e => setFormData({...formData, label: e.target.value})} 
+                required 
+                className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1"
+              >
+                <option value="Home">Home</option>
+                <option value="Work">Work</option>
+              </select>
+            </div>
+          </div>
+          <div><Label>Street Address</Label><Input value={formData.street} onChange={e => setFormData({...formData, street: e.target.value})} required className="mt-1" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>City</Label><Input value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} required className="mt-1" /></div>
+            <div><Label>State / Province</Label><Input value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} required className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Pincode / ZIP</Label><Input value={formData.pincode} onChange={e => setFormData({...formData, pincode: e.target.value})} required className="mt-1" /></div>
+            <div><Label>Country</Label><Input value={formData.country} onChange={e => setFormData({...formData, country: e.target.value})} required className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Latitude (Optional)</Label><Input value={formData.lat} onChange={e => setFormData({...formData, lat: e.target.value})} className="mt-1" placeholder="e.g. 52.3731" /></div>
+            <div><Label>Longitude (Optional)</Label><Input value={formData.lng} onChange={e => setFormData({...formData, lng: e.target.value})} className="mt-1" placeholder="e.g. 4.8922" /></div>
+          </div>
+          <label className="flex items-center gap-2 mt-4 text-sm">
+            <input type="checkbox" checked={formData.isDefault} onChange={e => setFormData({...formData, isDefault: e.target.checked})} className="rounded" />
+            Set as default address
+          </label>
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} className="rounded-full">Cancel</Button>
+            <Button type="submit" disabled={loading} className="rounded-full">
+              {loading ? "Saving..." : "Save Address"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold">My Addresses</h2>
-        <Button className="rounded-full gap-2" onClick={() => toast.success("Address form (demo)")}><MapPin className="h-4 w-4" /> Add Address</Button>
+        <Button className="rounded-full gap-2" onClick={() => handleOpenForm()}><MapPin className="h-4 w-4" /> Add Address</Button>
       </div>
-      <div className="space-y-3">
-        {addresses.map((a) => (
-          <div key={a.id} className="flex items-start gap-4 rounded-xl border bg-card p-4 shadow-sm">
-            <MapPin className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">{a.label}</span>
-                {a.isDefault && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Default</span>}
+      {fetching ? (
+        <p className="text-muted-foreground text-sm">Loading addresses...</p>
+      ) : addresses.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No addresses found.</p>
+      ) : (
+        <div className="space-y-3">
+          {addresses.map((a) => (
+            <div key={a.id} className="flex items-start gap-4 rounded-xl border bg-card p-4 shadow-sm">
+              <MapPin className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{a.label}</span>
+                  {a.isDefault && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Default</span>}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">{a.firstName} {a.lastName} • {a.phone}</p>
+                <p className="text-sm text-muted-foreground">{a.street}, {a.city}, {a.state} {a.pincode}</p>
+                <p className="text-sm text-muted-foreground">{a.country}</p>
+                {(a.lat || a.lng) && <p className="text-xs text-muted-foreground mt-1">GPS: {a.lat}, {a.lng}</p>}
               </div>
-              <p className="text-sm text-muted-foreground mt-1">{a.name}</p>
-              <p className="text-sm text-muted-foreground">{a.line}</p>
+              <div className="flex flex-col gap-2">
+                <Button variant="ghost" size="sm" onClick={() => handleOpenForm(a)}>Edit</Button>
+                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleDelete(a.id)}>Delete</Button>
+              </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => toast.success("Edit address (demo)")}>Edit</Button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function ProfileTab() {
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setFetching(true);
+        const res = await authRepository.getProfile();
+        if (res.success && res.data) {
+          const d = res.data;
+          setFormData({
+            firstName: d.firstName || "",
+            lastName: d.lastName || "",
+            email: d.email || "",
+            phone: d.phone || "",
+          });
+        }
+      } catch (error: any) {
+        toast.error(error.message || "Failed to load profile");
+        console.error("Profile load error:", error);
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const res = await authRepository.updateProfile({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+      });
+      if (res.success) {
+        toast.success("Profile updated successfully!");
+        // Update local storage user data as well
+        const cachedUser = JSON.parse(localStorage.getItem("customer_user") || "{}");
+        localStorage.setItem("customer_user", JSON.stringify({ ...cachedUser, ...res.data }));
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (fetching) {
+    return <div className="text-muted-foreground text-sm">Loading profile...</div>;
+  }
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">My Profile</h2>
-      <form onSubmit={(e) => { e.preventDefault(); toast.success("Profile saved (demo)"); }} className="max-w-lg space-y-4 rounded-xl border bg-card p-6 shadow-sm">
+      <form onSubmit={handleSave} className="max-w-lg space-y-4 rounded-xl border bg-card p-6 shadow-sm">
         <div className="grid grid-cols-2 gap-3">
-          <div><Label>First Name</Label><Input defaultValue="Sophie" className="mt-1" /></div>
-          <div><Label>Last Name</Label><Input defaultValue="V." className="mt-1" /></div>
+          <div><Label>First Name</Label><Input value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} className="mt-1" required /></div>
+          <div><Label>Last Name</Label><Input value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} className="mt-1" required /></div>
         </div>
-        <div><Label>Email</Label><Input defaultValue="sophie@example.com" className="mt-1" /></div>
-        <div><Label>Phone</Label><Input defaultValue="+31 6 1234 5678" className="mt-1" /></div>
-        <div><Label>Date of Birth</Label><Input type="date" defaultValue="1992-05-15" className="mt-1" /></div>
-        <Button type="submit" className="rounded-full">Save Profile</Button>
+        <div><Label>Email</Label><Input value={formData.email} disabled className="mt-1 bg-muted cursor-not-allowed text-muted-foreground" title="Email cannot be changed" /></div>
+        <div><Label>Phone</Label><Input type="tel" value={formData.phone} disabled className="mt-1 bg-muted cursor-not-allowed text-muted-foreground" title="Phone number cannot be changed" /></div>
+        <Button type="submit" disabled={loading} className="rounded-full">
+          {loading ? "Saving..." : "Save Profile"}
+        </Button>
       </form>
     </div>
   );
 }
 
 function SettingsTab() {
+  const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [loading, setLoading] = useState(false);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await authRepository.changePassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword
+      });
+      if (res.success) {
+        toast.success("Password updated successfully!");
+        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">Account Settings</h2>
       <div className="max-w-lg space-y-6">
-        <form onSubmit={(e) => { e.preventDefault(); toast.success("Password changed (demo)"); }} className="space-y-4 rounded-xl border bg-card p-6 shadow-sm">
+        <form onSubmit={handlePasswordSubmit} className="space-y-4 rounded-xl border bg-card p-6 shadow-sm">
           <h3 className="font-semibold">Change Password</h3>
-          <div><Label>Current Password</Label><Input type="password" className="mt-1" /></div>
-          <div><Label>New Password</Label><Input type="password" className="mt-1" /></div>
-          <div><Label>Confirm Password</Label><Input type="password" className="mt-1" /></div>
-          <Button type="submit" className="rounded-full">Update Password</Button>
+          <div><Label>Current Password</Label><Input type="password" value={passwordData.currentPassword} onChange={e => setPasswordData({...passwordData, currentPassword: e.target.value})} required className="mt-1" /></div>
+          <div><Label>New Password</Label><Input type="password" value={passwordData.newPassword} onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})} required className="mt-1" minLength={6} /></div>
+          <div><Label>Confirm Password</Label><Input type="password" value={passwordData.confirmPassword} onChange={e => setPasswordData({...passwordData, confirmPassword: e.target.value})} required className="mt-1" minLength={6} /></div>
+          <Button type="submit" disabled={loading} className="rounded-full">{loading ? "Updating..." : "Update Password"}</Button>
         </form>
         <div className="space-y-3 rounded-xl border bg-card p-6 shadow-sm">
           <h3 className="font-semibold">Notifications</h3>

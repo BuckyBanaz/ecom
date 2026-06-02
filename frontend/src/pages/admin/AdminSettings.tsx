@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IconPicker } from "@/components/admin/IconPicker";
 import { Trash2, Plus, Loader2 } from "lucide-react";
-import { cmsFeaturesRepository } from "@/client/apiClient";
+import { cmsFeaturesRepository, adminSettingsRepository } from "@/client/apiClient";
 
 const AdminSettings = () => {
   const [tab, setTab] = useState("features");
@@ -21,6 +21,29 @@ const AdminSettings = () => {
   ]);
 
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(true);
+
+  const [smtpSettings, setSmtpSettings] = useState({
+    host: "",
+    port: "",
+    encryption: "tls",
+    username: "",
+    password: "",
+    fromName: "",
+    fromEmail: "",
+    enabled: true,
+  });
+  const [isLoadingSmtp, setIsLoadingSmtp] = useState(true);
+
+  const [paymentSettings, setPaymentSettings] = useState({
+    ideal: true,
+    card: true,
+    paypal: false,
+    klarna: false,
+    bancontact: false,
+    stripePublishableKey: "",
+    stripeSecretKey: "",
+  });
+  const [isLoadingPayments, setIsLoadingPayments] = useState(true);
 
   useEffect(() => {
     const fetchFeatures = async () => {
@@ -35,7 +58,33 @@ const AdminSettings = () => {
         setIsLoadingFeatures(false);
       }
     };
+    const fetchSmtpSettings = async () => {
+      try {
+        const res = await adminSettingsRepository.getSmtpSettings();
+        if (res.success && res.data) {
+          setSmtpSettings(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching SMTP settings:", error);
+      } finally {
+        setIsLoadingSmtp(false);
+      }
+    };
+    const fetchPaymentSettings = async () => {
+      try {
+        const res = await adminSettingsRepository.getPaymentSettings();
+        if (res.success && res.data) {
+          setPaymentSettings(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching payment settings:", error);
+      } finally {
+        setIsLoadingPayments(false);
+      }
+    };
     fetchFeatures();
+    fetchSmtpSettings();
+    fetchPaymentSettings();
   }, []);
 
   const handleSaveFeatures = async () => {
@@ -56,6 +105,48 @@ const AdminSettings = () => {
     toast.success(`${section} settings saved (demo)`);
   };
 
+  const handleSaveSmtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await adminSettingsRepository.updateSmtpSettings(smtpSettings);
+      if (res.success) {
+        toast.success("SMTP settings saved successfully");
+      } else {
+        toast.error("Failed to save SMTP settings");
+      }
+    } catch (error) {
+      toast.error("An error occurred while saving SMTP settings");
+    }
+  };
+
+  const handleSavePayments = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await adminSettingsRepository.updatePaymentSettings(paymentSettings);
+      if (res.success) {
+        toast.success("Payment settings saved successfully");
+      } else {
+        toast.error("Failed to save Payment settings");
+      }
+    } catch (error) {
+      toast.error("An error occurred while saving Payment settings");
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    const testEmail = window.prompt("Enter email address to send test email to:");
+    if (!testEmail) return;
+
+    toast.promise(
+      adminSettingsRepository.testSmtpSettings(testEmail),
+      {
+        loading: "Sending test email...",
+        success: (res) => res.message || `Test email sent to ${testEmail}`,
+        error: (err) => err?.message || "Failed to send test email",
+      }
+    );
+  };
+
   return (
     <div>
       <h1 className="text-3xl font-bold">Settings</h1>
@@ -73,9 +164,9 @@ const AdminSettings = () => {
 
         <TabsContent value="general">
           <form onSubmit={handleSave("General")} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
-            <div><Label>Store Name</Label><Input defaultValue="LAMPGIGANT" className="mt-1" /></div>
-            <div><Label>Store URL</Label><Input defaultValue="https://lampgigant.nl" className="mt-1" /></div>
-            <div><Label>Support Email</Label><Input defaultValue="support@lampgigant.nl" className="mt-1" /></div>
+            <div><Label>Store Name</Label><Input defaultValue="SCHIP & STER" className="mt-1" /></div>
+            <div><Label>Store URL</Label><Input defaultValue="https://schipandster.nl" className="mt-1" /></div>
+            <div><Label>Support Email</Label><Input defaultValue="support@schipandster.nl" className="mt-1" /></div>
             <div><Label>Currency</Label>
               <Select defaultValue="EUR"><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (€)</SelectItem><SelectItem value="USD">USD ($)</SelectItem><SelectItem value="GBP">GBP (£)</SelectItem></SelectContent></Select>
             </div>
@@ -155,24 +246,28 @@ const AdminSettings = () => {
         </TabsContent>
 
         <TabsContent value="smtp">
-          <form onSubmit={handleSave("SMTP")} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
-            <div><Label>SMTP Host</Label><Input defaultValue="smtp.gmail.com" className="mt-1" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Port</Label><Input defaultValue="587" className="mt-1" /></div>
-              <div><Label>Encryption</Label>
-                <Select defaultValue="tls"><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tls">TLS</SelectItem><SelectItem value="ssl">SSL</SelectItem><SelectItem value="none">None</SelectItem></SelectContent></Select>
+          {isLoadingSmtp ? (
+            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
+          ) : (
+            <form onSubmit={handleSaveSmtp} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
+              <div><Label>SMTP Host</Label><Input value={smtpSettings.host} onChange={(e) => setSmtpSettings({...smtpSettings, host: e.target.value})} className="mt-1" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Port</Label><Input value={smtpSettings.port} onChange={(e) => setSmtpSettings({...smtpSettings, port: e.target.value})} className="mt-1" /></div>
+                <div><Label>Encryption</Label>
+                  <Select value={smtpSettings.encryption} onValueChange={(v) => setSmtpSettings({...smtpSettings, encryption: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tls">TLS</SelectItem><SelectItem value="ssl">SSL</SelectItem><SelectItem value="none">None</SelectItem></SelectContent></Select>
+                </div>
               </div>
-            </div>
-            <div><Label>Username</Label><Input defaultValue="noreply@lampgigant.nl" className="mt-1" /></div>
-            <div><Label>Password</Label><Input type="password" defaultValue="••••••••" className="mt-1" /></div>
-            <div><Label>From Name</Label><Input defaultValue="LAMPGIGANT" className="mt-1" /></div>
-            <div><Label>From Email</Label><Input defaultValue="noreply@lampgigant.nl" className="mt-1" /></div>
-            <div className="flex items-center gap-2"><Switch defaultChecked /><Label>Enable Email Notifications</Label></div>
-            <div className="flex gap-2">
-              <Button type="submit" className="rounded-full">Save SMTP</Button>
-              <Button type="button" variant="outline" className="rounded-full" onClick={() => toast.success("Test email sent (demo)")}>Send Test Email</Button>
-            </div>
-          </form>
+              <div><Label>Username</Label><Input value={smtpSettings.username} onChange={(e) => setSmtpSettings({...smtpSettings, username: e.target.value})} className="mt-1" /></div>
+              <div><Label>Password</Label><Input type="password" value={smtpSettings.password} onChange={(e) => setSmtpSettings({...smtpSettings, password: e.target.value})} className="mt-1" /></div>
+              <div><Label>From Name</Label><Input value={smtpSettings.fromName} onChange={(e) => setSmtpSettings({...smtpSettings, fromName: e.target.value})} className="mt-1" /></div>
+              <div><Label>From Email</Label><Input value={smtpSettings.fromEmail} onChange={(e) => setSmtpSettings({...smtpSettings, fromEmail: e.target.value})} className="mt-1" /></div>
+              <div className="flex items-center gap-2"><Switch checked={smtpSettings.enabled} onCheckedChange={(checked) => setSmtpSettings({...smtpSettings, enabled: checked})} /><Label>Enable Email Notifications</Label></div>
+              <div className="flex gap-2">
+                <Button type="submit" className="rounded-full">Save SMTP</Button>
+                <Button type="button" variant="outline" className="rounded-full" onClick={handleSendTestEmail}>Send Test Email</Button>
+              </div>
+            </form>
+          )}
         </TabsContent>
 
         <TabsContent value="auth">
@@ -208,25 +303,54 @@ const AdminSettings = () => {
         </TabsContent>
 
         <TabsContent value="payments">
-          <form onSubmit={handleSave("Payment")} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
-            <div className="space-y-3">
-              {[
-                { name: "iDEAL", desc: "Dutch bank transfer" },
-                { name: "Credit Card", desc: "Visa, Mastercard, Amex" },
-                { name: "PayPal", desc: "PayPal checkout" },
-                { name: "Klarna", desc: "Buy now, pay later" },
-                { name: "Bancontact", desc: "Belgian payments" },
-              ].map((pm) => (
-                <div key={pm.name} className="flex items-center justify-between rounded-lg border p-3">
-                  <div><p className="font-semibold">{pm.name}</p><p className="text-xs text-muted-foreground">{pm.desc}</p></div>
-                  <Switch defaultChecked={pm.name === "iDEAL" || pm.name === "Credit Card"} />
+          {isLoadingPayments ? (
+            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
+          ) : (
+            <form onSubmit={handleSavePayments} className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div><p className="font-semibold">iDEAL</p><p className="text-xs text-muted-foreground">Dutch bank transfer</p></div>
+                  <Switch checked={paymentSettings.ideal} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, ideal: c})} />
                 </div>
-              ))}
-            </div>
-            <div><Label>Stripe Secret Key</Label><Input type="password" className="mt-1" placeholder="sk_live_..." /></div>
-            <div><Label>Stripe Publishable Key</Label><Input className="mt-1" placeholder="pk_live_..." /></div>
-            <Button type="submit" className="rounded-full">Save Payment Settings</Button>
-          </form>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div><p className="font-semibold">Credit Card</p><p className="text-xs text-muted-foreground">Visa, Mastercard, Amex</p></div>
+                  <Switch checked={paymentSettings.card} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, card: c})} />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div><p className="font-semibold">PayPal</p><p className="text-xs text-muted-foreground">PayPal checkout</p></div>
+                  <Switch checked={paymentSettings.paypal} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, paypal: c})} />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div><p className="font-semibold">Klarna</p><p className="text-xs text-muted-foreground">Buy now, pay later</p></div>
+                  <Switch checked={paymentSettings.klarna} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, klarna: c})} />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div><p className="font-semibold">Bancontact</p><p className="text-xs text-muted-foreground">Belgian payments</p></div>
+                  <Switch checked={paymentSettings.bancontact} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, bancontact: c})} />
+                </div>
+              </div>
+              <div>
+                <Label>Stripe Secret Key</Label>
+                <Input 
+                  type="password" 
+                  value={paymentSettings.stripeSecretKey} 
+                  onChange={(e) => setPaymentSettings({...paymentSettings, stripeSecretKey: e.target.value})} 
+                  className="mt-1" 
+                  placeholder="sk_live_..." 
+                />
+              </div>
+              <div>
+                <Label>Stripe Publishable Key</Label>
+                <Input 
+                  value={paymentSettings.stripePublishableKey} 
+                  onChange={(e) => setPaymentSettings({...paymentSettings, stripePublishableKey: e.target.value})} 
+                  className="mt-1" 
+                  placeholder="pk_live_..." 
+                />
+              </div>
+              <Button type="submit" className="rounded-full">Save Payment Settings</Button>
+            </form>
+          )}
         </TabsContent>
 
         <TabsContent value="shipping">

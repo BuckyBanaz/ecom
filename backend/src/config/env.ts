@@ -13,6 +13,8 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default("7d"),
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
   ENABLE_REDIS: z.enum(["true", "false"]).default("false"),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_SECRET_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -228,7 +228,7 @@ const ProductPage = () => {
           </div>
           <div className="grid grid-cols-4 gap-3">
             {(product.images?.length ? product.images : [product.image]).map((img: string, i: number) => (
-              <div key={i} className={cn("aspect-[4/3] overflow-hidden rounded-lg border bg-muted cursor-pointer transition-all hover:opacity-90", i === 0 ? "border-[#e75362] ring-1 ring-[#e75362]" : "border-border/50")}>
+              <div key={i} className={cn("aspect-[4/3] overflow-hidden rounded-lg border bg-muted cursor-pointer transition-all hover:opacity-90", i === 0 ? "border-primary ring-1 ring-primary" : "border-border/50")}>
                 <SafeImage
                   src={img}
                   alt=""
@@ -310,11 +310,11 @@ const ProductPage = () => {
           )}
 
           <div className="mt-6 flex items-end gap-3">
-            <span className="text-3xl font-bold text-[#e75362]">{formatPrice(product.price)}</span>
+            <span className="text-3xl font-bold text-primary">{formatPrice(product.price)}</span>
             {product.oldPrice && (
               <>
                 <span className="text-lg text-muted-foreground line-through">{formatPrice(product.oldPrice)}</span>
-                <Badge className="bg-[#e75362] text-white border-transparent">Sale</Badge>
+                <Badge className="bg-primary text-white border-transparent">Sale</Badge>
               </>
             )}
           </div>
@@ -325,11 +325,11 @@ const ProductPage = () => {
               <span className="w-6 text-center text-sm font-semibold">{qty}</span>
               <button onClick={() => setQty(qty + 1)} className="px-4 py-2 hover:bg-muted text-muted-foreground transition-colors rounded-r-full text-lg leading-none">+</button>
             </div>
-            <Button size="default" className="flex-1 rounded-full sm:flex-none font-bold bg-[#e75362] hover:bg-[#d44855] text-white px-8 shadow-sm transition-all" onClick={() => add(product, qty)}>
-              Add to cart
+            <Button size="default" disabled={product.inStock === false} className="flex-1 rounded-full sm:flex-none font-bold bg-primary hover:bg-primary/90 text-white px-8 shadow-sm transition-all" onClick={() => add(product, qty)}>
+              {product.inStock === false ? "Out of stock" : "Add to cart"}
             </Button>
-            <Button size="icon" variant="outline" className="h-10 w-10 rounded-full shadow-sm text-muted-foreground hover:text-foreground" onClick={() => toggle(product.id, product.name)} aria-label="Wishlist">
-              <Heart size={18} className={cn(fav && "fill-[#e75362] text-[#e75362]")} />
+            <Button size="icon" variant="outline" className="h-10 w-10 rounded-full shadow-sm text-muted-foreground hover:text-foreground" onClick={() => toggle(product.id, product.name, product)} aria-label="Wishlist">
+              <Heart size={18} className={cn(fav ? "fill-red-500 text-red-500" : "text-muted-foreground")} />
             </Button>
           </div>
         </div>
@@ -340,7 +340,7 @@ const ProductPage = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {featureItems.map(item => (
             <div key={item.id} className="flex items-center gap-4">
-              <div className="flex flex-shrink-0 items-center justify-center h-12 w-12 rounded-full bg-[#e75362]/10 text-[#e75362]">
+              <div className="flex flex-shrink-0 items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary">
                 <FontAwesomeIcon icon={resolveIcon(item.icon)!} className="w-5 h-5" />
               </div>
               <div>

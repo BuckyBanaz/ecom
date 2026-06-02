@@ -2,7 +2,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, FolderTree, ShoppingCart, Users, Settings,
   FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown,
-  Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders, Quote, HardDrive
+  Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders, Quote, HardDrive, Mail,
+  Percent, Coins
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
@@ -15,11 +16,18 @@ const navItems = [
   { to: "/admin/categories", icon: FolderTree, label: "Categories", role: "moderator" as const },
   { to: "/admin/brands", icon: Tag, label: "Brands", role: "moderator" as const },
   { to: "/admin/attributes", icon: Sliders, label: "Attributes", role: "moderator" as const },
-  { to: "/admin/orders", icon: ShoppingCart, label: "Orders", role: "moderator" as const },
+  { to: "/admin/offers", icon: Percent, label: "Offers", role: "moderator" as const },
+  { to: "/admin/charges", icon: Coins, label: "Charges", role: "admin" as const },
   { to: "/admin/testimonials", icon: Quote, label: "Testimonials", role: "moderator" as const },
   { to: "/admin/storage", icon: HardDrive, label: "Storage", role: "admin" as const },
   { to: "/admin/users", icon: Users, label: "Users", role: "admin" as const },
   { to: "/admin/settings", icon: Settings, label: "Settings", role: "superadmin" as const },
+];
+
+const ordersChildren = [
+  { to: "/admin/orders", icon: ShoppingCart, label: "All Orders" },
+  { to: "/admin/orders/invoices", icon: FileText, label: "Invoices" },
+  { to: "/admin/orders/labels", icon: Tag, label: "Shipping Labels" },
 ];
 
 const cmsChildren = [
@@ -32,6 +40,7 @@ const cmsChildren = [
   { to: "/admin/cms/terms-conditions", icon: ScrollText, label: "Terms & Conditions" },
   { to: "/admin/cms/pages", icon: FileCode, label: "Dynamic Pages" },
   { to: "/admin/cms/blogs", icon: Newspaper, label: "Blogs" },
+  { to: "/admin/cms/email-templates", icon: Mail, label: "Email Templates" },
   { to: "/admin/cms/seo", icon: Search, label: "SEO Settings" },
 ];
 
@@ -40,6 +49,7 @@ export function AdminSidebar() {
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [cmsOpen, setCmsOpen] = useState(pathname.startsWith("/admin/cms"));
+  const [ordersOpen, setOrdersOpen] = useState(pathname.startsWith("/admin/orders"));
 
   return (
     <aside className={cn(
@@ -61,7 +71,7 @@ export function AdminSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-        {navItems.filter((item) => hasPermission(item.role)).slice(0, 6).map((item) => {
+        {navItems.filter((item) => hasPermission(item.role)).slice(0, 5).map((item) => {
           const isActive = pathname === item.to || (item.to !== "/admin" && pathname.startsWith(item.to));
           return (
             <NavLink
@@ -79,6 +89,52 @@ export function AdminSidebar() {
             </NavLink>
           );
         })}
+
+        {/* Orders group */}
+        {hasPermission("moderator") && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setOrdersOpen((v) => !v)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                pathname.startsWith("/admin/orders")
+                  ? "bg-primary/10 text-primary"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent"
+              )}
+            >
+              <ShoppingCart className="h-5 w-5 shrink-0" />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">Orders</span>
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", ordersOpen ? "rotate-0" : "-rotate-90")} />
+                </>
+              )}
+            </button>
+            {ordersOpen && !collapsed && (
+              <div className="mt-1 ml-3 space-y-1 border-l pl-3">
+                {ordersChildren.map((c) => {
+                  const isActive = pathname === c.to;
+                  return (
+                    <NavLink
+                      key={c.to}
+                      to={c.to}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent"
+                      )}
+                    >
+                      <c.icon className="h-4 w-4 shrink-0" />
+                      <span>{c.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* CMS group */}
         {hasPermission("admin") && (
@@ -126,7 +182,7 @@ export function AdminSidebar() {
           </div>
         )}
 
-        {navItems.filter((item) => hasPermission(item.role)).slice(6).map((item) => {
+        {navItems.filter((item) => hasPermission(item.role)).slice(5).map((item) => {
           const isActive = pathname === item.to || (item.to !== "/admin" && pathname.startsWith(item.to));
           return (
             <NavLink

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 const AccountAuth = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
 
   useEffect(() => {
     // If user is already logged in, redirect to dashboard
@@ -50,7 +51,7 @@ const AccountAuth = () => {
         toast.success(res.message || "Logged in successfully!");
         localStorage.setItem("customer_token", res.token);
         localStorage.setItem("customer_user", JSON.stringify(res.user));
-        navigate("/dashboard");
+        navigate(redirectTo);
       } else {
         toast.error(res.message || "Login failed");
       }
@@ -97,7 +98,7 @@ const AccountAuth = () => {
         toast.success(res.message || "Logged in successfully!");
         localStorage.setItem("customer_token", res.token);
         localStorage.setItem("customer_user", JSON.stringify(res.user));
-        navigate("/dashboard");
+        navigate(redirectTo);
       } else {
         toast.error(res.message || "Invalid OTP / Login failed");
       }
@@ -212,7 +213,7 @@ const AccountAuth = () => {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="login-password" className="text-zinc-700">Password</Label>
-                      <Link to="#" className="text-xs text-primary hover:underline font-medium">Forgot password?</Link>
+                      <Link to="/forgot-password" className="text-xs text-primary hover:underline font-medium">Forgot password?</Link>
                     </div>
                     <div className="relative">
                       <Input 

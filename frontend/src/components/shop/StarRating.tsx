@@ -8,7 +8,7 @@ export function StarRating({ value = 0, size = 14 }: { value?: number; size?: nu
         <Star
           key={i}
           size={size}
-          className={i < full ? "fill-primary text-primary" : "text-muted-foreground/40"}
+          className={i < full ? "fill-amber-500 text-amber-500" : "text-muted-foreground/40"}
         />
       ))}
     </div>

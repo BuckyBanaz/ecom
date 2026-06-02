@@ -27,9 +27,9 @@ export function Footer() {
     <footer className="mt-20 bg-secondary text-secondary-foreground">
       <div className="container-page grid gap-10 py-14 md:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-2">
-          <Logo className="text-secondary-foreground [&_span:nth-child(2)>span:nth-child(2)]:text-secondary-foreground" />
+          <Logo />
           <p className="mt-4 max-w-sm text-sm text-secondary-foreground/70">
-            {footerAbout?.description || "Lampgigant — light up your moment. We carry over 10,000 lighting products with same-day shipping and 30-day returns."}
+            {footerAbout?.description || "Schip & ster — light up your moment. We carry over 10,000 lighting products with same-day shipping and 30-day returns."}
           </p>
           <div className="mt-6 flex items-center gap-3">
             {normalizedSocial.length > 0 ? (
@@ -40,7 +40,7 @@ export function Footer() {
                     key={`${item.label}-${idx}`}
                     href={item.href || "#"}
                     aria-label={item.label || "Social"}
-                    className="grid h-10 w-10 place-items-center rounded-full bg-white/10 hover:bg-primary"
+                    className="grid h-10 w-10 place-items-center rounded-full bg-black/5 text-secondary-foreground hover:bg-primary hover:text-white transition-colors"
                   >
                     {icon ? <FontAwesomeIcon icon={icon} className="h-4 w-4" /> : <Facebook size={18} />}
                   </a>
@@ -48,9 +48,9 @@ export function Footer() {
               })
             ) : (
               <>
-                <a href="#" aria-label="Facebook" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 hover:bg-primary"><Facebook size={18} /></a>
-                <a href="#" aria-label="Instagram" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 hover:bg-primary"><Instagram size={18} /></a>
-                <a href="#" aria-label="Youtube" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 hover:bg-primary"><Youtube size={18} /></a>
+                <a href="#" aria-label="Facebook" className="grid h-10 w-10 place-items-center rounded-full bg-black/5 text-secondary-foreground hover:bg-primary hover:text-white transition-colors"><Facebook size={18} /></a>
+                <a href="#" aria-label="Instagram" className="grid h-10 w-10 place-items-center rounded-full bg-black/5 text-secondary-foreground hover:bg-primary hover:text-white transition-colors"><Instagram size={18} /></a>
+                <a href="#" aria-label="Youtube" className="grid h-10 w-10 place-items-center rounded-full bg-black/5 text-secondary-foreground hover:bg-primary hover:text-white transition-colors"><Youtube size={18} /></a>
               </>
             )}
           </div>
@@ -68,7 +68,7 @@ export function Footer() {
           </div>
         ))}
       </div>
-      <div className="border-t border-white/10">
+      <div className="border-t border-black/10">
         <div className="container-page flex flex-col items-center justify-between gap-4 py-6 text-xs text-secondary-foreground/70 md:flex-row">
           <div className="flex items-center gap-6">
             {footerBottom.length > 0 ? (
@@ -88,7 +88,7 @@ export function Footer() {
               </>
             )}
           </div>
-          <p>© {new Date().getFullYear()} Lampgigant. Demo clone for educational purposes.</p>
+          <p>© {new Date().getFullYear()} Schip & ster. Demo clone for educational purposes.</p>
         </div>
       </div>
     </footer>

@@ -36,8 +36,8 @@ const defaultConfig: HeaderFooterConfig = {
     { label: "Customer service", href: "/help" },
   ],
   footerAbout: {
-    brandText: "Lampgigant",
-    description: "Lampgigant — light up your moment. We carry over 10,000 lighting products with same-day shipping and 30-day returns.",
+    brandText: "Schip & ster",
+    description: "Schip & ster — light up your moment. We carry over 10,000 lighting products with same-day shipping and 30-day returns.",
   },
   footerSocial: [
     { icon: "facebook", label: "Facebook", href: "#" },
@@ -68,7 +68,7 @@ const defaultConfig: HeaderFooterConfig = {
       ],
     },
     {
-      title: "About Lampgigant",
+      title: "About Schip & ster",
       links: [
         { label: "Our story", href: "/help" },
         { label: "Showroom", href: "/help" },

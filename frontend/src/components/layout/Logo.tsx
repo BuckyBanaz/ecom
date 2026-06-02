@@ -1,15 +1,12 @@
 import { Link } from "react-router-dom";
-import { Lightbulb } from "lucide-react";
 
 export function Logo({ className = "" }: { className?: string }) {
   return (
-    <Link to="/" className={`flex items-center gap-2 ${className}`} aria-label="Lampgigant home">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground">
-        <Lightbulb size={20} className="fill-primary-foreground" />
-      </span>
-      <span className="text-xl font-black tracking-tight">
-        <span className="text-primary">LAMP</span>
-        <span className="text-foreground">GIGANT</span>
+    <Link to="/" className={`flex items-center gap-3 ${className}`} aria-label="Schip & Ster home">
+      <img src="/favicon.png" alt="Schip & Ster Logo" className="h-10 w-10 object-contain shrink-0" />
+      <div className="h-7 w-[1px] bg-[#b17e4a]/70 self-center"></div>
+      <span className="text-[22px] font-normal tracking-wide text-[#593c28] dark:text-[#f3e8ff] whitespace-nowrap" style={{ fontFamily: "Georgia, Cambria, 'Times New Roman', Times, serif" }}>
+        Schip & Ster
       </span>
     </Link>
   );

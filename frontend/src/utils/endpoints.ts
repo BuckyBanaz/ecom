@@ -17,4 +17,10 @@ export const ENDPOINTS = {
   BLOGS: `${BASE_URL}${API_PREFIX}/blogs`,
   REVIEWS: `${BASE_URL}${API_PREFIX}/reviews`,
   CMS_FEATURES: `${BASE_URL}${API_PREFIX}/cms/features`,
+  ADDRESSES: `${BASE_URL}${API_PREFIX}/addresses`,
+  ADMIN_SETTINGS: `${BASE_URL}${API_PREFIX}/admin/settings`,
+  EMAIL_TEMPLATES: `${BASE_URL}${API_PREFIX}/admin/email-templates`,
+  WISHLIST: `${BASE_URL}${API_PREFIX}/wishlists`,
+  COUPONS: `${BASE_URL}${API_PREFIX}/coupons`,
+  CHARGES: `${BASE_URL}${API_PREFIX}/charges`,
 };

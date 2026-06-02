@@ -1,12 +1,25 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useWishlist } from "@/context/WishlistContext";
-import { products } from "@/data/products";
 import { ProductCard } from "@/components/shop/ProductCard";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Wishlist = () => {
-  const { ids } = useWishlist();
-  const items = products.filter((p) => ids.includes(p.id));
+  const { items, loading } = useWishlist();
+
+  if (loading) {
+    return (
+      <div className="container-page py-6">
+        <h1 className="text-3xl font-bold">My wishlist</h1>
+        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-[280px] w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container-page py-6">
       <h1 className="text-3xl font-bold">My wishlist</h1>

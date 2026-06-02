@@ -2,7 +2,10 @@ import { ENDPOINTS } from "../utils/endpoints";
 
 // Helper request wrapper around fetch
 async function request<T>(url: string, config: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("admin_token");
+  const isAdminPanel = window.location.pathname.startsWith("/admin");
+  const token = isAdminPanel
+    ? (localStorage.getItem("admin_token") || localStorage.getItem("customer_token"))
+    : (localStorage.getItem("customer_token") || localStorage.getItem("admin_token"));
   
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -232,6 +235,33 @@ export const authRepository = {
       body: JSON.stringify(data),
     });
   },
+  getProfile: async () => {
+    return request<any>(`${ENDPOINTS.AUTH}/profile`, { method: "GET" });
+  },
+  updateProfile: async (data: any) => {
+    return request<any>(`${ENDPOINTS.AUTH}/profile`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  changePassword: async (data: any) => {
+    return request<any>(`${ENDPOINTS.AUTH}/change-password`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  forgotPassword: async (data: { email: string }) => {
+    return request<any>(`${ENDPOINTS.AUTH}/forgot-password`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  resetPassword: async (data: { email: string; otp: string; newPassword: string }) => {
+    return request<any>(`${ENDPOINTS.AUTH}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // 8. CMS Homepage Repository
@@ -436,6 +466,144 @@ export const reviewRepository = {
   },
   delete: async (id: string) => {
     return request<any>(`${ENDPOINTS.REVIEWS}/${id}`, { method: "DELETE" });
+  },
+};
+
+
+// 13. Address Repository
+export const addressRepository = {
+  getAll: async () => {
+    return request<any>(ENDPOINTS.ADDRESSES, { method: "GET" });
+  },
+  create: async (data: any) => {
+    return request<any>(ENDPOINTS.ADDRESSES, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: any) => {
+    return request<any>(`${ENDPOINTS.ADDRESSES}/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  delete: async (id: string) => {
+    return request<any>(`${ENDPOINTS.ADDRESSES}/${id}`, { method: "DELETE" });
+  },
+};
+
+// 14. Admin Settings Repository
+export const adminSettingsRepository = {
+  getSmtpSettings: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/smtp`, { method: "GET" });
+  },
+  updateSmtpSettings: async (data: any) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/smtp`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  testSmtpSettings: async (to: string) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/smtp/test`, {
+      method: "POST",
+      body: JSON.stringify({ to }),
+    });
+  },
+  getPaymentSettings: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/payments`, { method: "GET" });
+  },
+  updatePaymentSettings: async (data: any) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/payments`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// 15. Email Templates Repository
+export const emailTemplateRepository = {
+  getAll: async () => {
+    return request<any>(ENDPOINTS.EMAIL_TEMPLATES, { method: "GET" });
+  },
+  getById: async (id: string) => {
+    return request<any>(`${ENDPOINTS.EMAIL_TEMPLATES}/${id}`, { method: "GET" });
+  },
+  create: async (data: any) => {
+    return request<any>(ENDPOINTS.EMAIL_TEMPLATES, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: any) => {
+    return request<any>(`${ENDPOINTS.EMAIL_TEMPLATES}/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  delete: async (id: string) => {
+    return request<any>(`${ENDPOINTS.EMAIL_TEMPLATES}/${id}`, { method: "DELETE" });
+  },
+};
+
+// 16. Wishlist Repository
+export const wishlistRepository = {
+  get: async () => {
+    return request<any>(ENDPOINTS.WISHLIST, { method: "GET" });
+  },
+  add: async (productId: string) => {
+    return request<any>(ENDPOINTS.WISHLIST, {
+      method: "POST",
+      body: JSON.stringify({ productId }),
+    });
+  },
+  remove: async (productId: string) => {
+    return request<any>(`${ENDPOINTS.WISHLIST}/${productId}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+// 17. Coupon Repository
+export const couponRepository = {
+  getAll: async () => {
+    return request<any>(ENDPOINTS.COUPONS, { method: "GET" });
+  },
+  create: async (data: any) => {
+    return request<any>(ENDPOINTS.COUPONS, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: any) => {
+    return request<any>(`${ENDPOINTS.COUPONS}/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  delete: async (id: string) => {
+    return request<any>(`${ENDPOINTS.COUPONS}/${id}`, { method: "DELETE" });
+  },
+  validate: async (code: string, orderValue: number) => {
+    return request<any>(`${ENDPOINTS.COUPONS}/validate`, {
+      method: "POST",
+      body: JSON.stringify({ code, orderValue }),
+    });
+  },
+};
+
+// 18. Store Charge Repository
+export const chargeRepository = {
+  getAll: async () => {
+    return request<any>(ENDPOINTS.CHARGES, { method: "GET" });
+  },
+  save: async (data: any) => {
+    return request<any>(ENDPOINTS.CHARGES, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  delete: async (id: string) => {
+    return request<any>(`${ENDPOINTS.CHARGES}/${id}`, { method: "DELETE" });
   },
 };
 

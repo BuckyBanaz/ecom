@@ -6,6 +6,7 @@ import { prisma } from "../config/db";
 import { env } from "../config/env";
 import { AppError } from "../middlewares/errorMiddleware";
 import redis from "../config/redis";
+import { emailService } from "../services/emailService";
 
 // Helper to sign JWT Token
 const signToken = (id: string, email: string, role: string): string => {
@@ -81,6 +82,12 @@ export const registerCustomer = async (
 
     // Sign token
     const token = signToken(newUser.id, newUser.email, newUser.role);
+
+    // Send Welcome Email
+    await emailService.sendTemplateEmail(newUser.email, "welcome_mail", {
+      name: newUser.firstName,
+      login_url: `${env.CLIENT_URL}/account`
+    });
 
     res.status(201).json({
       success: true,
@@ -418,6 +425,242 @@ export const verifyOTPLogin = async (
         avatar: user.avatar,
       },
     });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 6. GET LOGGED IN USER PROFILE
+// ----------------------------------------------------
+export const getProfile = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return next(new AppError("Not authorized", 401));
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+      }
+    });
+
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    res.status(200).json({ success: true, data: user });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 7. UPDATE LOGGED IN USER PROFILE
+// ----------------------------------------------------
+const updateProfileSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  phone: z.string().optional(),
+});
+
+export const updateProfile = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return next(new AppError("Not authorized", 401));
+    }
+
+    const parsed = updateProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const errorMsgs = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
+      return next(new AppError(`Validation failed: ${errorMsgs}`, 400));
+    }
+
+    const { firstName, lastName, phone } = parsed.data;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        firstName,
+        lastName,
+        name: `${firstName || ''} ${lastName || ''}`.trim() || undefined,
+        phone,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        email: true,
+        phone: true,
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: updatedUser
+    });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 8. CHANGE PASSWORD (AUTHENTICATED)
+// ----------------------------------------------------
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(6, "New password must be at least 6 characters"),
+});
+
+export const changePassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return next(new AppError("Not authorized", 401));
+    }
+
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const errorMsgs = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
+      return next(new AppError(`Validation failed: ${errorMsgs}`, 400));
+    }
+
+    const { currentPassword, newPassword } = parsed.data;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return next(new AppError("Incorrect current password", 400));
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash }
+    });
+
+    // Send Password Change Email
+    await emailService.sendTemplateEmail(user.email, "change_password", {
+      name: user.firstName
+    });
+
+    res.status(200).json({ success: true, message: "Password updated successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 9. FORGOT PASSWORD
+// ----------------------------------------------------
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return next(new AppError("Email is required", 400));
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const redisKey = `reset_otp:${email.toLowerCase()}`;
+    await redis.set(redisKey, otp, "EX", 10 * 60); // 10 mins
+
+    // Send Forgot Password OTP
+    await emailService.sendTemplateEmail(user.email, "forgot_password", {
+      name: user.firstName,
+      otp: otp
+    });
+
+    res.status(200).json({ success: true, message: `Password reset OTP sent to ${email}` });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 10. RESET PASSWORD
+// ----------------------------------------------------
+const resetPasswordSchema = z.object({
+  email: z.string().email(),
+  otp: z.string(),
+  newPassword: z.string().min(6),
+});
+
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(new AppError("Invalid input data", 400));
+    }
+
+    const { email, otp, newPassword } = parsed.data;
+    const redisKey = `reset_otp:${email.toLowerCase()}`;
+    const storedOtp = await redis.get(redisKey);
+
+    if (!storedOtp || storedOtp !== otp) {
+      return next(new AppError("Invalid or expired OTP", 400));
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash }
+    });
+
+    await redis.del(redisKey);
+
+    // Send Reset Password Confirmation
+    await emailService.sendTemplateEmail(user.email, "reset_password", {
+      name: user.firstName
+    });
+
+    res.status(200).json({ success: true, message: "Password reset successfully" });
   } catch (error: any) {
     next(error);
   }
