@@ -12,7 +12,9 @@ import { ProductCard } from "@/components/shop/ProductCard";
 import { toast } from "sonner";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { MapSelector } from "@/components/shop/MapSelector";
-import { addressRepository, authRepository } from "@/client/apiClient";
+import { addressRepository, authRepository, ordersRepository } from "@/client/apiClient";
+import { Loader2, FileText, CreditCard } from "lucide-react";
+import { parseOrderMetadata } from "@/utils/formatters";
 
 interface Address {
   id: string | number;
@@ -59,9 +61,6 @@ const UserDashboard = () => {
       }
     }
   }, [navigate]);
-
-  // Demo: show orders for user-0
-  const userOrders = orders.filter((o) => o.userId === "user-0");
 
   const handleLogout = () => {
     localStorage.removeItem("customer_token");
@@ -119,7 +118,7 @@ const UserDashboard = () => {
 
         {/* Main */}
         <div className="flex-1 min-w-0">
-          {tab === "orders" && <OrdersTab orders={userOrders} />}
+          {tab === "orders" && <OrdersTab />}
           {tab === "wishlist" && <WishlistTab products={wishlistProducts} />}
           {tab === "addresses" && <AddressesTab />}
           {tab === "profile" && <ProfileTab />}
@@ -130,22 +129,100 @@ const UserDashboard = () => {
   );
 };
 
-function OrdersTab({ orders }: { orders: Order[] }) {
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+function OrdersTab() {
+  const [ordersList, setOrdersList] = useState<any[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const res = await ordersRepository.getMyOrders();
+      setOrdersList(res.data || []);
+    } catch (err) {
+      toast.error("Failed to load orders");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePayNow = async (orderId: string) => {
+    try {
+      setIsProcessingAction(true);
+      const res = await ordersRepository.retryPayment(orderId);
+      if (res.success && res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to initiate payment");
+      setIsProcessingAction(false);
+    }
+  };
+
+  const handleViewInvoice = async (orderId: string) => {
+    try {
+      setIsProcessingAction(true);
+      const res = await ordersRepository.getMyOrderById(orderId);
+      if (res.success && res.invoiceToken) {
+        window.open(`/invoice?token=${res.invoiceToken}`, "_blank");
+      } else {
+        toast.error("Could not generate invoice token");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate invoice");
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  if (loading) return <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   if (selectedOrder) {
+    const isPending = ["pending", "payment_pending", "payment_failed"].includes(selectedOrder.status);
+    const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);
+    
     return (
       <div>
         <button onClick={() => setSelectedOrder(null)} className="mb-4 flex items-center gap-1 text-sm text-primary hover:underline">
           ← Back to orders
         </button>
         <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
             <div>
               <h2 className="text-2xl font-bold">{selectedOrder.orderNumber}</h2>
               <p className="text-sm text-muted-foreground">Placed on {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${statusColors[selectedOrder.status]}`}>{selectedOrder.status}</span>
+            <div className="flex items-center gap-3">
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${statusColors[selectedOrder.status] || "bg-gray-100 text-gray-700"}`}>
+                {selectedOrder.status.replace("_", " ")}
+              </span>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleViewInvoice(selectedOrder.id)}
+                disabled={isProcessingAction}
+                className="rounded-full h-8 px-3 gap-1.5"
+              >
+                <FileText className="h-3.5 w-3.5" /> Invoice
+              </Button>
+              
+              {isPending && (
+                <Button 
+                  size="sm" 
+                  onClick={() => handlePayNow(selectedOrder.id)}
+                  disabled={isProcessingAction}
+                  className="rounded-full h-8 px-4 bg-primary text-primary-foreground font-semibold shadow-sm"
+                >
+                  <CreditCard className="h-3.5 w-3.5 mr-1.5" /> Pay Now
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Progress */}
@@ -182,6 +259,8 @@ function OrdersTab({ orders }: { orders: Order[] }) {
           <div className="mt-6 border-t pt-4 space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>€{selectedOrder.subtotal.toFixed(2)}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Shipping</span><span>{selectedOrder.shipping === 0 ? "Free" : `€${selectedOrder.shipping.toFixed(2)}`}</span></div>
+            {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax / GST</span><span>€{tax.toFixed(2)}</span></div>}
+            {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span className="text-green-600">-€{discount.toFixed(2)}</span></div>}
             <div className="flex justify-between font-bold text-base border-t pt-2"><span>Total</span><span>€{selectedOrder.total.toFixed(2)}</span></div>
           </div>
 
@@ -189,7 +268,12 @@ function OrdersTab({ orders }: { orders: Order[] }) {
           <div className="mt-6 grid gap-4 sm:grid-cols-2 text-sm">
             <div className="rounded-lg bg-muted p-4">
               <p className="font-semibold mb-1">Shipping Address</p>
-              <p className="text-muted-foreground">{selectedOrder.shippingAddress}</p>
+              <div className="text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">{selectedOrder.customerName || `${firstName} ${lastName}`.trim()}</p>
+                <p>{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                {phone && <p>Phone: {phone}</p>}
+                <p>Email: {selectedOrder.customerEmail || email}</p>
+              </div>
             </div>
             <div className="rounded-lg bg-muted p-4">
               <p className="font-semibold mb-1">Payment Method</p>
@@ -200,11 +284,10 @@ function OrdersTab({ orders }: { orders: Order[] }) {
       </div>
     );
   }
-
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">My Orders</h2>
-      {orders.length === 0 ? (
+      {ordersList.length === 0 ? (
         <div className="rounded-xl border bg-card p-8 text-center">
           <Package className="mx-auto h-12 w-12 text-muted-foreground" />
           <p className="mt-3 font-semibold">No orders yet</p>
@@ -213,13 +296,15 @@ function OrdersTab({ orders }: { orders: Order[] }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {orders.map((o) => (
+          {ordersList.map((o: any) => (
             <button key={o.id} onClick={() => setSelectedOrder(o)} className="w-full flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm hover:bg-muted/30 transition text-left">
               <SafeImage src={o.items[0].productImage} alt="" className="h-14 w-14 rounded-lg object-cover" fallbackType="product" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{o.orderNumber}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusColors[o.status]}`}>{o.status}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusColors[o.status] || "bg-gray-100 text-gray-700"}`}>
+                    {o.status.replace("_", " ")}
+                  </span>
                 </div>
                 <p className="text-sm text-muted-foreground">{o.items.length} item(s) · {new Date(o.createdAt).toLocaleDateString()}</p>
               </div>

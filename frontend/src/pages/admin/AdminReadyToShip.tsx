@@ -5,20 +5,31 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { Order } from "./AdminOrders";
 
+import { ordersRepository } from "@/client/apiClient";
+
 export default function AdminReadyToShip() {
   const [search, setSearch] = useState("");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const stored = localStorage.getItem("admin_orders");
-    if (stored) {
-      setOrdersList(JSON.parse(stored));
-    }
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        const res = await ordersRepository.getAll();
+        setOrdersList(res.data || []);
+      } catch (err) {
+        console.error("Failed to load orders", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
   }, []);
 
-  // Filter ONLY orders with status "ready_to_ship"
-  const readyOrders = ordersList.filter((o) => o.status === "ready_to_ship");
+  // Filter ONLY orders with status "paid", "processing", or "ready_to_ship"
+  const readyOrders = ordersList.filter((o) => ["paid", "processing", "ready_to_ship"].includes(o.status));
 
   const filtered = readyOrders.filter((o) =>
     o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||

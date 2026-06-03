@@ -65,3 +65,71 @@ export const createPaymentIntent = async (req: Request, res: Response, next: Nex
     next(error);
   }
 };
+
+// Stripe Webhook Handler
+import Stripe from "stripe";
+import { prisma } from "../config/db";
+
+const stripe = new Stripe(env.STRIPE_SECRET_KEY || "", {
+  apiVersion: "2024-04-10"
+});
+
+export const handleStripeWebhook = async (req: Request, res: Response, next: NextFunction) => {
+  const sig = req.headers["stripe-signature"] as string;
+  const endpointSecret = env.STRIPE_WEBHOOK_SECRET;
+
+  if (!endpointSecret) {
+    console.error("Missing STRIPE_WEBHOOK_SECRET");
+    return res.status(400).send("Webhook Error: Missing secret");
+  }
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err: any) {
+    console.error(`Webhook Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = session.metadata?.orderId;
+        const paymentIntentId = session.payment_intent as string;
+
+        if (orderId) {
+          console.log(`[Webhook] Marking order ${orderId} as paid`);
+          await prisma.order.update({
+            where: { id: orderId },
+            data: {
+              status: "paid",
+              paymentStatus: "paid",
+              stripePaymentId: paymentIntentId,
+            }
+          });
+        }
+        break;
+      }
+      
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        // In checkout sessions, we might not have the orderId attached directly to the payment intent metadata,
+        // unless we passed it during creation. But we have it in session metadata.
+        // For robust handling, if we can map it back, we mark failed.
+        // A simple way is to find the order by stripePaymentId if stored, or just log.
+        console.warn(`[Webhook] Payment Failed: ${paymentIntent.id}`);
+        // If we stored session ID in DB, we could look it up via the checkout session that failed.
+        break;
+      }
+      
+      default:
+        console.log(`Unhandled event type ${event.type}`);
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error("Webhook processing error:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};

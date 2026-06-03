@@ -56,6 +56,7 @@ import AdminEmailTemplates from "./pages/admin/AdminEmailTemplates.tsx";
 import MediaLibrary from "./pages/admin/media/MediaLibrary.tsx";
 import { Navigate } from "react-router-dom";
 import UserDashboard from "./pages/shop/UserDashboard.tsx";
+import InvoicePage from "./pages/shop/InvoicePage.tsx";
 
 import Relief from "./pages/shop/Relief.tsx";
 import ReliefCategory from "./pages/shop/ReliefCategory.tsx";
@@ -90,6 +91,8 @@ const App = () => (
                   <Route path="/product/:slug" element={<ProductPage />} />
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/checkout/success" element={<Checkout />} />
+                  <Route path="/checkout/cancel" element={<Checkout />} />
                   <Route path="/search" element={<Search />} />
                   <Route path="/account" element={<AccountAuth />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -103,6 +106,9 @@ const App = () => (
                   <Route path="/:slug" element={<DynamicPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Route>
+
+                {/* Standalone Route for Print/Invoice */}
+                <Route path="/invoice" element={<InvoicePage />} />
 
                 {/* Admin */}
                 <Route path="/admin/login" element={<AdminLogin />} />

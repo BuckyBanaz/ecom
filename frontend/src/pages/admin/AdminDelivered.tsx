@@ -5,14 +5,27 @@ import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { Order } from './AdminOrders';
 
+import { ordersRepository } from "@/client/apiClient";
+
 export default function AdminDelivered() {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const stored = localStorage.getItem('admin_orders');
-    if (stored) setOrdersList(JSON.parse(stored));
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        const res = await ordersRepository.getAll();
+        setOrdersList(res.data || []);
+      } catch (err) {
+        console.error("Failed to load orders", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
   }, []);
 
   const deliveredOrders = ordersList.filter((o) => o.status === 'delivered');

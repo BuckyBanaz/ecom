@@ -24,7 +24,7 @@ const options: swaggerJSDoc.Options = {
     ],
     components: {
       securitySchemes: {
-        BearerAuth: {
+        bearerAuth: {
           type: "http",
           scheme: "bearer",
           bearerFormat: "JWT",
@@ -35,7 +35,7 @@ const options: swaggerJSDoc.Options = {
     // Apply JWT globally to swagger controls (can be overridden per path)
     security: [
       {
-        BearerAuth: [],
+        bearerAuth: [],
       },
     ],
   },

@@ -7,12 +7,14 @@ import { toast } from "sonner";
 import { Order, statusLabels, MANUAL_STATUSES, AUTO_STATUSES } from "./AdminOrders";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/layout/Logo";
+import { ordersRepository } from "@/client/apiClient";
+import { parseOrderMetadata } from "@/utils/formatters";
 
 export default function AdminOrderDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [order, setOrder] = useState<Order | null>(null);
-  const [ordersList, setOrdersList] = useState<Order[]>([]);
+  const [order, setOrder] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Modal dialog view states for print/preview simulations
   const [showInvoiceMock, setShowInvoiceMock] = useState(false);
@@ -20,35 +22,39 @@ export default function AdminOrderDetails() {
   const [showShipmentModal, setShowShipmentModal] = useState(false);
   const [selectedCarrier, setSelectedCarrier] = useState<string>("Auto Cheapest");
 
-  useEffect(() => {
-    const stored = localStorage.getItem("admin_orders");
-    if (stored) {
-      const parsed = JSON.parse(stored) as Order[];
-      setOrdersList(parsed);
-      const found = parsed.find((o) => o.id === id);
-      if (found) {
-        setOrder(found);
+  const fetchOrder = async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      const res = await ordersRepository.getById(id);
+      if (res.success && res.data) {
+        setOrder(res.data);
       }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load order");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchOrder();
   }, [id]);
 
-  const updateOrderInStorage = (updatedOrder: Order) => {
-    const newList = ordersList.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
-    localStorage.setItem("admin_orders", JSON.stringify(newList));
-    setOrdersList(newList);
-    setOrder(updatedOrder);
+  const handleStatusChange = async (newStatus: string) => {
+    if (!order) return;
+    try {
+      const res = await ordersRepository.updateStatus(order.id, newStatus);
+      if (res.success) {
+        setOrder(res.data);
+        toast.success(`Order status updated to "${statusLabels[newStatus] || newStatus}"`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update status");
+    }
   };
 
-  const handleStatusChange = (newStatus: string) => {
-    if (!order) return;
-    const updated = {
-      ...order,
-      status: newStatus,
-      updatedAt: new Date().toISOString(),
-    };
-    updateOrderInStorage(updated);
-    toast.success(`Order status updated to "${statusLabels[newStatus] || newStatus}"`);
-  };
+  const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, city, state, pincode, country } = order ? parseOrderMetadata(order.shippingAddress) : { formattedAddress: "", tax: 0, discount: 0, phone: "", email: "", firstName: "", lastName: "", street: "", city: "", state: "", pincode: "", country: "" };
 
   const handleGenerateInvoice = () => {
     if (!order) return;
@@ -59,7 +65,7 @@ export default function AdminOrderDetails() {
       status: order.status === "pending" || order.status === "payment_pending" ? "paid" : order.status,
       updatedAt: new Date().toISOString(),
     };
-    updateOrderInStorage(updated);
+    setOrder(updated);
     setShowInvoiceMock(true);
     toast.success("Invoice generated successfully");
   };
@@ -89,10 +95,18 @@ export default function AdminOrderDetails() {
       status: "label_generated",
       updatedAt: new Date().toISOString(),
     };
-    updateOrderInStorage(updated);
+    setOrder(updated);
     setShowShipmentModal(false);
     toast.success(`Shipment created successfully via ${finalCarrier}`);
   };
+
+  if (loading) {
+    return (
+      <div className="p-8 text-center space-y-4">
+        <p className="text-muted-foreground">Loading order...</p>
+      </div>
+    );
+  }
 
   if (!order) {
     return (
@@ -231,6 +245,18 @@ export default function AdminOrderDetails() {
                   {order.shipping === 0 ? "Free" : `€${order.shipping.toFixed(2)}`}
                 </span>
               </div>
+              {tax > 0 && (
+                <div className="flex justify-between">
+                  <span>Tax / GST</span>
+                  <span className="font-semibold text-foreground">€{tax.toFixed(2)}</span>
+                </div>
+              )}
+              {discount > 0 && (
+                <div className="flex justify-between">
+                  <span>Discount</span>
+                  <span className="font-semibold text-green-600">-€{discount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between border-t pt-2 font-bold text-sm text-foreground">
                 <span>Total</span>
                 <span>€{order.total.toFixed(2)}</span>
@@ -252,9 +278,14 @@ export default function AdminOrderDetails() {
                 <p className="text-muted-foreground font-semibold">Email</p>
                 <p className="font-bold text-foreground mt-0.5">{order.customerEmail}</p>
               </div>
-              <div>
-                <p className="text-muted-foreground font-semibold">Shipping Address</p>
-                <p className="font-bold text-foreground mt-0.5 leading-relaxed">{order.shippingAddress}</p>
+              <div className="mt-6">
+                <p className="text-sm text-muted-foreground mb-1">Shipping Address</p>
+                <div className="font-bold text-foreground mt-0.5 leading-relaxed space-y-1">
+                  <p>{order.customerName || `${firstName} ${lastName}`.trim()}</p>
+                  <p>{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                  {phone && <p>Phone: {phone}</p>}
+                  <p>Email: {order.customerEmail || email}</p>
+                </div>
               </div>
               <div>
                 <p className="text-muted-foreground font-semibold">Payment Method</p>
@@ -344,9 +375,12 @@ export default function AdminOrderDetails() {
               </div>
               <div>
                 <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Bill To</h4>
-                <p className="mt-1 font-semibold">{order.customerName}</p>
-                <p className="leading-relaxed">{order.shippingAddress}</p>
-                <p>{order.customerEmail}</p>
+                <div className="mt-1 space-y-1">
+                  <p className="font-semibold">{order.customerName || `${firstName} ${lastName}`.trim()}</p>
+                  <p className="leading-relaxed">{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                  {phone && <p>Phone: {phone}</p>}
+                  <p>Email: {order.customerEmail || email}</p>
+                </div>
               </div>
             </div>
 
@@ -375,9 +409,14 @@ export default function AdminOrderDetails() {
 
             <div className="flex justify-end text-xs">
               <div className="w-64 space-y-2 border-t pt-3">
-                <div className="flex justify-between text-stone-500"><span>Subtotal</span><span>€{order.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-stone-500"><span>Shipping</span><span>€{order.shipping.toFixed(2)}</span></div>
-                <div className="flex justify-between font-bold text-stone-900 border-t pt-2 text-sm"><span>Grand Total</span><span>€{order.total.toFixed(2)}</span></div>
+                {/* Summary */}
+                <div className="mt-6 border-t pt-4 space-y-2 text-sm text-foreground">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>€{order.subtotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Shipping</span><span>{order.shipping === 0 ? "Free" : `€${order.shipping.toFixed(2)}`}</span></div>
+                  {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax / GST</span><span>€{tax.toFixed(2)}</span></div>}
+                  {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span className="text-green-600">-€{discount.toFixed(2)}</span></div>}
+                  <div className="flex justify-between font-bold text-base border-t pt-2"><span>Total</span><span>€{order.total.toFixed(2)}</span></div>
+                </div>
               </div>
             </div>
 

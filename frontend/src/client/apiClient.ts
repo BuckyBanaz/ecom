@@ -619,6 +619,51 @@ export const chargeRepository = {
 // 19. Shipping Repository (Public)
 export const shippingRepository = {
   getConfig: async () => {
-    return request<any>(`${ENDPOINTS.API_URL}/shipping/config`, { method: "GET" });
+    return request<any>(`${API_URL}/shipping/config`, { method: "GET" });
   },
+};
+
+// 20. Orders Repository (Checkout & Verification)
+export const ordersRepository = {
+  initiateCheckout: async (data: any) => {
+    return request<any>(`${ENDPOINTS.ORDERS}/initiate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  verifySession: async (sessionId: string) => {
+    return request<any>(`${ENDPOINTS.ORDERS}/verify/${sessionId}`);
+  },
+  getAll: async (filters: Record<string, any> = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== "") {
+        query.append(key, String(val));
+      }
+    });
+    const queryString = query.toString();
+    const url = queryString ? `${ENDPOINTS.ORDERS}?${queryString}` : ENDPOINTS.ORDERS;
+    return request<any>(url, { method: "GET" });
+  },
+  getById: async (id: string) => {
+    return request<any>(`${ENDPOINTS.ORDERS}/${id}`, { method: "GET" });
+  },
+  updateStatus: async (id: string, status: string) => {
+    return request<any>(`${ENDPOINTS.ORDERS}/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  },
+  getMyOrders: async () => {
+    return request<any>(`${ENDPOINTS.ORDERS}/my`, { method: "GET" });
+  },
+  getMyOrderById: async (id: string) => {
+    return request<any>(`${ENDPOINTS.ORDERS}/my/${id}`, { method: "GET" });
+  },
+  retryPayment: async (id: string) => {
+    return request<any>(`${ENDPOINTS.ORDERS}/my/${id}/pay`, { method: "POST" });
+  },
+  getInvoice: async (token: string) => {
+    return request<any>(`${ENDPOINTS.ORDERS}/invoice/${token}`, { method: "GET" });
+  }
 };

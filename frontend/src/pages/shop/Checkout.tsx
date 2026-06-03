@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   CheckCircle2, MapPin, Plus, ChevronRight, Loader2, X,
   Home, Building2, CreditCard, Truck, Zap, Map
@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatPrice, useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/ui/SafeImage";
-import { addressRepository, shippingRepository, couponRepository, chargeRepository } from "@/client/apiClient";
+import { addressRepository, shippingRepository, couponRepository, chargeRepository, ordersRepository } from "@/client/apiClient";
 import { toast } from "sonner";
 import { MapSelector } from "@/components/shop/MapSelector";
 
@@ -46,6 +46,40 @@ const emptyAddressForm = {
 const Checkout = () => {
   const { items, subtotal, clear } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Handle Stripe Success/Cancel redirects
+  const [verifyingSession, setVerifyingSession] = useState(false);
+  
+  useEffect(() => {
+    const handleStripeRedirect = async () => {
+      const searchParams = new URLSearchParams(location.search);
+      const sessionId = searchParams.get("session_id");
+      
+      if (location.pathname === "/checkout/cancel") {
+        toast.error("Payment was cancelled. You can try again.");
+        navigate("/checkout", { replace: true });
+      } else if (location.pathname === "/checkout/success" && sessionId) {
+        setVerifyingSession(true);
+        try {
+          const res = await ordersRepository.verifySession(sessionId);
+          if (res.success) {
+            clear();
+            setDone(true);
+            toast.success("Order placed successfully!");
+          } else {
+            toast.error("Could not verify order payment.");
+          }
+        } catch (err: any) {
+          toast.error(err.message || "Could not verify order payment.");
+        } finally {
+          setVerifyingSession(false);
+          navigate("/checkout", { replace: true });
+        }
+      }
+    };
+    handleStripeRedirect();
+  }, [location.pathname, location.search]);
 
   // Auth check
   const [user, setUser] = useState<any>(null);
@@ -82,6 +116,8 @@ const Checkout = () => {
   
   const [charges, setCharges] = useState<any[]>([]);
   const [loadingCharges, setLoadingCharges] = useState(true);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     shippingRepository.getConfig().then(res => {
@@ -220,14 +256,50 @@ const Checkout = () => {
   const totalWithoutDiscount = Number(subtotal) + Number(ship) + Number(totalCharges);
   const total = totalWithoutDiscount - Number(discountAmount);
 
-  const next = (e: React.FormEvent) => {
+  const next = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1 && !selectedAddressId) {
       toast.error("Please select a shipping address");
       return;
     }
-    if (step < steps.length - 1) setStep(step + 1);
-    else { clear(); setDone(true); }
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+    } else {
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+      // Final step: Place Order via Stripe
+      try {
+        const selectedAddr = addresses.find(a => a.id === selectedAddressId);
+        if (!selectedAddr) {
+          toast.error("Invalid shipping address");
+          setIsSubmitting(false);
+          return;
+        }
+
+        const res = await ordersRepository.initiateCheckout({
+          items,
+          customer: {
+            ...user,
+            address: selectedAddr,
+          },
+          shippingConfig: shipConfig,
+          charges,
+          appliedCoupon,
+          calculatedTotals: { subtotal, shipFee: ship, discountAmount, totalCharges, finalTotal: total }
+        });
+
+        if (res.success && res.url) {
+          // Redirect to Stripe Checkout page
+          window.location.href = res.url;
+        } else {
+          toast.error(res.message || "Failed to initiate checkout");
+          setIsSubmitting(false);
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Error placing order");
+        setIsSubmitting(false);
+      }
+    }
   };
 
   if (items.length === 0 && !done) {
@@ -256,6 +328,16 @@ const Checkout = () => {
           <Button asChild variant="outline" className="rounded-full"><Link to="/dashboard">My Orders</Link></Button>
           <Button asChild className="rounded-full"><Link to="/">Continue shopping</Link></Button>
         </div>
+      </div>
+    );
+  }
+
+  if (verifyingSession) {
+    return (
+      <div className="container-page py-32 text-center flex flex-col items-center">
+        <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+        <h1 className="text-2xl font-bold">Verifying payment...</h1>
+        <p className="text-muted-foreground mt-2">Please wait while we confirm your order with Stripe.</p>
       </div>
     );
   }
@@ -399,11 +481,16 @@ const Checkout = () => {
           {/* Nav buttons */}
           <div className="flex justify-between gap-2">
             <Button type="button" variant="outline" className="rounded-full"
-              onClick={() => step === 0 ? navigate("/cart") : setStep(step - 1)}>
+              onClick={() => step === 0 ? navigate("/cart") : setStep(step - 1)}
+              disabled={isSubmitting}>
               {step === 0 ? "Back to cart" : "← Back"}
             </Button>
-            <Button type="submit" size="lg" className="rounded-full">
-              {step === steps.length - 1 ? `Place order · ${formatPrice(total)}` : "Continue →"}
+            <Button type="submit" size="lg" className="rounded-full" disabled={isSubmitting}>
+              {step === steps.length - 1 ? (
+                isSubmitting ? (
+                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Processing...</span>
+                ) : `Place order · ${formatPrice(total)}`
+              ) : "Continue →"}
             </Button>
           </div>
         </form>

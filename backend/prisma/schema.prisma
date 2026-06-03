@@ -217,8 +217,11 @@ model Order {
   subtotal        Float
   shipping        Float
   total           Float
-  status          String      @default("pending") // pending, processing, shipped, delivered, cancelled
+  status          String      @default("pending") // pending, payment_pending, processing, shipped, delivered, cancelled
   paymentMethod   String      @map("payment_method")
+  paymentStatus   String      @default("pending") @map("payment_status") // pending, paid, failed
+  stripeSessionId String?     @map("stripe_session_id")
+  stripePaymentId String?     @map("stripe_payment_id")
   shippingAddress String      @map("shipping_address")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")

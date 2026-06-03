@@ -24,6 +24,10 @@ app.use(
   })
 );
 
+// Webhook needs raw body to verify Stripe signature
+import { handleStripeWebhook } from "./controllers/paymentController";
+app.post("/api/v1/payments/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+
 // Standard HTTP middleware parsers (increased limits for base64 image uploads)
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -64,6 +68,7 @@ import couponRoutes from "./routes/couponRoutes";
 import chargeRoutes from "./routes/chargeRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import shippingRoutes from "./routes/shippingRoutes";
+import orderRoutes from "./routes/orderRoutes";
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -85,6 +90,7 @@ app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/charges", chargeRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/shipping", shippingRoutes);
+app.use("/api/v1/orders", orderRoutes);
 
 // Catch-all route for 404 undefined paths
 app.all("*", (req, _res, next) => {

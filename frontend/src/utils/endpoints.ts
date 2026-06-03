@@ -23,4 +23,5 @@ export const ENDPOINTS = {
   WISHLIST: `${BASE_URL}${API_PREFIX}/wishlists`,
   COUPONS: `${BASE_URL}${API_PREFIX}/coupons`,
   CHARGES: `${BASE_URL}${API_PREFIX}/charges`,
+  ORDERS: `${BASE_URL}${API_PREFIX}/orders`,
 };

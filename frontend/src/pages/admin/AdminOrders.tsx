@@ -217,22 +217,30 @@ export const statusColors: Record<string, string> = {
   lost_in_transit: "bg-red-950/10 text-red-900 border border-red-950/20",
 };
 
+import { ordersRepository } from "@/client/apiClient";
+
 export default function AdminOrders() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load orders from localStorage or default
-    const stored = localStorage.getItem("admin_orders");
-    if (stored) {
-      setOrdersList(JSON.parse(stored));
-    } else {
-      localStorage.setItem("admin_orders", JSON.stringify(DEFAULT_ORDERS));
-      setOrdersList(DEFAULT_ORDERS);
-    }
+    fetchOrders();
   }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const res = await ordersRepository.getAll();
+      setOrdersList(res.data || []);
+    } catch (err: any) {
+      console.error("Failed to load orders:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filtered = ordersList.filter((o) => {
     const matchesSearch =
@@ -244,7 +252,11 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">{ordersList.length} orders total</p>
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading orders...</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{filtered.length} orders total</p>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">

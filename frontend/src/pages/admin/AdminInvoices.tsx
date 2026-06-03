@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Order } from "./AdminOrders";
 import { Logo } from "@/components/layout/Logo";
+import { parseOrderMetadata } from "@/utils/formatters";
 
 export default function AdminInvoices() {
   const [search, setSearch] = useState("");
@@ -92,81 +93,89 @@ export default function AdminInvoices() {
       </div>
 
       {/* Invoice PDF Mockup Dialog */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white text-black rounded-2xl max-w-2xl w-full p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans">
-            <div className="flex justify-between items-start border-b pb-6">
-              <div>
-                <Logo forceLight className="mb-1 pointer-events-none" />
-                <p className="text-xs text-stone-500 mt-1">Invoice Statement</p>
+      {selectedOrder && (() => {
+        const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white text-black rounded-2xl max-w-2xl w-full p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans">
+              <div className="flex justify-between items-start border-b pb-6">
+                <div>
+                  <Logo forceLight className="mb-1 pointer-events-none" />
+                  <p className="text-xs text-stone-500 mt-1">Invoice Statement</p>
+                </div>
+                <div className="text-right text-xs space-y-0.5">
+                  <p className="font-bold">Invoice: {selectedOrder.invoiceNumber}</p>
+                  <p>Date: {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
+                  <p>Order Reference: {selectedOrder.orderNumber}</p>
+                </div>
               </div>
-              <div className="text-right text-xs space-y-0.5">
-                <p className="font-bold">Invoice: {selectedOrder.invoiceNumber}</p>
-                <p>Date: {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
-                <p>Order Reference: {selectedOrder.orderNumber}</p>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Vendor</h4>
-                <p className="mt-1 font-semibold">Schip & Ster BV</p>
-                <p>Keizersgracht 456, Amsterdam</p>
-                <p>billing@schipandster.nl</p>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Vendor</h4>
+                  <p className="mt-1 font-semibold">Schip & Ster BV</p>
+                  <p>Keizersgracht 456, Amsterdam</p>
+                  <p>billing@schipandster.nl</p>
+                </div>
+                <div>
+                  <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Bill To</h4>
+                  <div className="mt-1 space-y-1">
+                    <p className="font-semibold">{selectedOrder.customerName || `${firstName} ${lastName}`.trim()}</p>
+                    <p className="leading-relaxed">{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                    {phone && <p>Phone: {phone}</p>}
+                    <p>Email: {selectedOrder.customerEmail || email}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Bill To</h4>
-                <p className="mt-1 font-semibold">{selectedOrder.customerName}</p>
-                <p className="leading-relaxed">{selectedOrder.shippingAddress}</p>
-                <p>{selectedOrder.customerEmail}</p>
-              </div>
-            </div>
 
-            <div className="border border-stone-200 rounded-lg overflow-hidden">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold">
-                    <th className="p-3">Product Name</th>
-                    <th className="p-3 text-center">Qty</th>
-                    <th className="p-3 text-right">Price</th>
-                    <th className="p-3 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100">
-                  {selectedOrder.items.map((item, i) => (
-                    <tr key={i}>
-                      <td className="p-3 font-semibold">{item.productName} {item.variant && `(${item.variant})`}</td>
-                      <td className="p-3 text-center">{item.quantity}</td>
-                      <td className="p-3 text-right">€{item.price.toFixed(2)}</td>
-                      <td className="p-3 text-right">€{(item.price * item.quantity).toFixed(2)}</td>
+              <div className="border border-stone-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold">
+                      <th className="p-3">Product Name</th>
+                      <th className="p-3 text-center">Qty</th>
+                      <th className="p-3 text-right">Price</th>
+                      <th className="p-3 text-right">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end text-xs">
-              <div className="w-64 space-y-2 border-t pt-3">
-                <div className="flex justify-between text-stone-500"><span>Subtotal</span><span>€{selectedOrder.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-stone-500"><span>Shipping</span><span>€{selectedOrder.shipping.toFixed(2)}</span></div>
-                <div className="flex justify-between font-bold text-stone-900 border-t pt-2 text-sm"><span>Grand Total</span><span>€{selectedOrder.total.toFixed(2)}</span></div>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {selectedOrder.items.map((item, i) => (
+                      <tr key={i}>
+                        <td className="p-3 font-semibold">{item.productName} {item.variant && `(${item.variant})`}</td>
+                        <td className="p-3 text-center">{item.quantity}</td>
+                        <td className="p-3 text-right">€{item.price.toFixed(2)}</td>
+                        <td className="p-3 text-right">€{(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
 
-            <div className="flex justify-between items-center border-t pt-6">
-              <span className="text-[10px] text-stone-400">Thank you for shopping at Schip & Ster!</span>
-              <div className="flex gap-2">
-                <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full">
-                  <Printer className="h-3.5 w-3.5" /> Print
-                </Button>
-                <Button onClick={() => setSelectedOrder(null)} size="sm" className="text-xs bg-amber-900 hover:bg-amber-950 text-white rounded-full">
-                  Close
-                </Button>
+              <div className="flex justify-end text-xs">
+                <div className="w-64 space-y-2 border-t pt-3">
+                  <div className="flex justify-between text-stone-500"><span>Subtotal</span><span>€{selectedOrder.subtotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-stone-500"><span>Shipping</span><span>{selectedOrder.shipping === 0 ? "Free" : `€${selectedOrder.shipping.toFixed(2)}`}</span></div>
+                  {tax > 0 && <div className="flex justify-between text-stone-500"><span>Tax / GST</span><span>€{tax.toFixed(2)}</span></div>}
+                  {discount > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-€{discount.toFixed(2)}</span></div>}
+                  <div className="flex justify-between font-bold text-stone-900 border-t pt-2 text-sm"><span>Grand Total</span><span>€{selectedOrder.total.toFixed(2)}</span></div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center border-t pt-6">
+                <span className="text-[10px] text-stone-400">Thank you for shopping at Schip & Ster!</span>
+                <div className="flex gap-2">
+                  <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full">
+                    <Printer className="h-3.5 w-3.5" /> Print
+                  </Button>
+                  <Button onClick={() => setSelectedOrder(null)} size="sm" className="text-xs bg-amber-900 hover:bg-amber-950 text-white rounded-full">
+                    Close
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
