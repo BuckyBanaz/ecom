@@ -46,6 +46,16 @@ export default function DynamicPage() {
         }
         metaDesc.setAttribute('content', page.seoDesc);
       }
+
+      if (page.seoKeywords) {
+        let metaKeywords = document.querySelector('meta[name="keywords"]');
+        if (!metaKeywords) {
+          metaKeywords = document.createElement('meta');
+          metaKeywords.setAttribute('name', 'keywords');
+          document.head.appendChild(metaKeywords);
+        }
+        metaKeywords.setAttribute('content', page.seoKeywords);
+      }
     }
   }, [page]);
 

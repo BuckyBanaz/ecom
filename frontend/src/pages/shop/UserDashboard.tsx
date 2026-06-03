@@ -368,6 +368,7 @@ function AddressesTab() {
               >
                 <option value="Home">Home</option>
                 <option value="Work">Work</option>
+                <option value="Other">Other</option>
               </select>
             </div>
           </div>

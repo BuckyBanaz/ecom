@@ -518,6 +518,15 @@ export const adminSettingsRepository = {
       body: JSON.stringify(data),
     });
   },
+  getShippingSettings: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/shipping/config`, { method: "GET" });
+  },
+  updateShippingSettings: async (data: any) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/shipping/config`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // 15. Email Templates Repository
@@ -607,4 +616,9 @@ export const chargeRepository = {
   },
 };
 
-
+// 19. Shipping Repository (Public)
+export const shippingRepository = {
+  getConfig: async () => {
+    return request<any>(`${ENDPOINTS.API_URL}/shipping/config`, { method: "GET" });
+  },
+};

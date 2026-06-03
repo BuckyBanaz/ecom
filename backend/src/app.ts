@@ -63,6 +63,7 @@ import emailTemplateRoutes from "./routes/emailTemplateRoutes";
 import couponRoutes from "./routes/couponRoutes";
 import chargeRoutes from "./routes/chargeRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
+import shippingRoutes from "./routes/shippingRoutes";
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -83,6 +84,7 @@ app.use("/api/v1/admin/email-templates", emailTemplateRoutes);
 app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/charges", chargeRoutes);
 app.use("/api/v1/payments", paymentRoutes);
+app.use("/api/v1/shipping", shippingRoutes);
 
 // Catch-all route for 404 undefined paths
 app.all("*", (req, _res, next) => {

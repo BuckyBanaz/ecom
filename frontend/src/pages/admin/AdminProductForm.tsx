@@ -52,6 +52,9 @@ const AdminProductForm = () => {
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [shortDescription, setShortDescription] = useState("");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
+  const [seoKeywords, setSeoKeywords] = useState("");
   const [inStock, setInStock] = useState(true);
   const [isNewArrival, setIsNewArrival] = useState(false);
   const [isBestSelling, setIsBestSelling] = useState(false);
@@ -222,6 +225,9 @@ const AdminProductForm = () => {
             setGalleryImages(p.images || (p.image ? [p.image] : []));
             setDescription(p.description || "");
             setShortDescription(p.shortDescription || "");
+            setSeoTitle(p.seoTitle || "");
+            setSeoDescription(p.seoDescription || "");
+            setSeoKeywords(p.seoKeywords || "");
             setInStock(p.inStock ?? true);
             setIsNewArrival(p.isNewArrival ?? false);
             setIsBestSelling(p.isBestSelling ?? false);
@@ -291,6 +297,9 @@ const AdminProductForm = () => {
           setGalleryImages(p.images || (p.image ? [p.image] : []));
           setDescription(p.description || "");
           setShortDescription(p.shortDescription || "");
+          setSeoTitle(p.seoTitle || "");
+          setSeoDescription(p.seoDescription || "");
+          setSeoKeywords(p.seoKeywords || "");
           setInStock(p.inStock ?? true);
           setIsNewArrival(p.isNewArrival ?? false);
           setIsBestSelling(p.isBestSelling ?? false);
@@ -398,7 +407,9 @@ const AdminProductForm = () => {
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto space-y-8 pb-12">
+
+      <div className="container-page space-y-8 pb-12">
+
         {/* Header Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/45 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
           <div className="flex items-center gap-4 w-full">
@@ -566,6 +577,9 @@ const AdminProductForm = () => {
       isBestSelling,
       description,
       shortDescription,
+      seoTitle,
+      seoDescription,
+      seoKeywords,
       image: thumbnail || "/assets/cat-generic.jpg",
       images: galleryImages,
       attributes: selectedAttributeValues, // EAV dynamic mapping
@@ -788,6 +802,48 @@ const AdminProductForm = () => {
                     value={shortDescription}
                     onChange={setShortDescription}
                     placeholder="Provide a brief summary of this product for top sections..."
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* SEO Settings */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
+              <CardHeader className="border-b pb-4 mb-4">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">SEO Settings</CardTitle>
+                <CardDescription className="text-xs">Optimize metadata for search engines.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="seoTitle" className="text-xs font-bold text-foreground/80">SEO Title</Label>
+                    <Input
+                      id="seoTitle"
+                      value={seoTitle}
+                      onChange={e => setSeoTitle(e.target.value)}
+                      placeholder="Enter SEO title (max 60 chars)"
+                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="seoKeywords" className="text-xs font-bold text-foreground/80">SEO Keywords</Label>
+                    <Input
+                      id="seoKeywords"
+                      value={seoKeywords}
+                      onChange={e => setSeoKeywords(e.target.value)}
+                      placeholder="comma-separated keywords"
+                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5 mt-4">
+                  <Label htmlFor="seoDescription" className="text-xs font-bold text-foreground/80">SEO Description</Label>
+                  <Input
+                    id="seoDescription"
+                    value={seoDescription}
+                    onChange={e => setSeoDescription(e.target.value)}
+                    placeholder="Meta description (max 160 chars)"
+                    className="h-16 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                   />
                 </div>
               </CardContent>

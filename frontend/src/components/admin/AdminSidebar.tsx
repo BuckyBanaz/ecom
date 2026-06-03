@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, FolderTree, ShoppingCart, Users, Settings,
   FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown,
   Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders, Quote, HardDrive, Mail,
-  Percent, Coins
+  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,12 @@ const navItems = [
 
 const ordersChildren = [
   { to: "/admin/orders", icon: ShoppingCart, label: "All Orders" },
+  { to: "/admin/orders/ready-to-ship", icon: Truck, label: "Ready To Ship" },
+  { to: "/admin/orders/in-transit", icon: ArrowRight, label: "In Transit" },
+  { to: "/admin/orders/delivered", icon: CheckCircle, label: "Delivered" },
+  { to: "/admin/orders/returns", icon: RotateCcw, label: "Returns" },
   { to: "/admin/orders/invoices", icon: FileText, label: "Invoices" },
-  { to: "/admin/orders/labels", icon: Tag, label: "Shipping Labels" },
+  { to: "/admin/orders/labels", icon: Tag, label: "Shipping Labels" }
 ];
 
 const cmsChildren = [

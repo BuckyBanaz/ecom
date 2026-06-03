@@ -208,6 +208,16 @@ const Category = () => {
             document.head.appendChild(metaDesc);
           }
           metaDesc.setAttribute('content', pageData.seoDescription || "");
+
+          if (pageData.seoKeywords) {
+            let metaKeywords = document.querySelector('meta[name="keywords"]');
+            if (!metaKeywords) {
+              metaKeywords = document.createElement('meta');
+              metaKeywords.setAttribute('name', 'keywords');
+              document.head.appendChild(metaKeywords);
+            }
+            metaKeywords.setAttribute('content', pageData.seoKeywords);
+          }
         } else {
           setLandingPage(null);
         }

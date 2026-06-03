@@ -120,13 +120,12 @@ export default function AdminLabels() {
 
             {/* Fake Barcode representation */}
             <div className="flex flex-col items-center justify-center border-t-2 border-black pt-4 space-y-2">
-              <div className="w-full h-16 bg-gradient-to-r from-black via-white to-black border border-black relative">
-                {/* Visual striping simulator */}
-                <div className="absolute inset-0 flex">
-                  {Array.from({ length: 40 }).map((_, i) => (
-                    <div key={i} className="flex-1" style={{ backgroundColor: i % (Math.floor(Math.random() * 3) + 2) === 0 ? "black" : "transparent" }} />
-                  ))}
-                </div>
+              <div className="w-full h-16 relative overflow-hidden">
+                <img 
+                  src={`https://barcode.tec-it.com/barcode.ashx?data=${selectedOrder.trackingNumber || selectedOrder.orderNumber}&code=Code128&dpi=96`} 
+                  alt="Barcode" 
+                  className="w-full h-full object-cover scale-150 grayscale contrast-150" 
+                />
               </div>
               <p className="text-xs font-bold tracking-wider">{selectedOrder.trackingNumber}</p>
             </div>

@@ -20,6 +20,30 @@ const BlogDetail = () => {
 
   const blog = useMemo(() => blogs.find((b) => b.slug === slug), [blogs, slug]);
 
+  useEffect(() => {
+    if (blog) {
+      document.title = blog.seoTitle || blog.title || "Blog";
+      
+      let metaDesc = document.querySelector('meta[name="description"]');
+      if (!metaDesc) {
+        metaDesc = document.createElement('meta');
+        metaDesc.setAttribute('name', 'description');
+        document.head.appendChild(metaDesc);
+      }
+      metaDesc.setAttribute('content', blog.seoDescription || blog.excerpt || "");
+
+      if (blog.seoKeywords) {
+        let metaKeywords = document.querySelector('meta[name="keywords"]');
+        if (!metaKeywords) {
+          metaKeywords = document.createElement('meta');
+          metaKeywords.setAttribute('name', 'keywords');
+          document.head.appendChild(metaKeywords);
+        }
+        metaKeywords.setAttribute('content', blog.seoKeywords);
+      }
+    }
+  }, [blog]);
+
   if (!blog) {
     return (
       <div className="container-page py-12 text-center">

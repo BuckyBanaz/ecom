@@ -45,6 +45,18 @@ const AdminSettings = () => {
   });
   const [isLoadingPayments, setIsLoadingPayments] = useState(true);
 
+  const [shippingSettings, setShippingSettings] = useState({
+    freeShippingThreshold: 75,
+    standardShippingFee: 5.95,
+    expressShippingFee: 9.95,
+    sameDayDelivery: true,
+    deliveryCutoffTime: "22:00",
+    sendcloudEnabled: true,
+    sendcloudPublicKey: "",
+    sendcloudSecretKey: "",
+  });
+  const [isLoadingShipping, setIsLoadingShipping] = useState(true);
+
   useEffect(() => {
     const fetchFeatures = async () => {
       try {
@@ -82,9 +94,22 @@ const AdminSettings = () => {
         setIsLoadingPayments(false);
       }
     };
+    const fetchShippingSettings = async () => {
+      try {
+        const res = await adminSettingsRepository.getShippingSettings();
+        if (res.success && res.data) {
+          setShippingSettings(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching shipping settings:", error);
+      } finally {
+        setIsLoadingShipping(false);
+      }
+    };
     fetchFeatures();
     fetchSmtpSettings();
     fetchPaymentSettings();
+    fetchShippingSettings();
   }, []);
 
   const handleSaveFeatures = async () => {
@@ -130,6 +155,20 @@ const AdminSettings = () => {
       }
     } catch (error) {
       toast.error("An error occurred while saving Payment settings");
+    }
+  };
+
+  const handleSaveShipping = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await adminSettingsRepository.updateShippingSettings(shippingSettings);
+      if (res.success) {
+        toast.success("Shipping settings saved successfully");
+      } else {
+        toast.error("Failed to save Shipping settings");
+      }
+    } catch (error) {
+      toast.error("An error occurred while saving Shipping settings");
     }
   };
 
@@ -356,14 +395,41 @@ const AdminSettings = () => {
         </TabsContent>
 
         <TabsContent value="shipping">
-          <form onSubmit={handleSave("Shipping")} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-            <div><Label>Free Shipping Threshold (€)</Label><Input type="number" defaultValue="75" className="mt-1" /></div>
-            <div><Label>Standard Shipping Fee (€)</Label><Input type="number" step="0.01" defaultValue="5.95" className="mt-1" /></div>
-            <div><Label>Express Shipping Fee (€)</Label><Input type="number" step="0.01" defaultValue="9.95" className="mt-1" /></div>
-            <div className="flex items-center gap-2"><Switch defaultChecked /><Label>Same-day delivery available</Label></div>
-            <div><Label>Delivery Cutoff Time</Label><Input defaultValue="22:00" className="mt-1" /></div>
-            <Button type="submit" className="rounded-full w-full sm:w-auto">Save Shipping Settings</Button>
-          </form>
+          {isLoadingShipping ? (
+            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
+          ) : (
+            <form onSubmit={handleSaveShipping} className="mt-4 w-full max-w-xl space-y-6 rounded-xl border bg-card p-4 sm:p-6">
+              <div className="space-y-4">
+                <div><Label>Free Shipping Threshold (€)</Label><Input type="number" value={shippingSettings.freeShippingThreshold} onChange={e => setShippingSettings({...shippingSettings, freeShippingThreshold: Number(e.target.value)})} className="mt-1" /></div>
+                <div><Label>Standard Shipping Fee (€)</Label><Input type="number" step="0.01" value={shippingSettings.standardShippingFee} onChange={e => setShippingSettings({...shippingSettings, standardShippingFee: Number(e.target.value)})} className="mt-1" /></div>
+                <div><Label>Express Shipping Fee (€)</Label><Input type="number" step="0.01" value={shippingSettings.expressShippingFee} onChange={e => setShippingSettings({...shippingSettings, expressShippingFee: Number(e.target.value)})} className="mt-1" /></div>
+                <div className="flex items-center gap-2"><Switch checked={shippingSettings.sameDayDelivery} onCheckedChange={c => setShippingSettings({...shippingSettings, sameDayDelivery: c})} /><Label>Same-day delivery available</Label></div>
+                <div><Label>Delivery Cutoff Time</Label><Input value={shippingSettings.deliveryCutoffTime} onChange={e => setShippingSettings({...shippingSettings, deliveryCutoffTime: e.target.value})} className="mt-1" /></div>
+              </div>
+
+              <div className="border-t pt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-lg">Sendcloud Integration</h3>
+                    <p className="text-xs text-muted-foreground mt-1">Connect your Sendcloud account for automated label generation.</p>
+                  </div>
+                  <Switch checked={shippingSettings.sendcloudEnabled} onCheckedChange={c => setShippingSettings({...shippingSettings, sendcloudEnabled: c})} />
+                </div>
+                
+                <div>
+                  <Label>Public API Key</Label>
+                  <Input value={shippingSettings.sendcloudPublicKey} onChange={e => setShippingSettings({...shippingSettings, sendcloudPublicKey: e.target.value})} placeholder="Enter Sendcloud Public Key" className="mt-1" />
+                </div>
+                
+                <div>
+                  <Label>Secret API Key</Label>
+                  <Input type="password" value={shippingSettings.sendcloudSecretKey} onChange={e => setShippingSettings({...shippingSettings, sendcloudSecretKey: e.target.value})} placeholder="Enter Sendcloud Secret Key" className="mt-1" />
+                </div>
+              </div>
+
+              <Button type="submit" className="rounded-full w-full sm:w-auto mt-4">Save Shipping Settings</Button>
+            </form>
+          )}
         </TabsContent>
       </Tabs>
     </div>

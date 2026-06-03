@@ -16,6 +16,22 @@ export interface OrderItem {
   variant?: string;
 }
 
+export interface Shipment {
+  carrier: string;
+  trackingNumber: string;
+  trackingUrl?: string;
+  labelUrl?: string;
+  shippingCost?: number;
+  shipmentStatus: string;
+  createdAt: string;
+}
+
+export interface TrackingEvent {
+  status: string;
+  timestamp: string;
+  description?: string;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -33,9 +49,8 @@ export interface Order {
   updatedAt: string;
   invoiceNumber?: string | null;
   invoiceUrl?: string | null;
-  labelUrl?: string | null;
-  trackingNumber?: string | null;
-  carrier?: string | null;
+  shipment?: Shipment;
+  trackingEvents?: TrackingEvent[];
 }
 
 export const DEFAULT_ORDERS: Order[] = [
@@ -132,10 +147,36 @@ export const DEFAULT_ORDERS: Order[] = [
     updatedAt: "2026-05-30T16:45:00Z",
     invoiceNumber: "INV-1003",
     invoiceUrl: "/invoices/INV-1003.pdf",
-    labelUrl: "/labels/LBL-1003.pdf",
-    trackingNumber: "3SABC789012",
-    carrier: "PostNL"
+    shipment: {
+      carrier: "PostNL",
+      trackingNumber: "3SABC789012",
+      labelUrl: "/labels/LBL-1003.pdf",
+      shipmentStatus: "delivered",
+      createdAt: "2026-05-28T14:20:00Z"
+    }
   }
+];
+
+export const MANUAL_STATUSES = [
+  "pending",
+  "payment_pending",
+  "paid",
+  "processing",
+  "ready_to_ship",
+  "cancelled"
+];
+
+export const AUTO_STATUSES = [
+  "label_generated",
+  "picked_up",
+  "in_transit",
+  "out_for_delivery",
+  "delivered",
+  "payment_failed",
+  "returned",
+  "refunded",
+  "delivery_failed",
+  "lost_in_transit"
 ];
 
 export const statusLabels: Record<string, string> = {
@@ -154,7 +195,7 @@ export const statusLabels: Record<string, string> = {
   returned: "Returned",
   refunded: "Refunded",
   delivery_failed: "Delivery Failed",
-  lost_in_transit: "Lost in Transit",
+  lost_in_transit: "Lost In Transit",
 };
 
 export const statusColors: Record<string, string> = {

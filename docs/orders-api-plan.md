@@ -28,15 +28,29 @@ model Order {
   invoiceUrl      String?     @map("invoice_url")
   labelUrl        String?     @map("label_url")
   
-  // Tracking
+  // Tracking & Sendcloud Integration
   trackingNumber  String?     @map("tracking_number")
   carrier         String?     // e.g. "PostNL", "DHL"
-  
+  shippingCost    Float?      @map("shipping_cost")
+  shipmentStatus  String?     @map("shipment_status") // Sendcloud status
+
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
   items           OrderItem[]
+  trackingEvents  TrackingEvent[]
 
   @@map("orders")
+}
+
+model TrackingEvent {
+  id          String   @id @default(uuid())
+  orderId     String   @map("order_id")
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status      String
+  description String?
+  timestamp   DateTime @default(now())
+
+  @@map("tracking_events")
 }
 ```
 
@@ -45,25 +59,31 @@ model Order {
 ## 2. Order Status Lifecycle Flows
 
 ### Admin View (Detailed Tracking)
-Admins have full visibility over payment, packaging, carrier pickup, and delivery stages:
+Admins have restricted manual control to prevent conflicts with Sendcloud webhooks. Statuses are split into two categories:
+
+**MANUAL ADMIN STATUSES:**
 1. **Pending**: Order registered in system.
 2. **Payment Pending**: Awaiting stripe webhook payment.
 3. **Paid**: Invoice generated automatically.
 4. **Processing**: Order items being retrieved in warehouse.
-5. **Ready To Ship**: Packing complete.
-6. **Label Generated**: Shipping label PDF generated.
+5. **Ready To Ship**: Packing complete. Order moves to Ready-to-Ship queue.
+- *Cancelled*
+
+**AUTO SHIPPING STATUSES (WEBHOOK-DRIVEN / READ-ONLY):**
+6. **Label Generated**: Shipment created in Sendcloud.
 7. **Picked Up**: Courier accepted the package.
 8. **In Transit**: Traveling through routing nodes.
 9. **Out For Delivery**: Package in local delivery truck.
 10. **Delivered**: Successfully delivered to client.
 
-**Exceptions**:
-- `Cancelled`
-- `Payment Failed`
-- `Returned`
-- `Refunded`
-- `Delivery Failed`
-- `Lost In Transit`
+**Auto Exceptions**:
+- `Returned`, `Delivery Failed`, `Lost In Transit`
+
+#### Sendcloud Workflow Automation
+- Manual transitions are only permitted up to `Ready To Ship`.
+- Once `Ready To Ship`, admin clicks **[Create Shipment]**, triggering the Sendcloud API.
+- Sendcloud returns `{ carrier, tracking_number, tracking_url, label_url, shipment_status }`.
+- Status becomes `Label Generated` automatically. All subsequent tracking updates are driven exclusively by Sendcloud webhooks.
 
 ### Customer View (Simplified Tracking)
 Customers receive a simplified checkout progression:
@@ -100,9 +120,11 @@ Customers receive a simplified checkout progression:
 ## 4. Frontend Admin Layout Design
 - **Dropdown Navigation**: Submenu under `Orders` inside Sidebar:
   - **All Orders** (`/admin/orders`)
+  - **Ready To Ship** (`/admin/orders/ready-to-ship`) - Dedicated queue for pending shipments.
   - **Invoices** (`/admin/orders/invoices`)
   - **Shipping Labels** (`/admin/orders/labels`)
 - **Detail Screen**:
-  - Interactive status dropdown with the 15+ tracking states.
-  - Quick action buttons to **Generate/Print Invoice** and **Generate/Print Shipping Label**.
-  - Interactive customer logs and timeline history tracker.
+  - Split status controls (Manual selection vs Auto-tracked states).
+  - Context-aware **[Next Step]** button workflow.
+  - **Logistics & Tracking Card**: Shows Carrier, Tracking Number, URL, Label Date, Webhook Timeline.
+  - Modal flow for **[Create Shipment]** with carrier pricing (Auto Cheapest, PostNL, DHL, UPS, DPD).

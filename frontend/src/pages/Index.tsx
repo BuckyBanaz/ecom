@@ -32,6 +32,15 @@ const Index = () => {
             }
             metaDesc.setAttribute('content', res.data.seoDesc);
           }
+          if (res.data.seoKeywords) {
+            let metaKeywords = document.querySelector('meta[name="keywords"]');
+            if (!metaKeywords) {
+              metaKeywords = document.createElement('meta');
+              metaKeywords.setAttribute('name', 'keywords');
+              document.head.appendChild(metaKeywords);
+            }
+            metaKeywords.setAttribute('content', res.data.seoKeywords);
+          }
         }
 
         const pd: any = {};

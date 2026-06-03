@@ -30,6 +30,11 @@ import AdminCategories from "./pages/admin/AdminCategories.tsx";
 import AdminBrands from "./pages/admin/AdminBrands.tsx";
 import AdminAttributes from "./pages/admin/AdminAttributes.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
+import AdminInTransit from "./pages/admin/AdminInTransit.tsx";
+import AdminReadyToShip from "./pages/admin/AdminReadyToShip.tsx";
+
+import AdminDelivered from "./pages/admin/AdminDelivered.tsx";
+import AdminReturns from "./pages/admin/AdminReturns.tsx";
 import AdminOrderDetails from "./pages/admin/AdminOrderDetails.tsx";
 import AdminInvoices from "./pages/admin/AdminInvoices.tsx";
 import AdminLabels from "./pages/admin/AdminLabels.tsx";
@@ -111,6 +116,10 @@ const App = () => (
                   <Route path="brands" element={<AdminBrands />} />
                   <Route path="attributes" element={<AdminAttributes />} />
                   <Route path="orders" element={<AdminOrders />} />
+                  <Route path="orders/ready-to-ship" element={<AdminReadyToShip />} />
+                  <Route path="orders/in-transit" element={<AdminInTransit />} />
+                  <Route path="orders/delivered" element={<AdminDelivered />} />
+                  <Route path="orders/returns" element={<AdminReturns />} />
                   <Route path="orders/invoices" element={<AdminInvoices />} />
                   <Route path="orders/labels" element={<AdminLabels />} />
                   <Route path="orders/:id" element={<AdminOrderDetails />} />

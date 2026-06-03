@@ -68,29 +68,33 @@ const ProductPage = () => {
           const p = data.product;
           const mappedColor = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "color")?.attributeValue?.value || "Black";
           const mappedFitting = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "fitting")?.attributeValue?.value || "E27";
-          setLiveProduct({
-            id: p.id,
-            slug: p.slug,
-            name: p.name,
-            brand: p.brand?.name || "Lumio",
-            category: p.category?.slug || "general",
-            price: p.price,
-            oldPrice: p.oldPrice || undefined,
-            rating: p.rating || 5,
-            reviewCount: p.reviewCount || 12,
-            image: p.images?.[0] || "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?q=80&w=800",
-            images: p.images || [],
-            inStock: p.inStock ?? true,
-            description: p.description || "",
-            shortDescription: p.shortDescription || "",
-            specs: p.specs || {},
-            color: mappedColor,
-            fitting: mappedFitting,
-            isNewArrival: p.isNewArrival,
-            isBestSelling: p.isBestSelling,
-          });
-          setColor(mappedColor);
-          setFitting(mappedFitting);
+            setLiveProduct({
+              id: p.id,
+              slug: p.slug,
+              name: p.name,
+              brand: p.brand?.name || "Lumio",
+              category: p.category?.slug || "general",
+              price: p.price,
+              oldPrice: p.oldPrice || undefined,
+              rating: p.rating || 5,
+              reviewCount: p.reviewCount || 12,
+              image: p.image,
+              images: p.images || [],
+              inStock: p.inStock ?? true,
+              description: p.description || "",
+              shortDescription: p.shortDescription || "",
+              specs: p.specs || {},
+              color: mappedColor,
+              fitting: mappedFitting,
+              isNewArrival: p.isNewArrival,
+              isBestSelling: p.isBestSelling,
+              seoTitle: p.seoTitle,
+              seoDescription: p.seoDescription,
+              seoKeywords: p.seoKeywords,
+            });
+            setSelectedImageIndex(0);
+            setColor(mappedColor);
+            setFitting(mappedFitting);
 
           const pCatSlug = p.category?.slug;
           const pBrandName = p.brand?.name;
@@ -132,6 +136,29 @@ const ProductPage = () => {
     };
     fetchProduct();
   }, [slug]);
+
+  // Update SEO Meta Tags when product is loaded
+  useEffect(() => {
+    if (liveProduct) {
+      document.title = liveProduct.seoTitle || `${liveProduct.name} | Premium Lighting`;
+      
+      let metaDescription = document.querySelector('meta[name="description"]');
+      if (!metaDescription) {
+        metaDescription = document.createElement('meta');
+        metaDescription.setAttribute('name', 'description');
+        document.head.appendChild(metaDescription);
+      }
+      metaDescription.setAttribute('content', liveProduct.seoDescription || liveProduct.shortDescription || "");
+
+      let metaKeywords = document.querySelector('meta[name="keywords"]');
+      if (!metaKeywords) {
+        metaKeywords = document.createElement('meta');
+        metaKeywords.setAttribute('name', 'keywords');
+        document.head.appendChild(metaKeywords);
+      }
+      metaKeywords.setAttribute('content', liveProduct.seoKeywords || "");
+    }
+  }, [liveProduct]);
 
   if (loading) {
     return (
@@ -219,16 +246,22 @@ const ProductPage = () => {
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
         <div className="space-y-3">
           <div className="overflow-hidden rounded-xl border border-border/50 bg-muted">
-            <SafeImage
-              src={product.image}
-              alt={product.name}
-              fallbackType="product"
-              className="aspect-[4/3] w-full object-cover lg:aspect-auto lg:h-[380px]"
-            />
+            {/* Build a gallery array that always starts with the cover image */}
+            {(() => {
+              const galleryImages = [product.image, ...(product.images ?? [])];
+              return (
+                <SafeImage
+                  src={galleryImages[selectedImageIndex]}
+                  alt={product.name}
+                  fallbackType="product"
+                  className="aspect-[4/3] w-full object-cover lg:aspect-auto lg:h-[380px]"
+                />
+              );
+            })()}
           </div>
           <div className="grid grid-cols-4 gap-3">
-            {(product.images?.length ? product.images : [product.image]).map((img: string, i: number) => (
-              <div key={i} className={cn("aspect-[4/3] overflow-hidden rounded-lg border bg-muted cursor-pointer transition-all hover:opacity-90", i === 0 ? "border-primary ring-1 ring-primary" : "border-border/50")}>
+            {[product.image, ...(product.images ?? [])].map((img: string, i: number) => (
+              <div key={i} className={cn("aspect-[4/3] overflow-hidden rounded-lg border bg-muted cursor-pointer transition-all hover:opacity-90", i === selectedImageIndex ? "border-primary ring-1 ring-primary" : "border-border/50") } onClick={() => setSelectedImageIndex(i)}>
                 <SafeImage
                   src={img}
                   alt=""

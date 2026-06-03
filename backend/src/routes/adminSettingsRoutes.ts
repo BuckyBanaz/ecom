@@ -131,4 +131,57 @@ router.put("/smtp", updateSmtpSettings);
  */
 router.post("/smtp/test", testSmtpSettings);
 
+import { getSecuredShippingConfig, updateShippingConfig } from "../controllers/shippingController";
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/shipping/config:
+ *   get:
+ *     summary: Get secured shipping configuration
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Secured shipping configuration including Sendcloud
+ */
+router.get("/shipping/config", getSecuredShippingConfig);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/shipping/config:
+ *   put:
+ *     summary: Update secured shipping configuration
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               freeShippingThreshold:
+ *                 type: number
+ *               standardShippingFee:
+ *                 type: number
+ *               expressShippingFee:
+ *                 type: number
+ *               sameDayDelivery:
+ *                 type: boolean
+ *               deliveryCutoffTime:
+ *                 type: string
+ *               sendcloudEnabled:
+ *                 type: boolean
+ *               sendcloudPublicKey:
+ *                 type: string
+ *               sendcloudSecretKey:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Settings updated successfully
+ */
+router.put("/shipping/config", updateShippingConfig);
+
 export default router;

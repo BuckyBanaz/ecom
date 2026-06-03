@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatPrice, useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/ui/SafeImage";
-import { addressRepository } from "@/client/apiClient";
+import { addressRepository, shippingRepository, couponRepository, chargeRepository } from "@/client/apiClient";
 import { toast } from "sonner";
 import { MapSelector } from "@/components/shop/MapSelector";
 
@@ -63,6 +63,79 @@ const Checkout = () => {
   const [shipping, setShipping] = useState("standard");
   const [payment, setPayment] = useState("ideal");
   const [done, setDone] = useState(false);
+
+  const [shipConfig, setShipConfig] = useState({
+    freeShippingThreshold: 75,
+    standardShippingFee: 5.95,
+    expressShippingFee: 9.95,
+    sameDayDelivery: true,
+    deliveryCutoffTime: "22:00",
+  });
+  const [loadingShipConfig, setLoadingShipConfig] = useState(true);
+
+  // Coupons and Charges
+  const [couponCode, setCouponCode] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [showCouponInput, setShowCouponInput] = useState(false);
+  
+  const [charges, setCharges] = useState<any[]>([]);
+  const [loadingCharges, setLoadingCharges] = useState(true);
+
+  useEffect(() => {
+    shippingRepository.getConfig().then(res => {
+      if (res.success && res.data) setShipConfig(res.data);
+      setLoadingShipConfig(false);
+    }).catch(() => setLoadingShipConfig(false));
+
+    chargeRepository.getAll().then(res => {
+      if (res.success && res.data) {
+        // Filter only active charges
+        setCharges(res.data.filter((c: any) => c.isActive));
+      }
+      setLoadingCharges(false);
+    }).catch(err => {
+      console.error(err);
+      setLoadingCharges(false);
+    });
+  }, []);
+
+  const isLoadingSummary = loadingShipConfig || loadingCharges;
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    setValidatingCoupon(true);
+    try {
+      const res = await couponRepository.validate(couponCode, subtotal);
+      if (res.success && res.data) {
+        const coupon = res.data;
+        setAppliedCoupon(coupon);
+        const discount = coupon.discountType === "percentage" 
+          ? (subtotal * coupon.value) / 100 
+          : coupon.value;
+        setDiscountAmount(discount);
+        toast.success("Coupon applied successfully!");
+      } else {
+        toast.error(res.message || "Invalid coupon");
+        setAppliedCoupon(null);
+        setDiscountAmount(0);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to apply coupon");
+      setAppliedCoupon(null);
+      setDiscountAmount(0);
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponCode("");
+    setAppliedCoupon(null);
+    setDiscountAmount(0);
+    toast.success("Coupon removed");
+  };
 
   // Contact form (pre-filled from user)
   const [contact, setContact] = useState({ email: "", phone: "", firstName: "", lastName: "" });
@@ -133,8 +206,19 @@ const Checkout = () => {
     }
   };
 
-  const ship = shipping === "express" ? 9.95 : subtotal > 75 ? 0 : 4.95;
-  const total = subtotal + ship;
+  const ship = shipping === "express" ? Number(shipConfig.expressShippingFee || 0) : subtotal > Number(shipConfig.freeShippingThreshold || 0) ? 0 : Number(shipConfig.standardShippingFee || 0);
+  
+  // Calculate total charges
+  const totalCharges = charges.reduce((acc, charge) => {
+    const val = Number(charge.value || 0);
+    if (charge.type === "percentage") {
+      return acc + (subtotal * val) / 100;
+    }
+    return acc + val;
+  }, 0);
+
+  const totalWithoutDiscount = Number(subtotal) + Number(ship) + Number(totalCharges);
+  const total = totalWithoutDiscount - Number(discountAmount);
 
   const next = (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,11 +369,13 @@ const Checkout = () => {
                 <h3 className="font-bold text-lg">Shipping method</h3>
                 <RadioGroup value={shipping} onValueChange={setShipping} className="space-y-2">
                   <ShippingOption id="standard" value="standard" icon={<Truck className="h-5 w-5" />}
-                    title="Standard delivery" desc="Next day before 22:00"
-                    price={subtotal > 75 ? "Free" : "€4.95"} selected={shipping === "standard"} />
-                  <ShippingOption id="express" value="express" icon={<Zap className="h-5 w-5" />}
-                    title="Express delivery" desc="Same day in selected areas"
-                    price="€9.95" selected={shipping === "express"} />
+                    title="Standard delivery" desc={`Next day before ${shipConfig.deliveryCutoffTime}`}
+                    price={subtotal > Number(shipConfig.freeShippingThreshold || 0) ? "Free" : `€${Number(shipConfig.standardShippingFee || 0).toFixed(2)}`} selected={shipping === "standard"} />
+                  {shipConfig.sameDayDelivery && (
+                    <ShippingOption id="express" value="express" icon={<Zap className="h-5 w-5" />}
+                      title="Express delivery" desc="Same day in selected areas"
+                      price={`€${Number(shipConfig.expressShippingFee || 0).toFixed(2)}`} selected={shipping === "express"} />
+                  )}
                 </RadioGroup>
               </div>
             </div>
@@ -342,15 +428,106 @@ const Checkout = () => {
             ))}
           </ul>
           <div className="p-5 border-t space-y-2 text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Subtotal</span><span>{formatPrice(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Shipping</span><span>{ship === 0 ? "Free" : formatPrice(ship)}</span>
-            </div>
-            <div className="flex justify-between font-bold text-base pt-2 border-t">
-              <span>Total</span><span>{formatPrice(total)}</span>
-            </div>
+            {isLoadingSummary ? (
+              <div className="space-y-3 animate-pulse">
+                <div className="flex justify-between items-center"><div className="h-4 bg-muted rounded w-16"></div><div className="h-4 bg-muted rounded w-12"></div></div>
+                <div className="flex justify-between items-center"><div className="h-4 bg-muted rounded w-20"></div><div className="h-4 bg-muted rounded w-10"></div></div>
+                <div className="flex justify-between items-center"><div className="h-4 bg-muted rounded w-12"></div><div className="h-4 bg-muted rounded w-10"></div></div>
+                <div className="flex justify-between items-center pt-2 border-t mt-2"><div className="h-5 bg-muted rounded w-12"></div><div className="h-5 bg-muted rounded w-16"></div></div>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span><span>{formatPrice(subtotal)}</span>
+                </div>
+                
+                {appliedCoupon && (
+                  <div className="flex justify-between text-green-600 font-medium">
+                    <div className="flex items-center gap-1">
+                      <span>Discount ({appliedCoupon.code})</span>
+                      <button type="button" onClick={removeCoupon} className="text-muted-foreground hover:text-red-500">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <span>-{formatPrice(discountAmount)}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Shipping</span><span>{ship === 0 ? "Free" : formatPrice(ship)}</span>
+                </div>
+
+                {charges.map((charge) => {
+                  const val = Number(charge.value || 0);
+                  const chargeValue = charge.type === "percentage" ? (subtotal * val) / 100 : val;
+                  return (
+                    <div key={charge.id} className="flex justify-between text-[12px] text-muted-foreground">
+                      <span>{charge.name}</span>
+                      <span>{formatPrice(chargeValue)}</span>
+                    </div>
+                  );
+                })}
+
+                <div className="flex justify-between font-bold text-base pt-2 border-t mt-2">
+                  <span>Total</span>
+                  <div className="flex items-center gap-2">
+                    {appliedCoupon && (
+                      <span className="text-muted-foreground line-through text-sm font-medium">
+                        {formatPrice(totalWithoutDiscount)}
+                      </span>
+                    )}
+                    <span>{formatPrice(total)}</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          
+          {/* Coupon Input Area */}
+          <div className="p-5 border-t bg-muted/5">
+            {!showCouponInput && !appliedCoupon ? (
+              <button 
+                type="button" 
+                onClick={() => setShowCouponInput(true)} 
+                className="text-primary font-medium text-sm hover:underline"
+              >
+                Have a coupon code?
+              </button>
+            ) : !appliedCoupon ? (
+              <div className="space-y-3">
+                <button 
+                  type="button" 
+                  onClick={() => setShowCouponInput(false)} 
+                  className="text-primary font-medium text-sm hover:underline"
+                >
+                  Have a coupon code?
+                </button>
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="Enter discount code" 
+                    value={couponCode} 
+                    onChange={e => setCouponCode(e.target.value)}
+                    className="h-10 bg-background text-sm rounded-lg border-primary/20 focus-visible:ring-primary/20"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="h-10 shrink-0 text-primary border-primary/20 hover:bg-primary/5 rounded-lg font-medium" 
+                    onClick={handleApplyCoupon}
+                    disabled={!couponCode || validatingCoupon}
+                  >
+                    {validatingCoupon ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-lg bg-green-50/50 border border-green-200 p-2.5">
+                <div className="flex items-center gap-2 text-green-700 text-sm">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="font-medium">{appliedCoupon.code}</span> applied
+                </div>
+              </div>
+            )}
           </div>
         </aside>
       </div>
