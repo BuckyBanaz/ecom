@@ -43,6 +43,7 @@ const TEMPLATE_PARAMETERS: Record<string, { param: string; desc: string }[]> = {
     { param: "{{shipping}}", desc: "Shipping cost" },
     { param: "{{total}}", desc: "Grand total" },
     { param: "{{invoice_url}}", desc: "Invoice download URL" },
+    { param: "{{payment_summary}}", desc: "Payment method and status" },
   ],
   payment_failed: [
     { param: "{{name}}", desc: "Customer name" },
@@ -57,6 +58,11 @@ const TEMPLATE_PARAMETERS: Record<string, { param: string; desc: string }[]> = {
     { param: "{{carrier}}", desc: "Shipping carrier" },
     { param: "{{tracking_number}}", desc: "Tracking ID" },
     { param: "{{tracking_url}}", desc: "Tracking shipment URL" },
+  ],
+  order_delivered: [
+    { param: "{{name}}", desc: "Customer name" },
+    { param: "{{order_id}}", desc: "Order ID" },
+    { param: "{{review_url}}", desc: "Order review URL page" },
   ],
 };
 

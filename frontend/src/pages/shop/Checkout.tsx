@@ -24,6 +24,8 @@ interface Address {
   lastName: string;
   phone: string;
   street: string;
+  houseNumber?: string;
+  landmark?: string;
   city: string;
   state: string;
   pincode: string;
@@ -37,6 +39,8 @@ const emptyAddressForm = {
   lastName: "",
   phone: "",
   street: "",
+  houseNumber: "",
+  landmark: "",
   city: "",
   state: "",
   pincode: "",
@@ -67,14 +71,16 @@ const Checkout = () => {
             clear();
             setDone(true);
             toast.success("Order placed successfully!");
+            // Stay on page — done screen will render
           } else {
-            toast.error("Could not verify order payment.");
+            toast.error("Could not verify order payment. Please check your orders.");
+            navigate("/dashboard?tab=orders", { replace: true });
           }
         } catch (err: any) {
           toast.error(err.message || "Could not verify order payment.");
+          navigate("/checkout", { replace: true });
         } finally {
           setVerifyingSession(false);
-          navigate("/checkout", { replace: true });
         }
       }
     };
@@ -191,10 +197,10 @@ const Checkout = () => {
   const [selectedAddressId, setSelectedAddressId] = useState<string | number | null>(null);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
 
-  // Add Address Dialog
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addingAddress, setAddingAddress] = useState(false);
   const [addrForm, setAddrForm] = useState(emptyAddressForm);
+  const [addressError, setAddressError] = useState("");
   const [showMap, setShowMap] = useState(false);
 
   const fetchAddresses = async () => {
@@ -223,6 +229,12 @@ const Checkout = () => {
 
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (addrForm.houseNumber && !/^[0-9]+[a-zA-Z0-9\s-]*$/.test(addrForm.houseNumber)) {
+      setAddressError("House number must start with a number (e.g. 12, 12A)");
+      return;
+    }
+    setAddressError("");
+
     try {
       setAddingAddress(true);
       const res = await addressRepository.create({ ...addrForm, isDefault: addresses.length === 0 });
@@ -663,7 +675,17 @@ const Checkout = () => {
                   {addrForm.lat ? `📍 ${parseFloat(addrForm.lat).toFixed(4)}, ${parseFloat(addrForm.lng).toFixed(4)} — change` : "Pick location on map"}
                 </button>
               </div>
-              <Field label="Street address" value={addrForm.street} onChange={v => setAddrForm({ ...addrForm, street: v })} required />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Street address" value={addrForm.street} onChange={v => setAddrForm({ ...addrForm, street: v })} required />
+                <Field 
+                  label="House number (required)" 
+                  value={addrForm.houseNumber || ""} 
+                  onChange={v => { setAddrForm({ ...addrForm, houseNumber: v }); setAddressError(""); }} 
+                  required 
+                  error={addressError}
+                />
+              </div>
+              <Field label="Landmark (Optional)" value={addrForm.landmark || ""} onChange={v => setAddrForm({ ...addrForm, landmark: v })} />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="City" value={addrForm.city} onChange={v => setAddrForm({ ...addrForm, city: v })} required />
                 <Field label="State / Province" value={addrForm.state} onChange={v => setAddrForm({ ...addrForm, state: v })} required />
@@ -711,15 +733,16 @@ const Checkout = () => {
 
 // Field component
 function Field({
-  label, value, onChange, type = "text", required = false
+  label, value, onChange, type = "text", required = false, pattern, title, error
 }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean;
+  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; pattern?: string; title?: string; error?: string;
 }) {
   return (
     <div>
       <Label className="mb-1.5 block text-sm">{label}</Label>
       <Input type={type} value={value} onChange={e => onChange(e.target.value)}
-        required={required} className="h-10" />
+        required={required} pattern={pattern} title={title} className={cn("h-10", error ? "border-red-500" : "")} />
+      {error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
     </div>
   );
 }

@@ -7,6 +7,8 @@ export function parseOrderMetadata(shippingAddressRaw: string) {
   let firstName = "";
   let lastName = "";
   let street = "";
+  let houseNumber = "";
+  let landmark = "";
   let city = "";
   let state = "";
   let pincode = "";
@@ -20,6 +22,8 @@ export function parseOrderMetadata(shippingAddressRaw: string) {
       phone = parsed.phone || "";
       email = parsed.email || "";
       street = parsed.street || "";
+      houseNumber = parsed.houseNumber || "";
+      landmark = parsed.landmark || "";
       city = parsed.city || "";
       state = parsed.state || "";
       pincode = parsed.pincode || "";
@@ -27,7 +31,8 @@ export function parseOrderMetadata(shippingAddressRaw: string) {
 
       const parts = [
         `${firstName} ${lastName}`.trim(),
-        street,
+        `${street} ${houseNumber}`.trim(),
+        landmark ? `Landmark: ${landmark}` : "",
         `${city} ${pincode}`.trim(),
         state,
         country
@@ -55,6 +60,8 @@ export function parseOrderMetadata(shippingAddressRaw: string) {
     firstName,
     lastName,
     street,
+    houseNumber,
+    landmark,
     city,
     state,
     pincode,

@@ -120,6 +120,13 @@ const DEFAULT_TEMPLATES = [
   <p><strong>Total:</strong> €{{total}}</p>
 </div>
 <br/>
+<h3>Payment Summary</h3>
+<table width="100%" cellpadding="5" style="border-collapse:collapse;margin:15px 0;">
+  <tbody>
+    {{payment_summary}}
+  </tbody>
+</table>
+<br/>
 <p>You can download your invoice using the link below:</p>
 <a href="{{invoice_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Download Invoice</a>
 <br/><br/>
@@ -156,6 +163,18 @@ const DEFAULT_TEMPLATES = [
 <a href="{{tracking_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Track Shipment</a>
 <br/><br/>
 <p>Thank you for shopping with Lampgigant!</p>`,
+  },
+  {
+    name: "order_delivered",
+    subject: "Your Order #{{order_id}} Has Been Delivered!",
+    body: `<h2>Good news, {{name}}!</h2>
+<p>Your order <strong>#{{order_id}}</strong> has been successfully delivered.</p>
+<p>We hope you love your new purchase! Could you please take a moment to leave a review and share your experience?</p>
+<br/>
+<a href="{{review_url}}" style="display: inline-block; padding: 10px 20px; background-color: #f59e0b; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Write a Review</a>
+<br/><br/>
+<p>If you have any questions or feedback, we are always here to help.</p>
+<p>Best regards,<br/>The Lampgigant Team</p>`,
   }
 ];
 
@@ -172,6 +191,14 @@ export const seedTemplates = async () => {
           }
         });
         console.log(`[Seed] Created email template: ${tpl.name}`);
+      } else if (tpl.name === "order_confirmed" && !existing.body.includes("payment_summary")) {
+        await prisma.emailTemplate.update({
+          where: { name: tpl.name },
+          data: {
+            body: tpl.body
+          }
+        });
+        console.log(`[Seed] Updated order_confirmed template to include payment_summary`);
       }
     }
   } catch (error) {

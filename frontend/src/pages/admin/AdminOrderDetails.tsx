@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, FileText, Tag, Printer, ClipboardCopy, Truck, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, FileText, Tag, Printer, ClipboardCopy, Truck, CheckCircle2, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,11 +59,15 @@ export default function AdminOrderDetails() {
   const [width, setWidth] = useState<string>("10");
   const [height, setHeight] = useState<string>("10");
   const [shippingMethods, setShippingMethods] = useState<any[]>([]);
+  const [loadingCarriers, setLoadingCarriers] = useState(false);
+  const [carrierSearch, setCarrierSearch] = useState<string>("");
+  const [isCarrierOpen, setIsCarrierOpen] = useState(false);
 
   useEffect(() => {
     if (showShipmentModal && shippingMethods.length === 0) {
       const fetchMethods = async () => {
         try {
+          setLoadingCarriers(true);
           const res = await ordersRepository.getShippingMethods();
           if (res.success && res.data && res.data.shipping_methods) {
             setShippingMethods(res.data.shipping_methods);
@@ -74,6 +78,8 @@ export default function AdminOrderDetails() {
         } catch (err) {
           console.error("Failed to fetch shipping methods", err);
           toast.error("Failed to load shipping methods from Sendcloud");
+        } finally {
+          setLoadingCarriers(false);
         }
       };
       fetchMethods();
@@ -122,7 +128,7 @@ export default function AdminOrderDetails() {
     }
   };
 
-  const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, city, state, pincode, country } = order ? parseOrderMetadata(order.shippingAddress) : { formattedAddress: "", tax: 0, discount: 0, phone: "", email: "", firstName: "", lastName: "", street: "", city: "", state: "", pincode: "", country: "" };
+  const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, houseNumber, landmark, city, state, pincode, country } = order ? parseOrderMetadata(order.shippingAddress) : { formattedAddress: "", tax: 0, discount: 0, phone: "", email: "", firstName: "", lastName: "", street: "", houseNumber: "", landmark: "", city: "", state: "", pincode: "", country: "" };
 
   const handleGenerateInvoice = () => {
     if (!order) return;
@@ -353,7 +359,8 @@ export default function AdminOrderDetails() {
                 <p className="text-sm text-muted-foreground mb-1">Shipping Address</p>
                 <div className="font-bold text-foreground mt-0.5 leading-relaxed space-y-1">
                   <p>{order.customerName || `${firstName} ${lastName}`.trim()}</p>
-                  <p>{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                  <p>{street ? `${street} ${houseNumber}`.trim() + `, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                  {landmark && <p className="text-muted-foreground italic text-[10px]">Landmark: {landmark}</p>}
                   {phone && <p>Phone: {phone}</p>}
                   <p>Email: {order.customerEmail || email}</p>
                 </div>
@@ -466,7 +473,8 @@ export default function AdminOrderDetails() {
                 <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Bill To</h4>
                 <div className="mt-1 space-y-1">
                   <p className="font-semibold">{order.customerName || `${firstName} ${lastName}`.trim()}</p>
-                  <p className="leading-relaxed">{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                  <p className="leading-relaxed">{street ? `${street} ${houseNumber}`.trim() + `, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                  {landmark && <p className="italic">Landmark: {landmark}</p>}
                   {phone && <p>Phone: {phone}</p>}
                   <p>Email: {order.customerEmail || email}</p>
                 </div>
@@ -547,7 +555,8 @@ export default function AdminOrderDetails() {
               <div className="pb-3 space-y-1">
                 <p className="text-[9px] font-bold text-stone-500">TO:</p>
                 <p className="font-bold text-sm">{order.customerName || `${firstName} ${lastName}`.trim()}</p>
-                <p className="leading-relaxed font-bold">{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                <p className="leading-relaxed font-bold">{street ? `${street} ${houseNumber}`.trim() + `, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                {landmark && <p className="font-bold italic text-[9px]">Landmark: {landmark}</p>}
                 {phone && <p className="font-bold">Phone: {phone}</p>}
                 <p className="font-bold">{order.customerEmail || email}</p>
               </div>
@@ -580,11 +589,19 @@ export default function AdminOrderDetails() {
       {/* Create Shipment Modal */}
       {showShipmentModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-card text-foreground rounded-2xl max-w-[500px] w-full p-6 shadow-2xl space-y-6">
-            <div className="border-b pb-3">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Truck className="h-5 w-5 text-primary" /> Create Shipment
-              </h2>
+          <div className="bg-white dark:bg-card text-foreground rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-6">
+            <div className="border-b pb-3 relative">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Truck className="h-5 w-5 text-primary" /> Create Shipment
+                </h2>
+                <button 
+                  onClick={() => setShowShipmentModal(false)}
+                  className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Enter weight and box dimensions for order {order.orderNumber}
               </p>
@@ -606,24 +623,78 @@ export default function AdminOrderDetails() {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="carrier" className="text-xs font-semibold">Carrier</Label>
-                  <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
-                    <SelectTrigger className="h-9 text-xs rounded-lg">
-                      <SelectValue placeholder="Select shipping method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {shippingMethods.length === 0 ? (
-                        <SelectItem value="loading" disabled className="text-xs">Loading methods...</SelectItem>
-                      ) : (
-                        shippingMethods.map(method => (
-                          <SelectItem key={method.id} value={method.id.toString()} className="text-xs">
-                            {method.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-1.5 relative">
+                  <Label htmlFor="carrier" className="text-xs font-semibold">Carrier (Search & Select)</Label>
+                  
+                  <div 
+                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                    onClick={() => setIsCarrierOpen(!isCarrierOpen)}
+                  >
+                    <span className="truncate">
+                      {selectedCarrier 
+                        ? shippingMethods.find(m => m.id.toString() === selectedCarrier)?.name || "Select Carrier"
+                        : "Select Carrier"}
+                    </span>
+                    <ArrowRight className="h-3 w-3 opacity-50 rotate-90" />
+                  </div>
+
+                  {isCarrierOpen && (
+                    <div className="absolute z-50 w-full top-full mt-1 bg-white dark:bg-popover border shadow-md rounded-md overflow-hidden">
+                      <div className="p-2 border-b bg-muted/20">
+                        <Input 
+                          placeholder="Search carriers..." 
+                          value={carrierSearch}
+                          onChange={(e) => setCarrierSearch(e.target.value)}
+                          className="h-8 text-xs"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto p-1">
+                        {loadingCarriers ? (
+                          <div className="p-4 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                            <span className="text-xs">Loading carriers...</span>
+                          </div>
+                        ) : shippingMethods.filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase())).length === 0 ? (
+                          <div className="p-2 text-xs text-center text-muted-foreground">No carriers found</div>
+                        ) : (
+                          shippingMethods
+                            .filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase()))
+                            .map(method => {
+                              const w = parseFloat(weight) || 0;
+                              const n = method.name.toLowerCase();
+                              // Suggestion logic
+                              const isSuggested = (w < 2 && n.includes("mailbox")) || 
+                                                  (w >= 2 && n.includes("standard")) || 
+                                                  n.includes("postnl standard");
+                                                  
+                              const isDomestic = n.includes("postnl") || n.includes("dhl for you") || (!n.includes("global") && !n.includes("connect") && !n.includes("international"));
+                              const isInternational = n.includes("global") || n.includes("connect") || n.includes("international") || n.includes("dhl parcel connect");
+
+                              return (
+                                <div 
+                                  key={method.id}
+                                  onClick={() => { setSelectedCarrier(method.id.toString()); setIsCarrierOpen(false); }}
+                                  className={`flex items-center justify-between p-2 text-xs rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${selectedCarrier === method.id.toString() ? 'bg-accent/50 font-bold' : ''}`}
+                                >
+                                  <div className="flex flex-col gap-0.5">
+                                    <span>{method.name}</span>
+                                    <div className="flex items-center gap-1">
+                                      {isDomestic ? (
+                                        <span className="text-[9px] text-blue-600 bg-blue-100 px-1 rounded">Domestic</span>
+                                      ) : isInternational ? (
+                                        <span className="text-[9px] text-orange-600 bg-orange-100 px-1 rounded">International</span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  {isSuggested && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-green-100 text-green-700 hover:bg-green-100 shrink-0">Suggested</Badge>}
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -22,6 +22,50 @@ const formatOrderItemsHtml = (items: any[]): string => {
   `).join("");
 };
 
+// Helper to format Payment Summary into an HTML table for order_confirmed template
+const formatPaymentSummaryHtml = (order: any): string => {
+  const method = order.paymentMethod ? order.paymentMethod.toUpperCase() : "STRIPE";
+  const status = order.paymentStatus ? order.paymentStatus.toUpperCase() : (order.status === "pending" ? "PENDING" : "PAID");
+  const statusColor = status === "PAID" || status === "SUCCESS" || status === "COMPLETED" ? "#16a34a" : "#ca8a04";
+  
+  let html = `
+    <tr>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 14px; color: #666666;">Payment Method</td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 14px; color: #333333; text-align: right; font-weight: bold;">${method}</td>
+    </tr>
+    <tr>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 14px; color: #666666;">Status</td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 14px; color: ${statusColor}; text-align: right; font-weight: bold;">${status}</td>
+    </tr>
+  `;
+
+  if (order.stripePaymentId) {
+    html += `
+      <tr>
+        <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 14px; color: #666666;">Transaction ID</td>
+        <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 12px; color: #333333; text-align: right; font-family: monospace;">${order.stripePaymentId}</td>
+      </tr>
+    `;
+    const utr = `UTR-${order.stripePaymentId.replace("pi_", "").replace("ch_", "").substring(0, 12).toUpperCase()}`;
+    html += `
+      <tr>
+        <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 14px; color: #666666;">Reference (UTR)</td>
+        <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 12px; color: #333333; text-align: right; font-family: monospace;">${utr}</td>
+      </tr>
+    `;
+  } else {
+    const utr = `UTR-${order.id.replace(/-/g, "").substring(0, 12).toUpperCase()}`;
+    html += `
+      <tr>
+        <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 14px; color: #666666;">Reference (UTR)</td>
+        <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: sans-serif; font-size: 12px; color: #333333; text-align: right; font-family: monospace;">${utr}</td>
+      </tr>
+    `;
+  }
+
+  return html;
+};
+
 export const notificationTriggerService = {
   /**
    * Dispatch notification across enabled channels (Email, WhatsApp, SMS, Push)
@@ -162,6 +206,7 @@ export const notificationTriggerService = {
         name: order.customerName || "Customer",
         order_id: order.orderNumber,
         order_items: formatOrderItemsHtml(order.items),
+        payment_summary: formatPaymentSummaryHtml(order),
         subtotal: order.subtotal.toFixed(2),
         shipping: order.shipping === 0 ? "Free" : order.shipping.toFixed(2),
         total: order.total.toFixed(2),
@@ -172,7 +217,8 @@ export const notificationTriggerService = {
         tracking_url: order.trackingUrl || "",
         invoice_url: `${clientUrl}/invoice?token=${invoiceToken}`,
         retry_url: `${clientUrl}/checkout/retry/${order.id}`,
-        order_url: `${clientUrl}/dashboard`
+        order_url: `${clientUrl}/dashboard`,
+        review_url: `${clientUrl}/dashboard?tab=orders&orderId=${order.orderNumber}`
       };
 
       const phone = addressData.phone || order.user?.phone || null;

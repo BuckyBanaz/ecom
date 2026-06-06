@@ -10,6 +10,8 @@ const addressSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   phone: z.string().min(1, "Phone is required"),
   street: z.string().min(1, "Street is required"),
+  houseNumber: z.string().regex(/^[0-9]+[a-zA-Z0-9\s-]*$/, "House number must start with a number (e.g. 12 or 12A)").optional().nullable(), // Optional but used by Sendcloud
+  landmark: z.string().optional().nullable(),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(1, "Pincode is required"),

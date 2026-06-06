@@ -1,5 +1,7 @@
 import nodemailer from "nodemailer";
 import { prisma } from "../config/db";
+import path from "path";
+import fs from "fs";
 
 interface EmailVariables {
   [key: string]: string;
@@ -84,12 +86,41 @@ export const emailService = {
         finalHtml = globalLayout.body.replace("{{content}}", bodyContent);
       }
 
+      // Automatically convert localhost / local uploaded images to inline CID attachments
+      // because Gmail and other webmail clients block localhost images
+      const attachments: any[] = [];
+      const apiUrl = process.env.API_URL || "http://localhost:5000";
+      
+      finalHtml = finalHtml.replace(/src=["']([^"']+)["']/g, (match, url) => {
+        if (url.startsWith(apiUrl + "/uploads/") || url.startsWith("http://localhost:5000/uploads/") || url.startsWith("/uploads/")) {
+          const filename = url.split("/").pop();
+          if (filename) {
+            const filePath = path.join(process.cwd(), "public", "uploads", filename);
+            if (fs.existsSync(filePath)) {
+              const cid = `${filename}@techycodex.local`;
+              
+              // Only add if not already added
+              if (!attachments.find(a => a.cid === cid)) {
+                attachments.push({
+                  filename,
+                  path: filePath,
+                  cid
+                });
+              }
+              return `src="cid:${cid}"`;
+            }
+          }
+        }
+        return match;
+      });
+
       // Send the email
       const info = await transporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,
         to,
         subject,
         html: finalHtml,
+        attachments,
       });
 
       console.log(`[EmailService] ✅ Email sent to ${to} | MessageId: ${info.messageId}`);

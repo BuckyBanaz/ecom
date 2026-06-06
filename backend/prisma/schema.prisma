@@ -294,23 +294,25 @@ model CmsConfig {
 
 // 13. Address Model
 model Address {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label     String   // e.g. "Home", "Work"
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  phone     String
-  street    String
-  city      String
-  state     String
-  pincode   String
-  country   String
-  lat       String?
-  lng       String?
-  isDefault Boolean  @default(false) @map("is_default")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       String   // e.g. "Home", "Work"
+  firstName   String   @map("first_name")
+  lastName    String   @map("last_name")
+  phone       String
+  street      String
+  houseNumber String?  @map("house_number") // Required for Sendcloud shipments
+  landmark    String?
+  city        String
+  state       String
+  pincode     String
+  country     String
+  lat         String?
+  lng         String?
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("addresses")
 }

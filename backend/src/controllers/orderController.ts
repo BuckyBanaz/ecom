@@ -253,10 +253,16 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
       }
     }
 
-    // Trigger Order Status Update notification
-    await notificationTriggerService.triggerOrderNotification(order.id, "order_status_update").catch(err => {
-      console.error("[UpdateOrderStatus] Failed to trigger status update notification:", err.message);
-    });
+    // Trigger Order Status Update or Delivered notification
+    if (status === "delivered") {
+      await notificationTriggerService.triggerOrderNotification(order.id, "order_delivered").catch(err => {
+        console.error("[UpdateOrderStatus] Failed to trigger order delivered notification:", err.message);
+      });
+    } else {
+      await notificationTriggerService.triggerOrderNotification(order.id, "order_status_update").catch(err => {
+        console.error("[UpdateOrderStatus] Failed to trigger status update notification:", err.message);
+      });
+    }
 
     res.status(200).json({ success: true, data: order, message: `Order status updated to ${status}` });
   } catch (error) {

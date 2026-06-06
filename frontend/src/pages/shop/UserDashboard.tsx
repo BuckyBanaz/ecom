@@ -15,6 +15,7 @@ import { MapSelector } from "@/components/shop/MapSelector";
 import { addressRepository, authRepository, ordersRepository } from "@/client/apiClient";
 import { Loader2, FileText, CreditCard, Truck, Check, X } from "lucide-react";
 import { parseOrderMetadata } from "@/utils/formatters";
+import { ReviewModal } from "@/components/shop/ReviewModal";
 
 interface Address {
   id: string | number;
@@ -23,6 +24,7 @@ interface Address {
   lastName: string;
   phone: string;
   street: string;
+  houseNumber?: string;
   city: string;
   state: string;
   pincode: string;
@@ -196,6 +198,10 @@ function OrdersTab() {
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
+  
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewProductId, setReviewProductId] = useState("");
+  const [reviewProductName, setReviewProductName] = useState("");
 
   useEffect(() => {
     fetchOrders();
@@ -277,13 +283,14 @@ function OrdersTab() {
 
   if (selectedOrder) {
     const isPending = ["pending", "payment_pending", "payment_failed"].includes(selectedOrder.status);
-    const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);
+    const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, houseNumber, landmark, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);
     
     return (
-      <div>
-        <button onClick={() => handleClearSelectedOrder()} className="mb-4 flex items-center gap-1 text-sm text-primary hover:underline">
-          ← Back to orders
-        </button>
+      <>
+        <div>
+          <button onClick={() => handleClearSelectedOrder()} className="mb-4 flex items-center gap-1 text-sm text-primary hover:underline">
+            ← Back to orders
+          </button>
         <div className="rounded-xl border bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
             <div>
@@ -408,14 +415,30 @@ function OrdersTab() {
           {/* Items */}
           <h3 className="font-semibold mb-3">Items</h3>
           <div className="space-y-3">
-            {selectedOrder.items.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-4 rounded-lg border p-3">
+            {selectedOrder.items.map((item: any, idx: number) => (
+              <div key={idx} className="flex items-center gap-4 rounded-lg border p-3 flex-wrap sm:flex-nowrap">
                 <SafeImage src={item.productImage} alt={item.productName} className="h-16 w-16 rounded-lg object-cover" fallbackType="product" />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold">{item.productName}</p>
                   <p className="text-sm text-muted-foreground">Qty: {item.quantity} {item.variant && `· ${item.variant}`}</p>
                 </div>
-                <span className="font-semibold">€{(item.price * item.quantity).toFixed(2)}</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold">€{(item.price * item.quantity).toFixed(2)}</span>
+                  {selectedOrder.status === "delivered" && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => {
+                        setReviewProductId(item.productId);
+                        setReviewProductName(item.productName);
+                        setIsReviewModalOpen(true);
+                      }}
+                      className="rounded-full text-xs font-semibold border-amber-500 text-amber-600 hover:bg-amber-50"
+                    >
+                      Write Review
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -435,7 +458,8 @@ function OrdersTab() {
               <p className="font-semibold mb-1">Shipping Address</p>
               <div className="text-muted-foreground space-y-1">
                 <p className="font-semibold text-foreground">{selectedOrder.customerName || `${firstName} ${lastName}`.trim()}</p>
-                <p>{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                <p>{street ? `${street} ${houseNumber}`.trim() + `, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                {landmark && <p className="italic text-[10px]">Landmark: {landmark}</p>}
                 {phone && <p>Phone: {phone}</p>}
                 <p>Email: {selectedOrder.customerEmail || email}</p>
               </div>
@@ -477,7 +501,7 @@ function OrdersTab() {
                 </div>
               </div>
             </div>
-            {selectedOrder.status !== "cancelled" && selectedOrder.trackingNumber && (
+            {selectedOrder.status !== "cancelled" && selectedOrder.status !== "delivered" && selectedOrder.trackingNumber && (
               <div className="rounded-lg bg-muted p-4 col-span-2 flex items-center justify-between flex-wrap gap-4 border border-primary/15">
                 <div>
                   <p className="font-semibold mb-1 flex items-center gap-1.5"><Truck size={16} className="text-primary" /> Shipment Tracking</p>
@@ -494,7 +518,17 @@ function OrdersTab() {
             )}
           </div>
         </div>
-      </div>
+        </div>
+        <ReviewModal 
+          isOpen={isReviewModalOpen} 
+          onClose={() => setIsReviewModalOpen(false)} 
+          productId={reviewProductId} 
+          productName={reviewProductName} 
+          onSuccess={() => {
+            fetchOrders();
+          }}
+        />
+      </>
     );
   }
   return (
@@ -578,8 +612,9 @@ function AddressesTab() {
   const [editingId, setEditingId] = useState<string | number | null>(null);
   
   const [formData, setFormData] = useState<Partial<Address>>({
-    label: "Home", firstName: "", lastName: "", phone: "", street: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false
+    label: "Home", firstName: "", lastName: "", phone: "", street: "", houseNumber: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false
   });
+  const [addressError, setAddressError] = useState<string>("");
 
   const handleOpenForm = (address?: Address) => {
     if (address) {
@@ -587,8 +622,9 @@ function AddressesTab() {
       setFormData(address);
     } else {
       setEditingId(null);
-      setFormData({ label: "Home", firstName: "", lastName: "", phone: "", street: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false });
+      setFormData({ label: "Home", firstName: "", lastName: "", phone: "", street: "", houseNumber: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false });
     }
+    setAddressError("");
     setIsFormOpen(true);
   };
 
@@ -604,6 +640,14 @@ function AddressesTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Explicit manual validation
+    if (formData.houseNumber && !/^[0-9]+[a-zA-Z0-9\s-]*$/.test(formData.houseNumber)) {
+      setAddressError("House number must start with a number (e.g. 12, 12A)");
+      return;
+    }
+    setAddressError("");
+
     setLoading(true);
     try {
       if (editingId) {
@@ -670,7 +714,15 @@ function AddressesTab() {
               </select>
             </div>
           </div>
-          <div><Label>Street Address</Label><Input value={formData.street} onChange={e => setFormData({...formData, street: e.target.value})} required className="mt-1" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Street Address</Label><Input value={formData.street} onChange={e => setFormData({...formData, street: e.target.value})} required className="mt-1" /></div>
+            <div>
+              <Label>House Number <span className="text-xs text-red-500">*</span> <span className="text-xs text-muted-foreground">(for Sendcloud)</span></Label>
+              <Input value={formData.houseNumber || ""} onChange={e => { setFormData({...formData, houseNumber: e.target.value}); setAddressError(""); }} className="mt-1" placeholder="e.g. 12a" required />
+              {addressError && <p className="text-red-500 text-xs mt-1.5">{addressError}</p>}
+            </div>
+          </div>
+          <div><Label>Landmark (Optional)</Label><Input value={formData.landmark || ""} onChange={e => setFormData({...formData, landmark: e.target.value})} className="mt-1" placeholder="e.g. Near park" /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>City</Label><Input value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} required className="mt-1" /></div>
             <div><Label>State / Province</Label><Input value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} required className="mt-1" /></div>
