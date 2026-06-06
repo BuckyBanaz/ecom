@@ -48,7 +48,7 @@ const AdminProducts = () => {
   });
 
   const handleDelete = async (p: any) => {
-    if (!hasPermission("admin")) {
+    if (!hasPermission("products")) {
       toast.error("Only admins can delete products");
       return;
     }
@@ -73,7 +73,7 @@ const AdminProducts = () => {
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">{productsList.length} products total</p>
-        {hasPermission("admin") && (
+        {hasPermission("products") && (
           <Button className="rounded-full gap-2" onClick={() => navigate("/admin/products/new")}>
             <Plus className="h-4 w-4" /> Add Product
           </Button>

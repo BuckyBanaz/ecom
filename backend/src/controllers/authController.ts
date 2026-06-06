@@ -176,6 +176,7 @@ const createAdminSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["admin", "superadmin", "moderator"]).default("admin"),
+  permissions: z.array(z.string()).optional(),
 });
 
 export const createAdmin = async (
@@ -190,7 +191,7 @@ export const createAdmin = async (
       return next(new AppError(`Validation failed: ${errorMsgs}`, 400));
     }
 
-    const { email, password, role } = parsed.data;
+    const { email, password, role, permissions } = parsed.data;
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
@@ -217,6 +218,7 @@ export const createAdmin = async (
         passwordHash,
         role,
         avatar,
+        permissions: permissions || [],
       },
     });
 
@@ -246,7 +248,7 @@ export const createAdmin = async (
 const loginAdminSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
-  role: z.enum(["admin", "superadmin", "moderator"]).default("admin"),
+  role: z.enum(["admin", "superadmin", "moderator"]).optional(),
 });
 
 export const loginAdmin = async (
@@ -261,7 +263,7 @@ export const loginAdmin = async (
       return next(new AppError(`Validation failed: ${errorMsgs}`, 400));
     }
 
-    const { email, password, role } = parsed.data;
+    const { email, password } = parsed.data;
 
     // Find the user by email
     const user = await prisma.user.findUnique({
@@ -272,9 +274,14 @@ export const loginAdmin = async (
       return next(new AppError("Invalid credentials", 401));
     }
 
-    // Verify role matches
-    if (user.role !== role) {
-      return next(new AppError(`Access denied. Account is registered as ${user.role}, not ${role}`, 403));
+    // Verify role is one of the admin roles
+    if (user.role !== "admin" && user.role !== "superadmin" && user.role !== "moderator") {
+      return next(new AppError("Access denied. Admin privileges required.", 403));
+    }
+
+    // Verify status is active
+    if (user.status === "suspended") {
+      return next(new AppError("Access denied. Your account is suspended.", 403));
     }
 
     // Compare passwords
@@ -288,7 +295,7 @@ export const loginAdmin = async (
 
     res.status(200).json({
       success: true,
-      message: `${role.toUpperCase()} logged in successfully`,
+      message: `${user.role.toUpperCase()} logged in successfully`,
       token,
       user: {
         id: user.id,
@@ -296,6 +303,7 @@ export const loginAdmin = async (
         email: user.email,
         role: user.role,
         avatar: user.avatar,
+        permissions: user.permissions || [],
       },
     });
   } catch (error: any) {
@@ -448,10 +456,14 @@ export const getProfile = async (
       where: { id: userId },
       select: {
         id: true,
+        name: true,
         firstName: true,
         lastName: true,
         email: true,
         phone: true,
+        role: true,
+        avatar: true,
+        permissions: true,
       }
     });
 
@@ -661,6 +673,131 @@ export const resetPassword = async (
     });
 
     res.status(200).json({ success: true, message: "Password reset successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 11. GET ALL ADMIN USERS (ADMIN/SUPERADMIN ONLY)
+// ----------------------------------------------------
+export const getAdminUsers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const admins = await prisma.user.findMany({
+      where: {
+        role: {
+          in: ["superadmin", "admin", "moderator"]
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        permissions: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+
+    res.status(200).json({ success: true, data: admins });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 12. UPDATE ADMIN USER (SUPERADMIN ONLY)
+// ----------------------------------------------------
+export const updateAdminUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { role, name, email, status, permissions } = req.body;
+
+    const dataToUpdate: any = {};
+    
+    if (role) {
+      if (!["superadmin", "admin", "moderator"].includes(role)) {
+        return next(new AppError("Invalid role specified", 400));
+      }
+      dataToUpdate.role = role;
+    }
+    
+    if (name !== undefined) {
+      dataToUpdate.name = name;
+    }
+    
+    if (email) {
+      dataToUpdate.email = email.toLowerCase();
+    }
+    
+    if (status) {
+      if (!["active", "suspended"].includes(status)) {
+        return next(new AppError("Invalid status specified", 400));
+      }
+      dataToUpdate.status = status;
+    }
+
+    if (permissions !== undefined) {
+      if (!Array.isArray(permissions)) {
+        return next(new AppError("Permissions must be an array of strings", 400));
+      }
+      dataToUpdate.permissions = permissions;
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: dataToUpdate,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        permissions: true,
+        createdAt: true,
+      }
+    });
+
+    res.status(200).json({ success: true, data: updatedUser, message: "Admin user updated successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 13. DELETE ADMIN USER (SUPERADMIN ONLY)
+// ----------------------------------------------------
+export const deleteAdminUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Prevent deleting self
+    const reqUserId = (req as any).user?.id;
+    if (reqUserId === id) {
+      return next(new AppError("You cannot delete your own admin account", 400));
+    }
+
+    await prisma.user.delete({
+      where: { id }
+    });
+
+    res.status(200).json({ success: true, message: "Admin user deleted successfully" });
   } catch (error: any) {
     next(error);
   }

@@ -17,6 +17,8 @@ model User {
   phone        String?    @unique
   passwordHash String     @map("password_hash")
   role         String     @default("customer") // customer, admin, superadmin, moderator
+  status       String     @default("active") // active, suspended
+  permissions  String[]   @default([])
   avatar       String?
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
@@ -217,12 +219,19 @@ model Order {
   subtotal        Float
   shipping        Float
   total           Float
-  status          String      @default("pending") // pending, payment_pending, processing, shipped, delivered, cancelled
+  status          String      @default("pending")
   paymentMethod   String      @map("payment_method")
-  paymentStatus   String      @default("pending") @map("payment_status") // pending, paid, failed
+  paymentStatus   String      @default("pending") @map("payment_status")
   stripeSessionId String?     @map("stripe_session_id")
   stripePaymentId String?     @map("stripe_payment_id")
   shippingAddress String      @map("shipping_address")
+  // Sendcloud / Tracking
+  trackingNumber  String?     @map("tracking_number")
+  trackingUrl     String?     @map("tracking_url")
+  labelUrl        String?     @map("label_url")
+  carrier         String?
+  shippingCost    Float?      @map("shipping_cost")
+  shipmentStatus  String?     @map("shipment_status")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
   items           OrderItem[]

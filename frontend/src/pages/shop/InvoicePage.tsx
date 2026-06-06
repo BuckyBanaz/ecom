@@ -15,7 +15,12 @@ export default function InvoicePage() {
 
   useEffect(() => {
     if (!token) {
-      setError("No invoice token provided.");
+      const orderParam = searchParams.get("order");
+      if (orderParam) {
+        setError("Invoice access requires a secure link. Please click the download link directly from your email, or access it from your dashboard.");
+      } else {
+        setError("No invoice token provided.");
+      }
       setLoading(false);
       return;
     }

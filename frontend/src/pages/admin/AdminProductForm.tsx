@@ -395,7 +395,7 @@ const AdminProductForm = () => {
     });
   };
 
-  if (!hasPermission("admin")) {
+  if (!hasPermission("products")) {
     return (
       <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
         <p>You do not have permission to access this page.</p>

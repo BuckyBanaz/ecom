@@ -20,7 +20,11 @@ async function request<T>(url: string, config: RequestInit = {}): Promise<T> {
   
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.message || `HTTP Error ${response.status}`);
+    const message = errorBody.message || `HTTP Error ${response.status}`;
+    if (response.status === 403 && message.toLowerCase().includes("suspended")) {
+      window.dispatchEvent(new CustomEvent("admin-suspended", { detail: message }));
+    }
+    throw new Error(message);
   }
   
   return response.json() as Promise<T>;
@@ -261,6 +265,24 @@ export const authRepository = {
       method: "POST",
       body: JSON.stringify(data),
     });
+  },
+  getAdmins: async () => {
+    return request<any>(`${ENDPOINTS.AUTH}/admins`, { method: "GET" });
+  },
+  updateAdmin: async (id: string, data: { role?: string; name?: string; email?: string; status?: string; permissions?: string[] }) => {
+    return request<any>(`${ENDPOINTS.AUTH}/admins/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  updateAdminRole: async (id: string, role: string) => {
+    return request<any>(`${ENDPOINTS.AUTH}/admins/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
+  },
+  deleteAdmin: async (id: string) => {
+    return request<any>(`${ENDPOINTS.AUTH}/admins/${id}`, { method: "DELETE" });
   },
 };
 
@@ -552,6 +574,15 @@ export const emailTemplateRepository = {
   delete: async (id: string) => {
     return request<any>(`${ENDPOINTS.EMAIL_TEMPLATES}/${id}`, { method: "DELETE" });
   },
+  getChannelsConfig: async () => {
+    return request<any>(`${ENDPOINTS.EMAIL_TEMPLATES}/channels/config`, { method: "GET" });
+  },
+  updateChannelsConfig: async (data: any) => {
+    return request<any>(`${ENDPOINTS.EMAIL_TEMPLATES}/channels/config`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // 16. Wishlist Repository
@@ -665,5 +696,14 @@ export const ordersRepository = {
   },
   getInvoice: async (token: string) => {
     return request<any>(`${ENDPOINTS.ORDERS}/invoice/${token}`, { method: "GET" });
+  },
+  getShippingMethods: async () => {
+    return request<any>(`${ENDPOINTS.ORDERS}/sendcloud/methods`, { method: "GET" });
+  },
+  createShipment: async (id: string, weight: number, shippingMethodId: number) => {
+    return request<any>(`${ENDPOINTS.ORDERS}/${id}/sendcloud/shipment`, {
+      method: "POST",
+      body: JSON.stringify({ weight, shippingMethodId }),
+    });
   }
 };

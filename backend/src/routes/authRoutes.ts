@@ -11,8 +11,11 @@ import {
   changePassword,
   forgotPassword,
   resetPassword,
+  getAdminUsers,
+  updateAdminUser,
+  deleteAdminUser,
 } from "../controllers/authController";
-import { authenticateJWT } from "../middlewares/authMiddleware";
+import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
 const router = Router();
 
@@ -251,14 +254,25 @@ router.post("/login", loginCustomer);
  *       409:
  *         description: Conflict (Email already registered)
  */
-router.post("/create-admin", createAdmin);
+router.post(
+  "/create-admin", 
+  authenticateJWT, 
+  (req: any, res: any, next: any) => {
+    if (req.user?.role !== "superadmin") {
+      const { AppError } = require("../middlewares/errorMiddleware");
+      return next(new AppError("Access denied. Only superadmins can create admin accounts.", 403));
+    }
+    next();
+  }, 
+  createAdmin
+);
 
 /**
  * @swagger
  * /api/v1/auth/login-admin:
  *   post:
  *     summary: Log in as an Admin
- *     description: Authenticate admin accounts with matching email, password, and specific role.
+ *     description: Authenticate admin accounts with matching email and password.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -269,7 +283,6 @@ router.post("/create-admin", createAdmin);
  *             required:
  *               - email
  *               - password
- *               - role
  *             properties:
  *               email:
  *                 type: string
@@ -279,10 +292,6 @@ router.post("/create-admin", createAdmin);
  *                 type: string
  *                 format: password
  *                 example: "admin123"
- *               role:
- *                 type: string
- *                 enum: [admin, superadmin, moderator]
- *                 example: "superadmin"
  *     responses:
  *       200:
  *         description: Admin logged in successfully
@@ -317,9 +326,10 @@ router.post("/create-admin", createAdmin);
  *       401:
  *         description: Unauthorized (Invalid credentials)
  *       403:
- *         description: Access Denied (Role mismatch)
+ *         description: Access Denied (Not an admin)
  */
 router.post("/login-admin", loginAdmin);
+
 
 /**
  * @swagger
@@ -505,5 +515,165 @@ router.post("/forgot-password", forgotPassword);
  *         description: Password reset successfully
  */
 router.post("/reset-password", resetPassword);
+
+// Admin User Management Routes (CRUD)
+
+/**
+ * @swagger
+ * /api/v1/auth/admins:
+ *   get:
+ *     summary: Get all admin users
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of admin users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       firstName:
+ *                         type: string
+ *                       lastName:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       role:
+ *                         type: string
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Admin privileges required)
+ */
+router.get("/admins", authenticateJWT, requireAdmin, getAdminUsers);
+
+/**
+ * @swagger
+ * /api/v1/auth/admins/{id}:
+ *   put:
+ *     summary: Update an admin user's role
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The admin user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - role
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [admin, superadmin, moderator]
+ *                 example: admin
+ *     responses:
+ *       200:
+ *         description: Admin user role updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User role updated successfully
+ *                 user:
+ *                   type: object
+ *       400:
+ *         description: Validation failed or invalid role
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Only superadmins can modify roles)
+ *       404:
+ *         description: Admin user not found
+ */
+router.put(
+  "/admins/:id", 
+  authenticateJWT, 
+  (req: any, res: any, next: any) => {
+    if (req.user?.role !== "superadmin") {
+      const { AppError } = require("../middlewares/errorMiddleware");
+      return next(new AppError("Access denied. Only superadmins can modify admin roles.", 403));
+    }
+    next();
+  }, 
+  updateAdminUser
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/admins/{id}:
+ *   delete:
+ *     summary: Delete an admin user account
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The admin user ID
+ *     responses:
+ *       200:
+ *         description: Admin user deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Admin user deleted successfully
+ *       400:
+ *         description: Cannot delete yourself or invalid action
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Only superadmins can delete admin accounts)
+ *       404:
+ *         description: Admin user not found
+ */
+router.delete(
+  "/admins/:id", 
+  authenticateJWT, 
+  (req: any, res: any, next: any) => {
+    if (req.user?.role !== "superadmin") {
+      const { AppError } = require("../middlewares/errorMiddleware");
+      return next(new AppError("Access denied. Only superadmins can delete admin accounts.", 403));
+    }
+    next();
+  }, 
+  deleteAdminUser
+);
 
 export default router;

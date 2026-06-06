@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { env } from "../config/env";
 import { AppError } from "../middlewares/errorMiddleware";
+import { notificationTriggerService } from "../services/notificationTriggerService";
 
 // Retrieve public payment configuration (Publishable key)
 export const getPaymentConfig = async (req: Request, res: Response, next: NextFunction) => {
@@ -108,18 +109,41 @@ export const handleStripeWebhook = async (req: Request, res: Response, next: Nex
               stripePaymentId: paymentIntentId,
             }
           });
+          // Trigger Order Confirmed notification
+          await notificationTriggerService.triggerOrderNotification(orderId, "order_confirmed").catch(err => {
+            console.error("[Webhook] Failed to trigger order confirmation notification:", err.message);
+          });
         }
         break;
       }
       
       case "payment_intent.payment_failed": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        // In checkout sessions, we might not have the orderId attached directly to the payment intent metadata,
-        // unless we passed it during creation. But we have it in session metadata.
-        // For robust handling, if we can map it back, we mark failed.
-        // A simple way is to find the order by stripePaymentId if stored, or just log.
         console.warn(`[Webhook] Payment Failed: ${paymentIntent.id}`);
-        // If we stored session ID in DB, we could look it up via the checkout session that failed.
+        
+        // Find order by matching payment intent or session metadata
+        const order = await prisma.order.findFirst({
+          where: {
+            OR: [
+              { stripePaymentId: paymentIntent.id },
+              { stripeSessionId: paymentIntent.metadata?.orderId }
+            ]
+          }
+        });
+
+        if (order) {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              status: "payment_failed",
+              paymentStatus: "failed"
+            }
+          });
+          // Trigger Payment Failed notification
+          await notificationTriggerService.triggerOrderNotification(order.id, "payment_failed").catch(err => {
+            console.error("[Webhook] Failed to trigger payment failure notification:", err.message);
+          });
+        }
         break;
       }
       

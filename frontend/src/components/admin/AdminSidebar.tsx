@@ -11,17 +11,17 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { to: "/admin", icon: LayoutDashboard, label: "Dashboard", role: "moderator" as const },
-  { to: "/admin/products", icon: Package, label: "Products", role: "moderator" as const },
-  { to: "/admin/categories", icon: FolderTree, label: "Categories", role: "moderator" as const },
-  { to: "/admin/brands", icon: Tag, label: "Brands", role: "moderator" as const },
-  { to: "/admin/attributes", icon: Sliders, label: "Attributes", role: "moderator" as const },
-  { to: "/admin/offers", icon: Percent, label: "Offers", role: "moderator" as const },
-  { to: "/admin/charges", icon: Coins, label: "Charges", role: "admin" as const },
-  { to: "/admin/testimonials", icon: Quote, label: "Testimonials", role: "moderator" as const },
-  { to: "/admin/storage", icon: HardDrive, label: "Storage", role: "admin" as const },
-  { to: "/admin/users", icon: Users, label: "Users", role: "admin" as const },
-  { to: "/admin/settings", icon: Settings, label: "Settings", role: "superadmin" as const },
+  { to: "/admin", icon: LayoutDashboard, label: "Dashboard", permission: "dashboard" },
+  { to: "/admin/products", icon: Package, label: "Products", permission: "products" },
+  { to: "/admin/categories", icon: FolderTree, label: "Categories", permission: "categories" },
+  { to: "/admin/brands", icon: Tag, label: "Brands", permission: "brands" },
+  { to: "/admin/attributes", icon: Sliders, label: "Attributes", permission: "attributes" },
+  { to: "/admin/offers", icon: Percent, label: "Offers", permission: "offers" },
+  { to: "/admin/charges", icon: Coins, label: "Charges", permission: "charges" },
+  { to: "/admin/testimonials", icon: Quote, label: "Testimonials", permission: "testimonials" },
+  { to: "/admin/storage", icon: HardDrive, label: "Storage", permission: "storage" },
+  { to: "/admin/users", icon: Users, label: "Users", permission: "users" },
+  { to: "/admin/settings", icon: Settings, label: "Settings", permission: "settings" },
 ];
 
 const ordersChildren = [
@@ -30,7 +30,6 @@ const ordersChildren = [
   { to: "/admin/orders/in-transit", icon: ArrowRight, label: "In Transit" },
   { to: "/admin/orders/delivered", icon: CheckCircle, label: "Delivered" },
   { to: "/admin/orders/returns", icon: RotateCcw, label: "Returns" },
-  { to: "/admin/orders/invoices", icon: FileText, label: "Invoices" },
   { to: "/admin/orders/labels", icon: Tag, label: "Shipping Labels" }
 ];
 
@@ -96,7 +95,7 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-        {navItems.filter((item) => hasPermission(item.role)).slice(0, 5).map((item) => {
+        {navItems.filter((item) => hasPermission(item.permission)).slice(0, 2).map((item) => {
           const isActive = pathname === item.to || (item.to !== "/admin" && pathname.startsWith(item.to));
           return (
             <NavLink
@@ -116,7 +115,7 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
         })}
 
         {/* Orders group */}
-        {hasPermission("moderator") && (
+        {hasPermission("orders") && (
           <div>
             <button
               type="button"
@@ -162,7 +161,7 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
         )}
 
         {/* CMS group */}
-        {hasPermission("admin") && (
+        {hasPermission("cms") && (
           <div>
             <button
               type="button"
@@ -207,7 +206,7 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
           </div>
         )}
 
-        {navItems.filter((item) => hasPermission(item.role)).slice(5).map((item) => {
+        {navItems.filter((item) => hasPermission(item.permission)).slice(2).map((item) => {
           const isActive = pathname === item.to || (item.to !== "/admin" && pathname.startsWith(item.to));
           return (
             <NavLink

@@ -121,7 +121,7 @@ const AdminBrands = () => {
 
   // Delete Brand Handler
   const handleDeleteBrand = async (id: string, name: string) => {
-    if (!hasPermission("admin")) {
+    if (!hasPermission("brands")) {
       toast.error("Only admins can delete brands");
       return;
     }
@@ -185,7 +185,7 @@ const AdminBrands = () => {
 
   // Delete Series Handler
   const handleDeleteSeries = async (id: string, name: string) => {
-    if (!hasPermission("admin")) {
+    if (!hasPermission("brands")) {
       toast.error("Only admins can delete series");
       return;
     }
@@ -243,7 +243,7 @@ const AdminBrands = () => {
                 className="pl-10 rounded-xl bg-background/50 h-10 text-xs focus-visible:ring-1 border-muted-foreground/20"
               />
             </div>
-            {hasPermission("admin") && (
+            {hasPermission("brands") && (
               <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditBrand(null); }}>
                 <DialogTrigger asChild>
                   <Button className="rounded-full gap-2 text-xs font-bold h-10 px-5 shadow-sm hover:shadow transition-shadow">
@@ -330,7 +330,7 @@ const AdminBrands = () => {
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    {hasPermission("admin") && (
+                    {hasPermission("brands") && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -366,7 +366,7 @@ const AdminBrands = () => {
                 className="pl-10 rounded-xl bg-background/50 h-10 text-xs focus-visible:ring-1 border-muted-foreground/20"
               />
             </div>
-            {hasPermission("admin") && (
+            {hasPermission("brands") && (
               <Dialog open={seriesDialogOpen} onOpenChange={(v) => { setSeriesDialogOpen(v); if (!v) setEditSeries(null); }}>
                 <DialogTrigger asChild>
                   <Button className="rounded-full gap-2 text-xs font-bold h-10 px-5 shadow-sm hover:shadow transition-shadow">
@@ -507,7 +507,7 @@ const AdminBrands = () => {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      {hasPermission("admin") && (
+                      {hasPermission("brands") && (
                         <Button
                           variant="ghost"
                           size="icon"

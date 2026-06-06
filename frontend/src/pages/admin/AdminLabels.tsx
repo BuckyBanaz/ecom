@@ -4,17 +4,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Order } from "./AdminOrders";
+import { parseOrderMetadata } from "@/utils/formatters";
+import { ordersRepository } from "@/client/apiClient";
 
 export default function AdminLabels() {
   const [search, setSearch] = useState("");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("admin_orders");
-    if (stored) {
-      setOrdersList(JSON.parse(stored));
-    }
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        const res = await ordersRepository.getAll();
+        setOrdersList(res.data || []);
+      } catch (err) {
+        console.error("Failed to load orders for shipping labels", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
   }, []);
 
   // Filter orders with generated labels
@@ -27,7 +38,11 @@ export default function AdminLabels() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">{labels.length} shipping labels printed total</p>
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading shipping labels...</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{labels.length} shipping labels printed total</p>
+      )}
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -91,56 +106,60 @@ export default function AdminLabels() {
       </div>
 
       {/* Shipping Label PDF Mockup Dialog */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white text-black rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-6 font-mono border-4 border-black">
-            <div className="flex justify-between items-center border-b-2 border-black pb-4">
-              <div>
-                <h2 className="text-2xl font-black">{selectedOrder.carrier || "PostNL"}</h2>
-                <p className="text-[10px] uppercase font-bold">Standard Parcel</p>
+      {selectedOrder && (() => {
+        const { formattedAddress, phone, email, firstName, lastName, street, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white text-black rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-6 font-mono border-4 border-black">
+              <div className="flex justify-between items-center border-b-2 border-black pb-4">
+                <div>
+                  <h2 className="text-2xl font-black">{selectedOrder.carrier || "PostNL"}</h2>
+                  <p className="text-[10px] uppercase font-bold">Standard Parcel</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-bold">PRIORITY</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs font-bold">PRIORITY</p>
-              </div>
-            </div>
 
-            <div className="space-y-4 text-xs">
-              <div className="border-b border-dashed border-stone-400 pb-3">
-                <p className="text-[9px] font-bold text-stone-500">FROM:</p>
-                <p className="font-bold">Schip & Ster Fulfillment</p>
-                <p>Keizersgracht 456, Amsterdam</p>
+              <div className="space-y-4 text-xs">
+                <div className="border-b border-dashed border-stone-400 pb-3">
+                  <p className="text-[9px] font-bold text-stone-500">FROM:</p>
+                  <p className="font-bold">Schip & Ster Fulfillment</p>
+                  <p>Keizersgracht 456, Amsterdam</p>
+                </div>
+                <div className="pb-3 space-y-1">
+                  <p className="text-[9px] font-bold text-stone-500">TO:</p>
+                  <p className="font-bold text-sm">{selectedOrder.customerName || `${firstName} ${lastName}`.trim()}</p>
+                  <p className="leading-relaxed font-bold">{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                  {phone && <p className="font-bold">Phone: {phone}</p>}
+                  <p className="font-bold">{selectedOrder.customerEmail || email}</p>
+                </div>
               </div>
-              <div className="pb-3">
-                <p className="text-[9px] font-bold text-stone-500">TO:</p>
-                <p className="font-bold text-sm">{selectedOrder.customerName}</p>
-                <p className="leading-relaxed font-bold">{selectedOrder.shippingAddress}</p>
-                <p>{selectedOrder.customerEmail}</p>
-              </div>
-            </div>
 
-            {/* Fake Barcode representation */}
-            <div className="flex flex-col items-center justify-center border-t-2 border-black pt-4 space-y-2">
-              <div className="w-full h-16 relative overflow-hidden">
-                <img 
-                  src={`https://barcode.tec-it.com/barcode.ashx?data=${selectedOrder.trackingNumber || selectedOrder.orderNumber}&code=Code128&dpi=96`} 
-                  alt="Barcode" 
-                  className="w-full h-full object-cover scale-150 grayscale contrast-150" 
-                />
+              {/* Fake Barcode representation */}
+              <div className="flex flex-col items-center justify-center border-t-2 border-black pt-4 space-y-2">
+                <div className="w-full h-16 relative overflow-hidden">
+                  <img 
+                    src={`https://barcode.tec-it.com/barcode.ashx?data=${selectedOrder.trackingNumber || selectedOrder.orderNumber}&code=Code128&dpi=96`} 
+                    alt="Barcode" 
+                    className="w-full h-full object-cover scale-150 grayscale contrast-150" 
+                  />
+                </div>
+                <p className="text-xs font-bold tracking-wider">{selectedOrder.trackingNumber}</p>
               </div>
-              <p className="text-xs font-bold tracking-wider">{selectedOrder.trackingNumber}</p>
-            </div>
 
-            <div className="flex justify-between items-center border-t border-black pt-4">
-              <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full border-black hover:bg-black hover:text-white">
-                <Printer className="h-3.5 w-3.5" /> Print Label
-              </Button>
-              <Button onClick={() => setSelectedOrder(null)} size="sm" className="text-xs bg-black hover:bg-stone-900 text-white rounded-full">
-                Close
-              </Button>
+              <div className="flex justify-between items-center border-t border-black pt-4">
+                <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full border-black hover:bg-black hover:text-white">
+                  <Printer className="h-3.5 w-3.5" /> Print Label
+                </Button>
+                <Button onClick={() => setSelectedOrder(null)} size="sm" className="text-xs bg-black hover:bg-stone-900 text-white rounded-full">
+                  Close
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

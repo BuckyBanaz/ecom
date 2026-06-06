@@ -1,21 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { BlogCard } from "@/components/shop/BlogCard";
+import { blogRepository } from "@/client/apiClient";
 import { initialBlogs } from "@/data/blogs";
 
 const Blogs = () => {
   const [blogs, setBlogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem("blogs_data");
-    if (saved) {
+    const fetchBlogs = async () => {
       try {
-        setBlogs(JSON.parse(saved));
-        return;
-      } catch {}
-    }
-    setBlogs(initialBlogs);
+        setLoading(true);
+        const res = await blogRepository.getAll({ published: true });
+        if (res.success && res.blogs) {
+          setBlogs(res.blogs);
+        } else {
+          const saved = localStorage.getItem("blogs_data");
+          if (saved) {
+            setBlogs(JSON.parse(saved));
+          } else {
+            setBlogs(initialBlogs);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load blogs from API:", err);
+        const saved = localStorage.getItem("blogs_data");
+        if (saved) {
+          setBlogs(JSON.parse(saved));
+        } else {
+          setBlogs(initialBlogs);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBlogs();
   }, []);
 
   const published = useMemo(() => blogs.filter((b) => b.published), [blogs]);
@@ -24,7 +45,7 @@ const Blogs = () => {
     <div className="container-page py-10 space-y-12">
       <section className="relative overflow-hidden rounded-3xl border bg-card p-8 md:p-12 shadow-xs">
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold tracking-widest text-primary">LAMPGIGANT JOURNAL</p>
+          <p className="text-xs font-semibold tracking-widest text-primary">Schip & Ster  Journal</p>
           <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-foreground md:text-5xl">Lighting stories, guides, and trends</h1>
           <p className="mt-4 text-muted-foreground leading-relaxed">
             Discover the latest lighting inspiration, buyer guides, and room-by-room ideas curated by our team.
@@ -44,7 +65,11 @@ const Blogs = () => {
           </Link>
         </div>
 
-        {published.length === 0 ? (
+        {loading ? (
+          <div className="flex h-44 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : published.length === 0 ? (
           <div className="rounded-2xl border bg-muted/20 p-10 text-center text-muted-foreground">
             No blog posts are published yet.
           </div>

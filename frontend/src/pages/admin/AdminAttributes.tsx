@@ -153,7 +153,7 @@ const AdminAttributes = () => {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!hasPermission("admin")) {
+    if (!hasPermission("attributes")) {
       toast.error("Only admins can delete attributes");
       return;
     }
@@ -183,7 +183,7 @@ const AdminAttributes = () => {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <span />
-        {hasPermission("admin") && (
+        {hasPermission("attributes") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditAttr(null); }}>
             <DialogTrigger asChild>
               <Button className="rounded-full gap-2">
@@ -429,7 +429,7 @@ const AdminAttributes = () => {
                     >
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                    {hasPermission("admin") && (
+                    {hasPermission("attributes") && (
                       <Button
                         variant="ghost"
                         size="icon"

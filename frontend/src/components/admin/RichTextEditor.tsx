@@ -219,6 +219,20 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     if (isSourceMode) return;
     const target = e.target as HTMLElement;
     
+    // Check if user clicked an image inside the editor to allow resizing
+    if (target.tagName === 'IMG') {
+      e.preventDefault();
+      e.stopPropagation();
+      const currentWidth = (target as HTMLImageElement).style.width || target.getAttribute('width') || '100%';
+      const newWidth = prompt("Resize Image - Enter new width (e.g., 200px, 50%, auto):", currentWidth);
+      if (newWidth !== null) {
+        (target as HTMLImageElement).style.width = newWidth;
+        (target as HTMLImageElement).style.height = 'auto'; // keep aspect ratio
+        handleInput();
+      }
+      return;
+    }
+    
     // Check direct inline controls clicks
     if (target.classList.contains('cms-block-above-btn')) {
       e.preventDefault();

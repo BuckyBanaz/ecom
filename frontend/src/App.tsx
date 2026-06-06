@@ -39,6 +39,7 @@ import AdminOrderDetails from "./pages/admin/AdminOrderDetails.tsx";
 import AdminInvoices from "./pages/admin/AdminInvoices.tsx";
 import AdminLabels from "./pages/admin/AdminLabels.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
+import AdminManageUsers from "./pages/admin/AdminManageUsers.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminTestimonials from "./pages/admin/AdminTestimonials.tsx";
 import AdminOffers from "./pages/admin/AdminOffers.tsx";
@@ -73,7 +74,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ScrollToTop />
         <WishlistProvider>
           <CartProvider>
@@ -126,7 +127,6 @@ const App = () => (
                   <Route path="orders/in-transit" element={<AdminInTransit />} />
                   <Route path="orders/delivered" element={<AdminDelivered />} />
                   <Route path="orders/returns" element={<AdminReturns />} />
-                  <Route path="orders/invoices" element={<AdminInvoices />} />
                   <Route path="orders/labels" element={<AdminLabels />} />
                   <Route path="orders/:id" element={<AdminOrderDetails />} />
                   <Route path="offers" element={<AdminOffers />} />
@@ -145,6 +145,7 @@ const App = () => (
                   <Route path="cms/email-templates" element={<AdminEmailTemplates />} />
                   <Route path="storage" element={<MediaLibrary />} />
                   <Route path="users" element={<AdminUsers />} />
+                  <Route path="manage-users" element={<AdminManageUsers />} />
                   <Route path="settings" element={<AdminSettings />} />
                 </Route>
               </Routes>

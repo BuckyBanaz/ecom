@@ -99,3 +99,50 @@ export const deleteTemplate = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+
+// 6. Get channels configuration
+export const getChannelsConfig = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const config = await prisma.cmsConfig.findUnique({
+      where: { key: "notification_channels_config" }
+    });
+    
+    const defaultConfig = {
+      global: {
+        email: true,
+        whatsapp: false,
+        sms: false,
+        site_notification: false
+      },
+      templates: {}
+    };
+
+    res.status(200).json({ 
+      success: true, 
+      data: config ? config.value : defaultConfig 
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 7. Update channels configuration
+export const updateChannelsConfig = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = req.body;
+    
+    const config = await prisma.cmsConfig.upsert({
+      where: { key: "notification_channels_config" },
+      update: { value: data },
+      create: { key: "notification_channels_config", value: data }
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      message: "Notification channels configuration updated",
+      data: config.value 
+    });
+  } catch (error) {
+    next(error);
+  }
+};

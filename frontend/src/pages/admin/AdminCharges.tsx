@@ -120,7 +120,7 @@ export default function AdminCharges() {
   };
 
   const handleDeleteCharge = async (id: string, chargeName: string) => {
-    if (!hasPermission("admin")) {
+    if (!hasPermission("charges")) {
       toast.error("Only admins can delete charges");
       return;
     }
@@ -146,7 +146,7 @@ export default function AdminCharges() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <span />
-        {hasPermission("admin") && (
+        {hasPermission("charges") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditCharge(null); }}>
             <DialogTrigger asChild>
               <Button className="rounded-full gap-2 text-xs font-bold h-10 px-5 shadow-sm hover:shadow transition-shadow">
@@ -330,7 +330,7 @@ export default function AdminCharges() {
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
-                {hasPermission("admin") && (
+                {hasPermission("charges") && (
                   <Button
                     variant="ghost"
                     size="icon"

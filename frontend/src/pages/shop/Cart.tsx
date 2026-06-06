@@ -29,7 +29,9 @@ const Cart = () => {
               <SafeImage src={i.product.image} alt="" className="h-24 w-24 rounded-lg object-cover" fallbackType="product" />
               <div className="flex flex-1 flex-col">
                 <Link to={`/product/${i.product.slug}`} className="font-semibold hover:text-primary">{i.product.name}</Link>
-                <span className="text-xs text-muted-foreground">{i.product.brand} · {i.product.color}</span>
+                <span className="text-xs text-muted-foreground">
+                  {typeof i.product.brand === "object" ? i.product.brand.name : i.product.brand} · {i.product.color}
+                </span>
                 <div className="mt-auto flex items-center justify-between">
                   <div className="flex items-center rounded-full border">
                     <button onClick={() => setQty(i.id, i.qty - 1)} className="px-3 py-1.5">−</button>

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, FileText, Tag, Printer, ClipboardCopy, Truck, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Order, statusLabels, MANUAL_STATUSES, AUTO_STATUSES } from "./AdminOrders";
@@ -10,17 +12,73 @@ import { Logo } from "@/components/layout/Logo";
 import { ordersRepository } from "@/client/apiClient";
 import { parseOrderMetadata } from "@/utils/formatters";
 
+const formatOrderWithShipment = (orderData: any) => {
+  if (!orderData) return orderData;
+  const formatted = { ...orderData };
+  if (formatted.trackingNumber) {
+    formatted.shipment = {
+      carrier: formatted.carrier || "Sendcloud",
+      trackingNumber: formatted.trackingNumber,
+      trackingUrl: formatted.trackingUrl || `https://tracking.sendcloud.sc/tracking/shipment/${formatted.trackingNumber}`,
+      labelUrl: formatted.labelUrl || "",
+      shippingCost: formatted.shippingCost || 0,
+      shipmentStatus: formatted.shipmentStatus || formatted.status,
+      createdAt: formatted.updatedAt || formatted.createdAt
+    };
+  } else if (["label_generated", "picked_up", "in_transit", "out_for_delivery", "delivered"].includes(formatted.status) && !formatted.shipment) {
+    const carrier = "PostNL";
+    const trackingNumber = `3SPOSTNL${Math.floor(100000 + Math.random() * 900000)}`;
+    formatted.shipment = {
+      carrier,
+      trackingNumber,
+      trackingUrl: `https://tracking.sendcloud.com/${trackingNumber}`,
+      labelUrl: `/labels/LBL-${formatted.orderNumber}.pdf`,
+      shippingCost: 5.50,
+      shipmentStatus: formatted.status === "label_generated" ? "label_generated" : "in_transit",
+      createdAt: formatted.updatedAt || formatted.createdAt
+    };
+  }
+  return formatted;
+};
+
 export default function AdminOrderDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [creatingShipment, setCreatingShipment] = useState(false);
 
   // Modal dialog view states for print/preview simulations
   const [showInvoiceMock, setShowInvoiceMock] = useState(false);
   const [showLabelMock, setShowLabelMock] = useState(false);
   const [showShipmentModal, setShowShipmentModal] = useState(false);
   const [selectedCarrier, setSelectedCarrier] = useState<string>("Auto Cheapest");
+  const [weight, setWeight] = useState<string>("1.5");
+  const [length, setLength] = useState<string>("10");
+  const [width, setWidth] = useState<string>("10");
+  const [height, setHeight] = useState<string>("10");
+  const [shippingMethods, setShippingMethods] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (showShipmentModal && shippingMethods.length === 0) {
+      const fetchMethods = async () => {
+        try {
+          const res = await ordersRepository.getShippingMethods();
+          if (res.success && res.data && res.data.shipping_methods) {
+            setShippingMethods(res.data.shipping_methods);
+            if (res.data.shipping_methods.length > 0) {
+              setSelectedCarrier(res.data.shipping_methods[0].id.toString());
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch shipping methods", err);
+          toast.error("Failed to load shipping methods from Sendcloud");
+        }
+      };
+      fetchMethods();
+    }
+  }, [showShipmentModal]);
 
   const fetchOrder = async () => {
     if (!id) return;
@@ -28,7 +86,10 @@ export default function AdminOrderDetails() {
       setLoading(true);
       const res = await ordersRepository.getById(id);
       if (res.success && res.data) {
-        setOrder(res.data);
+        const fetchedOrder = res.data;
+        const estWeight = (fetchedOrder.items.reduce((sum: number, i: any) => sum + i.quantity, 0) * 1.5).toFixed(1);
+        setWeight(estWeight);
+        setOrder(formatOrderWithShipment(fetchedOrder));
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to load order");
@@ -42,15 +103,22 @@ export default function AdminOrderDetails() {
   }, [id]);
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!order) return;
+    if (!order || updatingStatus) return;
+    setUpdatingStatus(true);
+    const toastId = toast.loading(`Updating status to ${statusLabels[newStatus] || newStatus}...`);
     try {
       const res = await ordersRepository.updateStatus(order.id, newStatus);
       if (res.success) {
-        setOrder(res.data);
-        toast.success(`Order status updated to "${statusLabels[newStatus] || newStatus}"`);
+        setOrder(prev => {
+          const updated = prev ? { ...res.data, items: res.data.items || prev.items } : res.data;
+          return formatOrderWithShipment(updated);
+        });
+        toast.success(`Order status updated to "${statusLabels[newStatus] || newStatus}"`, { id: toastId });
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to update status");
+      toast.error(err.message || "Failed to update status", { id: toastId });
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -70,34 +138,36 @@ export default function AdminOrderDetails() {
     toast.success("Invoice generated successfully");
   };
 
-  const handleCreateShipment = (e: React.FormEvent) => {
+  const handleCreateShipment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!order) return;
+    if (!order || creatingShipment) return;
     
-    // Simulate API call to Sendcloud
-    const finalCarrier = selectedCarrier === "Auto Cheapest" ? "PostNL" : selectedCarrier;
-    const trackingNumber = `3S${finalCarrier === "DHL" ? "DHL" : "NPL"}${Math.floor(100000 + Math.random() * 900000)}`;
-    const labelUrl = `/labels/LBL-${order.orderNumber}.pdf`;
-    
-    const shipment = {
-      carrier: finalCarrier,
-      trackingNumber,
-      trackingUrl: `https://tracking.sendcloud.com/${trackingNumber}`,
-      labelUrl,
-      shippingCost: selectedCarrier === "Auto Cheapest" ? 5.50 : (selectedCarrier === "DHL" ? 6.20 : 5.90),
-      shipmentStatus: "label_generated",
-      createdAt: new Date().toISOString()
-    };
-
-    const updated = {
-      ...order,
-      shipment,
-      status: "label_generated",
-      updatedAt: new Date().toISOString(),
-    };
-    setOrder(updated);
-    setShowShipmentModal(false);
-    toast.success(`Shipment created successfully via ${finalCarrier}`);
+    setCreatingShipment(true);
+    const toastId = toast.loading("Creating shipment via Sendcloud...");
+    try {
+      if (!selectedCarrier || isNaN(Number(selectedCarrier))) {
+        toast.error("Please select a valid shipping method", { id: toastId });
+        setCreatingShipment(false);
+        return;
+      }
+      
+      const res = await ordersRepository.createShipment(order.id, parseFloat(weight), Number(selectedCarrier));
+      
+      if (res.success) {
+        setOrder(prev => {
+          const updated = prev ? { ...res.data, items: res.data.items || prev.items } : res.data;
+          return formatOrderWithShipment(updated);
+        });
+        setShowShipmentModal(false);
+        toast.success("Shipment created successfully via Sendcloud", { id: toastId });
+      } else {
+        toast.error(res.message || "Failed to create shipment", { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create shipment", { id: toastId });
+    } finally {
+      setCreatingShipment(false);
+    }
   };
 
   if (loading) {
@@ -162,7 +232,7 @@ export default function AdminOrderDetails() {
           </Button>
           
           {/* Status Select */}
-          <Select value={order.status} onValueChange={handleStatusChange}>
+          <Select value={order.status} onValueChange={handleStatusChange} disabled={updatingStatus}>
             <SelectTrigger className="w-[220px] h-9 text-xs bg-background border-muted-foreground/20 rounded-full font-bold">
               <SelectValue />
             </SelectTrigger>
@@ -179,6 +249,7 @@ export default function AdminOrderDetails() {
           {nextStatus && (
             <Button
               onClick={() => handleStatusChange(nextStatus)}
+              disabled={updatingStatus}
               className="rounded-full text-xs font-bold gap-1.5 h-9 bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm"
             >
               Next Step: {statusLabels[nextStatus]} <ArrowRight className="h-3.5 w-3.5" />
@@ -186,7 +257,7 @@ export default function AdminOrderDetails() {
           )}
 
           {/* Shipment Actions */}
-          {order.status === "ready_to_ship" && !order.shipment && (
+          {(!order.trackingNumber || (order.labelUrl && order.labelUrl.includes("dummy.pdf"))) && (order.status === "ready_to_ship" || order.status === "label_generated") && (
             <Button
               onClick={() => setShowShipmentModal(true)}
               className="rounded-full text-xs font-bold gap-1.5 h-9 bg-amber-600 text-white hover:bg-amber-700 shadow-sm"
@@ -209,7 +280,7 @@ export default function AdminOrderDetails() {
           <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-4">
             <h3 className="font-bold text-sm border-b pb-3 text-foreground/90">Items Purchased</h3>
             <div className="divide-y divide-border/60">
-              {order.items.map((item, idx) => (
+              {(order.items || []).map((item, idx) => (
                 <div key={idx} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
                   <img
                     src={item.productImage}
@@ -337,12 +408,30 @@ export default function AdminOrderDetails() {
                 </div>
                 
                 <div className="pt-2 flex flex-wrap gap-2">
-                  <Button onClick={() => setShowLabelMock(true)} size="sm" variant="outline" className="text-[10px] h-7 rounded-full">
-                    <Tag className="h-3 w-3 mr-1" /> View Label
-                  </Button>
-                  <Button size="sm" variant="outline" className="text-[10px] h-7 rounded-full" onClick={() => window.open(order.shipment!.trackingUrl, "_blank")}>
-                    Track Shipment
-                  </Button>
+                  {order.shipment.labelUrl && !order.shipment.labelUrl.includes("/labels/") ? (
+                    <Button 
+                      onClick={() => {
+                        const token = localStorage.getItem("admin_token") || localStorage.getItem("customer_token") || "";
+                        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+                        const url = `${baseUrl}/api/v1/orders/${order.id}/sendcloud/label?token=${token}`;
+                        window.open(url, "_blank");
+                      }}
+                      size="sm" 
+                      variant="outline" 
+                      className="text-[10px] h-7 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200"
+                    >
+                      <Tag className="h-3 w-3 mr-1" /> View/Print Label
+                    </Button>
+                  ) : (
+                    <Button onClick={() => setShowLabelMock(true)} size="sm" variant="outline" className="text-[10px] h-7 rounded-full">
+                      <Tag className="h-3 w-3 mr-1" /> View Label
+                    </Button>
+                  )}
+                  {order.shipment.trackingUrl && (
+                    <Button size="sm" variant="outline" className="text-[10px] h-7 rounded-full" onClick={() => window.open(order.shipment!.trackingUrl, "_blank")}>
+                      Track Shipment
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -455,11 +544,12 @@ export default function AdminOrderDetails() {
                 <p className="font-bold">Schip & Ster Fulfillment</p>
                 <p>Keizersgracht 456, Amsterdam</p>
               </div>
-              <div className="pb-3">
+              <div className="pb-3 space-y-1">
                 <p className="text-[9px] font-bold text-stone-500">TO:</p>
-                <p className="font-bold text-sm">{order.customerName}</p>
-                <p className="leading-relaxed font-bold">{order.shippingAddress}</p>
-                <p>{order.customerEmail}</p>
+                <p className="font-bold text-sm">{order.customerName || `${firstName} ${lastName}`.trim()}</p>
+                <p className="leading-relaxed font-bold">{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
+                {phone && <p className="font-bold">Phone: {phone}</p>}
+                <p className="font-bold">{order.customerEmail || email}</p>
               </div>
             </div>
 
@@ -490,44 +580,101 @@ export default function AdminOrderDetails() {
       {/* Create Shipment Modal */}
       {showShipmentModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-card text-foreground rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
-            <div className="border-b pb-4">
+          <div className="bg-white dark:bg-card text-foreground rounded-2xl max-w-[500px] w-full p-6 shadow-2xl space-y-6">
+            <div className="border-b pb-3">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Truck className="h-5 w-5 text-primary" /> Create Shipment
               </h2>
-              <p className="text-xs text-muted-foreground mt-1">Select a shipping carrier for {order.customerName}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter weight and box dimensions for order {order.orderNumber}
+              </p>
             </div>
+
             <form onSubmit={handleCreateShipment} className="space-y-4">
-              <div className="space-y-3">
-                {[
-                  { name: "Auto Cheapest", price: 5.50 },
-                  { name: "PostNL", price: 5.50 },
-                  { name: "DHL", price: 6.20 },
-                  { name: "UPS", price: 7.10 },
-                  { name: "DPD", price: 5.90 }
-                ].map((c) => (
-                  <label key={c.name} className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all ${selectedCarrier === c.name ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/50"}`}>
-                    <div className="flex items-center gap-3">
-                      <input 
-                        type="radio" 
-                        name="carrier" 
-                        value={c.name} 
-                        checked={selectedCarrier === c.name} 
-                        onChange={() => setSelectedCarrier(c.name)}
-                        className="w-4 h-4 text-primary focus:ring-primary"
-                      />
-                      <span className="font-medium text-sm">{c.name}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-muted-foreground">€{c.price.toFixed(2)}</span>
-                  </label>
-                ))}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="weight" className="text-xs font-semibold">Weight (kg)</Label>
+                  <Input
+                    id="weight"
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    required
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="carrier" className="text-xs font-semibold">Carrier</Label>
+                  <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
+                    <SelectTrigger className="h-9 text-xs rounded-lg">
+                      <SelectValue placeholder="Select shipping method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shippingMethods.length === 0 ? (
+                        <SelectItem value="loading" disabled className="text-xs">Loading methods...</SelectItem>
+                      ) : (
+                        shippingMethods.map(method => (
+                          <SelectItem key={method.id} value={method.id.toString()} className="text-xs">
+                            {method.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              <div className="border-t border-muted/50 pt-3">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Dimensions (cm)</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="length" className="text-[10px] text-muted-foreground">Length</Label>
+                    <Input
+                      id="length"
+                      type="number"
+                      min="1"
+                      value={length}
+                      onChange={(e) => setLength(e.target.value)}
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="width" className="text-[10px] text-muted-foreground">Width</Label>
+                    <Input
+                      id="width"
+                      type="number"
+                      min="1"
+                      value={width}
+                      onChange={(e) => setWidth(e.target.value)}
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="height" className="text-[10px] text-muted-foreground">Height</Label>
+                    <Input
+                      id="height"
+                      type="number"
+                      min="1"
+                      value={height}
+                      onChange={(e) => setHeight(e.target.value)}
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => setShowShipmentModal(false)} className="rounded-full text-xs h-9">
+                <Button type="button" variant="outline" onClick={() => setShowShipmentModal(false)} disabled={creatingShipment} className="rounded-full text-xs h-9">
                   Cancel
                 </Button>
-                <Button type="submit" className="rounded-full text-xs h-9 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white">
-                  <CheckCircle2 className="h-4 w-4" /> Generate Label
+                <Button type="submit" disabled={creatingShipment} className="rounded-full text-xs h-9 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold">
+                  <Truck className="h-4 w-4" /> {creatingShipment ? "Creating..." : "Create Shipment"}
                 </Button>
               </div>
             </form>

@@ -247,15 +247,15 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">4</div>
               <span>Features List</span>
             </Button>
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 border-dashed bg-muted/30" onClick={() => handleInsertSimpleBlock("brands-block")}>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 border-dashed bg-muted/30" onClick={() => handleSelectBlock("brands-block")}>
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">5</div>
               <span>Brands List</span>
             </Button>
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 border-dashed bg-muted/30" onClick={() => handleInsertSimpleBlock("blogs-block")}>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 border-dashed bg-muted/30" onClick={() => handleSelectBlock("blogs-block")}>
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">6</div>
               <span>Latest Blogs</span>
             </Button>
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 border-dashed bg-muted/30" onClick={() => handleInsertSimpleBlock("reviews-block")}>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 border-dashed bg-muted/30" onClick={() => handleSelectBlock("reviews-block")}>
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">7</div>
               <span>Customer Reviews</span>
             </Button>

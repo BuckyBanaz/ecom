@@ -92,7 +92,7 @@ const CMSLegal = () => {
   };
 
   return (
-    <form onSubmit={save} className="max-w-7xl mx-auto space-y-6 pb-12">
+    <form onSubmit={save} className="space-y-6 pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">

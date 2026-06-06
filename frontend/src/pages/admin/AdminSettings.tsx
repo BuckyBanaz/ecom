@@ -8,10 +8,26 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IconPicker } from "@/components/admin/IconPicker";
 import { Trash2, Plus, Loader2 } from "lucide-react";
-import { cmsFeaturesRepository, adminSettingsRepository } from "@/client/apiClient";
+import { cmsFeaturesRepository, adminSettingsRepository, authRepository } from "@/client/apiClient";
+import { useAdmin } from "@/context/AdminContext";
 
 const AdminSettings = () => {
-  const [tab, setTab] = useState("features");
+  const { user: adminUser, hasPermission } = useAdmin();
+  const isSuperAdmin = hasPermission("settings");
+
+  const queryTab = new URLSearchParams(window.location.search).get("tab") || (isSuperAdmin ? "features" : "profile");
+  const [tab, setTab] = useState(!isSuperAdmin && queryTab !== "profile" ? "profile" : queryTab);
+
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t) {
+      if (!isSuperAdmin && t !== "profile") {
+        setTab("profile");
+      } else {
+        setTab(t);
+      }
+    }
+  }, [window.location.search, isSuperAdmin]);
   
   const [featureItems, setFeatureItems] = useState([
     { id: 1, icon: "truck-fast", title: "Fast delivery", description: "Order before 22:00, delivered next day" },
@@ -57,7 +73,102 @@ const AdminSettings = () => {
   });
   const [isLoadingShipping, setIsLoadingShipping] = useState(true);
 
+  const [profileData, setProfileData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    role: "",
+  });
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setIsLoadingProfile(true);
+        const res = await authRepository.getProfile();
+        if (res.success && res.data) {
+          setProfileData({
+            firstName: res.data.firstName || "",
+            lastName: res.data.lastName || "",
+            email: res.data.email || adminUser?.email || "",
+            phone: res.data.phone || "",
+            role: adminUser?.role || "admin",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching admin profile:", error);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+    if (tab === "profile") {
+      fetchProfile();
+    }
+  }, [tab, adminUser]);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSavingProfile(true);
+      const res = await authRepository.updateProfile({
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        phone: profileData.phone,
+      });
+      if (res.success) {
+        toast.success("Profile updated successfully");
+        const saved = localStorage.getItem("admin_user");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.name = `${profileData.firstName} ${profileData.lastName}`.trim();
+          localStorage.setItem("admin_user", JSON.stringify(parsed));
+        }
+      } else {
+        toast.error("Failed to update profile");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update profile");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    try {
+      setIsUpdatingPassword(true);
+      const res = await authRepository.changePassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
+      if (res.success) {
+        toast.success("Password updated successfully");
+        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      } else {
+        toast.error("Failed to update password");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update password");
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
     const fetchFeatures = async () => {
       try {
         const res = await cmsFeaturesRepository.get();
@@ -110,7 +221,7 @@ const AdminSettings = () => {
     fetchSmtpSettings();
     fetchPaymentSettings();
     fetchShippingSettings();
-  }, []);
+  }, [isSuperAdmin]);
 
   const handleSaveFeatures = async () => {
     try {
@@ -193,14 +304,119 @@ const AdminSettings = () => {
         {/* Scrollable tabs on mobile */}
         <div className="overflow-x-auto pb-1">
           <TabsList className="flex min-w-max w-full sm:w-auto flex-nowrap">
-            <TabsTrigger value="general" className="text-xs sm:text-sm">General</TabsTrigger>
-            <TabsTrigger value="features" className="text-xs sm:text-sm">Features</TabsTrigger>
-            <TabsTrigger value="smtp" className="text-xs sm:text-sm">SMTP / Email</TabsTrigger>
-            <TabsTrigger value="auth" className="text-xs sm:text-sm">Login & Auth</TabsTrigger>
-            <TabsTrigger value="payments" className="text-xs sm:text-sm">Payments</TabsTrigger>
-            <TabsTrigger value="shipping" className="text-xs sm:text-sm">Shipping</TabsTrigger>
+            <TabsTrigger value="profile" className="text-xs sm:text-sm">My Profile</TabsTrigger>
+            {isSuperAdmin && (
+              <>
+                <TabsTrigger value="general" className="text-xs sm:text-sm">General</TabsTrigger>
+                <TabsTrigger value="features" className="text-xs sm:text-sm">Features</TabsTrigger>
+                <TabsTrigger value="smtp" className="text-xs sm:text-sm">SMTP / Email</TabsTrigger>
+                <TabsTrigger value="auth" className="text-xs sm:text-sm">Login & Auth</TabsTrigger>
+                <TabsTrigger value="payments" className="text-xs sm:text-sm">Payments</TabsTrigger>
+                <TabsTrigger value="shipping" className="text-xs sm:text-sm">Shipping</TabsTrigger>
+              </>
+            )}
           </TabsList>
         </div>
+
+        <TabsContent value="profile">
+          <div className="mt-4 grid gap-6 md:grid-cols-2">
+            {/* Profile Info Form */}
+            {isLoadingProfile ? (
+              <div className="flex justify-center p-8 border rounded-xl bg-card"><Loader2 className="animate-spin text-muted-foreground" /></div>
+            ) : (
+              <form onSubmit={handleSaveProfile} className="space-y-4 rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
+                <h3 className="font-semibold text-lg text-foreground">Profile Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label>First Name</Label>
+                    <Input 
+                      value={profileData.firstName} 
+                      onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })} 
+                      className="mt-1 bg-background" 
+                    />
+                  </div>
+                  <div>
+                    <Label>Last Name</Label>
+                    <Input 
+                      value={profileData.lastName} 
+                      onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })} 
+                      className="mt-1 bg-background" 
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input 
+                    value={profileData.email} 
+                    disabled 
+                    className="mt-1 bg-muted cursor-not-allowed text-muted-foreground" 
+                    title="Email cannot be changed" 
+                  />
+                </div>
+                <div>
+                  <Label>Phone Number</Label>
+                  <Input 
+                    value={profileData.phone} 
+                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} 
+                    className="mt-1 bg-background" 
+                  />
+                </div>
+                <div>
+                  <Label>Role</Label>
+                  <Input 
+                    value={profileData.role.toUpperCase()} 
+                    disabled 
+                    className="mt-1 bg-muted cursor-not-allowed text-muted-foreground font-semibold" 
+                    title="Role cannot be changed" 
+                  />
+                </div>
+                <Button type="submit" disabled={isSavingProfile} className="rounded-full w-full sm:w-auto">
+                  {isSavingProfile ? "Saving..." : "Save Profile"}
+                </Button>
+              </form>
+            )}
+
+            {/* Change Password Form */}
+            <form onSubmit={handleUpdatePassword} className="space-y-4 rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
+              <h3 className="font-semibold text-lg text-foreground">Change Password</h3>
+              <div>
+                <Label>Current Password</Label>
+                <Input 
+                  type="password" 
+                  value={passwordData.currentPassword} 
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} 
+                  className="mt-1 bg-background" 
+                  required 
+                />
+              </div>
+              <div>
+                <Label>New Password</Label>
+                <Input 
+                  type="password" 
+                  value={passwordData.newPassword} 
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} 
+                  className="mt-1 bg-background" 
+                  required 
+                  minLength={6}
+                />
+              </div>
+              <div>
+                <Label>Confirm New Password</Label>
+                <Input 
+                  type="password" 
+                  value={passwordData.confirmPassword} 
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} 
+                  className="mt-1 bg-background" 
+                  required 
+                  minLength={6}
+                />
+              </div>
+              <Button type="submit" disabled={isUpdatingPassword} className="rounded-full w-full sm:w-auto">
+                {isUpdatingPassword ? "Updating..." : "Update Password"}
+              </Button>
+            </form>
+          </div>
+        </TabsContent>
 
         <TabsContent value="general">
           <form onSubmit={handleSave("General")} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">

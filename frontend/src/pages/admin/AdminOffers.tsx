@@ -143,7 +143,7 @@ export default function AdminOffers() {
   };
 
   const handleDeleteCoupon = async (id: string, codeStr: string) => {
-    if (!hasPermission("admin")) {
+    if (!hasPermission("offers")) {
       toast.error("Only admins can delete coupons");
       return;
     }
@@ -173,7 +173,7 @@ export default function AdminOffers() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <span />
-        {hasPermission("moderator") && (
+        {hasPermission("offers") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditCoupon(null); }}>
             <DialogTrigger asChild>
               <Button className="rounded-full gap-2 text-xs font-bold h-10 px-5 shadow-sm hover:shadow transition-shadow">
@@ -392,7 +392,7 @@ export default function AdminOffers() {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  {hasPermission("admin") && (
+                  {hasPermission("offers") && (
                     <Button
                       variant="ghost"
                       size="icon"

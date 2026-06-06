@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { MapSelector } from "@/components/shop/MapSelector";
 import { addressRepository, authRepository, ordersRepository } from "@/client/apiClient";
-import { Loader2, FileText, CreditCard } from "lucide-react";
+import { Loader2, FileText, CreditCard, Truck, Check, X } from "lucide-react";
 import { parseOrderMetadata } from "@/utils/formatters";
 
 interface Address {
@@ -32,20 +32,81 @@ interface Address {
   isDefault: boolean;
 }
 
-const statusColors: Record<string, string> = {
-  delivered: "bg-green-100 text-green-700",
-  shipped: "bg-blue-100 text-blue-700",
-  processing: "bg-yellow-100 text-yellow-700",
-  pending: "bg-orange-100 text-orange-700",
-  cancelled: "bg-red-100 text-red-700",
+const getFriendlyStatus = (status: string): string => {
+  const s = status?.toLowerCase();
+  if (["pending", "payment_pending", "payment_failed"].includes(s)) {
+    return "Pending Payment";
+  }
+  if (["paid", "processing", "ready_to_ship", "label_generated"].includes(s)) {
+    return "Processing";
+  }
+  if (["shipped", "picked_up", "in_transit", "out_for_delivery"].includes(s)) {
+    return "Shipped / Dispatched";
+  }
+  if (s === "delivered") {
+    return "Delivered";
+  }
+  if (s === "cancelled") {
+    return "Cancelled";
+  }
+  return status ? status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "";
+};
+
+const getStepIndex = (status: string) => {
+  const s = status?.toLowerCase();
+  if (["pending", "payment_pending", "payment_failed"].includes(s)) return 0;
+  if (["paid", "processing"].includes(s)) return 1;
+  if (["ready_to_ship", "label_generated"].includes(s)) return 2; // Processing done, preparing shipment
+  if (["shipped", "picked_up", "in_transit", "out_for_delivery"].includes(s)) return 2;
+  if (s === "delivered") return 3;
+  return 0;
+};
+
+const getStatusBadgeClass = (status: string): string => {
+  const s = status?.toLowerCase();
+  if (["pending", "payment_pending", "payment_failed"].includes(s)) {
+    return "bg-orange-100 text-orange-700";
+  }
+  if (["paid", "processing", "ready_to_ship", "label_generated"].includes(s)) {
+    return "bg-yellow-100 text-yellow-700";
+  }
+  if (["shipped", "picked_up", "in_transit", "out_for_delivery"].includes(s)) {
+    return "bg-blue-100 text-blue-700";
+  }
+  if (s === "delivered") {
+    return "bg-green-100 text-green-700";
+  }
+  if (s === "cancelled") {
+    return "bg-red-100 text-red-700";
+  }
+  return "bg-gray-100 text-gray-700";
 };
 
 const UserDashboard = () => {
   const navigate = useNavigate();
   const { items: wishlistProducts } = useWishlist();
-  const [tab, setTab] = useState("orders");
+  const [tab, setTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") || "orders";
+  });
   
   const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab") || "orders";
+    if (tabParam !== tab) {
+      setTab(tabParam);
+    }
+  }, [window.location.search]);
+
+  const handleTabChange = (newTab: string) => {
+    setTab(newTab);
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", newTab);
+    params.delete("orderId"); // Clear order detail view when switching tabs
+    navigate(`/dashboard?${params.toString()}`);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("customer_token");
@@ -96,7 +157,7 @@ const UserDashboard = () => {
               ].map((item) => (
                 <button
                   key={item.value}
-                  onClick={() => setTab(item.value)}
+                  onClick={() => handleTabChange(item.value)}
                   className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     tab === item.value ? "bg-primary/10 text-primary" : "hover:bg-muted"
                   }`}
@@ -130,6 +191,7 @@ const UserDashboard = () => {
 };
 
 function OrdersTab() {
+  const navigate = useNavigate();
   const [ordersList, setOrdersList] = useState<any[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,6 +200,37 @@ function OrdersTab() {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  useEffect(() => {
+    if (ordersList.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const orderIdParam = params.get("orderId");
+      if (orderIdParam) {
+        const matched = ordersList.find(o => o.orderNumber === orderIdParam || o.id === orderIdParam);
+        if (matched) {
+          setSelectedOrder(matched);
+        } else {
+          setSelectedOrder(null);
+        }
+      } else {
+        setSelectedOrder(null);
+      }
+    } else {
+      setSelectedOrder(null);
+    }
+  }, [ordersList, window.location.search]);
+
+  const handleSelectOrder = (orderNumber: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("orderId", orderNumber);
+    navigate(`/dashboard?${params.toString()}`);
+  };
+
+  const handleClearSelectedOrder = () => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("orderId");
+    navigate(`/dashboard?${params.toString()}`);
+  };
 
   const fetchOrders = async () => {
     try {
@@ -188,7 +281,7 @@ function OrdersTab() {
     
     return (
       <div>
-        <button onClick={() => setSelectedOrder(null)} className="mb-4 flex items-center gap-1 text-sm text-primary hover:underline">
+        <button onClick={() => handleClearSelectedOrder()} className="mb-4 flex items-center gap-1 text-sm text-primary hover:underline">
           ← Back to orders
         </button>
         <div className="rounded-xl border bg-card p-6 shadow-sm">
@@ -198,8 +291,8 @@ function OrdersTab() {
               <p className="text-sm text-muted-foreground">Placed on {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${statusColors[selectedOrder.status] || "bg-gray-100 text-gray-700"}`}>
-                {selectedOrder.status.replace("_", " ")}
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(selectedOrder.status)}`}>
+                {getFriendlyStatus(selectedOrder.status)}
               </span>
               
               <Button 
@@ -225,18 +318,90 @@ function OrdersTab() {
             </div>
           </div>
 
-          {/* Progress */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-              {["Ordered", "Processing", "Shipped", "Delivered"].map((s) => <span key={s}>{s}</span>)}
-            </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div className="h-full rounded-full bg-primary transition-all" style={{
-                width: selectedOrder.status === "delivered" ? "100%" :
-                       selectedOrder.status === "shipped" ? "75%" :
-                       selectedOrder.status === "processing" ? "50%" :
-                       selectedOrder.status === "cancelled" ? "0%" : "25%"
-              }} />
+          {/* Progress Stepper */}
+          <div className="mb-8 py-6 px-4 rounded-xl bg-muted/30 border border-muted/50">
+            <div className="relative flex items-center justify-between w-full">
+              {/* Connection Line Base (Gray) */}
+              <div className="absolute left-0 right-0 top-[16px] -translate-y-1/2 h-1 bg-muted rounded-full" />
+              
+              {/* Active/Completed Connection Line (Green) */}
+              <div 
+                className="absolute left-0 top-[16px] -translate-y-1/2 h-1 bg-green-500 rounded-full transition-all duration-500" 
+                style={{
+                  width: selectedOrder.status === "cancelled" ? "0%" :
+                         selectedOrder.status === "delivered" ? "100%" :
+                         ["shipped", "picked_up", "in_transit", "out_for_delivery"].includes(selectedOrder.status) ? "66.6%" :
+                         ["ready_to_ship", "label_generated"].includes(selectedOrder.status) ? "50%" :
+                         ["paid", "processing"].includes(selectedOrder.status) ? "33.3%" : "0%"
+                }}
+              />
+
+              {/* Steps */}
+              {[
+                { label: "Order Confirmed", key: "confirmed" },
+                { label: "Processing", key: "processing" },
+                { label: "Shipped", key: "shipped" },
+                { label: "Delivered", key: "delivered" }
+              ].map((step, idx) => {
+                const isCancelled = selectedOrder.status === "cancelled";
+                const currentIdx = getStepIndex(selectedOrder.status);
+                
+                let state: "completed" | "active" | "failed" | "pending" = "pending";
+                
+                if (isCancelled) {
+                  if (idx === 0) {
+                    state = "completed"; // Order was placed/confirmed initially
+                  } else if (idx === 1) {
+                    state = "failed"; // Failed/cancelled at processing stage
+                  } else {
+                    state = "pending";
+                  }
+                } else {
+                  if (idx < currentIdx) {
+                    state = "completed";
+                  } else if (idx === currentIdx) {
+                    state = "active";
+                  } else {
+                    state = "pending";
+                  }
+                }
+
+                return (
+                  <div key={step.key} className="flex flex-col items-center flex-1 relative z-10">
+                    {/* Step Node */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 bg-background ${
+                      state === "completed" ? "border-green-500 bg-green-500 text-white shadow-sm shadow-green-200" :
+                      state === "active" ? "border-green-500 bg-background text-green-600 ring-4 ring-green-100" :
+                      state === "failed" ? "border-red-500 bg-red-500 text-white shadow-sm shadow-red-200" :
+                      "border-muted bg-background text-muted-foreground"
+                    }`}>
+                      {state === "completed" && <Check className="w-4 h-4 stroke-[3]" />}
+                      {state === "active" && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />}
+                      {state === "failed" && <X className="w-4 h-4 stroke-[3]" />}
+                      {state === "pending" && <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />}
+                    </div>
+                    
+                    {/* Step Label */}
+                    <span className={`text-xs mt-2 font-medium text-center hidden sm:block ${
+                      state === "completed" ? "text-green-600" :
+                      state === "active" ? "text-green-700 font-semibold" :
+                      state === "failed" ? "text-red-600 font-semibold" :
+                      "text-muted-foreground"
+                    }`}>
+                      {step.label}
+                    </span>
+                    {/* Small Screen Label */}
+                    <span className={`text-[10px] mt-2 font-medium text-center sm:hidden max-w-[65px] truncate ${
+                      state === "completed" ? "text-green-600" :
+                      state === "active" ? "text-green-700 font-semibold" :
+                      state === "failed" ? "text-red-600 font-semibold" :
+                      "text-muted-foreground"
+                    }`}>
+                      {step.label.split(" ")[0]}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -276,9 +441,57 @@ function OrdersTab() {
               </div>
             </div>
             <div className="rounded-lg bg-muted p-4">
-              <p className="font-semibold mb-1">Payment Method</p>
-              <p className="text-muted-foreground">{selectedOrder.paymentMethod}</p>
+              <p className="font-semibold mb-2">Payment Summary</p>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <div className="flex justify-between border-b border-muted-foreground/10 pb-1 mb-1">
+                  <span>Method</span>
+                  <span className="font-semibold text-foreground capitalize">{selectedOrder.paymentMethod || "Stripe"}</span>
+                </div>
+                <div className="flex justify-between border-b border-muted-foreground/10 pb-1 mb-1">
+                  <span>Status</span>
+                  <span className={`font-semibold capitalize ${
+                    selectedOrder.paymentStatus?.toLowerCase() === "paid" || selectedOrder.status === "paid" || selectedOrder.status === "processing" || selectedOrder.status === "shipped" || selectedOrder.status === "delivered" ? "text-green-600" :
+                    selectedOrder.status === "cancelled" ? "text-red-600" : "text-orange-600"
+                  }`}>{selectedOrder.paymentStatus || (selectedOrder.status === "pending" ? "Pending" : "Paid")}</span>
+                </div>
+                {selectedOrder.stripePaymentId && (
+                  <div className="flex justify-between border-b border-muted-foreground/10 pb-1 mb-1">
+                    <span>Transaction ID</span>
+                    <span className="font-mono text-[10px] text-foreground">{selectedOrder.stripePaymentId}</span>
+                  </div>
+                )}
+                {selectedOrder.stripeSessionId && (
+                  <div className="flex justify-between border-b border-muted-foreground/10 pb-1 mb-1">
+                    <span>Session ID</span>
+                    <span className="font-mono text-[10px] text-foreground truncate max-w-[150px]" title={selectedOrder.stripeSessionId}>{selectedOrder.stripeSessionId}</span>
+                  </div>
+                )}
+                <div className="flex justify-between pt-0.5">
+                  <span>Reference (UTR)</span>
+                  <span className="font-mono text-[10px] text-foreground">
+                    {selectedOrder.stripePaymentId 
+                      ? `UTR-${selectedOrder.stripePaymentId.replace("pi_", "").replace("ch_", "").substring(0, 12).toUpperCase()}` 
+                      : `UTR-${selectedOrder.id.replace(/-/g, "").substring(0, 12).toUpperCase()}`
+                    }
+                  </span>
+                </div>
+              </div>
             </div>
+            {selectedOrder.status !== "cancelled" && selectedOrder.trackingNumber && (
+              <div className="rounded-lg bg-muted p-4 col-span-2 flex items-center justify-between flex-wrap gap-4 border border-primary/15">
+                <div>
+                  <p className="font-semibold mb-1 flex items-center gap-1.5"><Truck size={16} className="text-primary" /> Shipment Tracking</p>
+                  <p className="text-xs text-muted-foreground">
+                    Carrier: <span className="font-semibold text-foreground">{selectedOrder.carrier || "Sendcloud"}</span> • Tracking Number: <span className="font-mono font-semibold text-foreground">{selectedOrder.trackingNumber}</span>
+                  </p>
+                </div>
+                {selectedOrder.trackingUrl && (
+                  <Button asChild size="sm" className="rounded-full text-xs">
+                    <a href={selectedOrder.trackingUrl} target="_blank" rel="noopener noreferrer">Track Shipment</a>
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -297,13 +510,13 @@ function OrdersTab() {
       ) : (
         <div className="space-y-3">
           {ordersList.map((o: any) => (
-            <button key={o.id} onClick={() => setSelectedOrder(o)} className="w-full flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm hover:bg-muted/30 transition text-left">
+            <button key={o.id} onClick={() => handleSelectOrder(o.orderNumber)} className="w-full flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm hover:bg-muted/30 transition text-left">
               <SafeImage src={o.items[0].productImage} alt="" className="h-14 w-14 rounded-lg object-cover" fallbackType="product" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{o.orderNumber}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusColors[o.status] || "bg-gray-100 text-gray-700"}`}>
-                    {o.status.replace("_", " ")}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(o.status)}`}>
+                    {getFriendlyStatus(o.status)}
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground">{o.items.length} item(s) · {new Date(o.createdAt).toLocaleDateString()}</p>

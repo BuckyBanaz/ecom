@@ -8,7 +8,10 @@ import {
   getMyOrders,
   getMyOrderById,
   retryPayment,
-  getInvoiceByToken
+  getInvoiceByToken,
+  getSendcloudMethods,
+  createSendcloudShipment,
+  downloadSendcloudLabel
 } from "../controllers/orderController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
@@ -192,5 +195,70 @@ router.get("/:id", authenticateJWT, requireAdmin, getOrderById);
  *         description: Order status updated
  */
 router.patch("/:id/status", authenticateJWT, requireAdmin, updateOrderStatus);
+
+/**
+ * @swagger
+ * /api/v1/orders/sendcloud/methods:
+ *   get:
+ *     summary: Get available Sendcloud shipping methods (Admin only)
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of available shipping methods
+ */
+router.get("/sendcloud/methods", authenticateJWT, requireAdmin, getSendcloudMethods);
+
+/**
+ * @swagger
+ * /api/v1/orders/{id}/sendcloud/shipment:
+ *   post:
+ *     summary: Create Sendcloud shipment (Admin only)
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               weight:
+ *                 type: number
+ *               shippingMethodId:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Shipment created
+ */
+router.post("/:id/sendcloud/shipment", authenticateJWT, requireAdmin, createSendcloudShipment);
+
+/**
+ * @swagger
+ * /api/v1/orders/{id}/sendcloud/label:
+ *   get:
+ *     summary: Download Sendcloud shipment label (Admin only)
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: PDF file stream
+ */
+router.get("/:id/sendcloud/label", authenticateJWT, requireAdmin, downloadSendcloudLabel);
 
 export default router;

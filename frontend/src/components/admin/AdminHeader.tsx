@@ -4,7 +4,7 @@ import {
   Bell, Search, Menu, X, Check, Settings, LogOut, User,
   Package, ShoppingCart, Users, LayoutDashboard, FolderTree,
   Tag, Sliders, Percent, Coins, Quote, HardDrive, FileText,
-  ChevronRight,
+  ChevronRight, ShieldCheck, Mail, Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/charges": "Charges",
   "/admin/testimonials": "Testimonials",
   "/admin/storage": "Media Library",
-  "/admin/users": "Users",
+  "/admin/users": "Customer Directory",
+  "/admin/manage-users": "Manage Admin Users",
   "/admin/settings": "Settings",
   "/admin/orders": "All Orders",
   "/admin/orders/invoices": "Invoices",
@@ -95,7 +96,7 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
-  const { user, logout } = useAdmin();
+  const { user, logout, hasPermission } = useAdmin();
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
@@ -113,6 +114,8 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
 
   // Profile dropdown
   const [profileOpen, setProfileOpen] = useState(false);
+  // Profile modal (admin's own info)
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   // Close dropdowns on outside click
   const notifRef = useRef<HTMLDivElement>(null);
@@ -314,21 +317,33 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
                 {/* Menu items */}
                 <div className="py-1.5">
                   <button
-                    onClick={() => navigate("/admin/settings")}
+                    onClick={() => { setProfileOpen(false); navigate("/admin/settings?tab=profile"); }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors text-left"
                   >
-                    <Settings className="h-4 w-4 text-muted-foreground" />
-                    <span>Settings</span>
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>My Profile</span>
                     <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
                   </button>
-                  <button
-                    onClick={() => navigate("/admin/users")}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>Manage Users</span>
-                    <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
-                  </button>
+                  {hasPermission("superadmin") && (
+                    <button
+                      onClick={() => navigate("/admin/settings")}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors text-left"
+                    >
+                      <Settings className="h-4 w-4 text-muted-foreground" />
+                      <span>Settings</span>
+                      <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
+                    </button>
+                  )}
+                  {hasPermission("superadmin") && (
+                    <button
+                      onClick={() => navigate("/admin/manage-users")}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors text-left"
+                    >
+                      <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                      <span>Manage Admin Users</span>
+                      <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="border-t py-1.5">
@@ -345,6 +360,83 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
           </div>
         </div>
       </header>
+
+      {/* ─── Profile Modal ─────────────────────────────────────────────────── */}
+      {profileModalOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setProfileModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-white shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Gradient banner */}
+            <div className="h-20 bg-gradient-to-br from-amber-500 to-orange-600 relative">
+              <button
+                onClick={() => setProfileModalOpen(false)}
+                className="absolute right-3 top-3 text-white/80 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {/* Avatar overlap */}
+            <div className="px-6 pb-6">
+              <div className="-mt-8 mb-4">
+                <div className="h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold border-4 border-white shadow-md">
+                  {initials}
+                </div>
+              </div>
+              <h2 className="text-xl font-extrabold tracking-tight text-foreground">{user?.name || "Admin User"}</h2>
+              <p className="text-sm text-muted-foreground">{user?.email || "admin@store.com"}</p>
+              <span className={`inline-block mt-2 text-xs font-bold capitalize px-3 py-1 rounded-full border ${
+                user?.role === "superadmin" ? "bg-red-50 text-red-700 border-red-200" :
+                user?.role === "admin" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                "bg-green-50 text-green-700 border-green-200"
+              }`}>
+                {user?.role || "admin"}
+              </span>
+
+              <div className="mt-5 space-y-3 border-t pt-4">
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                    <Mail className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Email</p>
+                    <p className="text-sm font-semibold text-foreground">{user?.email || "—"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Access Level</p>
+                    <p className="text-sm font-semibold text-foreground capitalize">{user?.role || "—"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-2">
+                <Button
+                  onClick={() => { setProfileModalOpen(false); navigate("/admin/settings?tab=profile"); }}
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl"
+                >
+                  <Settings className="h-4 w-4 mr-2" /> Account Settings
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => { setProfileModalOpen(false); logout(); }}
+                  className="w-full text-red-600 border-red-200 hover:bg-red-50 font-bold rounded-xl"
+                >
+                  <LogOut className="h-4 w-4 mr-2" /> Sign Out
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Search Palette Overlay ─────────────────────────────────────────── */}
       {searchOpen && (

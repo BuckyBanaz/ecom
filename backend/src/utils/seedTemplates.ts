@@ -95,6 +95,67 @@ const DEFAULT_TEMPLATES = [
 <a href="{{order_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">View Order</a>
 <br/><br/>
 <p>Thank you for shopping with us!</p>`,
+  },
+  {
+    name: "order_confirmed",
+    subject: "Order Confirmed - #{{order_id}}",
+    body: `<h2>Thank you for your order, {{name}}!</h2>
+<p>Your order <strong>#{{order_id}}</strong> has been confirmed and is being processed.</p>
+<h3>Order Summary</h3>
+<table width="100%" cellpadding="5" style="border-collapse:collapse;margin:15px 0;">
+  <thead>
+    <tr style="background:#f4f4f5;text-align:left;">
+      <th style="padding:8px;border-bottom:1px solid #ddd;">Product</th>
+      <th style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">Qty</th>
+      <th style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">Price</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{order_items}}
+  </tbody>
+</table>
+<div style="text-align:right;margin-top:10px;">
+  <p><strong>Subtotal:</strong> €{{subtotal}}</p>
+  <p><strong>Shipping:</strong> €{{shipping}}</p>
+  <p><strong>Total:</strong> €{{total}}</p>
+</div>
+<br/>
+<p>You can download your invoice using the link below:</p>
+<a href="{{invoice_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Download Invoice</a>
+<br/><br/>
+<p>Best regards,<br/>The Lampgigant Team</p>`,
+  },
+  {
+    name: "payment_failed",
+    subject: "Payment Failed for Order #{{order_id}}",
+    body: `<h2>Hello {{name}},</h2>
+<p>We were unable to process your payment for order <strong>#{{order_id}}</strong>.</p>
+<p><strong>Transaction Details:</strong></p>
+<ul>
+  <li>Order Number: #{{order_id}}</li>
+  <li>Total Amount: €{{total}}</li>
+  <li>Payment Method: {{payment_method}}</li>
+  <li>Reason: Card declined or transaction timed out.</li>
+</ul>
+<p>Please click the link below to retry your payment and complete your order:</p>
+<a href="{{retry_url}}" style="display: inline-block; padding: 10px 20px; background-color: #f43f5e; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Retry Payment</a>
+<br/><br/>
+<p>If you have any questions, feel free to contact our support team.</p>`,
+  },
+  {
+    name: "order_shipped",
+    subject: "Your Order #{{order_id}} Has Been Shipped!",
+    body: `<h2>Great news, {{name}}!</h2>
+<p>Your order <strong>#{{order_id}}</strong> has been shipped and is on its way to you.</p>
+<p><strong>Shipment Details:</strong></p>
+<ul>
+  <li>Carrier: {{carrier}}</li>
+  <li>Tracking Number: {{tracking_number}}</li>
+</ul>
+<br/>
+<a href="{{tracking_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Track Shipment</a>
+<br/><br/>
+<p>Thank you for shopping with Lampgigant!</p>`,
   }
 ];
 

@@ -179,7 +179,7 @@ const AdminCategories = () => {
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">{categoriesList.length} categories</p>
-        {hasPermission("admin") && (
+        {hasPermission("categories") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditCat(null); }}>
             <DialogTrigger asChild>
               <Button className="rounded-full gap-2"><Plus className="h-4 w-4" /> Add Category</Button>
@@ -299,7 +299,7 @@ const AdminCategories = () => {
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditCat(c); setDialogOpen(true); }}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      {hasPermission("admin") && (
+                      {hasPermission("categories") && (
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(c.slug, c.name)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>

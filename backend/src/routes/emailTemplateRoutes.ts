@@ -5,6 +5,8 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  getChannelsConfig,
+  updateChannelsConfig,
 } from "../controllers/emailTemplateController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
@@ -48,6 +50,9 @@ router.use(requireAdmin);
  *         description: List of email templates
  */
 router.get("/", getAllTemplates);
+
+router.get("/channels/config", getChannelsConfig);
+router.post("/channels/config", updateChannelsConfig);
 
 /**
  * @swagger

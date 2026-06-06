@@ -1,21 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { blogRepository } from "@/client/apiClient";
 import { initialBlogs } from "@/data/blogs";
 
 const BlogDetail = () => {
   const { slug = "" } = useParams();
   const [blogs, setBlogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem("blogs_data");
-    if (saved) {
+    const fetchBlogs = async () => {
       try {
-        setBlogs(JSON.parse(saved));
-        return;
-      } catch {}
-    }
-    setBlogs(initialBlogs);
+        setLoading(true);
+        const res = await blogRepository.getAll({ published: true });
+        if (res.success && res.blogs) {
+          setBlogs(res.blogs);
+        } else {
+          const saved = localStorage.getItem("blogs_data");
+          if (saved) {
+            setBlogs(JSON.parse(saved));
+          } else {
+            setBlogs(initialBlogs);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load blogs from API:", err);
+        const saved = localStorage.getItem("blogs_data");
+        if (saved) {
+          setBlogs(JSON.parse(saved));
+        } else {
+          setBlogs(initialBlogs);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBlogs();
   }, []);
 
   const blog = useMemo(() => blogs.find((b) => b.slug === slug), [blogs, slug]);
@@ -43,6 +64,14 @@ const BlogDetail = () => {
       }
     }
   }, [blog]);
+
+  if (loading) {
+    return (
+      <div className="container-page py-20 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!blog) {
     return (

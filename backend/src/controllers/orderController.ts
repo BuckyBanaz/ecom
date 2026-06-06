@@ -5,6 +5,8 @@ import { env } from "../config/env";
 import Stripe from "stripe";
 import { redisService } from "../services/redisService";
 import jwt from "jsonwebtoken";
+import { sendcloudApi } from "../services/sendcloud/api";
+import { notificationTriggerService } from "../services/notificationTriggerService";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-04-10"
@@ -157,6 +159,10 @@ export const verifyCheckoutSession = async (req: Request, res: Response, next: N
           stripePaymentId: session.payment_intent as string || null,
         }
       });
+      // Trigger Order Confirmed notification
+      await notificationTriggerService.triggerOrderNotification(orderId, "order_confirmed").catch(err => {
+        console.error("[VerifyCheckout] Failed to trigger order confirmation notification:", err.message);
+      });
       return res.status(200).json({ success: true, message: "Order verified and updated to paid", order: updatedOrder });
     } else {
       return res.status(200).json({ success: false, message: "Payment not completed in Stripe", order });
@@ -184,6 +190,11 @@ export const getAllOrders = async (req: Request, res: Response, next: NextFuncti
       where: whereClause,
       include: {
         items: true,
+        user: {
+          select: {
+            phone: true
+          }
+        }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -227,8 +238,24 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
 
     const order = await prisma.order.update({
       where: { id },
-      data: { status },
+      data: { 
+        status,
+        ...(status === "cancelled" ? { shipmentStatus: "Cancelled" } : {})
+      },
       include: { items: true }
+    });
+
+    if (status === "cancelled") {
+      try {
+        await sendcloudApi.cancelParcelByOrderNumber(order.orderNumber);
+      } catch (scErr) {
+        console.error("⚠️ Failed to cancel Sendcloud parcel:", scErr);
+      }
+    }
+
+    // Trigger Order Status Update notification
+    await notificationTriggerService.triggerOrderNotification(order.id, "order_status_update").catch(err => {
+      console.error("[UpdateOrderStatus] Failed to trigger status update notification:", err.message);
     });
 
     res.status(200).json({ success: true, data: order, message: `Order status updated to ${status}` });
@@ -352,6 +379,148 @@ export const getInvoiceByToken = async (req: Request, res: Response, next: NextF
 
       res.status(200).json({ success: true, data: order });
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Sendcloud Integration Controllers
+export const getSendcloudMethods = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const methods = await sendcloudApi.getShippingMethods();
+    res.status(200).json({ success: true, data: methods });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createSendcloudShipment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { weight, shippingMethodId } = req.body;
+
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) return next(new AppError("Order not found", 404));
+
+    let addressData: any = {};
+    try {
+      addressData = JSON.parse(order.shippingAddress);
+    } catch (e) {
+      // shippingAddress might be a plain string
+      addressData = {};
+    }
+
+    console.log("📦 Sendcloud Parcel - Address Data:", JSON.stringify(addressData, null, 2));
+
+    // Build full name
+    const fullName = `${addressData.firstName || ""} ${addressData.lastName || ""}`.trim() || order.customerName;
+
+    // Normalize country to 2-letter ISO code
+    const countryMap: Record<string, string> = {
+      "netherlands": "NL", "nederland": "NL", "nl": "NL",
+      "germany": "DE", "deutschland": "DE", "de": "DE",
+      "belgium": "BE", "belgië": "BE", "be": "BE",
+      "france": "FR", "fr": "FR",
+      "india": "IN", "in": "IN",
+      "united kingdom": "GB", "uk": "GB", "gb": "GB",
+      "united states": "US", "usa": "US", "us": "US",
+    };
+    const rawCountry = (addressData.country || "NL").toLowerCase().trim();
+    const country = countryMap[rawCountry] || (addressData.country || "NL").toUpperCase().substring(0, 2);
+
+    const parcelData: any = {
+      name: fullName,
+      company_name: "",
+      address: addressData.street || "",
+      house_number: addressData.houseNumber || "",
+      city: addressData.city || "",
+      postal_code: addressData.pincode || addressData.postalCode || "",
+      country: country,
+      telephone: addressData.phone || "",
+      email: addressData.email || order.customerEmail,
+      request_label: true,
+      shipment: { id: shippingMethodId },
+      weight: parseFloat(String(weight || "1")).toFixed(3),
+      order_number: order.orderNumber,
+      quantity: order.items ? undefined : 1,
+    };
+
+    console.log("📦 Sendcloud Parcel Payload:", JSON.stringify(parcelData, null, 2));
+
+    const result = await sendcloudApi.createParcel(parcelData);
+
+    console.log("✅ Sendcloud Response:", JSON.stringify(result, null, 2));
+
+    // Attempt to get label URL
+    const trackingNumber = result.parcel?.tracking_number || "";
+    const trackingUrl = result.parcel?.tracking_url || "";
+    let labelUrl = "";
+    if (result.parcel?.documents && result.parcel.documents.length > 0) {
+      labelUrl = result.parcel.documents[0].link;
+    }
+
+    const carrier = result.parcel?.carrier || "Sendcloud";
+
+    const updatedOrder = await prisma.order.update({
+      where: { id },
+      data: {
+        trackingNumber,
+        trackingUrl,
+        labelUrl,
+        carrier,
+        shipmentStatus: result.parcel?.status?.message || "Label Generated",
+        status: "label_generated",
+      },
+      include: {
+        items: true,
+      }
+    });
+
+    // Trigger Order Shipped notification when label is generated
+    await notificationTriggerService.triggerOrderNotification(updatedOrder.id, "order_shipped").catch(err => {
+      console.error("[CreateShipment] Failed to trigger order shipped notification:", err.message);
+    });
+
+    res.status(200).json({ success: true, data: updatedOrder });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const downloadSendcloudLabel = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) return next(new AppError("Order not found", 404));
+    
+    // Fallback if labelUrl is empty or not generated
+    if (!order.labelUrl || order.labelUrl.includes("dummy.pdf")) {
+      return next(new AppError("Label URL not found or is still a mockup dummy label. Please create a shipment first.", 404));
+    }
+
+    const { getSendcloudAuthHeaders } = require("../services/sendcloud/api");
+    const authHeaders = getSendcloudAuthHeaders();
+
+    console.log(`📥 Proxying Sendcloud Label from: ${order.labelUrl}`);
+
+    const response = await fetch(order.labelUrl, {
+      method: "GET",
+      headers: {
+        Authorization: authHeaders.Authorization,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return next(new AppError(`Failed to fetch PDF label from Sendcloud: ${errorText}`, response.status));
+    }
+
+    const buffer = await response.arrayBuffer();
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="label-${order.orderNumber}.pdf"`);
+    res.send(Buffer.from(buffer));
   } catch (error) {
     next(error);
   }
