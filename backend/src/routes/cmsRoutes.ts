@@ -12,6 +12,7 @@ import {
   updatePage,
   deletePage
 } from "../controllers/cmsController";
+import { getPublicSeoConfig } from "../controllers/adminSettingsController";
 
 const router = Router();
 
@@ -37,6 +38,18 @@ const router = Router();
  *         description: Server error
  */
 router.get("/homepage", getHomepage);
+
+/**
+ * @swagger
+ * /api/v1/cms/seo-config:
+ *   get:
+ *     summary: Get public SEO & Analytics config
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: SEO Configuration data
+ */
+router.get("/seo-config", getPublicSeoConfig);
 
 /**
  * @swagger

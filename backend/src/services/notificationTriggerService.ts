@@ -120,6 +120,9 @@ export const notificationTriggerService = {
 
       const plainTextBody = interpolateText(template.body, variables);
       const subjectText = interpolateText(template.subject, variables);
+      
+      const customSmsBody = template.smsBody ? interpolateText(template.smsBody, variables) : `${subjectText}: ${plainTextBody}`;
+      const customWhatsappBody = template.whatsappBody ? interpolateText(template.whatsappBody, variables) : `${subjectText}\n\n${plainTextBody}`;
 
       // 3. Dispatch Email
       if (globalConfig.email && templateChannels.includes("email") && recipientEmail) {
@@ -130,24 +133,38 @@ export const notificationTriggerService = {
 
       // 4. Dispatch WhatsApp
       if (globalConfig.whatsapp && templateChannels.includes("whatsapp") && recipientPhone) {
-        await twilioService.sendWhatsApp(recipientPhone, `${subjectText}\n\n${plainTextBody}`).catch(err => {
+        await twilioService.sendWhatsApp(recipientPhone, customWhatsappBody).catch(err => {
           console.error("[NotificationTrigger] WhatsApp send failed:", err.message);
         });
       }
 
       // 5. Dispatch SMS
       if (globalConfig.sms && templateChannels.includes("sms") && recipientPhone) {
-        await twilioService.sendSMS(recipientPhone, `${subjectText}: ${plainTextBody}`).catch(err => {
+        await twilioService.sendSMS(recipientPhone, customSmsBody).catch(err => {
           console.error("[NotificationTrigger] SMS send failed:", err.message);
         });
       }
 
       // 6. Dispatch Push Notification (Firebase)
       if (globalConfig.site_notification && templateChannels.includes("site_notification")) {
-        if (deviceToken) {
-          await firebaseService.sendPushNotification(deviceToken, subjectText, plainTextBody).catch(err => {
-            console.error("[NotificationTrigger] Firebase Push failed:", err.message);
-          });
+        // Find the user by email to get their FCM tokens
+        const user = await prisma.user.findFirst({
+          where: { email: recipientEmail.toLowerCase() },
+          select: { fcmTokens: true }
+        });
+
+        const userTokens = user?.fcmTokens || [];
+
+        if (deviceToken && !userTokens.includes(deviceToken)) {
+          userTokens.push(deviceToken);
+        }
+
+        if (userTokens.length > 0) {
+          for (const token of userTokens) {
+            await firebaseService.sendPushNotification(token, subjectText, plainTextBody).catch(err => {
+              console.error("[NotificationTrigger] Firebase Push failed for token:", err.message);
+            });
+          }
         } else {
           // Fallback to sending to a global or user-specific topic
           const topic = `user_notifications_${recipientEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;

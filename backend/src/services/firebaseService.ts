@@ -1,31 +1,4 @@
-// firebase-admin is loaded dynamically
-
-const projectId = process.env.FIREBASE_PROJECT_ID || "";
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || "";
-const privateKey = process.env.FIREBASE_PRIVATE_KEY 
-  ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n") 
-  : "";
-
-let firebaseApp: any = null;
-let adminInstance: any = null;
-
-if (projectId && clientEmail && privateKey) {
-  try {
-    adminInstance = require("firebase-admin");
-    firebaseApp = adminInstance.initializeApp({
-      credential: adminInstance.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
-    });
-    console.log("[Firebase Service] Initialized successfully.");
-  } catch (error: any) {
-    console.error("[Firebase Service] Initialization error (make sure 'firebase-admin' package is installed):", error.message);
-  }
-} else {
-  console.warn("[Firebase Service] Missing credentials. FCM pushes will run in mock simulation mode.");
-}
+import { messaging } from "../config/firebaseAdmin";
 
 export const firebaseService = {
   /**
@@ -43,7 +16,7 @@ export const firebaseService = {
   ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
     console.log(`[Firebase Service] Triggering Push to token: "${title}" - "${body}"`);
 
-    if (!firebaseApp) {
+    if (!messaging) {
       console.log(`[Firebase Service] [MOCK] Push notification simulated successfully for token`);
       return { success: true, messageId: `mock-fcm-${Date.now()}` };
     }
@@ -55,7 +28,7 @@ export const firebaseService = {
         data: data || {}
       };
 
-      const messageId = await adminInstance.messaging().send(payload);
+      const messageId = await messaging.send(payload);
       console.log(`[Firebase Service] Push notification sent successfully. ID: ${messageId}`);
       return { success: true, messageId };
     } catch (err: any) {
@@ -79,7 +52,7 @@ export const firebaseService = {
   ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
     console.log(`[Firebase Service] Triggering Topic Push to "${topic}": "${title}" - "${body}"`);
 
-    if (!firebaseApp) {
+    if (!messaging) {
       console.log(`[Firebase Service] [MOCK] Push notification simulated for topic "${topic}"`);
       return { success: true, messageId: `mock-topic-fcm-${Date.now()}` };
     }
@@ -91,7 +64,7 @@ export const firebaseService = {
         data: data || {}
       };
 
-      const messageId = await adminInstance.messaging().send(payload);
+      const messageId = await messaging.send(payload);
       console.log(`[Firebase Service] Topic notification sent successfully. ID: ${messageId}`);
       return { success: true, messageId };
     } catch (err: any) {

@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import fs from "fs";
 import path from "path";
+import { getGA4Data } from "../services/analyticsService";
 import { AppError } from "../middlewares/errorMiddleware";
+
+import { prisma } from "../config/db";
 
 // Helper function to read, parse, update and save .env file
 const updateEnvFile = (updates: Record<string, string>) => {
@@ -211,6 +214,290 @@ export const updatePaymentSettings = async (
     updateEnvFile(updates);
 
     res.status(200).json({ success: true, message: "Payment Settings updated successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 6. GET AUTH SETTINGS
+// ----------------------------------------------------
+export const getAuthSettings = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const settings = {
+      emailLogin: process.env.AUTH_ENABLE_EMAIL !== "false", // default to true
+      phoneLogin: process.env.AUTH_ENABLE_PHONE === "true",
+      registerMethod: process.env.AUTH_REGISTER_METHOD || "both", // "both", "email_only", "phone_only"
+      smsProvider: process.env.AUTH_SMS_PROVIDER || "twilio",
+      twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
+      twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ? "••••••••••••••••••••" : "",
+      twilioSenderNumber: process.env.TWILIO_PHONE_NUMBER || "",
+    };
+
+    res.status(200).json({ success: true, data: settings });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 7. UPDATE AUTH SETTINGS
+// ----------------------------------------------------
+export const updateAuthSettings = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { emailLogin, phoneLogin, registerMethod, smsProvider, twilioAccountSid, twilioAuthToken, twilioSenderNumber } = req.body;
+
+    const updates: Record<string, string> = {};
+    if (emailLogin !== undefined) updates.AUTH_ENABLE_EMAIL = emailLogin ? "true" : "false";
+    if (phoneLogin !== undefined) updates.AUTH_ENABLE_PHONE = phoneLogin ? "true" : "false";
+    if (registerMethod !== undefined) updates.AUTH_REGISTER_METHOD = registerMethod;
+    if (smsProvider !== undefined) updates.AUTH_SMS_PROVIDER = smsProvider;
+    if (twilioAccountSid !== undefined) updates.TWILIO_ACCOUNT_SID = twilioAccountSid;
+    if (twilioSenderNumber !== undefined) updates.TWILIO_PHONE_NUMBER = twilioSenderNumber;
+
+    if (twilioAuthToken !== undefined && twilioAuthToken !== "" && !twilioAuthToken.includes("••")) {
+      updates.TWILIO_AUTH_TOKEN = twilioAuthToken;
+    }
+
+    updateEnvFile(updates);
+
+    res.status(200).json({ success: true, message: "Auth Settings updated successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 8. GET SEO CONFIG
+// ----------------------------------------------------
+export const getSeoConfig = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const config = {
+      siteName: process.env.SEO_SITE_NAME || "Schip & Ster",
+      titleTemplate: process.env.SEO_TITLE_TEMPLATE || "%s | Schip & Ster",
+      defaultTitle: process.env.SEO_DEFAULT_TITLE || "Schip & Ster — Your Store",
+      defaultDescription: process.env.SEO_DEFAULT_DESCRIPTION || "Discover thousands of products at the best prices.",
+      defaultKeywords: process.env.SEO_DEFAULT_KEYWORDS || "ecommerce, shop, online",
+      canonical: process.env.SEO_CANONICAL_URL || "https://schip-ster.example.com",
+      twitterHandle: process.env.SEO_TWITTER_HANDLE || "@schipster",
+      ogImage: process.env.SEO_OG_IMAGE || "",
+      indexable: process.env.SEO_INDEXABLE !== "false", // default true
+      ga4: process.env.ANALYTICS_GA4 || "",
+      gtm: process.env.ANALYTICS_GTM || "",
+      metaPixel: process.env.ANALYTICS_META_PIXEL || "",
+      tiktokPixel: process.env.ANALYTICS_TIKTOK_PIXEL || "",
+      ga4PropertyId: process.env.GA4_PROPERTY_ID || "",
+      ga4ClientEmail: process.env.GA4_CLIENT_EMAIL || "",
+      ga4PrivateKey: process.env.GA4_PRIVATE_KEY ? "••••••••••••••••••••" : "",
+    };
+
+    res.status(200).json({ success: true, data: config });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const getPublicSeoConfig = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const config = {
+      siteName: process.env.SEO_SITE_NAME || "Schip & Ster",
+      titleTemplate: process.env.SEO_TITLE_TEMPLATE || "%s | Schip & Ster",
+      defaultTitle: process.env.SEO_DEFAULT_TITLE || "Schip & Ster — Your Store",
+      defaultDescription: process.env.SEO_DEFAULT_DESCRIPTION || "Discover thousands of products at the best prices.",
+      defaultKeywords: process.env.SEO_DEFAULT_KEYWORDS || "ecommerce, shop, online",
+      canonical: process.env.SEO_CANONICAL_URL || "https://schip-ster.example.com",
+      twitterHandle: process.env.SEO_TWITTER_HANDLE || "@schipster",
+      ogImage: process.env.SEO_OG_IMAGE || "",
+      indexable: process.env.SEO_INDEXABLE !== "false", // default true
+      ga4: process.env.ANALYTICS_GA4 || "",
+      gtm: process.env.ANALYTICS_GTM || "",
+      metaPixel: process.env.ANALYTICS_META_PIXEL || "",
+      tiktokPixel: process.env.ANALYTICS_TIKTOK_PIXEL || "",
+    };
+
+    res.status(200).json({ success: true, data: config });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 9. UPDATE SEO CONFIG
+// ----------------------------------------------------
+export const updateSeoConfig = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { 
+      siteName, titleTemplate, defaultTitle, defaultDescription, defaultKeywords, 
+      canonical, twitterHandle, ogImage, indexable, 
+      ga4, gtm, metaPixel, tiktokPixel,
+      ga4PropertyId, ga4ClientEmail, ga4PrivateKey
+    } = req.body;
+
+    const updates: Record<string, string> = {};
+    if (siteName !== undefined) updates.SEO_SITE_NAME = siteName;
+    if (titleTemplate !== undefined) updates.SEO_TITLE_TEMPLATE = titleTemplate;
+    if (defaultTitle !== undefined) updates.SEO_DEFAULT_TITLE = defaultTitle;
+    if (defaultDescription !== undefined) updates.SEO_DEFAULT_DESCRIPTION = defaultDescription;
+    if (defaultKeywords !== undefined) updates.SEO_DEFAULT_KEYWORDS = defaultKeywords;
+    if (canonical !== undefined) updates.SEO_CANONICAL_URL = canonical;
+    if (twitterHandle !== undefined) updates.SEO_TWITTER_HANDLE = twitterHandle;
+    if (ogImage !== undefined) updates.SEO_OG_IMAGE = ogImage;
+    if (indexable !== undefined) updates.SEO_INDEXABLE = indexable ? "true" : "false";
+    if (ga4 !== undefined) updates.ANALYTICS_GA4 = ga4;
+    if (gtm !== undefined) updates.ANALYTICS_GTM = gtm;
+    if (metaPixel !== undefined) updates.ANALYTICS_META_PIXEL = metaPixel;
+    if (tiktokPixel !== undefined) updates.ANALYTICS_TIKTOK_PIXEL = tiktokPixel;
+    if (ga4PropertyId !== undefined) updates.GA4_PROPERTY_ID = ga4PropertyId;
+    if (ga4ClientEmail !== undefined) updates.GA4_CLIENT_EMAIL = ga4ClientEmail;
+    
+    if (ga4PrivateKey !== undefined && ga4PrivateKey !== "" && !ga4PrivateKey.includes("••")) {
+      updates.GA4_PRIVATE_KEY = ga4PrivateKey;
+    }
+
+    updateEnvFile(updates);
+
+    res.status(200).json({ success: true, message: "SEO configuration updated successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 10. GET ANALYTICS DATA
+// ----------------------------------------------------
+export const getAnalyticsDashboardData = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const ga4Data = await getGA4Data();
+    res.status(200).json({ success: true, ga4Data });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 11. GET ROBOTS.TXT
+// ----------------------------------------------------
+export const getRobotsTxt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const robotsPath = path.resolve(process.cwd(), "../frontend/public/robots.txt");
+    if (fs.existsSync(robotsPath)) {
+      const content = fs.readFileSync(robotsPath, "utf-8");
+      res.status(200).json({ success: true, robots: content });
+    } else {
+      res.status(200).json({ success: true, robots: "User-agent: *\nAllow: /\n" });
+    }
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 9. UPDATE ROBOTS.TXT
+// ----------------------------------------------------
+export const updateRobotsTxt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { robots } = req.body;
+    const robotsPath = path.resolve(process.cwd(), "../frontend/public/robots.txt");
+    fs.writeFileSync(robotsPath, robots || "", "utf-8");
+    res.status(200).json({ success: true, message: "robots.txt updated successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 10. GENERATE SITEMAP
+// ----------------------------------------------------
+export const generateSitemap = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const baseUrl = process.env.CLIENT_URL || "http://localhost:8080";
+    const sitemapPath = path.resolve(process.cwd(), "../frontend/public/sitemap.xml");
+
+    // Fetch dynamic content
+    const products = await prisma.product.findMany({
+      select: {
+        slug: true,
+        updatedAt: true
+      }
+    });
+    const categories = await prisma.category.findMany({ select: { slug: true } });
+    const brands = await prisma.brand.findMany({ select: { id: true } });
+    const blogs = await prisma.blog.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
+    const cmsPages = await prisma.cmsPage.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
+
+    // Build XML
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+    const addUrl = (loc: string, lastmod?: Date, changefreq = "weekly", priority = "0.8") => {
+      xml += `  <url>\n`;
+      xml += `    <loc>${baseUrl}${loc}</loc>\n`;
+      if (lastmod) xml += `    <lastmod>${lastmod.toISOString()}</lastmod>\n`;
+      xml += `    <changefreq>${changefreq}</changefreq>\n`;
+      xml += `    <priority>${priority}</priority>\n`;
+      xml += `  </url>\n`;
+    };
+
+    // Static Pages
+    addUrl("/", new Date(), "daily", "1.0");
+    addUrl("/shop", new Date(), "daily", "0.9");
+    addUrl("/brands", new Date(), "weekly", "0.8");
+    addUrl("/blogs", new Date(), "weekly", "0.8");
+    addUrl("/account", undefined, "monthly", "0.5");
+    addUrl("/relief", undefined, "monthly", "0.6");
+
+    // Products
+    products.forEach(p => addUrl(`/product/${p.slug}`, p.updatedAt, "daily", "0.9"));
+    // Categories
+    categories.forEach(c => addUrl(`/category/${c.slug}`, undefined, "weekly", "0.8"));
+    // Brands
+    brands.forEach(b => addUrl(`/brand/${b.id}`, undefined, "weekly", "0.8"));
+    // Blogs
+    blogs.forEach(b => addUrl(`/blog/${b.slug}`, b.updatedAt, "monthly", "0.7"));
+    // Dynamic CMS Pages
+    cmsPages.forEach(p => addUrl(`/${p.slug}`, p.updatedAt, "monthly", "0.6"));
+
+    xml += `</urlset>`;
+
+    fs.writeFileSync(sitemapPath, xml, "utf-8");
+
+    res.status(200).json({ success: true, message: "sitemap.xml generated successfully" });
   } catch (error: any) {
     next(error);
   }

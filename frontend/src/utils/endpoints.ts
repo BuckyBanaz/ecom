@@ -24,4 +24,9 @@ export const ENDPOINTS = {
   COUPONS: `${BASE_URL}${API_PREFIX}/coupons`,
   CHARGES: `${BASE_URL}${API_PREFIX}/charges`,
   ORDERS: `${BASE_URL}${API_PREFIX}/orders`,
+  SEO_ROBOTS: `${BASE_URL}${API_PREFIX}/admin/settings/seo/robots`,
+  SEO_SITEMAP: `${BASE_URL}${API_PREFIX}/admin/settings/seo/sitemap`,
+  ADMIN_SEO_CONFIG: `${BASE_URL}${API_PREFIX}/admin/settings/seo/config`,
+  PUBLIC_SEO_CONFIG: `${BASE_URL}${API_PREFIX}/cms/seo-config`,
+  ADMIN_ANALYTICS_DATA: `${BASE_URL}${API_PREFIX}/admin/settings/analytics/data`,
 };

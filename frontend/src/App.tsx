@@ -9,9 +9,9 @@ import Category from "./pages/shop/Category.tsx";
 import ProductPage from "./pages/shop/Product.tsx";
 import Cart from "./pages/shop/Cart.tsx";
 import Checkout from "./pages/shop/Checkout.tsx";
+import CheckoutRetry from "./pages/shop/CheckoutRetry.tsx";
 import Search from "./pages/shop/Search.tsx";
 import Account from "./pages/shop/Account.tsx";
-import Help from "./pages/shop/Help.tsx";
 import Faqs from "./pages/shop/Faqs.tsx";
 import Wishlist from "./pages/shop/Wishlist.tsx";
 import Blogs from "./pages/shop/Blogs.tsx";
@@ -42,6 +42,7 @@ import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminManageUsers from "./pages/admin/AdminManageUsers.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminTestimonials from "./pages/admin/AdminTestimonials.tsx";
+import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage.tsx";
 import AdminOffers from "./pages/admin/AdminOffers.tsx";
 import AdminCharges from "./pages/admin/AdminCharges.tsx";
 import CMSHomepage from "./pages/admin/cms/CMSHomepage.tsx";
@@ -54,6 +55,7 @@ import CMSSeo from "./pages/admin/cms/CMSSeo.tsx";
 import CMSHeaderFooter from "./pages/admin/cms/CMSHeaderFooter.tsx";
 import CMSFaqs from "./pages/admin/cms/CMSFaqs.tsx";
 import AdminEmailTemplates from "./pages/admin/AdminEmailTemplates.tsx";
+import AdminAnalytics from "./pages/admin/AdminAnalytics.tsx";
 import MediaLibrary from "./pages/admin/media/MediaLibrary.tsx";
 import { Navigate } from "react-router-dom";
 import UserDashboard from "./pages/shop/UserDashboard.tsx";
@@ -66,6 +68,7 @@ import AccountAuth from "./pages/auth/AccountAuth.tsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.tsx";
 import ResetPassword from "./pages/auth/ResetPassword.tsx";
 import { ScrollToTop } from "./components/layout/ScrollToTop.tsx";
+import { SEOInjector } from "./components/layout/SEOInjector.tsx";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +79,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ScrollToTop />
+        <SEOInjector />
         <WishlistProvider>
           <CartProvider>
             <AdminProvider>
@@ -94,12 +98,12 @@ const App = () => (
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/checkout/success" element={<Checkout />} />
                   <Route path="/checkout/cancel" element={<Checkout />} />
+                  <Route path="/checkout/retry/:orderId" element={<CheckoutRetry />} />
                   <Route path="/search" element={<Search />} />
                   <Route path="/account" element={<AccountAuth />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/dashboard" element={<UserDashboard />} />
-                  <Route path="/help" element={<Help />} />
                   <Route path="/faqs" element={<Faqs />} />
                   <Route path="/blogs" element={<Blogs />} />
                   <Route path="/blogs/:slug" element={<BlogDetail />} />
@@ -115,6 +119,7 @@ const App = () => (
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<Dashboard />} />
+                  <Route path="analytics" element={<AdminAnalytics />} />
                   <Route path="products" element={<AdminProducts />} />
                   <Route path="products/new" element={<AdminProductForm />} />
                   <Route path="products/:id/edit" element={<AdminProductForm />} />
@@ -147,6 +152,7 @@ const App = () => (
                   <Route path="users" element={<AdminUsers />} />
                   <Route path="manage-users" element={<AdminManageUsers />} />
                   <Route path="settings" element={<AdminSettings />} />
+                  <Route path="notifications" element={<AdminNotificationsPage />} />
                 </Route>
               </Routes>
             </AdminProvider>

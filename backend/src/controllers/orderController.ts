@@ -7,6 +7,9 @@ import { redisService } from "../services/redisService";
 import jwt from "jsonwebtoken";
 import { sendcloudApi } from "../services/sendcloud/api";
 import { notificationTriggerService } from "../services/notificationTriggerService";
+import { db } from "../config/firebase";
+import { collection, addDoc, getDocs, query, orderBy, where } from "firebase/firestore";
+import { messaging } from "../config/firebaseAdmin";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-04-10"
@@ -75,9 +78,18 @@ export const initiateCheckout = async (req: Request, res: Response, next: NextFu
       }
     });
 
+    // Determine allowed payment methods
+    const paymentMethods: string[] = [];
+    if (process.env.PAYMENT_ENABLE_CARD !== "false") paymentMethods.push("card");
+    if (process.env.PAYMENT_ENABLE_IDEAL !== "false") paymentMethods.push("ideal");
+    if (process.env.PAYMENT_ENABLE_PAYPAL === "true") paymentMethods.push("paypal");
+    if (process.env.PAYMENT_ENABLE_KLARNA === "true") paymentMethods.push("klarna");
+    if (process.env.PAYMENT_ENABLE_BANCONTACT === "true") paymentMethods.push("bancontact");
+    if (paymentMethods.length === 0) paymentMethods.push("card"); // Fallback
+
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card", "ideal"],
+      payment_method_types: paymentMethods as any,
       mode: "payment",
       customer_email: customer.email,
       client_reference_id: draftOrder.id,
@@ -163,6 +175,51 @@ export const verifyCheckoutSession = async (req: Request, res: Response, next: N
       await notificationTriggerService.triggerOrderNotification(orderId, "order_confirmed").catch(err => {
         console.error("[VerifyCheckout] Failed to trigger order confirmation notification:", err.message);
       });
+
+      try {
+        await addDoc(collection(db, "admin_notifications"), {
+          title: "New Order",
+          message: `Order ${updatedOrder.orderNumber} has been paid.`,
+          category: "orders",
+          orderId: updatedOrder.id,
+          orderNumber: updatedOrder.orderNumber,
+          total: updatedOrder.total,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("Firebase admin notification failed:", err);
+      }
+
+      try {
+        if (messaging) {
+          const admins = await prisma.user.findMany({
+            where: {
+              role: { in: ["admin", "superadmin"] },
+            },
+            select: { fcmTokens: true }
+          });
+          
+          const tokens = admins.flatMap(a => a.fcmTokens || []);
+          if (tokens.length > 0) {
+            await messaging.sendEachForMulticast({
+              tokens: [...new Set(tokens)], // Deduplicate tokens
+              notification: {
+                title: "New Order 🎉",
+                body: `Order ${updatedOrder.orderNumber} has been paid successfully. Amount: €${updatedOrder.total.toFixed(2)}`
+              },
+              data: {
+                orderId: updatedOrder.id,
+                url: `/admin/orders/${updatedOrder.id}`
+              }
+            });
+            console.log(`✅ FCM push notification sent to ${tokens.length} devices`);
+          }
+        }
+      } catch (fcmErr) {
+        console.error("❌ Failed to send FCM push notification:", fcmErr);
+      }
+
       return res.status(200).json({ success: true, message: "Order verified and updated to paid", order: updatedOrder });
     } else {
       return res.status(200).json({ success: false, message: "Payment not completed in Stripe", order });
@@ -329,9 +386,18 @@ export const retryPayment = async (req: Request, res: Response, next: NextFuncti
       return next(new AppError("Order cannot be paid for in its current status.", 400));
     }
 
+    // Determine allowed payment methods
+    const paymentMethods: string[] = [];
+    if (process.env.PAYMENT_ENABLE_CARD !== "false") paymentMethods.push("card");
+    if (process.env.PAYMENT_ENABLE_IDEAL !== "false") paymentMethods.push("ideal");
+    if (process.env.PAYMENT_ENABLE_PAYPAL === "true") paymentMethods.push("paypal");
+    if (process.env.PAYMENT_ENABLE_KLARNA === "true") paymentMethods.push("klarna");
+    if (process.env.PAYMENT_ENABLE_BANCONTACT === "true") paymentMethods.push("bancontact");
+    if (paymentMethods.length === 0) paymentMethods.push("card"); // Fallback
+
     // Create a new Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card", "ideal"],
+      payment_method_types: paymentMethods as any,
       mode: "payment",
       customer_email: order.customerEmail,
       client_reference_id: order.id,

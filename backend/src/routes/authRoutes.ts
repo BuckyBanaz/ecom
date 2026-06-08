@@ -14,6 +14,9 @@ import {
   getAdminUsers,
   updateAdminUser,
   deleteAdminUser,
+  saveFcmToken,
+  getAuthConfig,
+  getAllUsers,
 } from "../controllers/authController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
@@ -436,6 +439,31 @@ router.put("/profile", authenticateJWT, updateProfile);
 
 /**
  * @swagger
+ * /api/v1/auth/fcm-token:
+ *   post:
+ *     summary: Save Firebase Cloud Messaging token for the user
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: FCM Token saved successfully
+ */
+router.post("/fcm-token", authenticateJWT, saveFcmToken);
+
+/**
+ * @swagger
  * /api/v1/auth/change-password:
  *   put:
  *     summary: Change logged-in user password
@@ -515,6 +543,61 @@ router.post("/forgot-password", forgotPassword);
  *         description: Password reset successfully
  */
 router.post("/reset-password", resetPassword);
+
+// ----------------------------------------------------
+// Customer Users Management (Admin view all users)
+// ----------------------------------------------------
+
+/**
+ * @swagger
+ * /api/v1/auth/users:
+ *   get:
+ *     summary: Get all registered users (Customers)
+ *     description: Retrieve a list of all registered users. Only accessible by admins.
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of all users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       firstName:
+ *                         type: string
+ *                       lastName:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       phone:
+ *                         type: string
+ *                       role:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Admin privileges required)
+ */
+router.get("/users", authenticateJWT, requireAdmin, getAllUsers);
 
 // Admin User Management Routes (CRUD)
 
@@ -675,5 +758,17 @@ router.delete(
   }, 
   deleteAdminUser
 );
+
+/**
+ * @swagger
+ * /api/v1/auth/config:
+ *   get:
+ *     summary: Get auth configuration
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: Auth configuration retrieved
+ */
+router.get("/config", getAuthConfig);
 
 export default router;

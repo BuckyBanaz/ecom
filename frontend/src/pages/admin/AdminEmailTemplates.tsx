@@ -70,7 +70,7 @@ export default function AdminEmailTemplates() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<"list" | "edit">("list");
-  const [formData, setFormData] = useState({ id: "", name: "", subject: "", body: "", channels: [] as string[] });
+  const [formData, setFormData] = useState({ id: "", name: "", subject: "", body: "", smsBody: "", whatsappBody: "", channels: [] as string[] });
   
   const [channelsConfig, setChannelsConfig] = useState<any>({
     global: { email: true, whatsapp: false, sms: false, site_notification: false },
@@ -120,10 +120,12 @@ export default function AdminEmailTemplates() {
         name: template.name, 
         subject: template.subject, 
         body: template.body,
+        smsBody: template.smsBody || "",
+        whatsappBody: template.whatsappBody || "",
         channels: templateChannels
       });
     } else {
-      setFormData({ id: "", name: "", subject: "", body: "", channels: ["email"] });
+      setFormData({ id: "", name: "", subject: "", body: "", smsBody: "", whatsappBody: "", channels: ["email"] });
     }
     setView("edit");
   };
@@ -136,14 +138,18 @@ export default function AdminEmailTemplates() {
           id: formData.id,
           name: formData.name,
           subject: formData.subject,
-          body: formData.body
+          body: formData.body,
+          smsBody: formData.smsBody,
+          whatsappBody: formData.whatsappBody
         });
         toast.success("Template updated");
       } else {
         await emailTemplateRepository.create({
           name: formData.name,
           subject: formData.subject,
-          body: formData.body
+          body: formData.body,
+          smsBody: formData.smsBody,
+          whatsappBody: formData.whatsappBody
         });
         toast.success("Template created");
       }
@@ -286,16 +292,60 @@ export default function AdminEmailTemplates() {
               </div>
             )}
 
-            {/* Rich Editor */}
-            <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
-              <Label className="text-base font-bold">Message Template Body</Label>
-              <div className="min-h-[400px]">
-                <RichTextEditor 
-                  value={formData.body} 
-                  onChange={val => setFormData({...formData, body: val})} 
-                  placeholder="Start writing the notification content..." 
-                />
-              </div>
+            {/* Message Body Editors */}
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+              <Tabs defaultValue="email" className="w-full">
+                <div className="border-b bg-muted/20 px-4 py-2">
+                  <TabsList>
+                    <TabsTrigger value="email" className="flex gap-2"><Mail className="w-4 h-4"/> Email Layout</TabsTrigger>
+                    {formData.channels.includes("sms") && <TabsTrigger value="sms" className="flex gap-2"><Phone className="w-4 h-4"/> SMS Text</TabsTrigger>}
+                    {formData.channels.includes("whatsapp") && <TabsTrigger value="whatsapp" className="flex gap-2"><MessageSquare className="w-4 h-4"/> WhatsApp Text</TabsTrigger>}
+                  </TabsList>
+                </div>
+                
+                <TabsContent value="email" className="p-6 mt-0">
+                  <Label className="text-base font-bold mb-4 block">Email Message Body</Label>
+                  <div className="min-h-[400px]">
+                    <RichTextEditor 
+                      value={formData.body} 
+                      onChange={val => setFormData({...formData, body: val})} 
+                      placeholder="Start writing the email content..." 
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="sms" className="p-6 mt-0 space-y-4">
+                  <div>
+                    <Label className="text-base font-bold">SMS Text Body</Label>
+                    <p className="text-xs text-muted-foreground mt-1">Keep it concise. 1 segment is ~160 characters.</p>
+                  </div>
+                  <Textarea 
+                    value={formData.smsBody} 
+                    onChange={e => setFormData({...formData, smsBody: e.target.value})} 
+                    placeholder="E.g. Hi {{name}}, your order {{order_id}} is confirmed." 
+                    className="min-h-[150px] font-mono text-sm"
+                  />
+                  <div className="text-xs text-muted-foreground text-right">
+                    {formData.smsBody?.length || 0} characters
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="whatsapp" className="p-6 mt-0 space-y-4">
+                  <div>
+                    <Label className="text-base font-bold">WhatsApp Text Body</Label>
+                    <p className="text-xs text-muted-foreground mt-1">You can use *bold* and _italic_ formatting.</p>
+                  </div>
+                  <Textarea 
+                    value={formData.whatsappBody} 
+                    onChange={e => setFormData({...formData, whatsappBody: e.target.value})} 
+                    placeholder="E.g. Hi {{name}},\nYour order *{{order_id}}* is confirmed!" 
+                    className="min-h-[200px] font-mono text-sm"
+                  />
+                  <div className="text-xs text-muted-foreground text-right">
+                    {formData.whatsappBody?.length || 0} characters
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
 

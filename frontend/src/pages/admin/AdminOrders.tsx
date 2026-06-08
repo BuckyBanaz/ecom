@@ -180,9 +180,9 @@ export const AUTO_STATUSES = [
 ];
 
 export const statusLabels: Record<string, string> = {
-  pending: "Pending",
+  pending: "Unpaid",
   payment_pending: "Payment Pending",
-  paid: "Paid",
+  paid: "Pending (Paid)",
   processing: "Processing",
   ready_to_ship: "Ready to Ship",
   label_generated: "Label Generated",

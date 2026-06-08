@@ -11,9 +11,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatPrice, useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/ui/SafeImage";
-import { addressRepository, shippingRepository, couponRepository, chargeRepository, ordersRepository } from "@/client/apiClient";
+import { addressRepository, shippingRepository, couponRepository, chargeRepository, ordersRepository, paymentRepository } from "@/client/apiClient";
 import { toast } from "sonner";
 import { MapSelector } from "@/components/shop/MapSelector";
+import { PhonePicker } from "@/components/ui/PhonePicker";
 
 const steps = ["Contact", "Shipping", "Payment"] as const;
 
@@ -54,12 +55,12 @@ const Checkout = () => {
 
   // Handle Stripe Success/Cancel redirects
   const [verifyingSession, setVerifyingSession] = useState(false);
-  
+
   useEffect(() => {
     const handleStripeRedirect = async () => {
       const searchParams = new URLSearchParams(location.search);
       const sessionId = searchParams.get("session_id");
-      
+
       if (location.pathname === "/checkout/cancel") {
         toast.error("Payment was cancelled. You can try again.");
         navigate("/checkout", { replace: true });
@@ -113,13 +114,21 @@ const Checkout = () => {
   });
   const [loadingShipConfig, setLoadingShipConfig] = useState(true);
 
+  const [paymentConfig, setPaymentConfig] = useState({
+    ideal: true,
+    card: true,
+    paypal: false,
+    klarna: false,
+    bancontact: false,
+  });
+
   // Coupons and Charges
   const [couponCode, setCouponCode] = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
   const [showCouponInput, setShowCouponInput] = useState(false);
-  
+
   const [charges, setCharges] = useState<any[]>([]);
   const [loadingCharges, setLoadingCharges] = useState(true);
 
@@ -130,6 +139,10 @@ const Checkout = () => {
       if (res.success && res.data) setShipConfig(res.data);
       setLoadingShipConfig(false);
     }).catch(() => setLoadingShipConfig(false));
+
+    paymentRepository.getConfig().then(res => {
+      if (res.success && res.enabledMethods) setPaymentConfig(res.enabledMethods);
+    }).catch(err => console.error("Payment config error:", err));
 
     chargeRepository.getAll().then(res => {
       if (res.success && res.data) {
@@ -153,8 +166,8 @@ const Checkout = () => {
       if (res.success && res.data) {
         const coupon = res.data;
         setAppliedCoupon(coupon);
-        const discount = coupon.discountType === "percentage" 
-          ? (subtotal * coupon.value) / 100 
+        const discount = coupon.discountType === "percentage"
+          ? (subtotal * coupon.value) / 100
           : coupon.value;
         setDiscountAmount(discount);
         toast.success("Coupon applied successfully!");
@@ -255,7 +268,7 @@ const Checkout = () => {
   };
 
   const ship = shipping === "express" ? Number(shipConfig.expressShippingFee || 0) : subtotal > Number(shipConfig.freeShippingThreshold || 0) ? 0 : Number(shipConfig.standardShippingFee || 0);
-  
+
   // Calculate total charges
   const totalCharges = charges.reduce((acc, charge) => {
     const val = Number(charge.value || 0);
@@ -368,8 +381,8 @@ const Checkout = () => {
               <span className={cn(
                 "grid h-8 w-8 place-items-center rounded-full text-xs font-bold border-2 transition-all",
                 i < step ? "border-primary bg-primary text-primary-foreground" :
-                i === step ? "border-primary text-primary" :
-                "border-border text-muted-foreground"
+                  i === step ? "border-primary text-primary" :
+                    "border-border text-muted-foreground"
               )}>
                 {i < step ? "✓" : i + 1}
               </span>
@@ -480,12 +493,24 @@ const Checkout = () => {
             <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-4">
               <div>
                 <h2 className="text-xl font-bold">Payment method</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">This is a demo — no real payment processed.</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Secure payment via Stripe Checkout.</p>
               </div>
-              <RadioGroup value={payment} onValueChange={setPayment} className="space-y-2">
-                <PaymentOption id="ideal" value="ideal" title="iDEAL" desc="Pay with your bank app" selected={payment === "ideal"} />
-                <PaymentOption id="card" value="card" title="Credit / Debit Card" desc="Visa, Mastercard, Amex" selected={payment === "card"} />
-                <PaymentOption id="paypal" value="paypal" title="PayPal" desc="Pay securely with PayPal" selected={payment === "paypal"} />
+              <RadioGroup value={payment} onValueChange={setPayment} className="grid grid-cols-1 gap-3">
+                {paymentConfig.ideal && (
+                  <PaymentOption id="ideal" value="ideal" title="iDEAL" desc="Dutch bank transfer" selected={payment === "ideal"} imgSrc="https://www.iconpacks.net/icons/free-icons-6/free-ideal-logo-icon-19535.png" />
+                )}
+                {paymentConfig.card && (
+                  <PaymentOption id="card" value="card" title="Credit / Debit Card" desc="Visa, Mastercard, Amex" selected={payment === "card"} />
+                )}
+                {paymentConfig.paypal && (
+                  <PaymentOption id="paypal" value="paypal" title="PayPal" desc="Pay securely with PayPal" selected={payment === "paypal"} imgSrc="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" />
+                )}
+                {paymentConfig.klarna && (
+                  <PaymentOption id="klarna" value="klarna" title="Klarna" desc="Buy now, pay later" selected={payment === "klarna"} imgSrc="https://cdn-icons-png.flaticon.com/128/39/39073.png" />
+                )}
+                {paymentConfig.bancontact && (
+                  <PaymentOption id="bancontact" value="bancontact" title="Bancontact" desc="Belgian payments" selected={payment === "bancontact"} imgSrc="https://www.bancontact.com/img/bancontact-logo.png" />
+                )}
               </RadioGroup>
             </div>
           )}
@@ -539,7 +564,7 @@ const Checkout = () => {
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span><span>{formatPrice(subtotal)}</span>
                 </div>
-                
+
                 {appliedCoupon && (
                   <div className="flex justify-between text-green-600 font-medium">
                     <div className="flex items-center gap-1">
@@ -581,37 +606,37 @@ const Checkout = () => {
               </>
             )}
           </div>
-          
+
           {/* Coupon Input Area */}
           <div className="p-5 border-t bg-muted/5">
             {!showCouponInput && !appliedCoupon ? (
-              <button 
-                type="button" 
-                onClick={() => setShowCouponInput(true)} 
+              <button
+                type="button"
+                onClick={() => setShowCouponInput(true)}
                 className="text-primary font-medium text-sm hover:underline"
               >
                 Have a coupon code?
               </button>
             ) : !appliedCoupon ? (
               <div className="space-y-3">
-                <button 
-                  type="button" 
-                  onClick={() => setShowCouponInput(false)} 
+                <button
+                  type="button"
+                  onClick={() => setShowCouponInput(false)}
                   className="text-primary font-medium text-sm hover:underline"
                 >
                   Have a coupon code?
                 </button>
                 <div className="flex gap-2">
-                  <Input 
-                    placeholder="Enter discount code" 
-                    value={couponCode} 
+                  <Input
+                    placeholder="Enter discount code"
+                    value={couponCode}
                     onChange={e => setCouponCode(e.target.value)}
                     className="h-10 bg-background text-sm rounded-lg border-primary/20 focus-visible:ring-primary/20"
                   />
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="h-10 shrink-0 text-primary border-primary/20 hover:bg-primary/5 rounded-lg font-medium" 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 shrink-0 text-primary border-primary/20 hover:bg-primary/5 rounded-lg font-medium"
                     onClick={handleApplyCoupon}
                     disabled={!couponCode || validatingCoupon}
                   >
@@ -677,11 +702,11 @@ const Checkout = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Street address" value={addrForm.street} onChange={v => setAddrForm({ ...addrForm, street: v })} required />
-                <Field 
-                  label="House number (required)" 
-                  value={addrForm.houseNumber || ""} 
-                  onChange={v => { setAddrForm({ ...addrForm, houseNumber: v }); setAddressError(""); }} 
-                  required 
+                <Field
+                  label="House number (required)"
+                  value={addrForm.houseNumber || ""}
+                  onChange={v => { setAddrForm({ ...addrForm, houseNumber: v }); setAddressError(""); }}
+                  required
                   error={addressError}
                 />
               </div>
@@ -740,8 +765,12 @@ function Field({
   return (
     <div>
       <Label className="mb-1.5 block text-sm">{label}</Label>
-      <Input type={type} value={value} onChange={e => onChange(e.target.value)}
-        required={required} pattern={pattern} title={title} className={cn("h-10", error ? "border-red-500" : "")} />
+      {type === "tel" ? (
+        <PhonePicker value={value} onChange={onChange} required={required} className={error ? "border-red-500" : ""} />
+      ) : (
+        <Input type={type} value={value} onChange={e => onChange(e.target.value)}
+          required={required} pattern={pattern} title={title} className={cn("h-10", error ? "border-red-500" : "")} />
+      )}
       {error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
     </div>
   );
@@ -770,8 +799,8 @@ function ShippingOption({ id, value, icon, title, desc, price, selected }: {
 }
 
 // Payment option
-function PaymentOption({ id, value, title, desc, selected }: {
-  id: string; value: string; title: string; desc: string; selected: boolean;
+function PaymentOption({ id, value, title, desc, selected, imgSrc }: {
+  id: string; value: string; title: string; desc: string; selected: boolean; imgSrc?: string;
 }) {
   return (
     <Label htmlFor={id} className={cn(
@@ -779,8 +808,12 @@ function PaymentOption({ id, value, title, desc, selected }: {
       selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
     )}>
       <RadioGroupItem id={id} value={value} />
-      <div className={cn("p-1.5 rounded-lg", selected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
-        <CreditCard className="h-5 w-5" />
+      <div className={cn("rounded-md w-[48px] h-[32px] flex items-center justify-center shrink-0 border bg-white", selected ? "border-primary/50" : "border-border")}>
+        {imgSrc ? (
+          <img src={imgSrc} alt={title} className="max-w-[36px] max-h-[20px] object-contain" />
+        ) : (
+          <CreditCard className={cn("h-5 w-5", selected ? "text-primary" : "text-muted-foreground")} />
+        )}
       </div>
       <div>
         <div className="font-semibold text-sm">{title}</div>

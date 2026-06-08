@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Eye, EyeOff, Mail, Phone, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authRepository } from "@/client/apiClient";
@@ -13,12 +14,34 @@ const AccountAuth = () => {
   const location = useLocation();
   const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
 
+  const [authConfig, setAuthConfig] = useState({
+    emailLogin: true,
+    phoneLogin: true,
+    registerMethod: "both"
+  });
+
   useEffect(() => {
     // If user is already logged in, redirect to dashboard
     const token = localStorage.getItem("customer_token");
     if (token) {
       navigate("/dashboard", { replace: true });
     }
+    
+    // Fetch auth config
+    const fetchConfig = async () => {
+      try {
+        const res = await authRepository.getConfig();
+        if (res.success && res.data) {
+          setAuthConfig(res.data);
+          if (!res.data.emailLogin && res.data.phoneLogin) {
+            setLoginMethod("phone");
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch auth config", error);
+      }
+    };
+    fetchConfig();
   }, [navigate]);
 
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
@@ -29,6 +52,7 @@ const AccountAuth = () => {
   // Login States
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneCode, setPhoneCode] = useState("+31");
   const [phone, setPhone] = useState("");
   
   // OTP State for Phone Login
@@ -39,8 +63,11 @@ const AccountAuth = () => {
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
   const [regEmail, setRegEmail] = useState("");
+  const [regPhoneCode, setRegPhoneCode] = useState("+31");
   const [regPhone, setRegPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
+  const [regOtpSent, setRegOtpSent] = useState(false);
+  const [regOtpValue, setRegOtpValue] = useState("");
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +98,8 @@ const AccountAuth = () => {
     
     try {
       setLoading(true);
-      const res = await authRepository.sendOTP(phone);
+      const fullPhone = `${phoneCode}${phone}`;
+      const res = await authRepository.sendOTP(fullPhone);
       if (res.success) {
         toast.success(res.message || "OTP sent successfully!");
         setOtpSent(true);
@@ -93,7 +121,8 @@ const AccountAuth = () => {
     }
     try {
       setLoading(true);
-      const res = await authRepository.verifyOTP({ phone, otp: otpValue });
+      const fullPhone = `${phoneCode}${phone}`;
+      const res = await authRepository.verifyOTP({ phone: fullPhone, otp: otpValue });
       if (res.success) {
         toast.success(res.message || "Logged in successfully!");
         localStorage.setItem("customer_token", res.token);
@@ -109,24 +138,54 @@ const AccountAuth = () => {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const needsPhone = authConfig.registerMethod === "both" || authConfig.registerMethod === "phone_only";
+    
+    if (needsPhone && !regOtpSent) {
+      // Send OTP first
+      try {
+        setLoading(true);
+        const fullPhone = `${regPhoneCode}${regPhone}`;
+        const res = await authRepository.sendOTP(fullPhone, "register");
+        if (res.success) {
+          toast.success(res.message || "OTP sent successfully!");
+          setRegOtpSent(true);
+        } else {
+          toast.error(res.message || "Failed to send OTP");
+        }
+      } catch (error: any) {
+        toast.error(error.message || "Failed to send OTP");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Complete Registration
     try {
       setLoading(true);
-      const res = await authRepository.register({
+      
+      const payload: any = {
         firstName: regFirstName,
         lastName: regLastName,
-        email: regEmail,
-        phone: regPhone,
         password: regPassword,
-      });
+      };
+      
+      if (authConfig.registerMethod === "both" || authConfig.registerMethod === "email_only") {
+        payload.email = regEmail;
+      }
+      if (needsPhone) {
+        payload.phone = `${regPhoneCode}${regPhone}`;
+        payload.otp = regOtpValue;
+      }
+
+      const res = await authRepository.register(payload);
       if (res.success) {
         toast.success(res.message || "Account created successfully!");
-        // Auto-login or redirect
-        setActiveTab("login");
-        setLoginMethod("email");
-        setEmail(regEmail);
-        setPassword(regPassword);
+        localStorage.setItem("customer_token", res.token);
+        localStorage.setItem("customer_user", JSON.stringify(res.user));
+        navigate(redirectTo);
       } else {
         toast.error(res.message || "Registration failed");
       }
@@ -174,26 +233,28 @@ const AccountAuth = () => {
               </div>
 
               {/* Login Method Toggle */}
-              <div className="flex items-center gap-3 mb-8">
-                <button 
-                  onClick={() => { setLoginMethod("email"); setOtpSent(false); }}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-300",
-                    loginMethod === "email" ? "border-primary bg-primary/5 text-primary" : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
-                  )}
-                >
-                  <Mail size={16} /> Email
-                </button>
-                <button 
-                  onClick={() => { setLoginMethod("phone"); setOtpSent(false); }}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-300",
-                    loginMethod === "phone" ? "border-primary bg-primary/5 text-primary" : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
-                  )}
-                >
-                  <Phone size={16} /> Phone / OTP
-                </button>
-              </div>
+              {(authConfig.emailLogin && authConfig.phoneLogin) && (
+                <div className="flex items-center gap-3 mb-8">
+                  <button 
+                    onClick={() => { setLoginMethod("email"); setOtpSent(false); }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-300",
+                      loginMethod === "email" ? "border-primary bg-primary/5 text-primary" : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
+                    )}
+                  >
+                    <Mail size={16} /> Email
+                  </button>
+                  <button 
+                    onClick={() => { setLoginMethod("phone"); setOtpSent(false); }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-300",
+                      loginMethod === "phone" ? "border-primary bg-primary/5 text-primary" : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
+                    )}
+                  >
+                    <Phone size={16} /> Phone / OTP
+                  </button>
+                </div>
+              )}
 
               {/* Email Login Form */}
               {loginMethod === "email" ? (
@@ -247,15 +308,26 @@ const AccountAuth = () => {
                     <form className="space-y-5 animate-in fade-in slide-in-from-left-2 duration-300" onSubmit={handleSendOTP}>
                       <div className="space-y-1.5">
                         <Label htmlFor="login-phone" className="text-zinc-700">Phone Number</Label>
-                        <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-medium">+91</span>
+                        <div className="flex bg-zinc-50 border border-zinc-200 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden transition-all">
+                          <Select value={phoneCode} onValueChange={setPhoneCode}>
+                            <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-11 text-zinc-600 font-medium shadow-none">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="+31">🇳🇱 +31</SelectItem>
+                              <SelectItem value="+91">🇮🇳 +91</SelectItem>
+                              <SelectItem value="+1">🇺🇸 +1</SelectItem>
+                              <SelectItem value="+44">🇬🇧 +44</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="w-[1px] h-6 bg-zinc-200 self-center"></div>
                           <Input 
                             id="login-phone" 
                             type="tel" 
                             value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            placeholder="98765 43210" 
-                            className="h-11 pl-14 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
+                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                            placeholder="612345678" 
+                            className="flex-1 h-11 border-0 focus-visible:ring-0 rounded-none bg-transparent shadow-none" 
                             required 
                           />
                         </div>
@@ -309,86 +381,137 @@ const AccountAuth = () => {
                 <p className="text-zinc-500 mt-2 text-sm">Join us for exclusive deals and faster checkout</p>
               </div>
 
-              <form className="space-y-4" onSubmit={handleRegister}>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-firstname" className="text-zinc-700">First Name</Label>
-                    <Input 
-                      id="reg-firstname" 
-                      value={regFirstName}
-                      onChange={(e) => setRegFirstName(e.target.value)}
-                      placeholder="John" 
-                      className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
-                      required 
-                    />
+              {!regOtpSent ? (
+                <form className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300" onSubmit={handleRegisterSubmit}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="reg-firstname" className="text-zinc-700">First Name</Label>
+                      <Input 
+                        id="reg-firstname" 
+                        value={regFirstName}
+                        onChange={(e) => setRegFirstName(e.target.value)}
+                        placeholder="John" 
+                        className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="reg-lastname" className="text-zinc-700">Last Name</Label>
+                      <Input 
+                        id="reg-lastname" 
+                        value={regLastName}
+                        onChange={(e) => setRegLastName(e.target.value)}
+                        placeholder="Doe" 
+                        className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
+                        required 
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-lastname" className="text-zinc-700">Last Name</Label>
-                    <Input 
-                      id="reg-lastname" 
-                      value={regLastName}
-                      onChange={(e) => setRegLastName(e.target.value)}
-                      placeholder="Doe" 
-                      className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
-                      required 
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-1.5">
-                  <Label htmlFor="reg-email" className="text-zinc-700">Email Address</Label>
-                  <Input 
-                    id="reg-email" 
-                    type="email" 
-                    value={regEmail}
-                    onChange={(e) => setRegEmail(e.target.value)}
-                    placeholder="john.doe@example.com" 
-                    className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
-                    required 
-                  />
-                </div>
-                
-                <div className="space-y-1.5">
-                  <Label htmlFor="reg-phone" className="text-zinc-700">Phone Number</Label>
-                  <Input 
-                    id="reg-phone" 
-                    type="tel" 
-                    value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
-                    placeholder="9876543210" 
-                    className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
-                    required 
-                  />
-                </div>
-                
-                <div className="space-y-1.5">
-                  <Label htmlFor="reg-password" className="text-zinc-700">Password</Label>
-                  <div className="relative">
-                    <Input 
-                      id="reg-password" 
-                      type={showPassword ? "text" : "password"} 
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      placeholder="Create a strong password" 
-                      className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all pr-12"
-                      required 
-                    />
-                    <button 
-                      type="button" 
-                      onClick={() => setShowPassword(!showPassword)} 
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-                
-                <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6 group">
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                    <>Create Account <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
+                  
+                  {(authConfig.registerMethod === "both" || authConfig.registerMethod === "email_only") && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="reg-email" className="text-zinc-700">Email Address</Label>
+                      <Input 
+                        id="reg-email" 
+                        type="email" 
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        placeholder="john.doe@example.com" 
+                        className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
+                        required 
+                      />
+                    </div>
                   )}
-                </Button>
-              </form>
+                  
+                  {(authConfig.registerMethod === "both" || authConfig.registerMethod === "phone_only") && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="reg-phone" className="text-zinc-700">Phone Number</Label>
+                      <div className="flex bg-zinc-50 border border-zinc-200 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden transition-all">
+                        <Select value={regPhoneCode} onValueChange={setRegPhoneCode}>
+                          <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-11 text-zinc-600 font-medium shadow-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="+31">🇳🇱 +31</SelectItem>
+                            <SelectItem value="+91">🇮🇳 +91</SelectItem>
+                            <SelectItem value="+1">🇺🇸 +1</SelectItem>
+                            <SelectItem value="+44">🇬🇧 +44</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="w-[1px] h-6 bg-zinc-200 self-center"></div>
+                        <Input 
+                          id="reg-phone" 
+                          type="tel" 
+                          value={regPhone}
+                          onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, ''))}
+                          placeholder="612345678" 
+                          className="flex-1 h-11 border-0 focus-visible:ring-0 rounded-none bg-transparent shadow-none" 
+                          required 
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-password" className="text-zinc-700">Password</Label>
+                    <div className="relative">
+                      <Input 
+                        id="reg-password" 
+                        type={showPassword ? "text" : "password"} 
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        placeholder="Create a strong password" 
+                        className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all pr-12"
+                        required 
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)} 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6 group">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                      <>
+                        {(authConfig.registerMethod === "both" || authConfig.registerMethod === "phone_only") ? "Send OTP" : "Create Account"} 
+                        <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
+                  </Button>
+                </form>
+              ) : (
+                <form className="space-y-5 animate-in fade-in slide-in-from-right-2 duration-300" onSubmit={handleRegisterSubmit}>
+                  <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl mb-6">
+                    <p className="text-sm text-primary font-medium flex items-center justify-center gap-2">
+                      <ShieldCheck size={18} />
+                      OTP sent to {regPhoneCode}{regPhone}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="reg-otp" className="text-zinc-700">Enter 6-digit OTP</Label>
+                      <button type="button" onClick={() => setRegOtpSent(false)} className="text-xs text-primary hover:underline font-medium">Edit Details</button>
+                    </div>
+                    <Input 
+                      id="reg-otp" 
+                      type="text" 
+                      placeholder="••••••" 
+                      className="h-12 text-center tracking-[0.5em] text-lg font-bold bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all"
+                      maxLength={6}
+                      value={regOtpValue}
+                      onChange={(e) => setRegOtpValue(e.target.value.replace(/\D/g, ''))}
+                      required 
+                    />
+                  </div>
+                  <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6">
+                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify & Create Account"}
+                  </Button>
+                </form>
+              )}
             </div>
           )}
         </div>

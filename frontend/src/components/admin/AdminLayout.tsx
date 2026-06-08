@@ -12,12 +12,16 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { useFcmToken } from "@/hooks/useFcmToken";
 
 export function AdminLayout() {
   const { isLoggedIn, logout } = useAdmin();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
   const [suspensionMessage, setSuspensionMessage] = useState("");
+
+  // Initialize FCM token registration
+  useFcmToken();
 
   useEffect(() => {
     document.body.classList.add("admin-lock");

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings } from "../controllers/adminSettingsController";
+import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData } from "../controllers/adminSettingsController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
 const router = Router();
@@ -183,5 +183,151 @@ router.get("/shipping/config", getSecuredShippingConfig);
  *         description: Settings updated successfully
  */
 router.put("/shipping/config", updateShippingConfig);
+
+  /**
+ * @swagger
+ * /api/v1/admin/settings/auth:
+ *   get:
+ *     summary: Get auth configuration settings
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Auth configuration details
+ */
+router.get("/auth", getAuthSettings);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/auth:
+ *   put:
+ *     summary: Update auth configuration settings
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               emailLogin:
+ *                 type: boolean
+ *               phoneLogin:
+ *                 type: boolean
+ *               smsProvider:
+ *                 type: string
+ *               twilioAccountSid:
+ *                 type: string
+ *               twilioAuthToken:
+ *                 type: string
+ *               twilioSenderNumber:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Settings updated successfully
+ */
+router.put("/auth", updateAuthSettings);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/seo/config:
+ *   get:
+ *     summary: Get SEO and Analytics configuration
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: SEO configuration details
+ */
+router.get("/seo/config", getSeoConfig);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/seo/config:
+ *   put:
+ *     summary: Update SEO and Analytics configuration
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Settings updated successfully
+ */
+router.put("/seo/config", updateSeoConfig);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/seo/robots:
+ *   get:
+ *     summary: Get robots.txt content
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: robots.txt content
+ */
+router.get("/seo/robots", getRobotsTxt);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/seo/robots:
+ *   put:
+ *     summary: Update robots.txt content
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               robots:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: robots.txt updated successfully
+ */
+router.put("/seo/robots", updateRobotsTxt);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/seo/sitemap:
+ *   post:
+ *     summary: Generate sitemap.xml
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sitemap generated successfully
+ */
+router.post("/seo/sitemap", generateSitemap);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/analytics/data:
+ *   get:
+ *     summary: Get live Analytics data
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Live Analytics data
+ */
+router.get("/analytics/data", getAnalyticsDashboardData);
 
 export default router;

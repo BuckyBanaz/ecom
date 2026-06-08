@@ -18,7 +18,7 @@ const DEFAULT_TEMPLATES = [
           <!-- Header -->
           <tr>
             <td style="background-color:#000000;padding:24px 30px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:2px;">LAMPGIGANT</h1>
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:2px;">SCHIP & STER</h1>
             </td>
           </tr>
           <!-- Content -->
@@ -30,7 +30,7 @@ const DEFAULT_TEMPLATES = [
           <!-- Footer -->
           <tr>
             <td style="background-color:#f8f8f8;padding:20px 30px;text-align:center;border-top:1px solid #e4e4e7;">
-              <p style="margin:0 0 4px;color:#888888;font-size:12px;">&copy; 2026 Lampgigant. All rights reserved.</p>
+              <p style="margin:0 0 4px;color:#888888;font-size:12px;">&copy; 2026 Schip & Ster. All rights reserved.</p>
               <p style="margin:0;color:#aaaaaa;font-size:11px;">This is an automated message, please do not reply.</p>
             </td>
           </tr>
@@ -43,25 +43,29 @@ const DEFAULT_TEMPLATES = [
   },
   {
     name: "welcome_mail",
-    subject: "Welcome to Lampgigant!",
+    subject: "Welcome to Schip & Ster!",
     body: `<h2>Hello {{name}},</h2>
-<p>Welcome to Lampgigant! We are thrilled to have you on board.</p>
+<p>Welcome to Schip & Ster! We are thrilled to have you on board.</p>
 <p>You can now explore our wide collection of premium lighting solutions tailored for your space.</p>
 <br/>
 <a href="{{login_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Login to your account</a>
 <br/><br/>
-<p>Best regards,<br/>The Lampgigant Team</p>`,
+<p>Best regards,<br/>The Schip & Ster Team</p>`,
+    smsBody: `Hi {{name}}, welcome to Schip & Ster! Login to explore our collection: {{login_url}}`,
+    whatsappBody: `Hello {{name}}! 🎉\n\nWelcome to *Schip & Ster*! We are thrilled to have you on board.\n\nLogin to your account here: {{login_url}}`,
   },
   {
     name: "email_verification",
     subject: "Verify Your Email Address",
     body: `<h2>Hello {{name}},</h2>
-<p>Thank you for registering at Lampgigant. Please verify your email address to complete your registration.</p>
+<p>Thank you for registering at Schip & Ster. Please verify your email address to complete your registration.</p>
 <p>Your verification code is: <strong>{{otp}}</strong></p>
 <p>Or click the link below:</p>
 <a href="{{verification_link}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Verify Email</a>
 <br/><br/>
 <p>If you did not create this account, you can safely ignore this email.</p>`,
+    smsBody: `Your Schip & Ster verification code is {{otp}}.`,
+    whatsappBody: `Hello {{name}},\nYour Schip & Ster verification code is *{{otp}}*.`,
   },
   {
     name: "forgot_password",
@@ -70,20 +74,26 @@ const DEFAULT_TEMPLATES = [
 <p>We received a request to reset your password. If you didn't make this request, just ignore this email.</p>
 <p>Your password reset OTP is: <strong style="font-size: 20px;">{{otp}}</strong></p>
 <p>This code will expire in 10 minutes.</p>`,
+    smsBody: `Your Schip & Ster password reset OTP is {{otp}}. Valid for 10 minutes.`,
+    whatsappBody: `Hello {{name}},\n\nYour *Schip & Ster* password reset OTP is: *{{otp}}*\n\nThis code will expire in 10 minutes.`,
   },
   {
     name: "reset_password",
     subject: "Your Password Has Been Reset",
     body: `<h2>Hello {{name}},</h2>
-<p>This is a confirmation that the password for your Lampgigant account has just been successfully reset.</p>
+<p>This is a confirmation that the password for your Schip & Ster account has just been successfully reset.</p>
 <p>If you did not authorize this change, please contact our support team immediately.</p>`,
+    smsBody: `Hi {{name}}, your Schip & Ster password has been reset.`,
+    whatsappBody: `Hello {{name}},\n\nYour *Schip & Ster* password has been successfully reset. If this wasn't you, please contact support.`,
   },
   {
     name: "change_password",
     subject: "Your Password Has Been Changed",
     body: `<h2>Hello {{name}},</h2>
-<p>We're writing to let you know that the password for your Lampgigant account was recently changed from your account settings.</p>
+<p>We're writing to let you know that the password for your Schip & Ster account was recently changed from your account settings.</p>
 <p>If this wasn't you, please secure your account immediately.</p>`,
+    smsBody: `Hi {{name}}, your Schip & Ster password was recently changed.`,
+    whatsappBody: `Hello {{name}},\n\nYour *Schip & Ster* password was recently changed from your account settings. If this wasn't you, please secure your account immediately.`,
   },
   {
     name: "order_status_update",
@@ -95,6 +105,8 @@ const DEFAULT_TEMPLATES = [
 <a href="{{order_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">View Order</a>
 <br/><br/>
 <p>Thank you for shopping with us!</p>`,
+    smsBody: `Hi {{name}}, your order #{{order_id}} is now {{status}}. Track it here: {{order_url}}`,
+    whatsappBody: `Hello {{name}},\n\nYour order *#{{order_id}}* is now *{{status}}*.\n\nTrack it here: {{order_url}}`,
   },
   {
     name: "order_confirmed",
@@ -130,7 +142,9 @@ const DEFAULT_TEMPLATES = [
 <p>You can download your invoice using the link below:</p>
 <a href="{{invoice_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Download Invoice</a>
 <br/><br/>
-<p>Best regards,<br/>The Lampgigant Team</p>`,
+<p>Best regards,<br/>The Schip & Ster Team</p>`,
+    smsBody: `Hi {{name}}, your order #{{order_id}} is confirmed! Total: €{{total}}. Thank you for shopping with Schip & Ster.`,
+    whatsappBody: `Hello {{name}}! 🎊\n\nThank you for your order! Your order *#{{order_id}}* has been confirmed.\n\n*Total:* €{{total}}\n\nYou can download your invoice here: {{invoice_url}}\n\nBest regards,\nThe Schip & Ster Team`,
   },
   {
     name: "payment_failed",
@@ -148,6 +162,8 @@ const DEFAULT_TEMPLATES = [
 <a href="{{retry_url}}" style="display: inline-block; padding: 10px 20px; background-color: #f43f5e; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Retry Payment</a>
 <br/><br/>
 <p>If you have any questions, feel free to contact our support team.</p>`,
+    smsBody: `Hi {{name}}, payment for order #{{order_id}} failed. Please retry: {{retry_url}}`,
+    whatsappBody: `Hello {{name}} ⚠️\n\nWe were unable to process your payment for order *#{{order_id}}*.\n\nPlease retry your payment here: {{retry_url}}`,
   },
   {
     name: "order_shipped",
@@ -162,7 +178,9 @@ const DEFAULT_TEMPLATES = [
 <br/>
 <a href="{{tracking_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Track Shipment</a>
 <br/><br/>
-<p>Thank you for shopping with Lampgigant!</p>`,
+<p>Thank you for shopping with Schip & Ster!</p>`,
+    smsBody: `Hi {{name}}, your order #{{order_id}} has been shipped via {{carrier}}. Track it: {{tracking_url}}`,
+    whatsappBody: `Great news, {{name}}! 🎉\n\nYour order *#{{order_id}}* has been shipped via {{carrier}}.\n\nTrack it here: {{tracking_url}}`,
   },
   {
     name: "order_delivered",
@@ -174,7 +192,9 @@ const DEFAULT_TEMPLATES = [
 <a href="{{review_url}}" style="display: inline-block; padding: 10px 20px; background-color: #f59e0b; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Write a Review</a>
 <br/><br/>
 <p>If you have any questions or feedback, we are always here to help.</p>
-<p>Best regards,<br/>The Lampgigant Team</p>`,
+<p>Best regards,<br/>The Schip & Ster Team</p>`,
+    smsBody: `Hi {{name}}, your order #{{order_id}} has been delivered! Share your review: {{review_url}}`,
+    whatsappBody: `Good news, {{name}}! 📦\n\nYour order *#{{order_id}}* has been delivered.\n\nWe hope you love it! Please leave a review here: {{review_url}}`,
   }
 ];
 
@@ -188,9 +208,21 @@ export const seedTemplates = async () => {
             name: tpl.name,
             subject: tpl.subject,
             body: tpl.body,
+            smsBody: (tpl as any).smsBody || null,
+            whatsappBody: (tpl as any).whatsappBody || null,
           }
         });
         console.log(`[Seed] Created email template: ${tpl.name}`);
+      } else if (!existing.smsBody && (tpl as any).smsBody) {
+        // Update existing ones with smsBody and whatsappBody if they are null
+        await prisma.emailTemplate.update({
+          where: { name: tpl.name },
+          data: {
+            smsBody: (tpl as any).smsBody || null,
+            whatsappBody: (tpl as any).whatsappBody || null,
+          }
+        });
+        console.log(`[Seed] Updated ${tpl.name} template with smsBody & whatsappBody`);
       } else if (tpl.name === "order_confirmed" && !existing.body.includes("payment_summary")) {
         await prisma.emailTemplate.update({
           where: { name: tpl.name },

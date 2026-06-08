@@ -45,16 +45,40 @@ const AdminUsers = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [orderRes, reviewRes] = await Promise.all([
-        ordersRepository.getAll(),
-        reviewRepository.getAll(),
+      const [orderRes, reviewRes, usersRes] = await Promise.all([
+        ordersRepository.getAll().catch(() => ({ data: [] })),
+        reviewRepository.getAll().catch(() => ({ success: true, reviews: [] })),
+        authRepository.getAllUsers().catch(() => ({ success: true, data: [] })),
       ]);
 
       const fetchedOrders  = orderRes.data || [];
       const fetchedReviews = reviewRes.success ? (reviewRes.reviews || []) : [];
+      const fetchedUsers   = usersRes.data || [];
 
       const customerMap = new Map<string, Customer>();
 
+      // 1. Initialize map with real registered users
+      fetchedUsers.forEach((u: any) => {
+        if (u.role === "admin" || u.role === "superadmin" || u.role === "moderator") return;
+        const email = (u.email || "").toLowerCase().trim();
+        if (!email) return;
+
+        customerMap.set(email, {
+          id: `u-${u.id}`,
+          name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Customer",
+          email,
+          phone: u.phone || "N/A",
+          role: u.role || "customer",
+          status: u.status || "active",
+          joinDate: u.createdAt || new Date().toISOString(),
+          ordersCount: 0,
+          totalSpent: 0,
+          orders: [],
+          reviews: [],
+        });
+      });
+
+      // 2. Loop over orders to calculate spent amount, order count, and add guest users
       fetchedOrders.forEach((o: any) => {
         if (!o.customerEmail) return;
         const email = o.customerEmail.toLowerCase().trim();
@@ -67,11 +91,8 @@ const AdminUsers = () => {
             if (addr && addr.phone) {
               parsedPhone = addr.phone;
             }
-          } catch (e) {
-            // Address might be a plain string
-          }
+          } catch (e) {}
         }
-
         const finalPhone = userPhone !== "N/A" ? userPhone : (parsedPhone !== "N/A" ? parsedPhone : (o.customerPhone || "N/A"));
 
         if (customerMap.has(email)) {
@@ -84,22 +105,24 @@ const AdminUsers = () => {
             c.phone = finalPhone;
           }
         } else {
+          // Guest user who placed an order but doesn't have an account
           customerMap.set(email, {
             id: `c-${o.id}`,
-            name:        o.customerName || "Customer",
+            name: o.customerName || "Guest",
             email,
-            phone:       finalPhone,
-            role:        "customer",
-            status:      "active",
-            joinDate:    o.createdAt,
+            phone: finalPhone,
+            role: "guest",
+            status: "active",
+            joinDate: o.createdAt,
             ordersCount: 1,
-            totalSpent:  o.total || 0,
-            orders:      [o],
-            reviews:     [],
+            totalSpent: o.total || 0,
+            orders: [o],
+            reviews: [],
           });
         }
       });
 
+      // 3. Attach reviews
       fetchedReviews.forEach((r: any) => {
         const reviewerName = (r.name || "").toLowerCase().trim();
         if (!reviewerName) return;
@@ -108,7 +131,7 @@ const AdminUsers = () => {
         }
       });
 
-      setCustomers(Array.from(customerMap.values()));
+      setCustomers(Array.from(customerMap.values()).sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime()));
     } catch (err) {
       console.error("Error loading customer data:", err);
       toast.error("Failed to load customer list");

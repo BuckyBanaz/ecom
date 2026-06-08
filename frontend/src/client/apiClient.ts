@@ -1,4 +1,4 @@
-import { ENDPOINTS } from "../utils/endpoints";
+import { ENDPOINTS, BASE_URL, API_PREFIX } from "../utils/endpoints";
 
 // Helper request wrapper around fetch
 async function request<T>(url: string, config: RequestInit = {}): Promise<T> {
@@ -209,6 +209,12 @@ export const megaMenuRepository = {
 
 // 7. Auth Repository
 export const authRepository = {
+  getAllUsers: async () => {
+    return request<any>(`${ENDPOINTS.AUTH}/users`, { method: "GET" });
+  },
+  getConfig: async () => {
+    return request<any>(`${ENDPOINTS.AUTH}/config`, { method: "GET" });
+  },
   login: async (data: any) => {
     return request<any>(`${ENDPOINTS.AUTH}/login`, {
       method: "POST",
@@ -227,10 +233,10 @@ export const authRepository = {
       body: JSON.stringify(data),
     });
   },
-  sendOTP: async (phone: string) => {
+  sendOTP: async (phone: string, type: "login" | "register" = "login") => {
     return request<any>(`${ENDPOINTS.AUTH}/send-otp`, {
       method: "POST",
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, type }),
     });
   },
   verifyOTP: async (data: { phone: string; otp: string }) => {
@@ -494,25 +500,13 @@ export const reviewRepository = {
 
 // 13. Address Repository
 export const addressRepository = {
-  getAll: async () => {
-    return request<any>(ENDPOINTS.ADDRESSES, { method: "GET" });
-  },
-  create: async (data: any) => {
-    return request<any>(ENDPOINTS.ADDRESSES, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  },
-  update: async (id: string, data: any) => {
-    return request<any>(`${ENDPOINTS.ADDRESSES}/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-  },
-  delete: async (id: string) => {
-    return request<any>(`${ENDPOINTS.ADDRESSES}/${id}`, { method: "DELETE" });
-  },
+  getAll: async () => request<any>(ENDPOINTS.ADDRESSES, { method: "GET" }),
+  create: async (data: any) => request<any>(ENDPOINTS.ADDRESSES, { method: "POST", body: JSON.stringify(data) }),
+  update: async (id: string, data: any) => request<any>(`${ENDPOINTS.ADDRESSES}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: async (id: string) => request<any>(`${ENDPOINTS.ADDRESSES}/${id}`, { method: "DELETE" }),
 };
+
+
 
 // 14. Admin Settings Repository
 export const adminSettingsRepository = {
@@ -545,6 +539,15 @@ export const adminSettingsRepository = {
   },
   updateShippingSettings: async (data: any) => {
     return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/shipping/config`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  getAuthSettings: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/auth`, { method: "GET" });
+  },
+  updateAuthSettings: async (data: any) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/auth`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -647,11 +650,18 @@ export const chargeRepository = {
   },
 };
 
-// 19. Shipping Repository (Public)
+// 25. Shipping Settings Config (Public)
 export const shippingRepository = {
   getConfig: async () => {
-    return request<any>(`${API_URL}/shipping/config`, { method: "GET" });
-  },
+    return request<any>(`${BASE_URL}${API_PREFIX}/shipping/config`, { method: "GET" });
+  }
+};
+
+// 26. Payment Config (Public)
+export const paymentRepository = {
+  getConfig: async () => {
+    return request<any>(`${BASE_URL}${API_PREFIX}/payments/config`, { method: "GET" });
+  }
 };
 
 // 20. Orders Repository (Checkout & Verification)
@@ -707,3 +717,12 @@ export const ordersRepository = {
     });
   }
 };
+
+const apiClient = {
+  get: <T>(url: string, config?: RequestInit) => request<T>(url, { ...config, method: "GET" }),
+  post: <T>(url: string, body?: any, config?: RequestInit) => request<T>(url, { ...config, method: "POST", body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(url: string, body?: any, config?: RequestInit) => request<T>(url, { ...config, method: "PUT", body: body ? JSON.stringify(body) : undefined }),
+  delete: <T>(url: string, config?: RequestInit) => request<T>(url, { ...config, method: "DELETE" }),
+};
+
+export default apiClient;

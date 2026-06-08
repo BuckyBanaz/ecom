@@ -29,6 +29,10 @@ export const errorHandler = (
   const message = err.message || "Something went wrong on the server";
 
   // In development, return detailed stack logs; in production, keep them hidden
+  if (statusCode >= 500) {
+    console.error("[Global Error Handler]", err);
+  }
+
   res.status(statusCode).json({
     success: false,
     message,

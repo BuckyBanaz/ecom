@@ -73,6 +73,17 @@ const AdminSettings = () => {
   });
   const [isLoadingShipping, setIsLoadingShipping] = useState(true);
 
+  const [authSettings, setAuthSettings] = useState({
+    emailLogin: true,
+    phoneLogin: false,
+    registerMethod: "both",
+    smsProvider: "twilio",
+    twilioAccountSid: "",
+    twilioAuthToken: "",
+    twilioSenderNumber: "",
+  });
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+
   const [profileData, setProfileData] = useState({
     firstName: "",
     lastName: "",
@@ -217,10 +228,23 @@ const AdminSettings = () => {
         setIsLoadingShipping(false);
       }
     };
+    const fetchAuthSettings = async () => {
+      try {
+        const res = await adminSettingsRepository.getAuthSettings();
+        if (res.success && res.data) {
+          setAuthSettings(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching auth settings:", error);
+      } finally {
+        setIsLoadingAuth(false);
+      }
+    };
     fetchFeatures();
     fetchSmtpSettings();
     fetchPaymentSettings();
     fetchShippingSettings();
+    fetchAuthSettings();
   }, [isSuperAdmin]);
 
   const handleSaveFeatures = async () => {
@@ -280,6 +304,20 @@ const AdminSettings = () => {
       }
     } catch (error) {
       toast.error("An error occurred while saving Shipping settings");
+    }
+  };
+
+  const handleSaveAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await adminSettingsRepository.updateAuthSettings(authSettings);
+      if (res.success) {
+        toast.success("Auth settings saved successfully");
+      } else {
+        toast.error("Failed to save Auth settings");
+      }
+    } catch (error) {
+      toast.error("An error occurred while saving Auth settings");
     }
   };
 
@@ -528,35 +566,55 @@ const AdminSettings = () => {
         </TabsContent>
 
         <TabsContent value="auth">
-          <form onSubmit={handleSave("Auth")} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-            <h3 className="font-semibold text-lg">Login Methods</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div><p className="font-semibold">Email / Password</p><p className="text-xs text-muted-foreground">Standard email login</p></div>
-                <Switch defaultChecked />
+          {isLoadingAuth ? (
+            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
+          ) : (
+            <form onSubmit={handleSaveAuth} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
+              <h3 className="font-semibold text-lg">Login Methods</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div><p className="font-semibold">Email / Password</p><p className="text-xs text-muted-foreground">Standard email login</p></div>
+                  <Switch checked={authSettings.emailLogin} onCheckedChange={c => setAuthSettings({...authSettings, emailLogin: c})} />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div><p className="font-semibold">Phone (SMS OTP)</p><p className="text-xs text-muted-foreground">Login via SMS code</p></div>
+                  <Switch checked={authSettings.phoneLogin} onCheckedChange={c => setAuthSettings({...authSettings, phoneLogin: c})} />
+                </div>
               </div>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div><p className="font-semibold">Phone (SMS OTP)</p><p className="text-xs text-muted-foreground">Login via SMS code</p></div>
-                <Switch />
+              
+              <h3 className="font-semibold text-lg mt-6">Registration Setting</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div><p className="font-semibold">Sign Up Method</p><p className="text-xs text-muted-foreground">What details are required at sign up?</p></div>
+                  <Select value={authSettings.registerMethod} onValueChange={v => setAuthSettings({...authSettings, registerMethod: v})}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="both">Email & Phone</SelectItem>
+                      <SelectItem value="email_only">Email Only</SelectItem>
+                      <SelectItem value="phone_only">Phone Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div><p className="font-semibold">Google Sign-in</p><p className="text-xs text-muted-foreground">OAuth 2.0</p></div>
-                <Switch defaultChecked />
+              
+              <h3 className="font-semibold text-lg mt-6">Phone / SMS Settings</h3>
+              <div><Label>SMS Provider</Label>
+                <Select value={authSettings.smsProvider} onValueChange={v => setAuthSettings({...authSettings, smsProvider: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="twilio">Twilio</SelectItem><SelectItem value="messagebird">MessageBird</SelectItem><SelectItem value="vonage">Vonage</SelectItem></SelectContent></Select>
               </div>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div><p className="font-semibold">Apple Sign-in</p><p className="text-xs text-muted-foreground">Sign in with Apple ID</p></div>
-                <Switch />
-              </div>
-            </div>
-            <h3 className="font-semibold text-lg mt-6">Phone / SMS Settings</h3>
-            <div><Label>SMS Provider</Label>
-              <Select defaultValue="twilio"><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="twilio">Twilio</SelectItem><SelectItem value="messagebird">MessageBird</SelectItem><SelectItem value="vonage">Vonage</SelectItem></SelectContent></Select>
-            </div>
-            <div><Label>Account SID / API Key</Label><Input className="mt-1" placeholder="Enter API key" /></div>
-            <div><Label>Auth Token</Label><Input type="password" className="mt-1" placeholder="Enter auth token" /></div>
-            <div><Label>Sender Phone Number</Label><Input className="mt-1" placeholder="+31612345678" /></div>
-            <Button type="submit" className="rounded-full w-full sm:w-auto">Save Auth Settings</Button>
-          </form>
+              
+              {authSettings.smsProvider === "twilio" && (
+                <>
+                  <div><Label>Twilio Account SID</Label><Input value={authSettings.twilioAccountSid} onChange={e => setAuthSettings({...authSettings, twilioAccountSid: e.target.value})} className="mt-1" placeholder="Enter Account SID" /></div>
+                  <div><Label>Twilio Auth Token</Label><Input type="password" value={authSettings.twilioAuthToken} onChange={e => setAuthSettings({...authSettings, twilioAuthToken: e.target.value})} className="mt-1" placeholder="Enter auth token" /></div>
+                  <div><Label>Twilio Sender Phone Number</Label><Input value={authSettings.twilioSenderNumber} onChange={e => setAuthSettings({...authSettings, twilioSenderNumber: e.target.value})} className="mt-1" placeholder="+31612345678" /></div>
+                </>
+              )}
+              
+              <Button type="submit" className="rounded-full w-full sm:w-auto mt-4">Save Auth Settings</Button>
+            </form>
+          )}
         </TabsContent>
 
         <TabsContent value="payments">

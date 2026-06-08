@@ -7,6 +7,7 @@ import { env } from "../config/env";
 import { AppError } from "../middlewares/errorMiddleware";
 import redis from "../config/redis";
 import { emailService } from "../services/emailService";
+import { twilioService } from "../services/twilioService";
 
 // Helper to sign JWT Token
 const signToken = (id: string, email: string, role: string): string => {
@@ -21,9 +22,10 @@ const signToken = (id: string, email: string, role: string): string => {
 const registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email address"),
-  phone: z.string().min(10, "Phone number must be at least 10 digits"),
+  email: z.string().optional(),
+  phone: z.string().optional(),
   password: z.string().min(6, "Password must be at least 6 characters"),
+  otp: z.string().optional(),
 });
 
 export const registerCustomer = async (
@@ -38,25 +40,74 @@ export const registerCustomer = async (
       return next(new AppError(`Validation failed: ${errorMsgs}`, 400));
     }
 
-    const { firstName, lastName, email, phone, password } = parsed.data;
+    const { firstName, lastName, password } = parsed.data;
+    let { email, phone, otp } = parsed.data;
+
+    const registerMethod = process.env.AUTH_REGISTER_METHOD || "both";
+    
+    if (registerMethod === "both" || registerMethod === "email_only") {
+      if (!email || !email.includes("@")) {
+        return next(new AppError("Valid email address is required", 400));
+      }
+    }
+    
+    if (registerMethod === "both" || registerMethod === "phone_only") {
+      if (!phone || phone.length < 10) {
+        return next(new AppError("Phone number must be at least 10 digits", 400));
+      }
+    }
+
+    if (!email && !phone) {
+      return next(new AppError("Either email or phone is required", 400));
+    }
+
+    // Default to placeholders if not provided based on method
+    if (!email) email = `${phone}@placeholder.com`;
+    if (!phone) phone = `placeholder-${Date.now()}`;
 
     // Check if email or phone already exists
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: email.toLowerCase() },
-          { phone: phone }
-        ],
-      },
-    });
+    const orConditions: any[] = [];
+    if (email && email !== `${phone}@placeholder.com`) orConditions.push({ email: email.toLowerCase() });
+    if (phone && !phone.startsWith("placeholder-")) orConditions.push({ phone: phone });
 
-    if (existingUser) {
-      if (existingUser.email === email.toLowerCase()) {
-        return next(new AppError("Email is already registered", 409));
+    if (orConditions.length > 0) {
+      const existingUser = await prisma.user.findFirst({
+        where: { OR: orConditions },
+      });
+
+      if (existingUser) {
+        if (existingUser.email === email?.toLowerCase() && !email.includes("@placeholder.com")) {
+          return next(new AppError("Email is already registered", 409));
+        }
+        if (existingUser.phone === phone && !phone.startsWith("placeholder-")) {
+          return next(new AppError("Phone number is already registered", 409));
+        }
       }
-      if (existingUser.phone === phone) {
-        return next(new AppError("Phone number is already registered", 409));
+    }
+
+    // Verify OTP if phone registration is active
+    if (phone && !phone.startsWith("placeholder-") && (registerMethod === "both" || registerMethod === "phone_only")) {
+      if (!otp) {
+        return next(new AppError("OTP is required for phone registration", 400));
       }
+
+      if (!redis) {
+        return next(new AppError("Redis is not enabled", 500));
+      }
+
+      const redisKey = `otp:register:${phone}`;
+      const storedOtp = await redis.get(redisKey);
+
+      if (!storedOtp) {
+        return next(new AppError("OTP has expired or was not sent", 400));
+      }
+
+      if (storedOtp !== otp) {
+        return next(new AppError("Invalid OTP entered", 401));
+      }
+
+      // Delete OTP from Redis
+      await redis.del(redisKey);
     }
 
     // Hash the password
@@ -316,6 +367,7 @@ export const loginAdmin = async (
 // ----------------------------------------------------
 const sendOtpSchema = z.object({
   phone: z.string().min(10, "Valid phone number is required"),
+  type: z.enum(["login", "register"]).optional().default("login"),
 });
 
 export const sendOTP = async (
@@ -329,33 +381,53 @@ export const sendOTP = async (
       return next(new AppError("Invalid phone number format", 400));
     }
 
-    const { phone } = parsed.data;
+    const { phone, type } = parsed.data;
 
-    // Verify if user exists
+    // Verify if user exists based on type
     const user = await prisma.user.findFirst({
       where: { phone },
     });
 
-    if (!user) {
-      return next(new AppError("No account found with this phone number", 404));
+    if (type === "login") {
+      if (!user) {
+        return next(new AppError("No account found with this phone number", 404));
+      }
+    } else if (type === "register") {
+      if (user) {
+        return next(new AppError("Phone number is already registered", 409));
+      }
     }
 
     if (!redis) {
       return next(new AppError("Redis is not enabled. Cannot send OTP.", 500));
     }
 
-    // Generate 6-digit OTP (HARDCODED TO 123456 FOR DEMO)
-    const otp = "123456";
+    // Rate Limiting: Max 3 OTPs per 30 minutes
+    const rateLimitKey = `rate_limit:otp:${phone}`;
+    const currentAttempts = await redis.incr(rateLimitKey);
+    
+    if (currentAttempts === 1) {
+      await redis.expire(rateLimitKey, 1800); // Set expiration to 30 minutes
+    }
+
+    if (currentAttempts > 3) {
+      await redis.decr(rateLimitKey); // Revert increment if blocked
+      return next(new AppError("OTP limit exceeded. Try again some time later.", 429));
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save in Redis with 5 minutes expiration
-    const redisKey = `otp:${phone}`;
+    const redisKey = type === "login" ? `otp:${phone}` : `otp:register:${phone}`;
     await redis.setex(redisKey, 300, otp);
 
-    // TODO: Integrate actual SMS gateway here.
-    // For now, print to console for demo
-    console.log(`\n========================================`);
-    console.log(`📲 [DEMO SMS] OTP for ${phone} is: ${otp}`);
-    console.log(`========================================\n`);
+    const smsBody = `[Schip & Ster] Your verification code is ${otp}. Valid for 5 minutes.`;
+    const twilioRes = await twilioService.sendSMS(phone, smsBody);
+
+    if (!twilioRes.success) {
+      return next(new AppError(`Failed to send SMS: ${twilioRes.error}`, 500));
+    }
 
     res.status(200).json({
       success: true,
@@ -679,6 +751,38 @@ export const resetPassword = async (
 };
 
 // ----------------------------------------------------
+// 10.5 GET ALL USERS (ADMIN/SUPERADMIN)
+// ----------------------------------------------------
+export const getAllUsers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+
+    res.status(200).json({ success: true, data: users });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
 // 11. GET ALL ADMIN USERS (ADMIN/SUPERADMIN ONLY)
 // ----------------------------------------------------
 export const getAdminUsers = async (
@@ -798,6 +902,69 @@ export const deleteAdminUser = async (
     });
 
     res.status(200).json({ success: true, message: "Admin user deleted successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 14. SAVE FCM TOKEN
+// ----------------------------------------------------
+export const saveFcmToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return next(new AppError("Not authorized", 401));
+    }
+
+    const { token } = req.body;
+    if (!token) {
+      return next(new AppError("FCM token is required", 400));
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    // Add token if it doesn't exist
+    const currentTokens = user.fcmTokens || [];
+    if (!currentTokens.includes(token)) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          fcmTokens: {
+            push: token
+          }
+        }
+      });
+    }
+
+    res.status(200).json({ success: true, message: "FCM token saved successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 15. GET AUTH CONFIG (Public)
+// ----------------------------------------------------
+export const getAuthConfig = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const config = {
+      emailLogin: process.env.AUTH_ENABLE_EMAIL !== "false",
+      phoneLogin: process.env.AUTH_ENABLE_PHONE === "true",
+      registerMethod: process.env.AUTH_REGISTER_METHOD || "both",
+    };
+    res.status(200).json({ success: true, data: config });
   } catch (error: any) {
     next(error);
   }

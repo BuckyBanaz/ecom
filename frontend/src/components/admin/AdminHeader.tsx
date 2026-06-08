@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
+import { AdminNotifications } from "./AdminNotifications";
 
 // ─── Route → Page Title Map ──────────────────────────────────────────────────
 const PAGE_TITLES: Record<string, string> = {
@@ -213,72 +214,7 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
           </Button>
 
           {/* Notification Bell */}
-          <div ref={notifRef} className="relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => { setNotifOpen((v) => !v); setProfileOpen(false); }}
-              className="h-8 w-8 relative"
-            >
-              <Bell className="h-4 w-4" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center font-bold leading-none">
-                  {unreadCount}
-                </span>
-              )}
-            </Button>
-
-            {/* Notification Panel */}
-            {notifOpen && (
-              <div className="absolute right-0 top-10 w-80 rounded-2xl border border-border bg-white shadow-2xl z-50 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b">
-                  <span className="font-bold text-sm">Notifications</span>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={markAllRead}
-                      className="text-xs text-primary hover:underline font-medium"
-                    >
-                      Mark all read
-                    </button>
-                  )}
-                </div>
-                <div className="divide-y max-h-80 overflow-y-auto">
-                  {notifications.map((n) => (
-                    <button
-                      key={n.id}
-                      onClick={() => {
-                        setNotifications((prev) =>
-                          prev.map((x) => x.id === n.id ? { ...x, read: true } : x)
-                        );
-                        navigate(n.href);
-                      }}
-                      className={cn(
-                        "w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors",
-                        !n.read && "bg-primary/5"
-                      )}
-                    >
-                      <div className={cn("h-8 w-8 rounded-full flex items-center justify-center shrink-0 mt-0.5", n.color)}>
-                        <n.icon className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={cn("text-xs font-semibold truncate", !n.read && "text-foreground")}>{n.title}</p>
-                        <p className="text-[11px] text-muted-foreground truncate mt-0.5">{n.body}</p>
-                        <p className="text-[10px] text-muted-foreground/70 mt-1">{n.time}</p>
-                      </div>
-                      {!n.read && (
-                        <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-2" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-                <div className="border-t px-4 py-2.5 text-center">
-                  <button className="text-xs text-primary font-medium hover:underline">
-                    View all notifications
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <AdminNotifications />
 
           {/* Profile */}
           <div ref={profileRef} className="relative">

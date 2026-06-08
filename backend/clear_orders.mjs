@@ -7,6 +7,14 @@ async function main() {
   await prisma.orderItem.deleteMany({});
   const deletedOrders = await prisma.order.deleteMany({});
   console.log(`Successfully deleted ${deletedOrders.count} orders.`);
+
+  console.log("Clearing all customers...");
+  const deletedUsers = await prisma.user.deleteMany({
+    where: {
+      role: "customer"
+    }
+  });
+  console.log(`Successfully deleted ${deletedUsers.count} customers.`);
 }
 
 main()

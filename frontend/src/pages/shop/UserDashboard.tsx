@@ -16,6 +16,8 @@ import { addressRepository, authRepository, ordersRepository } from "@/client/ap
 import { Loader2, FileText, CreditCard, Truck, Check, X } from "lucide-react";
 import { parseOrderMetadata } from "@/utils/formatters";
 import { ReviewModal } from "@/components/shop/ReviewModal";
+import { useFcmToken } from "@/hooks/useFcmToken";
+import { PhonePicker } from "@/components/ui/PhonePicker";
 
 interface Address {
   id: string | number;
@@ -699,7 +701,7 @@ function AddressesTab() {
             <div><Label>Last Name</Label><Input value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} required className="mt-1" /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Phone</Label><Input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required className="mt-1" /></div>
+            <div><Label>Phone</Label><PhonePicker value={formData.phone} onChange={val => setFormData({...formData, phone: val})} required className="mt-1" /></div>
             <div>
               <Label>Address Label</Label>
               <select 
@@ -856,7 +858,7 @@ function ProfileTab() {
           <div><Label>Last Name</Label><Input value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} className="mt-1" required /></div>
         </div>
         <div><Label>Email</Label><Input value={formData.email} disabled className="mt-1 bg-muted cursor-not-allowed text-muted-foreground" title="Email cannot be changed" /></div>
-        <div><Label>Phone</Label><Input type="tel" value={formData.phone} disabled className="mt-1 bg-muted cursor-not-allowed text-muted-foreground" title="Phone number cannot be changed" /></div>
+        <div><Label>Phone</Label><PhonePicker value={formData.phone} onChange={() => {}} disabled className="mt-1" /></div>
         <Button type="submit" disabled={loading} className="rounded-full">
           {loading ? "Saving..." : "Save Profile"}
         </Button>

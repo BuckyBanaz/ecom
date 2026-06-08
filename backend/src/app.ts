@@ -70,6 +70,7 @@ import paymentRoutes from "./routes/paymentRoutes";
 import shippingRoutes from "./routes/shippingRoutes";
 import orderRoutes from "./routes/orderRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
+import notificationRoutes from "./routes/notificationRoutes";
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -93,6 +94,7 @@ app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/shipping", shippingRoutes);
 app.use("/api/v1/orders", orderRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
 
 // Catch-all route for 404 undefined paths
 app.all("*", (req, _res, next) => {

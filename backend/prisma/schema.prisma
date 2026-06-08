@@ -25,6 +25,7 @@ model User {
   orders       Order[]
   wishlists    Wishlist[]
   addresses    Address[]
+  fcmTokens    String[]   @default([]) @map("fcm_tokens")
 
   @@map("users")
 }
@@ -348,12 +349,14 @@ model CmsPage {
 
 // 11. Email Templates Model
 model EmailTemplate {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  subject   String
-  body      String
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  name         String   @unique
+  subject      String
+  body         String
+  smsBody      String?  @map("sms_body")
+  whatsappBody String?  @map("whatsapp_body")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("email_templates")
 }

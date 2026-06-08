@@ -47,7 +47,12 @@ export default function AdminOrderDetails() {
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [creatingShipment, setCreatingShipment] = useState(false);
+  
+  // Custom confirmation dialog state
+  const [showConfirmStatusDialog, setShowConfirmStatusDialog] = useState(false);
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<string | null>(null);
 
   // Modal dialog view states for print/preview simulations
   const [showInvoiceMock, setShowInvoiceMock] = useState(false);
@@ -95,7 +100,9 @@ export default function AdminOrderDetails() {
         const fetchedOrder = res.data;
         const estWeight = (fetchedOrder.items.reduce((sum: number, i: any) => sum + i.quantity, 0) * 1.5).toFixed(1);
         setWeight(estWeight);
-        setOrder(formatOrderWithShipment(fetchedOrder));
+        const formattedOrder = formatOrderWithShipment(fetchedOrder);
+        setOrder(formattedOrder);
+        setSelectedStatus(formattedOrder.status);
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to load order");
@@ -117,7 +124,9 @@ export default function AdminOrderDetails() {
       if (res.success) {
         setOrder(prev => {
           const updated = prev ? { ...res.data, items: res.data.items || prev.items } : res.data;
-          return formatOrderWithShipment(updated);
+          const formatted = formatOrderWithShipment(updated);
+          setSelectedStatus(formatted.status);
+          return formatted;
         });
         toast.success(`Order status updated to "${statusLabels[newStatus] || newStatus}"`, { id: toastId });
       }
@@ -238,7 +247,7 @@ export default function AdminOrderDetails() {
           </Button>
           
           {/* Status Select */}
-          <Select value={order.status} onValueChange={handleStatusChange} disabled={updatingStatus}>
+          <Select value={selectedStatus || order?.status} onValueChange={setSelectedStatus} disabled={updatingStatus}>
             <SelectTrigger className="w-[220px] h-9 text-xs bg-background border-muted-foreground/20 rounded-full font-bold">
               <SelectValue />
             </SelectTrigger>
@@ -250,6 +259,20 @@ export default function AdminOrderDetails() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Save Status Button */}
+          {selectedStatus && order && selectedStatus !== order.status && (
+            <Button
+              onClick={() => {
+                setPendingStatusUpdate(selectedStatus);
+                setShowConfirmStatusDialog(true);
+              }}
+              disabled={updatingStatus}
+              className="rounded-full text-xs font-bold h-9 bg-green-600 text-white hover:bg-green-700 shadow-sm transition-all"
+            >
+              Save
+            </Button>
+          )}
 
           {/* Quick next status button */}
           {nextStatus && (
@@ -749,6 +772,44 @@ export default function AdminOrderDetails() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Confirmation Dialog for Status Change */}
+      {showConfirmStatusDialog && pendingStatusUpdate && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card text-foreground rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-6">
+            <div>
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600" /> Confirm Status
+              </h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Are you sure you want to update the order status to <strong className="text-foreground">"{statusLabels[pendingStatusUpdate]}"</strong>?
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-border">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowConfirmStatusDialog(false);
+                  setPendingStatusUpdate(null);
+                }} 
+                className="rounded-full h-9 text-xs font-bold"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  handleStatusChange(pendingStatusUpdate);
+                  setShowConfirmStatusDialog(false);
+                  setPendingStatusUpdate(null);
+                }} 
+                className="rounded-full h-9 bg-green-600 hover:bg-green-700 text-white text-xs font-bold"
+              >
+                Yes, update status
+              </Button>
+            </div>
           </div>
         </div>
       )}
