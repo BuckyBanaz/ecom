@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Package, Truck, Search, Loader2 } from "lucide-react";
+import { Package, Truck, Search, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Order } from "./AdminOrders";
+import { Badge } from "@/components/ui/badge";
 
 import { ordersRepository } from "@/client/apiClient";
 
@@ -26,6 +27,9 @@ export default function AdminReadyToShip() {
   const [carrier, setCarrier] = useState<string>("");
   const [creatingShipment, setCreatingShipment] = useState(false);
   const [shippingMethods, setShippingMethods] = useState<any[]>([]);
+  const [isCarrierOpen, setIsCarrierOpen] = useState(false);
+  const [carrierSearch, setCarrierSearch] = useState<string>("");
+  const [loadingCarriers, setLoadingCarriers] = useState(false);
 
   const fetchOrders = async () => {
     try {
@@ -53,6 +57,7 @@ export default function AdminReadyToShip() {
     setCarrier("");
     // Fetch live Sendcloud shipping methods
     try {
+      setLoadingCarriers(true);
       const res = await ordersRepository.getShippingMethods();
       if (res.success && res.data && res.data.shipping_methods) {
         setShippingMethods(res.data.shipping_methods);
@@ -63,6 +68,8 @@ export default function AdminReadyToShip() {
     } catch (err) {
       console.error("Failed to fetch Sendcloud shipping methods", err);
       toast.error("Failed to load shipping methods from Sendcloud");
+    } finally {
+      setLoadingCarriers(false);
     }
   };
 
@@ -206,24 +213,78 @@ export default function AdminReadyToShip() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="carrier" className="text-xs font-semibold">Carrier</Label>
-                <Select value={carrier} onValueChange={setCarrier}>
-                  <SelectTrigger className="h-9 text-xs rounded-lg">
-                    <SelectValue placeholder={shippingMethods.length === 0 ? "Loading..." : "Select carrier"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shippingMethods.length === 0 ? (
-                      <SelectItem value="loading" disabled className="text-xs">Loading shipping methods...</SelectItem>
-                    ) : (
-                      shippingMethods.map(method => (
-                        <SelectItem key={method.id} value={method.id.toString()} className="text-xs">
-                          {method.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-1.5 relative">
+                <Label htmlFor="carrier" className="text-xs font-semibold">Carrier (Search & Select)</Label>
+                
+                <div 
+                  className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                  onClick={() => setIsCarrierOpen(!isCarrierOpen)}
+                >
+                  <span className="truncate">
+                    {carrier 
+                      ? shippingMethods.find(m => m.id.toString() === carrier)?.name || "Select Carrier"
+                      : "Select Carrier"}
+                  </span>
+                  <ArrowRight className="h-3 w-3 opacity-50 rotate-90" />
+                </div>
+
+                {isCarrierOpen && (
+                  <div className="absolute z-50 w-full top-full mt-1 bg-white dark:bg-popover border shadow-md rounded-md overflow-hidden">
+                    <div className="p-2 border-b bg-muted/20">
+                      <Input 
+                        placeholder="Search carriers..." 
+                        value={carrierSearch}
+                        onChange={(e) => setCarrierSearch(e.target.value)}
+                        className="h-8 text-xs"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-1">
+                      {loadingCarriers ? (
+                        <div className="p-4 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          <span className="text-xs">Loading carriers...</span>
+                        </div>
+                      ) : shippingMethods.filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase())).length === 0 ? (
+                        <div className="p-2 text-xs text-center text-muted-foreground">No carriers found</div>
+                      ) : (
+                        shippingMethods
+                          .filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase()))
+                          .map(method => {
+                            const w = parseFloat(weight) || 0;
+                            const n = method.name.toLowerCase();
+                            // Suggestion logic
+                            const isSuggested = (w < 2 && n.includes("mailbox")) || 
+                                                (w >= 2 && n.includes("standard")) || 
+                                                n.includes("postnl standard");
+                                                
+                            const isDomestic = n.includes("postnl") || n.includes("dhl for you") || (!n.includes("global") && !n.includes("connect") && !n.includes("international"));
+                            const isInternational = n.includes("global") || n.includes("connect") || n.includes("international") || n.includes("dhl parcel connect");
+
+                            return (
+                              <div 
+                                key={method.id}
+                                onClick={() => { setCarrier(method.id.toString()); setIsCarrierOpen(false); }}
+                                className={`flex items-center justify-between p-2 text-xs rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${carrier === method.id.toString() ? 'bg-accent/50 font-bold' : ''}`}
+                              >
+                                <div className="flex flex-col gap-0.5">
+                                  <span>{method.name}</span>
+                                  <div className="flex items-center gap-1">
+                                    {isDomestic ? (
+                                      <span className="text-[9px] text-blue-600 bg-blue-100 px-1 rounded">Domestic</span>
+                                    ) : isInternational ? (
+                                      <span className="text-[9px] text-orange-600 bg-orange-100 px-1 rounded">International</span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                {isSuggested && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-green-100 text-green-700 hover:bg-green-100 shrink-0">Suggested</Badge>}
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

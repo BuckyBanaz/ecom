@@ -275,9 +275,12 @@ export default function AdminOrderDetails() {
           )}
 
           {/* Quick next status button */}
-          {nextStatus && (
+          {nextStatus && !(selectedStatus && order && selectedStatus !== order.status) && (
             <Button
-              onClick={() => handleStatusChange(nextStatus)}
+              onClick={() => {
+                setPendingStatusUpdate(nextStatus);
+                setShowConfirmStatusDialog(true);
+              }}
               disabled={updatingStatus}
               className="rounded-full text-xs font-bold gap-1.5 h-9 bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm"
             >
