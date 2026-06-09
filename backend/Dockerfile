@@ -48,6 +48,9 @@ RUN npx prisma generate
 # Copy built dist from builder
 COPY --from=builder /app/dist ./dist
 
+# Utility scripts (e.g. clear_orders.js)
+COPY clear_orders.js ./
+
 # Create uploads directory
 RUN mkdir -p public/uploads
 
