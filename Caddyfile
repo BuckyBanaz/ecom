@@ -11,3 +11,14 @@ api.{$DOMAIN} {
   encode gzip zstd
   reverse_proxy backend:5000
 }
+
+jenkins.{$DOMAIN} {
+  encode gzip zstd
+  reverse_proxy ecom-jenkins:8080 {
+    header_up Host {host}
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+  }
+}

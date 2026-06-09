@@ -28,12 +28,21 @@ cd "${REPO_DIR}"
 docker compose -f "${JENKINS_COMPOSE}" up -d --build
 
 echo ""
-echo "==> Jenkins is starting on port 8080"
+DOMAIN="${DOMAIN:-schipenster.com}"
+if [[ -f "${REPO_DIR}/.env.production" ]]; then
+  DOMAIN="$(grep -E '^DOMAIN=' "${REPO_DIR}/.env.production" | cut -d= -f2- | tr -d '\r' || echo "$DOMAIN")"
+fi
+
+echo "==> Recreating Caddy (jenkins subdomain)..."
+docker compose -f "${REPO_DIR}/docker-compose.prod.yml" up -d caddy
+
+echo ""
+echo "==> Jenkins is starting (internal port 8080 only)"
 echo ""
 echo "Next steps:"
-echo "  1. From YOUR laptop (SSH tunnel — Jenkins is NOT on public IP):"
-echo "       ssh -L 8080:127.0.0.1:8080 root@$(hostname -I | awk '{print $1}')"
-echo "     Then open http://localhost:8080"
+echo "  1. Add DNS A record: jenkins.${DOMAIN} → $(hostname -I | awk '{print $1}')"
+echo "  2. Open https://jenkins.${DOMAIN}"
+echo "     (fallback until DNS propagates: http://127.0.0.1:8080 on the VPS)"
 echo "  2. Complete setup wizard — create admin user"
 echo "  3. Install plugins: Git, GitHub, Pipeline, Docker Pipeline, Credentials Binding"
 echo "  4. New Item → Pipeline → name: ecom-production-deploy"
@@ -43,6 +52,5 @@ echo "     - Branch: */v1.4"
 echo "     - Script path: Jenkinsfile"
 echo "  5. Run Build with Parameters → BRANCH=v1.4"
 echo ""
-echo "Security: block public Jenkins port (if still open from before):"
-echo "  ufw deny 8080/tcp"
-echo "  ufw deny 50000/tcp"
+echo "Optional: GitHub webhook → http://<VPS_IP>:8080/github-webhook/"
+echo "           (restrict port 8080 in firewall to your IP)"

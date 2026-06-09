@@ -78,6 +78,13 @@ services:
     depends_on:
       - frontend
       - backend
+    networks:
+      - default
+      - ecom_net
+
+networks:
+  ecom_net:
+    name: ecom_net
 
 volumes:
   postgres_data:

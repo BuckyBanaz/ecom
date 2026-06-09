@@ -1,7 +1,5 @@
 # Run on VPS: docker compose -f docker-compose.jenkins.yml up -d --build
-# Jenkins is NOT public — bind localhost only. Access via SSH tunnel:
-#   ssh -L 8080:127.0.0.1:8080 root@187.124.21.137
-# Then open: http://localhost:8080
+# Jenkins UI: https://jenkins.<DOMAIN>  (via Caddy — port 8080 not public)
 services:
   jenkins:
     build:
@@ -11,6 +9,7 @@ services:
     container_name: ecom-jenkins
     restart: unless-stopped
     user: root
+    # Bind to localhost only — public access via https://jenkins.schipenster.com
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:50000:50000"
@@ -20,9 +19,17 @@ services:
       - /opt/ecom:/opt/ecom
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
-      - JAVA_OPTS=-Djenkins.install.runSetupWizard=true
+    env_file:
+      - .env.production
     group_add:
       - "${DOCKER_GID:-999}"
+    networks:
+      - ecom_net
+
+networks:
+  ecom_net:
+    external: true
+    name: ecom_net
 
 volumes:
   jenkins_home:
