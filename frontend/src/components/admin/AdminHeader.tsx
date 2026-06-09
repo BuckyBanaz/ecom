@@ -29,6 +29,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/users": "Customer Directory",
   "/admin/manage-users": "Manage Admin Users",
   "/admin/settings": "Settings",
+  "/admin/logs": "Logs",
   "/admin/orders": "All Orders",
   "/admin/orders/invoices": "Invoices",
   "/admin/orders/labels": "Shipping Labels",

@@ -69,6 +69,7 @@ const CMSHeaderFooter = lazy(() => import("./pages/admin/cms/CMSHeaderFooter.tsx
 const CMSFaqs = lazy(() => import("./pages/admin/cms/CMSFaqs.tsx"));
 const AdminEmailTemplates = lazy(() => import("./pages/admin/AdminEmailTemplates.tsx"));
 const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics.tsx"));
+const AdminLogs = lazy(() => import("./pages/admin/AdminLogs.tsx"));
 const MediaLibrary = lazy(() => import("./pages/admin/media/MediaLibrary.tsx"));
 
 const queryClient = new QueryClient({
@@ -164,6 +165,7 @@ function App() {
                             <Route path="users" element={<AdminUsers />} />
                             <Route path="manage-users" element={<AdminManageUsers />} />
                             <Route path="settings" element={<AdminSettings />} />
+                            <Route path="logs" element={<AdminLogs />} />
                             <Route path="notifications" element={<AdminNotificationsPage />} />
                           </Route>
                         </Routes>

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, FolderTree, ShoppingCart, Users, Settings,
   FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown,
   Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders, Quote, HardDrive, Mail,
-  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw, BarChart3
+  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw, BarChart3, Terminal
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ const navItemsBase = [
   { to: "/admin/testimonials", icon: Quote, labelKey: "testimonials", permission: "testimonials" },
   { to: "/admin/storage", icon: HardDrive, labelKey: "storage", permission: "storage" },
   { to: "/admin/users", icon: Users, labelKey: "users", permission: "users" },
+  { to: "/admin/logs", icon: Terminal, labelKey: "logs", permission: "dashboard" },
   { to: "/admin/settings", icon: Settings, labelKey: "settings", permission: "settings" },
 ];
 

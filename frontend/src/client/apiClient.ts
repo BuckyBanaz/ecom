@@ -798,6 +798,23 @@ export const ordersRepository = {
   }
 };
 
+// 27. Admin Logs Repository
+export const logsRepository = {
+  list: async (params: Record<string, string | number> = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== "") {
+        query.append(key, String(val));
+      }
+    });
+    const qs = query.toString();
+    const url = qs ? `${ENDPOINTS.ADMIN_LOGS}?${qs}` : ENDPOINTS.ADMIN_LOGS;
+    return request<any>(url, { method: "GET" });
+  },
+  stats: async () => request<any>(`${ENDPOINTS.ADMIN_LOGS}/stats`, { method: "GET" }),
+  clear: async () => request<any>(ENDPOINTS.ADMIN_LOGS, { method: "DELETE" }),
+};
+
 const apiClient = {
   get: <T>(url: string, config?: RequestInit) => request<T>(url, { ...config, method: "GET" }),
   post: <T>(url: string, body?: any, config?: RequestInit) => request<T>(url, { ...config, method: "POST", body: body ? JSON.stringify(body) : undefined }),

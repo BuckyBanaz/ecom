@@ -38,6 +38,7 @@ export const ENDPOINTS = {
   get ADMIN_GENERAL_SETTINGS() { return api("/admin/settings/general"); },
   get PUBLIC_MAINTENANCE_STATUS() { return api("/cms/maintenance-status"); },
   get CONFIG_APP() { return api("/config/app"); },
+  get ADMIN_LOGS() { return api("/admin/logs"); },
 };
 
 /** @deprecated use getBaseUrl() */
