@@ -16,6 +16,7 @@ services:
       - /opt/ecom:/opt/ecom
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
+      - JENKINS_OPTS=--httpPort=8080
     env_file:
       - .env.production
     group_add:
