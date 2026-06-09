@@ -16,12 +16,25 @@ const app = express();
 // Register HTTP request logger middleware
 app.use(requestLogger);
 
+const allowedOrigins = new Set([
+  env.CLIENT_URL,
+  "https://schipenster.com",
+  "https://www.schipenster.com",
+  "http://localhost:5173",
+  "http://localhost:8080",
+]);
+
 // Configure Cross-Origin Resource Sharing matching our React client URL
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests from localhost on any dev port or from no origin (mobile/curl)
-      if (!origin || /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.has(origin) ||
+        /^http:\/\/localhost:\d+$/.test(origin) ||
+        /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+      ) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));

@@ -30,8 +30,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies needed for Prisma migrations and runtime
+RUN npm ci && npm cache clean --force
 
 # Copy prisma files
 COPY prisma ./prisma
@@ -46,4 +46,4 @@ RUN mkdir -p public/uploads
 EXPOSE 5000
 
 # Run migrations and start app
-CMD ["sh", "-c", "npx prisma migrate deploy --skip-generate 2>/dev/null || true && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy || true && node dist/index.js"]

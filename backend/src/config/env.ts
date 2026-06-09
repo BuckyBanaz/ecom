@@ -15,6 +15,7 @@ const envSchema = z.object({
   ENABLE_REDIS: z.enum(["true", "false"]).default("false"),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
