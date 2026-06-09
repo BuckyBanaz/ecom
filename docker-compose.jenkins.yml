@@ -9,10 +9,7 @@ services:
     container_name: ecom-jenkins
     restart: unless-stopped
     user: root
-    # Bind to localhost only — public access via https://jenkins.schipenster.com
-    ports:
-      - "127.0.0.1:8080:8080"
-      - "127.0.0.1:50000:50000"
+    # No host ports — only reachable via Caddy at https://jenkins.<DOMAIN> on ecom_net
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
