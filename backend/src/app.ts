@@ -20,19 +20,25 @@ app.use(requestLogger);
 // Rate limiting — protects against brute-force and abuse
 app.use(globalLimiter);
 
-const allowedOrigins = new Set([
-  env.CLIENT_URL,
-  "https://schipenster.com",
-  "https://www.schipenster.com",
-  "http://localhost:5173",
-  "http://localhost:8080",
-]);
+const allowedOrigins = new Set(
+  [
+    env.CLIENT_URL,
+    env.API_URL,
+    "https://schipenster.com",
+    "https://www.schipenster.com",
+    "https://api.schipenster.com",
+    "https://jenkins.schipenster.com",
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "http://localhost:5000",
+  ].filter(Boolean)
+);
 
 // Configure Cross-Origin Resource Sharing matching our React client URL
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests from localhost on any dev port or from no origin (mobile/curl)
+      // Allow requests with no origin (curl, Postman, same-server) or known frontends
       if (
         !origin ||
         allowedOrigins.has(origin) ||
@@ -41,7 +47,7 @@ app.use(
       ) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(null, false);
       }
     },
     credentials: true,
