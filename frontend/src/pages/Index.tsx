@@ -68,34 +68,7 @@ const Index = () => {
     <div>
       <ShortcodeRenderer content={content} prefetchedData={prefetchedData} />
       
-      {/* Newsletter (Kept static at the bottom) */}
-      <section className="container-page mt-16 mb-16">
-        <div className="overflow-hidden rounded-2xl bg-secondary p-8 text-secondary-foreground md:p-14">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-bold md:text-3xl">{t("newsletter.title")}</h2>
-            <p className="mt-2 text-secondary-foreground/80">
-              {t("newsletter.description")}
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                (e.target as HTMLFormElement).reset();
-              }}
-              className="mx-auto mt-6 flex max-w-lg flex-col sm:flex-row gap-3"
-            >
-              <input
-                type="email"
-                required
-                placeholder={t("newsletter.email_placeholder")}
-                className="flex-1 w-full rounded-full border-0 bg-white/10 px-5 py-3 text-sm text-secondary-foreground placeholder:text-secondary-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button type="submit" className="shrink-0 rounded-full bg-primary px-8 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 whitespace-nowrap">
-                {t("newsletter.signup")}
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
+   
     </div>
   );
 };
