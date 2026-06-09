@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Trash2, Upload, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ const emptyForm = {
 };
 
 const AdminTestimonials = () => {
+  const { t } = useTranslation();
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Testimonial | null>(null);
@@ -76,7 +78,7 @@ const AdminTestimonials = () => {
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.message.trim()) {
-      toast.error("Name and message are required");
+      toast.error(t("admin_testimonials.toast_error_required"));
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
@@ -87,7 +89,7 @@ const AdminTestimonials = () => {
           : t
       );
       persist(updated);
-      toast.success("Testimonial updated");
+      toast.success(t("admin_testimonials.toast_updated"));
     } else {
       const next: Testimonial = {
         id: Date.now().toString(),
@@ -96,14 +98,14 @@ const AdminTestimonials = () => {
         date: today,
       };
       persist([next, ...testimonials]);
-      toast.success("Testimonial added");
+      toast.success(t("admin_testimonials.toast_added"));
     }
     setOpen(false);
   };
 
   const remove = (id: string) => {
     persist(testimonials.filter((t) => t.id !== id));
-    toast.success("Testimonial deleted");
+    toast.success(t("admin_testimonials.toast_deleted"));
   };
 
   return (
@@ -113,28 +115,28 @@ const AdminTestimonials = () => {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNew} className="gap-2">
-              <Plus className="h-4 w-4" /> New Testimonial
+              <Plus className="h-4 w-4" /> {t("admin_testimonials.button_new")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{edit ? "Edit Testimonial" : "New Testimonial"}</DialogTitle>
+              <DialogTitle>{edit ? t("admin_testimonials.dialog_title_edit") : t("admin_testimonials.dialog_title_new")}</DialogTitle>
             </DialogHeader>
             <form onSubmit={save} className="space-y-4 mt-4">
               <div>
-                <Label>Avatar</Label>
+                <Label>{t("admin_testimonials.label_avatar")}</Label>
                 <div className="mt-2 flex items-center gap-3">
                   <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border bg-muted">
                     {form.avatar ? (
                       <img src={form.avatar} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
-                        No image
+                        {t("admin_testimonials.no_image")}
                       </div>
                     )}
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={() => setIsMediaLibraryOpen(true)} className="gap-2">
-                    <Upload className="h-4 w-4" /> {form.avatar ? "Change" : "Browse Media"}
+                    <Upload className="h-4 w-4" /> {form.avatar ? t("admin_testimonials.button_change") : t("admin_testimonials.button_browse")}
                   </Button>
                 </div>
               </div>
@@ -150,18 +152,18 @@ const AdminTestimonials = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Name</Label>
+                  <Label>{t("admin_testimonials.label_name")}</Label>
                   <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1" required />
                 </div>
                 <div>
-                  <Label>Title / Role</Label>
-                  <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-1" placeholder="e.g. Interior Designer" />
+                  <Label>{t("admin_testimonials.label_title")}</Label>
+                  <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-1" placeholder={t("admin_testimonials.placeholder_role")} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Rating</Label>
+                  <Label>{t("admin_testimonials.label_rating")}</Label>
                   <select
                     value={form.rating}
                     onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })}
@@ -169,25 +171,25 @@ const AdminTestimonials = () => {
                   >
                     {[5, 4, 3, 2, 1].map((r) => (
                       <option key={r} value={r}>
-                        {r} Stars
+                        {t("admin_testimonials.rating_stars", { count: r })}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div className="flex items-center gap-2 mt-6">
                   <Switch checked={form.published} onCheckedChange={(v) => setForm({ ...form, published: v })} />
-                  <Label>Published</Label>
+                  <Label>{t("admin_testimonials.label_published")}</Label>
                 </div>
               </div>
 
               <div>
-                <Label>Message</Label>
+                <Label>{t("admin_testimonials.label_message")}</Label>
                 <Textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="mt-1 min-h-[140px]" required />
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button type="submit">{edit ? "Update" : "Create"}</Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t("admin_testimonials.button_cancel")}</Button>
+                <Button type="submit">{edit ? t("admin_testimonials.button_update") : t("admin_testimonials.button_create")}</Button>
               </div>
             </form>
           </DialogContent>
@@ -197,7 +199,7 @@ const AdminTestimonials = () => {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {testimonials.length === 0 ? (
           <div className="rounded-xl border border-dashed bg-muted/10 p-8 text-center text-sm text-muted-foreground">
-            No testimonials yet. Click "New Testimonial" to add one.
+            {t("admin_testimonials.empty_text")}
           </div>
         ) : (
           testimonials.map((t) => (
@@ -207,7 +209,7 @@ const AdminTestimonials = () => {
                   {t.avatar ? (
                     <img src={t.avatar} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">No image</div>
+                    <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">{t("admin_testimonials.no_image")}</div>
                   )}
                 </div>
                 <div className="flex-1">
@@ -215,7 +217,7 @@ const AdminTestimonials = () => {
                   <div className="text-xs text-muted-foreground">{t.title || "—"}</div>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${t.published ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
-                  {t.published ? "Published" : "Draft"}
+                  {t.published ? t("admin_testimonials.badge_published") : t("admin_testimonials.badge_draft")}
                 </span>
               </div>
 
@@ -230,10 +232,10 @@ const AdminTestimonials = () => {
                 <span className="text-xs text-muted-foreground">{t.date}</span>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="sm" className="gap-1" onClick={() => openEdit(t)}>
-                    <Pencil className="h-3 w-3" /> Edit
+                    <Pencil className="h-3 w-3" /> {t("admin_testimonials.button_edit")}
                   </Button>
                   <Button variant="ghost" size="sm" className="gap-1 text-destructive" onClick={() => remove(t.id)}>
-                    <Trash2 className="h-3 w-3" /> Delete
+                    <Trash2 className="h-3 w-3" /> {t("admin_testimonials.button_delete")}
                   </Button>
                 </div>
               </div>

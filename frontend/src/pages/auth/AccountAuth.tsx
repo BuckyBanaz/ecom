@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation, Trans } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import { authRepository } from "@/client/apiClient";
 import { toast } from "sonner";
 
 const AccountAuth = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
@@ -75,15 +77,15 @@ const AccountAuth = () => {
       setLoading(true);
       const res = await authRepository.login({ email, password });
       if (res.success) {
-        toast.success(res.message || "Logged in successfully!");
+        toast.success(res.message || t("auth_pages.login.toast_logged_in"));
         localStorage.setItem("customer_token", res.token);
         localStorage.setItem("customer_user", JSON.stringify(res.user));
         navigate(redirectTo);
       } else {
-        toast.error(res.message || "Login failed");
+        toast.error(res.message || t("auth_pages.login.toast_login_failed"));
       }
     } catch (error: any) {
-      toast.error(error.message || "An error occurred during login");
+      toast.error(error.message || t("auth_pages.login.toast_login_error"));
     } finally {
       setLoading(false);
     }
@@ -92,7 +94,7 @@ const AccountAuth = () => {
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone || phone.length < 10) {
-      toast.error("Please enter a valid phone number");
+      toast.error(t("auth_pages.login.toast_invalid_phone"));
       return;
     }
     
@@ -101,13 +103,13 @@ const AccountAuth = () => {
       const fullPhone = `${phoneCode}${phone}`;
       const res = await authRepository.sendOTP(fullPhone);
       if (res.success) {
-        toast.success(res.message || "OTP sent successfully!");
+        toast.success(res.message || t("auth_pages.login.toast_otp_sent"));
         setOtpSent(true);
       } else {
-        toast.error(res.message || "Failed to send OTP");
+        toast.error(res.message || t("auth_pages.login.toast_otp_failed"));
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to send OTP");
+      toast.error(error.message || t("auth_pages.login.toast_otp_failed"));
     } finally {
       setLoading(false);
     }
@@ -116,7 +118,7 @@ const AccountAuth = () => {
   const handleVerifyOTPLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otpValue.length < 6) {
-      toast.error("Please enter the 6-digit OTP");
+      toast.error(t("auth_pages.login.toast_otp_short"));
       return;
     }
     try {
@@ -124,15 +126,15 @@ const AccountAuth = () => {
       const fullPhone = `${phoneCode}${phone}`;
       const res = await authRepository.verifyOTP({ phone: fullPhone, otp: otpValue });
       if (res.success) {
-        toast.success(res.message || "Logged in successfully!");
+        toast.success(res.message || t("auth_pages.login.toast_logged_in"));
         localStorage.setItem("customer_token", res.token);
         localStorage.setItem("customer_user", JSON.stringify(res.user));
         navigate(redirectTo);
       } else {
-        toast.error(res.message || "Invalid OTP / Login failed");
+        toast.error(res.message || t("auth_pages.login.toast_otp_invalid"));
       }
     } catch (error: any) {
-      toast.error(error.message || "Invalid OTP / Login failed");
+      toast.error(error.message || t("auth_pages.login.toast_otp_invalid"));
     } finally {
       setLoading(false);
     }
@@ -149,13 +151,13 @@ const AccountAuth = () => {
         const fullPhone = `${regPhoneCode}${regPhone}`;
         const res = await authRepository.sendOTP(fullPhone, "register");
         if (res.success) {
-          toast.success(res.message || "OTP sent successfully!");
+          toast.success(res.message || t("auth_pages.login.toast_otp_sent"));
           setRegOtpSent(true);
         } else {
-          toast.error(res.message || "Failed to send OTP");
+          toast.error(res.message || t("auth_pages.login.toast_otp_failed"));
         }
       } catch (error: any) {
-        toast.error(error.message || "Failed to send OTP");
+        toast.error(error.message || t("auth_pages.login.toast_otp_failed"));
       } finally {
         setLoading(false);
       }
@@ -182,15 +184,15 @@ const AccountAuth = () => {
 
       const res = await authRepository.register(payload);
       if (res.success) {
-        toast.success(res.message || "Account created successfully!");
+        toast.success(res.message || t("auth_pages.register.toast_account_created"));
         localStorage.setItem("customer_token", res.token);
         localStorage.setItem("customer_user", JSON.stringify(res.user));
         navigate(redirectTo);
       } else {
-        toast.error(res.message || "Registration failed");
+        toast.error(res.message || t("auth_pages.register.toast_register_failed"));
       }
     } catch (error: any) {
-      toast.error(error.message || "Registration failed");
+      toast.error(error.message || t("auth_pages.register.toast_register_failed"));
     } finally {
       setLoading(false);
     }
@@ -210,7 +212,7 @@ const AccountAuth = () => {
               activeTab === "login" ? "bg-white shadow-sm text-zinc-900" : "text-zinc-500 hover:text-zinc-900"
             )}
           >
-            Log In
+            {t("auth_pages.tabs.login")}
           </button>
           <button
             onClick={() => setActiveTab("register")}
@@ -219,7 +221,7 @@ const AccountAuth = () => {
               activeTab === "register" ? "bg-white shadow-sm text-zinc-900" : "text-zinc-500 hover:text-zinc-900"
             )}
           >
-            Sign Up
+            {t("auth_pages.tabs.register")}
           </button>
         </div>
 
@@ -228,8 +230,8 @@ const AccountAuth = () => {
           {activeTab === "login" && (
             <div className="w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="mb-8 text-center">
-                <h3 className="text-2xl font-bold tracking-tight text-zinc-900">Welcome Back</h3>
-                <p className="text-zinc-500 mt-2 text-sm">Sign in to your account to continue</p>
+                <h3 className="text-2xl font-bold tracking-tight text-zinc-900">{t("auth_pages.login.welcome_title")}</h3>
+                <p className="text-zinc-500 mt-2 text-sm">{t("auth_pages.login.welcome_subtitle")}</p>
               </div>
 
               {/* Login Method Toggle */}
@@ -242,7 +244,7 @@ const AccountAuth = () => {
                       loginMethod === "email" ? "border-primary bg-primary/5 text-primary" : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
                     )}
                   >
-                    <Mail size={16} /> Email
+                    <Mail size={16} /> {t("auth_pages.login.method_email")}
                   </button>
                   <button 
                     onClick={() => { setLoginMethod("phone"); setOtpSent(false); }}
@@ -251,7 +253,7 @@ const AccountAuth = () => {
                       loginMethod === "phone" ? "border-primary bg-primary/5 text-primary" : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
                     )}
                   >
-                    <Phone size={16} /> Phone / OTP
+                    <Phone size={16} /> {t("auth_pages.login.method_phone")}
                   </button>
                 </div>
               )}
@@ -260,21 +262,21 @@ const AccountAuth = () => {
               {loginMethod === "email" ? (
                 <form className="space-y-5" onSubmit={handleEmailLogin}>
                   <div className="space-y-1.5">
-                    <Label htmlFor="login-email" className="text-zinc-700">Email Address</Label>
+                    <Label htmlFor="login-email" className="text-zinc-700">{t("auth_pages.login.email_label")}</Label>
                     <Input 
                       id="login-email" 
                       type="email" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="john.doe@example.com" 
+                      placeholder={t("auth_pages.login.email_placeholder")} 
                       className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
                       required 
                     />
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="login-password" className="text-zinc-700">Password</Label>
-                      <Link to="/forgot-password" className="text-xs text-primary hover:underline font-medium">Forgot password?</Link>
+                      <Label htmlFor="login-password" className="text-zinc-700">{t("auth_pages.login.password_label")}</Label>
+                      <Link to="/forgot-password" className="text-xs text-primary hover:underline font-medium">{t("auth_pages.login.forgot_password")}</Link>
                     </div>
                     <div className="relative">
                       <Input 
@@ -282,7 +284,7 @@ const AccountAuth = () => {
                         type={showPassword ? "text" : "password"} 
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••" 
+                        placeholder={t("auth_pages.login.password_placeholder")} 
                         className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all pr-12"
                         required 
                       />
@@ -297,7 +299,7 @@ const AccountAuth = () => {
                   </div>
                   <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6 group">
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                      <>Sign In <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
+                      <>{t("auth_pages.login.sign_in")} <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
                     )}
                   </Button>
                 </form>
@@ -307,7 +309,7 @@ const AccountAuth = () => {
                   {!otpSent ? (
                     <form className="space-y-5 animate-in fade-in slide-in-from-left-2 duration-300" onSubmit={handleSendOTP}>
                       <div className="space-y-1.5">
-                        <Label htmlFor="login-phone" className="text-zinc-700">Phone Number</Label>
+                        <Label htmlFor="login-phone" className="text-zinc-700">{t("auth_pages.login.phone_label")}</Label>
                         <div className="flex bg-zinc-50 border border-zinc-200 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden transition-all">
                           <Select value={phoneCode} onValueChange={setPhoneCode}>
                             <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-11 text-zinc-600 font-medium shadow-none">
@@ -326,7 +328,7 @@ const AccountAuth = () => {
                             type="tel" 
                             value={phone}
                             onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                            placeholder="612345678" 
+                            placeholder={t("auth_pages.login.phone_placeholder")} 
                             className="flex-1 h-11 border-0 focus-visible:ring-0 rounded-none bg-transparent shadow-none" 
                             required 
                           />
@@ -334,7 +336,7 @@ const AccountAuth = () => {
                       </div>
                       <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6 group">
                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                          <>Send OTP <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
+                          <>{t("auth_pages.login.send_otp")} <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
                         )}
                       </Button>
                     </form>
@@ -343,28 +345,30 @@ const AccountAuth = () => {
                       <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl mb-6">
                         <p className="text-sm text-primary font-medium flex items-center justify-center gap-2">
                           <ShieldCheck size={18} />
-                          OTP sent to {phone}
+                          {t("auth_pages.login.otp_sent_to", { phone })}
                         </p>
                       </div>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <Label htmlFor="login-otp" className="text-zinc-700">Enter 6-digit OTP</Label>
-                          <button type="button" onClick={() => setOtpSent(false)} className="text-xs text-primary hover:underline font-medium">Change number</button>
+                          <Label htmlFor="login-otp" className="text-zinc-700">{t("auth_pages.login.otp_label")}</Label>
+                          <button type="button" onClick={() => setOtpSent(false)} className="text-xs text-primary hover:underline font-medium">{t("auth_pages.login.change_number")}</button>
                         </div>
                         <Input 
                           id="login-otp" 
                           type="text" 
-                          placeholder="••••••" 
+                          placeholder={t("auth_pages.login.otp_placeholder")} 
                           className="h-12 text-center tracking-[0.5em] text-lg font-bold bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all"
                           maxLength={6}
                           value={otpValue}
                           onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
                           required 
                         />
-                        <p className="text-xs text-zinc-500 mt-2 text-center">Use demo OTP <b>123456</b></p>
+                        <p className="text-xs text-zinc-500 mt-2 text-center">
+                          <Trans i18nKey="auth_pages.login.demo_otp_hint" components={{ 1: <b /> }} />
+                        </p>
                       </div>
                       <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6">
-                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify & Login"}
+                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t("auth_pages.login.verify_login")}
                       </Button>
                     </form>
                   )}
@@ -377,31 +381,31 @@ const AccountAuth = () => {
           {activeTab === "register" && (
             <div className="w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="mb-8 text-center">
-                <h3 className="text-2xl font-bold tracking-tight text-zinc-900">Create Account</h3>
-                <p className="text-zinc-500 mt-2 text-sm">Join us for exclusive deals and faster checkout</p>
+                <h3 className="text-2xl font-bold tracking-tight text-zinc-900">{t("auth_pages.register.title")}</h3>
+                <p className="text-zinc-500 mt-2 text-sm">{t("auth_pages.register.subtitle")}</p>
               </div>
 
               {!regOtpSent ? (
                 <form className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300" onSubmit={handleRegisterSubmit}>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="reg-firstname" className="text-zinc-700">First Name</Label>
+                      <Label htmlFor="reg-firstname" className="text-zinc-700">{t("auth_pages.register.first_name")}</Label>
                       <Input 
                         id="reg-firstname" 
                         value={regFirstName}
                         onChange={(e) => setRegFirstName(e.target.value)}
-                        placeholder="John" 
+                        placeholder={t("auth_pages.register.first_name_placeholder")} 
                         className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
                         required 
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="reg-lastname" className="text-zinc-700">Last Name</Label>
+                      <Label htmlFor="reg-lastname" className="text-zinc-700">{t("auth_pages.register.last_name")}</Label>
                       <Input 
                         id="reg-lastname" 
                         value={regLastName}
                         onChange={(e) => setRegLastName(e.target.value)}
-                        placeholder="Doe" 
+                        placeholder={t("auth_pages.register.last_name_placeholder")} 
                         className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
                         required 
                       />
@@ -410,13 +414,13 @@ const AccountAuth = () => {
                   
                   {(authConfig.registerMethod === "both" || authConfig.registerMethod === "email_only") && (
                     <div className="space-y-1.5">
-                      <Label htmlFor="reg-email" className="text-zinc-700">Email Address</Label>
+                      <Label htmlFor="reg-email" className="text-zinc-700">{t("auth_pages.register.email_label")}</Label>
                       <Input 
                         id="reg-email" 
                         type="email" 
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
-                        placeholder="john.doe@example.com" 
+                        placeholder={t("auth_pages.register.email_placeholder")} 
                         className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all" 
                         required 
                       />
@@ -425,7 +429,7 @@ const AccountAuth = () => {
                   
                   {(authConfig.registerMethod === "both" || authConfig.registerMethod === "phone_only") && (
                     <div className="space-y-1.5">
-                      <Label htmlFor="reg-phone" className="text-zinc-700">Phone Number</Label>
+                      <Label htmlFor="reg-phone" className="text-zinc-700">{t("auth_pages.register.phone_label")}</Label>
                       <div className="flex bg-zinc-50 border border-zinc-200 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden transition-all">
                         <Select value={regPhoneCode} onValueChange={setRegPhoneCode}>
                           <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-11 text-zinc-600 font-medium shadow-none">
@@ -444,7 +448,7 @@ const AccountAuth = () => {
                           type="tel" 
                           value={regPhone}
                           onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, ''))}
-                          placeholder="612345678" 
+                          placeholder={t("auth_pages.register.phone_placeholder")} 
                           className="flex-1 h-11 border-0 focus-visible:ring-0 rounded-none bg-transparent shadow-none" 
                           required 
                         />
@@ -453,14 +457,14 @@ const AccountAuth = () => {
                   )}
                   
                   <div className="space-y-1.5">
-                    <Label htmlFor="reg-password" className="text-zinc-700">Password</Label>
+                    <Label htmlFor="reg-password" className="text-zinc-700">{t("auth_pages.register.password_label")}</Label>
                     <div className="relative">
                       <Input 
                         id="reg-password" 
                         type={showPassword ? "text" : "password"} 
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
-                        placeholder="Create a strong password" 
+                        placeholder={t("auth_pages.register.password_placeholder")} 
                         className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all pr-12"
                         required 
                       />
@@ -477,7 +481,7 @@ const AccountAuth = () => {
                   <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6 group">
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                       <>
-                        {(authConfig.registerMethod === "both" || authConfig.registerMethod === "phone_only") ? "Send OTP" : "Create Account"} 
+                        {(authConfig.registerMethod === "both" || authConfig.registerMethod === "phone_only") ? t("auth_pages.register.send_otp") : t("auth_pages.register.create_account")} 
                         <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </>
                     )}
@@ -488,18 +492,18 @@ const AccountAuth = () => {
                   <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl mb-6">
                     <p className="text-sm text-primary font-medium flex items-center justify-center gap-2">
                       <ShieldCheck size={18} />
-                      OTP sent to {regPhoneCode}{regPhone}
+                      {t("auth_pages.register.otp_sent_to", { phone: `${regPhoneCode}${regPhone}` })}
                     </p>
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="reg-otp" className="text-zinc-700">Enter 6-digit OTP</Label>
-                      <button type="button" onClick={() => setRegOtpSent(false)} className="text-xs text-primary hover:underline font-medium">Edit Details</button>
+                      <Label htmlFor="reg-otp" className="text-zinc-700">{t("auth_pages.register.otp_label")}</Label>
+                      <button type="button" onClick={() => setRegOtpSent(false)} className="text-xs text-primary hover:underline font-medium">{t("auth_pages.register.edit_details")}</button>
                     </div>
                     <Input 
                       id="reg-otp" 
                       type="text" 
-                      placeholder="••••••" 
+                      placeholder={t("auth_pages.register.otp_placeholder")} 
                       className="h-12 text-center tracking-[0.5em] text-lg font-bold bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all"
                       maxLength={6}
                       value={regOtpValue}
@@ -508,7 +512,7 @@ const AccountAuth = () => {
                     />
                   </div>
                   <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6">
-                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify & Create Account"}
+                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t("auth_pages.register.verify_create")}
                   </Button>
                 </form>
               )}

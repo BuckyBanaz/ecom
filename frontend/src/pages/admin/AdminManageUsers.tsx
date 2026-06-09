@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ShieldAlert, ShieldCheck, Shield, Plus, X, Loader2,
   Check, Lock, Unlock, Users, Package, ShoppingCart,
@@ -69,6 +70,7 @@ const RoleIcon = ({ role }: { role: string }) => {
 
 /* ─── Component ────────────────────────────────────────────────────────────── */
 const AdminManageUsers = () => {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const [adminsList,        setAdminsList]        = useState<any[]>([]);
   const [loading,           setLoading]           = useState(true);
@@ -101,15 +103,15 @@ const AdminManageUsers = () => {
   }, []);
 
   const handleDeleteAdmin = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this admin account?")) return;
+    if (!window.confirm(t("admin_manage_users.confirm_delete"))) return;
     try {
       const res = await authRepository.deleteAdmin(id);
       if (res.success) {
-        toast.success("Admin account deleted successfully");
+        toast.success(t("admin_manage_users.toast_deleted"));
         fetchAdmins();
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to delete admin account");
+      toast.error(err.message || t("admin_manage_users.toast_failed_delete"));
     }
   };
 
@@ -117,29 +119,29 @@ const AdminManageUsers = () => {
     try {
       const res = await authRepository.updateAdminRole(id, role);
       if (res.success) {
-        toast.success("Admin role updated successfully");
+        toast.success(t("admin_manage_users.toast_role_updated"));
         fetchAdmins();
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to update admin role");
+      toast.error(err.message || t("admin_manage_users.toast_failed_update"));
     }
   };
 
   const handleToggleSuspend = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === "suspended" ? "active" : "suspended";
     const confirmMsg = currentStatus === "suspended"
-      ? "Are you sure you want to unsuspend this admin account?"
-      : "Are you sure you want to suspend this admin account? They will lose access immediately.";
+      ? t("admin_manage_users.confirm_unsuspend")
+      : t("admin_manage_users.confirm_suspend");
     if (!window.confirm(confirmMsg)) return;
 
     try {
       const res = await authRepository.updateAdmin(id, { status: newStatus });
       if (res.success) {
-        toast.success(`Admin account ${newStatus === "suspended" ? "suspended" : "activated"} successfully`);
+        toast.success(newStatus === "suspended" ? t("admin_manage_users.toast_suspended") : t("admin_manage_users.toast_activated"));
         fetchAdmins();
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to update admin status");
+      toast.error(err.message || t("admin_manage_users.toast_failed_update_status"));
     }
   };
 
@@ -168,12 +170,12 @@ const AdminManageUsers = () => {
         permissions: editForm.permissions
       });
       if (res.success) {
-        toast.success("Admin account updated successfully");
+        toast.success(t("admin_manage_users.toast_updated"));
         setEditingAdmin(null);
         fetchAdmins();
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to update admin account");
+      toast.error(err.message || t("admin_manage_users.toast_failed_create"));
     } finally {
       setIsSubmitting(false);
     }
@@ -229,18 +231,18 @@ const AdminManageUsers = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            Manage Admin Users
+            {t("admin_manage_users.title")}
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-            Create and manage admin, moderator and superadmin accounts with role-based access.
+            {t("admin_manage_users.subtitle")}
           </p>
         </div>
-        {hasPermission("superadmin") && (
+        {isSuperAdmin && (
           <Button
-            onClick={() => setOpenModal(true)}
+            onClick={() => setOpenCreateModal(true)}
             className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl gap-2 shadow-sm self-start sm:self-auto shrink-0"
           >
-            <Plus className="h-4 w-4" /> Add Admin User
+            <Plus className="h-4 w-4" /> {t("admin_manage_users.button_add")}
           </Button>
         )}
       </div>
@@ -260,7 +262,7 @@ const AdminManageUsers = () => {
                 {p.description}
               </p>
               <div className="font-extrabold text-2xl sm:text-2xl mt-auto">{count}</div>
-              <p className="text-[10px] sm:text-xs opacity-60 font-medium">Active accounts</p>
+              <p className="text-[10px] sm:text-xs opacity-60 font-medium">{t("admin_manage_users.stats_active")}</p>
             </div>
           );
         })}
@@ -269,8 +271,8 @@ const AdminManageUsers = () => {
       {/* ── Admin Accounts — Desktop Table ──────────────────────────────────── */}
       <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
         <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b bg-muted/30 flex items-center justify-between">
-          <h2 className="font-bold text-sm sm:text-base text-foreground">Admin Accounts</h2>
-          <span className="text-xs text-muted-foreground font-medium">{adminsList.length} accounts</span>
+          <h2 className="font-bold text-sm sm:text-base text-foreground">{t("admin_manage_users.section_accounts")}</h2>
+          <span className="text-xs text-muted-foreground font-medium">{{count}} {t("admin_manage_users.no_accounts")}</span>
         </div>
 
         {loading ? (
@@ -279,7 +281,7 @@ const AdminManageUsers = () => {
           </div>
         ) : adminsList.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground text-xs">
-            No admin accounts found.
+            {t("admin_manage_users.no_accounts")}
           </div>
         ) : (
           <>

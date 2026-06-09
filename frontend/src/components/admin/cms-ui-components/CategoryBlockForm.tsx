@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -115,15 +116,61 @@ export function CategoryMultiSelect({ value, onChange }: { value: string; onChan
 }
 
 interface CategoryBlockFormProps {
-  categories: string;
-  setCategories: (val: string) => void;
+  onInsert: (shortcode: string) => void;
+  onCancel: () => void;
+  initialTitle?: string;
+  initialCategories?: string;
+  isEditing?: boolean;
 }
 
-export function CategoryBlockForm({ categories, setCategories }: CategoryBlockFormProps) {
+export function CategoryBlockForm({
+  onInsert,
+  onCancel,
+  initialTitle = "",
+  initialCategories = "",
+  isEditing = false,
+}: CategoryBlockFormProps) {
+  const [title, setTitle] = useState(initialTitle);
+  const [categories, setCategories] = useState(initialCategories);
+
+  useEffect(() => {
+    setTitle(initialTitle);
+  }, [initialTitle]);
+
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
+
+  const handleInsert = () => {
+    const attrs: string[] = [];
+    if (title) attrs.push(`title="${title.replace(/"/g, "&quot;")}"`);
+    if (categories) attrs.push(`categories="${categories}"`);
+    const attrString = attrs.length > 0 ? " " + attrs.join(" ") : "";
+    const shortcode = `[category-block${attrString}][/category-block]`;
+    onInsert(shortcode + "<p><br/></p>");
+  };
+
   return (
-    <div className="space-y-2">
-      <Label>Categories</Label>
-      <CategoryMultiSelect value={categories} onChange={setCategories} />
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Title (Optional)</Label>
+        <Input
+          placeholder="e.g. Shop by Category"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Categories</Label>
+        <CategoryMultiSelect value={categories} onChange={setCategories} />
+      </div>
+
+      <div className="flex justify-end gap-2 pt-4">
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button onClick={handleInsert} disabled={!categories}>
+          {isEditing ? "Update Block" : "Insert Block"}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -2,13 +2,30 @@ import { useEffect } from "react";
 import apiClient from "@/client/apiClient";
 import { ENDPOINTS } from "@/utils/endpoints";
 
+// Treat as "unset" if the stored value is empty, whitespace, or a placeholder
+// (e.g. the literal string "null"/"undefined" persisted by an older form submit).
+const cleanId = (raw: unknown): string => {
+  if (typeof raw !== "string") return "";
+  const v = raw.trim();
+  if (!v || v.toLowerCase() === "null" || v.toLowerCase() === "undefined" || v === "0") return "";
+  return v;
+};
+
+// Meta Pixel IDs are numeric strings (typically 15–16 digits).
+const isValidMetaPixel = (id: string) => /^\d{8,20}$/.test(id);
+// TikTok pixel IDs are alphanumeric base32-like, usually ~20 chars.
+const isValidTikTokPixel = (id: string) => /^[A-Z0-9]{10,}$/i.test(id);
+
 export const SEOInjector = () => {
   useEffect(() => {
     const fetchAndInjectSEO = async () => {
       try {
         const res = await apiClient.get<{ data: any }>(ENDPOINTS.PUBLIC_SEO_CONFIG);
         if (res.data) {
-          const { siteName, defaultTitle, defaultDescription, ga4, gtm, metaPixel, tiktokPixel } = res.data;
+          const { siteName, defaultTitle, defaultDescription, ga4: rawGa4, gtm, metaPixel: rawMetaPixel, tiktokPixel: rawTiktokPixel } = res.data;
+          const ga4 = cleanId(rawGa4);
+          const metaPixel = cleanId(rawMetaPixel);
+          const tiktokPixel = cleanId(rawTiktokPixel);
 
           // Update Document Title and Meta
           if (defaultTitle) document.title = defaultTitle;
@@ -42,7 +59,7 @@ export const SEOInjector = () => {
           }
 
           // Inject Meta Pixel
-          if (metaPixel && !document.getElementById(`meta-pixel`)) {
+          if (metaPixel && isValidMetaPixel(metaPixel) && !document.getElementById(`meta-pixel`)) {
             const script = document.createElement("script");
             script.id = "meta-pixel";
             script.innerHTML = `
@@ -61,7 +78,7 @@ export const SEOInjector = () => {
           }
 
           // Inject TikTok Pixel
-          if (tiktokPixel && !document.getElementById(`tiktok-pixel`)) {
+          if (tiktokPixel && isValidTikTokPixel(tiktokPixel) && !document.getElementById(`tiktok-pixel`)) {
             const script = document.createElement("script");
             script.id = "tiktok-pixel";
             script.innerHTML = `

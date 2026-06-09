@@ -39,6 +39,35 @@ export const authenticateJWT = (
   }
 };
 
+// Optional: Verify user exists in database (call this in routes that modify data)
+export const validateUserExists = async (
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return next(new AppError("Not authorized", 401));
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return next(new AppError("User not found or has been deleted", 404));
+    }
+
+    // Check if user is suspended
+    if (user.status === "suspended") {
+      return next(new AppError("User account is suspended", 403));
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   superadmin: [
     "dashboard", "products", "categories", "brands", "attributes", 

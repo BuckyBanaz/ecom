@@ -1,8 +1,10 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { faqs as defaultFaqs } from "@/data/faqs";
 
 const Faqs = () => {
+  const { t } = useTranslation();
   const [faqs, setFaqs] = useState(defaultFaqs);
 
   useEffect(() => {
@@ -20,8 +22,8 @@ const Faqs = () => {
 
   return (
     <div className="container-page max-w-3xl py-10">
-      <h1 className="text-3xl font-bold">Frequently Asked Questions</h1>
-      <p className="mt-2 text-muted-foreground">Find answers to common questions about our products and services.</p>
+      <h1 className="text-3xl font-bold">{t("faqs.page_title")}</h1>
+      <p className="mt-2 text-muted-foreground">{t("faqs.page_desc")}</p>
       <Accordion type="single" collapsible className="mt-6">
         {faqs.map((f, i) => (
           <AccordionItem key={i} value={`f-${i}`}>

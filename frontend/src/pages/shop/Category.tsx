@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { brandRepository, categoryRepository, attributeRepository, productRepository } from "@/client/apiClient";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ const resolveCategorySlug = (menuItemSlug: string) => {
 };
 
 const Category = () => {
+  const { t } = useTranslation();
   const { slug = "" } = useParams();
   const [searchParams] = useSearchParams();
   const [landingPage, setLandingPage] = useState<any>(null);
@@ -430,7 +432,7 @@ const Category = () => {
     return list;
   }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList]);
 
-  const title = landingPage?.title || (slug === "deals" ? "Spring deals" : cat?.name ?? "All products");
+  const title = landingPage?.title || (slug === "deals" ? t("category.spring_deals") : cat?.name ?? t("category.all_products"));
 
   if (productsLoading) {
     return <CategorySkeleton />;
@@ -440,7 +442,7 @@ const Category = () => {
     <div className="space-y-4">
       {/* Price Filter Accordion */}
       <FilterBlock
-        title="Price"
+        title={t("category.filter_titles.price")}
         isOpen={openSections["Price"]}
         onToggle={() => toggleSection("Price")}
       >
@@ -455,7 +457,7 @@ const Category = () => {
       {/* Brands Filter Accordion */}
       {brands.length > 0 && (
         <CheckBlock
-          title="Brands"
+          title={t("category.filter_titles.brands")}
           options={brands.map(b => b.name)}
           selected={selectedBrands}
           onToggle={(brandName) => {
@@ -500,7 +502,7 @@ const Category = () => {
           setPrice([0, 400]);
         }}
       >
-        Clear filters
+        {t("category.clear_filters")}
       </Button>
     </div>
   );
@@ -508,8 +510,8 @@ const Category = () => {
   return (
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-primary transition-colors">Home</Link> /{" "}
-        <Link to="/relief" className="hover:text-primary transition-colors">Relief</Link> /{" "}
+        <Link to="/" className="hover:text-primary transition-colors">{t("breadcrumb.home")}</Link> /{" "}
+        <Link to="/relief" className="hover:text-primary transition-colors">{t("breadcrumb.relief")}</Link> /{" "}
         <span className="text-foreground font-medium">{title}</span>
       </nav>
       <h1 className="text-3xl font-bold md:text-4xl mb-2">{title}</h1>
@@ -535,7 +537,7 @@ const Category = () => {
         </div>
       ) : (
         <>
-          <p className="mt-1 text-sm text-muted-foreground">{filtered.length} products</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("category.products_count", { count: filtered.length })}</p>
           <div className="mt-6 grid gap-8 lg:grid-cols-[260px_1fr]">
             
             {/* SIDEBAR FILTERS - DESKTOP */}
@@ -550,24 +552,24 @@ const Category = () => {
                   <Sheet>
                     <SheetTrigger asChild>
                       <Button variant="outline" className="lg:hidden gap-2">
-                        <Filter className="h-4 w-4" /> Filters
+                        <Filter className="h-4 w-4" /> {t("category.filters")}
                       </Button>
                     </SheetTrigger>
                     <SheetContent side="left" className="w-[300px] sm:w-[350px] overflow-y-auto">
                       <SheetHeader className="mb-4 text-left">
-                        <SheetTitle>Filters</SheetTitle>
-                        <SheetDescription className="sr-only">Filter products</SheetDescription>
+                        <SheetTitle>{t("category.filters")}</SheetTitle>
+                        <SheetDescription className="sr-only">{t("category.filter_products")}</SheetDescription>
                       </SheetHeader>
                       {filtersSidebar}
                     </SheetContent>
                   </Sheet>
-                  <span className="text-sm text-muted-foreground">Showing {filtered.length} results</span>
+                  <span className="text-sm text-muted-foreground">{t("category.showing_results", { count: filtered.length })}</span>
                 </div>
                 <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm w-full sm:w-auto">
-                  <option value="relevance">Sort: Relevance</option>
-                  <option value="price-asc">Price: low to high</option>
-                  <option value="price-desc">Price: high to low</option>
-                  <option value="rating">Top rated</option>
+                  <option value="relevance">{t("category.sort.relevance")}</option>
+                  <option value="price-asc">{t("category.sort.price_asc")}</option>
+                  <option value="price-desc">{t("category.sort.price_desc")}</option>
+                  <option value="rating">{t("category.sort.top_rated")}</option>
                 </select>
               </div>
                {productsLoading ? (
@@ -585,7 +587,7 @@ const Category = () => {
                     ))}
                   </div>
                 ) : filtered.length === 0 ? (
-                  <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">No products match your filters.</div>
+                  <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">{t("category.no_results")}</div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                     {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
@@ -660,6 +662,7 @@ function CheckBlock({
   isOpen?: boolean;
   onToggleSection?: () => void;
 }) {
+  const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
   const visibleOptions = showAll ? options : options.slice(0, 4);
 
@@ -711,11 +714,11 @@ function CheckBlock({
         >
           {showAll ? (
             <>
-              Show less <ChevronUp className="h-3.5 w-3.5" />
+              {t("category.show_less")} <ChevronUp className="h-3.5 w-3.5" />
             </>
           ) : (
             <>
-              Show ({options.length - 4}) more <ChevronDown className="h-3.5 w-3.5" />
+              {t("category.show_more", { count: options.length - 4 })} <ChevronDown className="h-3.5 w-3.5" />
             </>
           )}
         </button>

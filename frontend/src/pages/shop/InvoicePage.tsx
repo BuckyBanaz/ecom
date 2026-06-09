@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ordersRepository } from "@/client/apiClient";
 import { Printer, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { parseOrderMetadata } from "@/utils/formatters";
 import { Logo } from "@/components/layout/Logo";
 
 export default function InvoicePage() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const [order, setOrder] = useState<any>(null);
@@ -17,9 +19,9 @@ export default function InvoicePage() {
     if (!token) {
       const orderParam = searchParams.get("order");
       if (orderParam) {
-        setError("Invoice access requires a secure link. Please click the download link directly from your email, or access it from your dashboard.");
+        setError(t("invoice.error_secure_link"));
       } else {
-        setError("No invoice token provided.");
+        setError(t("invoice.error_no_token"));
       }
       setLoading(false);
       return;
@@ -30,11 +32,11 @@ export default function InvoicePage() {
         if (res.success && res.data) {
           setOrder(res.data);
         } else {
-          setError("Failed to load invoice.");
+          setError(t("invoice.error_load"));
         }
       })
       .catch(err => {
-        setError(err.message || "Invalid or expired invoice token.");
+        setError(err.message || t("invoice.error_invalid"));
       })
       .finally(() => {
         setLoading(false);
@@ -42,7 +44,7 @@ export default function InvoicePage() {
   }, [token]);
 
   if (loading) {
-    return <div className="p-12 text-center text-muted-foreground">Loading invoice...</div>;
+    return <div className="p-12 text-center text-muted-foreground">{t("invoice.loading")}</div>;
   }
 
   if (error || !order) {
@@ -57,10 +59,10 @@ export default function InvoicePage() {
         {/* Controls (Hidden when printing) */}
         <div className="mb-6 flex justify-end gap-3 print:hidden">
           <Button onClick={() => window.print()} className="gap-2 shadow-sm rounded-full bg-primary text-primary-foreground font-semibold">
-            <Printer className="h-4 w-4" /> Print Invoice
+            <Printer className="h-4 w-4" /> {t("invoice.button_print")}
           </Button>
           <Button onClick={() => window.print()} variant="outline" className="gap-2 shadow-sm rounded-full font-semibold">
-            <Download className="h-4 w-4" /> Save as PDF
+            <Download className="h-4 w-4" /> {t("invoice.button_save_pdf")}
           </Button>
         </div>
 
@@ -69,29 +71,29 @@ export default function InvoicePage() {
           <div className="flex justify-between items-start border-b pb-6">
             <div>
               <Logo forceLight className="mb-1 pointer-events-none" />
-              <p className="text-xs text-stone-500 mt-1">Invoice Statement</p>
+              <p className="text-xs text-stone-500 mt-1">{t("invoice.statement")}</p>
             </div>
             <div className="text-right text-xs space-y-0.5">
-              <p className="font-bold">Invoice: {order.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`}</p>
-              <p>Date: {new Date(order.createdAt).toLocaleDateString()}</p>
-              <p>Order Reference: {order.orderNumber}</p>
+              <p className="font-bold">{t("invoice.label_invoice")} {order.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`}</p>
+              <p>{t("invoice.label_date")} {new Date(order.createdAt).toLocaleDateString()}</p>
+              <p>{t("invoice.label_order_ref")} {order.orderNumber}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Vendor</h4>
+              <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("invoice.label_vendor")}</h4>
               <p className="mt-1 font-semibold">Schip & Ster BV</p>
               <p>Keizersgracht 456, Amsterdam</p>
               <p>billing@schipandster.nl</p>
             </div>
             <div>
-              <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Bill To</h4>
+              <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("invoice.label_bill_to")}</h4>
               <div className="mt-1 space-y-1">
                 <p className="font-semibold">{order.customerName || `${firstName} ${lastName}`.trim()}</p>
                 <p className="leading-relaxed">{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
-                {phone && <p>Phone: {phone}</p>}
-                <p>Email: {order.customerEmail || email}</p>
+                {phone && <p>{t("invoice.label_phone")} {phone}</p>}
+                <p>{t("invoice.label_email")} {order.customerEmail || email}</p>
               </div>
             </div>
           </div>
@@ -100,10 +102,10 @@ export default function InvoicePage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold">
-                  <th className="p-3">Product Name</th>
-                  <th className="p-3 text-center">Qty</th>
-                  <th className="p-3 text-right">Price</th>
-                  <th className="p-3 text-right">Total</th>
+                  <th className="p-3">{t("invoice.col_product")}</th>
+                  <th className="p-3 text-center">{t("invoice.col_qty")}</th>
+                  <th className="p-3 text-right">{t("invoice.col_price")}</th>
+                  <th className="p-3 text-right">{t("invoice.col_total")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -123,17 +125,17 @@ export default function InvoicePage() {
             <div className="w-64 space-y-2 border-t pt-3">
               {/* Summary */}
               <div className="mt-6 border-t pt-4 space-y-2 text-sm text-foreground">
-                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>€{order.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Shipping</span><span>{order.shipping === 0 ? "Free" : `€${order.shipping.toFixed(2)}`}</span></div>
-                {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax / GST</span><span>€{tax.toFixed(2)}</span></div>}
-                {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span className="text-green-600">-€{discount.toFixed(2)}</span></div>}
-                <div className="flex justify-between font-bold text-base border-t pt-2"><span>Total</span><span>€{order.total.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_subtotal")}</span><span>\u20ac{order.subtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_shipping")}</span><span>{order.shipping === 0 ? t("invoice.summary_free") : `\u20ac${order.shipping.toFixed(2)}`}</span></div>
+                {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_tax")}</span><span>\u20ac{tax.toFixed(2)}</span></div>}
+                {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_discount")}</span><span className="text-green-600">-\u20ac{discount.toFixed(2)}</span></div>}
+                <div className="flex justify-between font-bold text-base border-t pt-2"><span>{t("invoice.summary_total")}</span><span>\u20ac{order.total.toFixed(2)}</span></div>
               </div>
             </div>
           </div>
 
           <div className="text-center border-t border-stone-200 pt-6 mt-8">
-            <p className="text-[10px] text-stone-400">Thank you for shopping at Schip & Ster!</p>
+            <p className="text-[10px] text-stone-400">{t("invoice.thank_you")}</p>
           </div>
         </div>
       </div>

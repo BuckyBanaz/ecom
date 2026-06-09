@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, Eye, Printer, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { parseOrderMetadata } from "@/utils/formatters";
 import { ordersRepository } from "@/client/apiClient";
 
 export default function AdminLabels() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -39,9 +41,9 @@ export default function AdminLabels() {
   return (
     <div className="space-y-6">
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading shipping labels...</p>
+        <p className="text-sm text-muted-foreground">{t("admin_shipping_labels.loading")}</p>
       ) : (
-        <p className="text-sm text-muted-foreground">{labels.length} shipping labels printed total</p>
+        <p className="text-sm text-muted-foreground">{t("admin_shipping_labels.total_text", { count: labels.length })}</p>
       )}
 
       <div className="relative max-w-md">
@@ -49,7 +51,7 @@ export default function AdminLabels() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search labels by tracking number or customer..."
+          placeholder={t("admin_shipping_labels.search_placeholder")}
           className="pl-10 h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
         />
       </div>
@@ -58,19 +60,19 @@ export default function AdminLabels() {
         <table className="w-full text-sm text-left border-collapse">
           <thead>
             <tr className="border-b bg-muted/40 text-muted-foreground font-medium text-xs">
-              <th className="p-4">Tracking Number</th>
-              <th className="p-4">Order Reference</th>
-              <th className="p-4">Customer</th>
-              <th className="p-4">Carrier</th>
-              <th className="p-4">Date</th>
-              <th className="p-4 text-right">Actions</th>
+              <th className="p-4">{t("admin_shipping_labels.table_tracking")}</th>
+              <th className="p-4">{t("admin_shipping_labels.table_order_ref")}</th>
+              <th className="p-4">{t("admin_shipping_labels.table_customer")}</th>
+              <th className="p-4">{t("admin_shipping_labels.table_carrier")}</th>
+              <th className="p-4">{t("admin_shipping_labels.table_date")}</th>
+              <th className="p-4 text-right">{t("admin_shipping_labels.table_actions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y text-xs">
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                  No shipping labels found.
+                  {t("admin_shipping_labels.empty")}
                 </td>
               </tr>
             ) : (
@@ -93,7 +95,7 @@ export default function AdminLabels() {
                       size="icon"
                       className="h-8 w-8 rounded-full border border-border/80 bg-background/50 hover:bg-primary hover:text-primary-foreground shadow-sm transition-all"
                       onClick={() => setSelectedOrder(o)}
-                      title="Preview Shipping Label"
+                      title={t("admin_shipping_labels.button_preview")}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -113,25 +115,25 @@ export default function AdminLabels() {
             <div className="bg-white text-black rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-6 font-mono border-4 border-black">
               <div className="flex justify-between items-center border-b-2 border-black pb-4">
                 <div>
-                  <h2 className="text-2xl font-black">{selectedOrder.carrier || "PostNL"}</h2>
-                  <p className="text-[10px] uppercase font-bold">Standard Parcel</p>
+                  <h2 className="text-2xl font-black">{selectedOrder.carrier || t("admin_shipping_labels.default_carrier")}</h2>
+                  <p className="text-[10px] uppercase font-bold">{t("admin_shipping_labels.label_type")}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-bold">PRIORITY</p>
+                  <p className="text-xs font-bold">{t("admin_shipping_labels.label_priority")}</p>
                 </div>
               </div>
 
               <div className="space-y-4 text-xs">
                 <div className="border-b border-dashed border-stone-400 pb-3">
-                  <p className="text-[9px] font-bold text-stone-500">FROM:</p>
-                  <p className="font-bold">Schip & Ster Fulfillment</p>
+                  <p className="text-[9px] font-bold text-stone-500">{t("admin_shipping_labels.label_from")}</p>
+                  <p className="font-bold">{t("admin_shipping_labels.label_from_company")}</p>
                   <p>Keizersgracht 456, Amsterdam</p>
                 </div>
                 <div className="pb-3 space-y-1">
-                  <p className="text-[9px] font-bold text-stone-500">TO:</p>
+                  <p className="text-[9px] font-bold text-stone-500">{t("admin_shipping_labels.label_to")}</p>
                   <p className="font-bold text-sm">{selectedOrder.customerName || `${firstName} ${lastName}`.trim()}</p>
                   <p className="leading-relaxed font-bold">{street ? `${street}, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
-                  {phone && <p className="font-bold">Phone: {phone}</p>}
+                  {phone && <p className="font-bold">{t("admin_shipping_labels.label_phone")} {phone}</p>}
                   <p className="font-bold">{selectedOrder.customerEmail || email}</p>
                 </div>
               </div>
@@ -150,10 +152,10 @@ export default function AdminLabels() {
 
               <div className="flex justify-between items-center border-t border-black pt-4">
                 <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full border-black hover:bg-black hover:text-white">
-                  <Printer className="h-3.5 w-3.5" /> Print Label
+                  <Printer className="h-3.5 w-3.5" /> {t("admin_shipping_labels.button_print")}
                 </Button>
                 <Button onClick={() => setSelectedOrder(null)} size="sm" className="text-xs bg-black hover:bg-stone-900 text-white rounded-full">
-                  Close
+                  {t("admin_shipping_labels.button_close")}
                 </Button>
               </div>
             </div>

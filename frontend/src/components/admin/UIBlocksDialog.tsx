@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -219,6 +219,11 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{selectedBlock ? `Configure ${selectedBlock.replace("-", " ")}` : "Select UI Block"}</DialogTitle>
+          <DialogDescription>
+            {selectedBlock
+              ? "Fill in the fields below, then insert the block into the editor."
+              : "Pick a block to insert into the page content."}
+          </DialogDescription>
         </DialogHeader>
 
         {!selectedBlock ? (

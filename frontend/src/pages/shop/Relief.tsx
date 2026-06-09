@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { cmsReliefRepository, productRepository, categoryRepository, blogRepository } from "@/client/apiClient";
 import { ReliefSkeleton } from "@/components/ui/SkeletonLoader";
 
 export default function Relief() {
+  const { t } = useTranslation();
   const [pageContent, setPageContent] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [prefetchedData, setPrefetchedData] = useState<{products?: any[], categories?: any[], blogs?: any[]}>({});
@@ -71,8 +73,8 @@ export default function Relief() {
     <div className="container-page py-8 animate-fade-in">
       {/* Breadcrumbs */}
       <nav className="mb-6 text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-primary transition-colors">Home</Link> /{" "}
-        <span className="text-foreground font-medium">Relief</span>
+        <Link to="/" className="hover:text-primary transition-colors">{t("breadcrumb.home")}</Link> /{" "}
+        <span className="text-foreground font-medium">{t("breadcrumb.relief")}</span>
       </nav>
 
       {/* Render Dynamic Content */}

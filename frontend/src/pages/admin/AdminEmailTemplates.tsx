@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { emailTemplateRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ const TEMPLATE_PARAMETERS: Record<string, { param: string; desc: string }[]> = {
 };
 
 export default function AdminEmailTemplates() {
+  const { t } = useTranslation();
   const [templates, setTemplates] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<"list" | "edit">("list");

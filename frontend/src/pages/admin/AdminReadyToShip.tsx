@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Package, Truck, Search, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ordersRepository } from "@/client/apiClient";
 
 export default function AdminReadyToShip() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +69,7 @@ export default function AdminReadyToShip() {
       }
     } catch (err) {
       console.error("Failed to fetch Sendcloud shipping methods", err);
-      toast.error("Failed to load shipping methods from Sendcloud");
+      toast.error(t("admin_ready_to_ship.toast_load_failed"));
     } finally {
       setLoadingCarriers(false);
     }
@@ -80,7 +82,7 @@ export default function AdminReadyToShip() {
     try {
       setCreatingShipment(true);
       if (!carrier || isNaN(Number(carrier))) {
-        toast.error("Please select a valid shipping method");
+        toast.error(t("admin_ready_to_ship.toast_select_method"));
         return;
       }
       const res = await ordersRepository.createShipment(
@@ -89,14 +91,14 @@ export default function AdminReadyToShip() {
         Number(carrier)
       );
       if (res.success) {
-        toast.success(`Shipment created successfully for ${selectedOrderForShipment.orderNumber}!`);
+        toast.success(t("admin_ready_to_ship.toast_success", { number: selectedOrderForShipment.orderNumber }));
         setSelectedOrderForShipment(null);
         await fetchOrders();
       } else {
-        toast.error(res.message || "Failed to create shipment");
+        toast.error(res.message || t("admin_ready_to_ship.toast_failed"));
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to create shipment");
+      toast.error(err.message || t("admin_ready_to_ship.toast_failed"));
     } finally {
       setCreatingShipment(false);
     }
@@ -115,10 +117,10 @@ export default function AdminReadyToShip() {
       <div className="flex flex-col gap-1">
         <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <Package className="h-6 w-6 text-primary" />
-          Ready To Ship Queue
+          {t("admin_ready_to_ship.title")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Orders packed and waiting for Sendcloud shipment creation.
+          {t("admin_ready_to_ship.subtitle")}
         </p>
       </div>
 
@@ -127,7 +129,7 @@ export default function AdminReadyToShip() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by order or customer..."
+          placeholder={t("admin_ready_to_ship.search_placeholder")}
           className="pl-10 h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
         />
       </div>
@@ -136,19 +138,19 @@ export default function AdminReadyToShip() {
         <table className="w-full text-sm text-left border-collapse">
           <thead>
             <tr className="border-b bg-muted/40 text-muted-foreground font-medium text-xs">
-              <th className="p-4">Order ID</th>
-              <th className="p-4">Customer</th>
-              <th className="p-4">Country</th>
-              <th className="p-4">Weight (est.)</th>
-              <th className="p-4">Total</th>
-              <th className="p-4 text-right">Action</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_order_id")}</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_customer")}</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_country")}</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_weight")}</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_total")}</th>
+              <th className="p-4 text-right">{t("admin_ready_to_ship.table_actions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y text-xs">
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                  No orders currently ready to ship.
+                  {t("admin_ready_to_ship.empty")}
                 </td>
               </tr>
             ) : (
@@ -174,7 +176,7 @@ export default function AdminReadyToShip() {
                         onClick={() => handleOpenShipmentModal(o)}
                       >
                         <Truck className="h-3.5 w-3.5" />
-                        Create Shipment
+                        {t("admin_ready_to_ship.button_shipment")}
                       </Button>
                     </td>
                   </tr>
@@ -190,17 +192,17 @@ export default function AdminReadyToShip() {
         <DialogContent className="sm:max-w-[500px] rounded-2xl p-6 bg-card border text-foreground shadow-2xl">
           <DialogHeader className="border-b pb-3">
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <Truck className="h-5 w-5 text-primary" /> Create Shipment
+              <Truck className="h-5 w-5 text-primary" /> {t("admin_ready_to_ship.dialog_title")}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Enter weight and box dimensions for order {selectedOrderForShipment?.orderNumber}
+              {t("admin_ready_to_ship.dialog_subtitle", { number: selectedOrderForShipment?.orderNumber })}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateShipment} className="space-y-4 pt-3">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="weight" className="text-xs font-semibold">Weight (kg)</Label>
+                <Label htmlFor="weight" className="text-xs font-semibold">{t("admin_ready_to_ship.label_weight")}</Label>
                 <Input
                   id="weight"
                   type="number"
@@ -214,7 +216,7 @@ export default function AdminReadyToShip() {
               </div>
 
               <div className="space-y-1.5 relative">
-                <Label htmlFor="carrier" className="text-xs font-semibold">Carrier (Search & Select)</Label>
+                <Label htmlFor="carrier" className="text-xs font-semibold">{t("admin_ready_to_ship.label_carrier")}</Label>
                 
                 <div 
                   className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
@@ -222,8 +224,8 @@ export default function AdminReadyToShip() {
                 >
                   <span className="truncate">
                     {carrier 
-                      ? shippingMethods.find(m => m.id.toString() === carrier)?.name || "Select Carrier"
-                      : "Select Carrier"}
+                      ? shippingMethods.find(m => m.id.toString() === carrier)?.name || t("admin_ready_to_ship.placeholder_carrier")
+                      : t("admin_ready_to_ship.placeholder_carrier")}
                   </span>
                   <ArrowRight className="h-3 w-3 opacity-50 rotate-90" />
                 </div>
@@ -232,7 +234,7 @@ export default function AdminReadyToShip() {
                   <div className="absolute z-50 w-full top-full mt-1 bg-white dark:bg-popover border shadow-md rounded-md overflow-hidden">
                     <div className="p-2 border-b bg-muted/20">
                       <Input 
-                        placeholder="Search carriers..." 
+                        placeholder={t("admin_ready_to_ship.search_carriers")} 
                         value={carrierSearch}
                         onChange={(e) => setCarrierSearch(e.target.value)}
                         className="h-8 text-xs"
@@ -243,10 +245,10 @@ export default function AdminReadyToShip() {
                       {loadingCarriers ? (
                         <div className="p-4 flex flex-col items-center justify-center text-muted-foreground gap-2">
                           <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                          <span className="text-xs">Loading carriers...</span>
+                          <span className="text-xs">{t("admin_ready_to_ship.loading_carriers")}</span>
                         </div>
                       ) : shippingMethods.filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase())).length === 0 ? (
-                        <div className="p-2 text-xs text-center text-muted-foreground">No carriers found</div>
+                        <div className="p-2 text-xs text-center text-muted-foreground">{t("admin_ready_to_ship.no_carriers")}</div>
                       ) : (
                         shippingMethods
                           .filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase()))
@@ -271,13 +273,13 @@ export default function AdminReadyToShip() {
                                   <span>{method.name}</span>
                                   <div className="flex items-center gap-1">
                                     {isDomestic ? (
-                                      <span className="text-[9px] text-blue-600 bg-blue-100 px-1 rounded">Domestic</span>
+                                      <span className="text-[9px] text-blue-600 bg-blue-100 px-1 rounded">{t("admin_ready_to_ship.badge_domestic")}</span>
                                     ) : isInternational ? (
-                                      <span className="text-[9px] text-orange-600 bg-orange-100 px-1 rounded">International</span>
+                                      <span className="text-[9px] text-orange-600 bg-orange-100 px-1 rounded">{t("admin_ready_to_ship.badge_international")}</span>
                                     ) : null}
                                   </div>
                                 </div>
-                                {isSuggested && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-green-100 text-green-700 hover:bg-green-100 shrink-0">Suggested</Badge>}
+                                {isSuggested && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-green-100 text-green-700 hover:bg-green-100 shrink-0">{t("admin_ready_to_ship.badge_suggested")}</Badge>}
                               </div>
                             );
                           })
@@ -289,10 +291,10 @@ export default function AdminReadyToShip() {
             </div>
 
             <div className="border-t border-muted/50 pt-3">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Dimensions (cm)</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{t("admin_ready_to_ship.label_dimensions")}</p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <Label htmlFor="length" className="text-[10px] text-muted-foreground">Length</Label>
+                  <Label htmlFor="length" className="text-[10px] text-muted-foreground">{t("admin_ready_to_ship.label_length")}</Label>
                   <Input
                     id="length"
                     type="number"
@@ -304,7 +306,7 @@ export default function AdminReadyToShip() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="width" className="text-[10px] text-muted-foreground">Width</Label>
+                  <Label htmlFor="width" className="text-[10px] text-muted-foreground">{t("admin_ready_to_ship.label_width")}</Label>
                   <Input
                     id="width"
                     type="number"
@@ -316,7 +318,7 @@ export default function AdminReadyToShip() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="height" className="text-[10px] text-muted-foreground">Height</Label>
+                  <Label htmlFor="height" className="text-[10px] text-muted-foreground">{t("admin_ready_to_ship.label_height")}</Label>
                   <Input
                     id="height"
                     type="number"
@@ -337,7 +339,7 @@ export default function AdminReadyToShip() {
                 onClick={() => setSelectedOrderForShipment(null)}
                 className="rounded-full text-xs h-9"
               >
-                Cancel
+                {t("admin_ready_to_ship.button_cancel")}
               </Button>
               <Button
                 type="submit"
@@ -347,12 +349,12 @@ export default function AdminReadyToShip() {
                 {creatingShipment ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Creating...
+                    {t("admin_ready_to_ship.button_creating")}
                   </>
                 ) : (
                   <>
                     <Truck className="h-3.5 w-3.5" />
-                    Create Shipment
+                    {t("admin_ready_to_ship.button_create")}
                   </>
                 )}
               </Button>

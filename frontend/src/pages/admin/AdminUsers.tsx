@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Search, Mail, Phone, Calendar, DollarSign,
   MessageSquare, Plus, Star, X, User, Eye,
@@ -29,6 +30,7 @@ type Customer = {
 
 /* ─── Component ─────────────────────────────────────────────────────────────── */
 const AdminUsers = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [customers,        setCustomers]        = useState<Customer[]>([]);
   const [loading,          setLoading]          = useState(true);
@@ -134,7 +136,7 @@ const AdminUsers = () => {
       setCustomers(Array.from(customerMap.values()).sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime()));
     } catch (err) {
       console.error("Error loading customer data:", err);
-      toast.error("Failed to load customer list");
+      toast.error(t("admin_users.toast_error"));
     } finally {
       setLoading(false);
     }
@@ -146,7 +148,7 @@ const AdminUsers = () => {
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomer.firstName || !newCustomer.lastName || !newCustomer.email || !newCustomer.phone) {
-      toast.error("Please fill in all required fields.");
+      toast.error(t("admin_users.toast_required"));
       return;
     }
     setIsSubmitting(true);
@@ -159,15 +161,15 @@ const AdminUsers = () => {
         password:  newCustomer.password || "TempPass123!",
       });
       if (res.success) {
-        toast.success("Customer added successfully!");
+        toast.success(t("admin_users.toast_added"));
         setOpenAddModal(false);
         setNewCustomer({ firstName: "", lastName: "", email: "", phone: "", password: "" });
         await fetchData();
       } else {
-        toast.error(res.message || "Failed to add customer");
+        toast.error(res.message || t("admin_users.toast_error"));
       }
     } catch (err: any) {
-      toast.error(err.message || "Error registering customer");
+      toast.error(err.message || t("admin_users.toast_error"));
     } finally {
       setIsSubmitting(false);
     }
@@ -187,17 +189,17 @@ const AdminUsers = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            Customer Directory
+            {t("admin_users.title")}
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-            Manage registered store customers, view order histories and reviews.
+            {t("admin_users.subtitle")}
           </p>
         </div>
         <Button
           onClick={() => setOpenAddModal(true)}
           className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl gap-2 shadow-sm self-start sm:self-auto shrink-0"
         >
-          <Plus className="h-4 w-4" /> Add Customer
+          <Plus className="h-4 w-4" /> {t("admin_users.button_add")}
         </Button>
       </div>
 
@@ -207,7 +209,7 @@ const AdminUsers = () => {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, email or phone…"
+          placeholder={t("admin_users.search_placeholder")}
           className="pl-10 pr-4 py-5 sm:py-6 rounded-xl border-muted bg-card focus-visible:ring-amber-500"
         />
       </div>
@@ -216,9 +218,9 @@ const AdminUsers = () => {
       {!loading && customers.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[
-            { label: "Total Customers",   value: customers.length,                                                            color: "text-amber-700 bg-amber-50 border-amber-200" },
-            { label: "Total Revenue",     value: `€${customers.reduce((s,c)=>s+c.totalSpent,0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-            { label: "Avg. Orders",       value: customers.length ? (customers.reduce((s,c)=>s+c.ordersCount,0)/customers.length).toFixed(1) : "0", color: "text-blue-700 bg-blue-50 border-blue-200" },
+            { label: t("admin_users.stats_total"),   value: customers.length,                                                            color: "text-amber-700 bg-amber-50 border-amber-200" },
+            { label: t("admin_users.stats_revenue"),     value: `€${customers.reduce((s,c)=>s+c.totalSpent,0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+            { label: t("admin_users.stats_avg"),       value: customers.length ? (customers.reduce((s,c)=>s+c.ordersCount,0)/customers.length).toFixed(1) : "0", color: "text-blue-700 bg-blue-50 border-blue-200" },
           ].map(s => (
             <div key={s.label} className={`rounded-2xl border px-4 py-3 sm:py-4 ${s.color}`}>
               <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider opacity-70">{s.label}</p>
@@ -236,8 +238,8 @@ const AdminUsers = () => {
       ) : filtered.length === 0 ? (
         <div className="text-center py-14 bg-muted/20 rounded-2xl border border-dashed border-muted">
           <User className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm font-semibold text-foreground">No customers found</p>
-          <p className="text-xs text-muted-foreground mt-1">Try refining your search or add a new customer.</p>
+          <p className="text-sm font-semibold text-foreground">{t("admin_users.empty_title")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("admin_users.empty_text")}</p>
         </div>
       ) : (
         <>
@@ -279,12 +281,12 @@ const AdminUsers = () => {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b">
                 <tr>
-                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider">Customer</th>
-                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider hidden md:table-cell">Phone</th>
-                  <th className="px-5 py-4 text-center font-bold text-muted-foreground uppercase text-xs tracking-wider">Orders</th>
-                  <th className="px-5 py-4 text-right font-bold text-muted-foreground uppercase text-xs tracking-wider">Spent</th>
-                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider hidden lg:table-cell">Joined</th>
-                  <th className="px-5 py-4 text-center font-bold text-muted-foreground uppercase text-xs tracking-wider">Status</th>
+                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("admin_users.table_customer")}</th>
+                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider hidden md:table-cell">{t("admin_users.table_phone")}</th>
+                  <th className="px-5 py-4 text-center font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("admin_users.table_orders")}</th>
+                  <th className="px-5 py-4 text-right font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("admin_users.table_spent")}</th>
+                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider hidden lg:table-cell">{t("admin_users.table_joined")}</th>
+                  <th className="px-5 py-4 text-center font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("admin_users.table_status")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-muted/50">
@@ -354,7 +356,7 @@ const AdminUsers = () => {
                     </p>
                   </div>
                   <span className="rounded-full px-2.5 py-1 text-[10px] font-bold bg-green-500/10 text-green-700 border border-green-500/20 uppercase tracking-wider shrink-0">
-                    {selectedCustomer.status}
+                    {selectedCustomer.status === "active" ? t("admin_users.status_active") : t("admin_users.status_suspended")}
                   </span>
                 </div>
               </SheetHeader>
@@ -363,19 +365,19 @@ const AdminUsers = () => {
               <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4">
                 <Tabs defaultValue="info" className="w-full">
                   <TabsList className="grid w-full grid-cols-3 bg-muted rounded-xl p-1 mb-5">
-                    <TabsTrigger value="info"    className="rounded-lg font-bold text-[11px] sm:text-xs">Info</TabsTrigger>
-                    <TabsTrigger value="orders"  className="rounded-lg font-bold text-[11px] sm:text-xs">Orders ({selectedCustomer.ordersCount})</TabsTrigger>
-                    <TabsTrigger value="reviews" className="rounded-lg font-bold text-[11px] sm:text-xs">Reviews ({selectedCustomer.reviews.length})</TabsTrigger>
+                    <TabsTrigger value="info"    className="rounded-lg font-bold text-[11px] sm:text-xs">{t("admin_users.tab_info")}</TabsTrigger>
+                    <TabsTrigger value="orders"  className="rounded-lg font-bold text-[11px] sm:text-xs">{t("admin_users.tab_orders")} ({selectedCustomer.ordersCount})</TabsTrigger>
+                    <TabsTrigger value="reviews" className="rounded-lg font-bold text-[11px] sm:text-xs">{t("admin_users.tab_reviews")} ({selectedCustomer.reviews.length})</TabsTrigger>
                   </TabsList>
 
                   {/* ── Tab 1: Profile Info ─────────────────────────────────── */}
                   <TabsContent value="info" className="space-y-3 outline-none">
                     <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2">
                       {[
-                        { label: "Email Address",   icon: Mail,     value: selectedCustomer.email,    truncate: true  },
-                        { label: "Phone Number",    icon: Phone,    value: selectedCustomer.phone,    truncate: false },
-                        { label: "Customer Since",  icon: Calendar, value: new Date(selectedCustomer.joinDate).toLocaleDateString(undefined, { dateStyle: "long" }), truncate: false },
-                        { label: "Account Status",  icon: User,     value: selectedCustomer.status,   truncate: false, badge: true },
+                        { label: t("admin_users.label_email"),   icon: Mail,     value: selectedCustomer.email,    truncate: true  },
+                        { label: t("admin_users.label_phone"),    icon: Phone,    value: selectedCustomer.phone,    truncate: false },
+                        { label: t("admin_users.label_joined"),  icon: Calendar, value: new Date(selectedCustomer.joinDate).toLocaleDateString(undefined, { dateStyle: "long" }), truncate: false },
+                        { label: t("admin_users.label_status"),  icon: User,     value: selectedCustomer.status === "active" ? t("admin_users.status_active") : t("admin_users.status_suspended"),   truncate: false, badge: true },
                       ].map(item => {
                         const IIcon = item.icon;
                         return (
@@ -396,7 +398,7 @@ const AdminUsers = () => {
                     {/* Revenue Highlight */}
                     <div className="border rounded-xl p-4 sm:p-5 bg-gradient-to-br from-amber-500/10 to-orange-500/5 flex justify-between items-center mt-2">
                       <div>
-                        <p className="text-[10px] sm:text-xs font-bold text-amber-800 uppercase tracking-wider">Total Value Contributed</p>
+                        <p className="text-[10px] sm:text-xs font-bold text-amber-800 uppercase tracking-wider">{t("admin_users.label_value")}</p>
                         <p className="text-2xl sm:text-3xl font-extrabold text-amber-950 mt-1">
                           €{selectedCustomer.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </p>
@@ -412,7 +414,7 @@ const AdminUsers = () => {
                     {selectedCustomer.orders.length === 0 ? (
                       <div className="text-center py-10 text-muted-foreground">
                         <ShoppingBag className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                        <p className="text-xs">No orders found for this customer.</p>
+                        <p className="text-xs">{t("admin_users.no_orders")}</p>
                       </div>
                     ) : (
                       <div className="space-y-2.5">
@@ -453,7 +455,7 @@ const AdminUsers = () => {
                     {selectedCustomer.reviews.length === 0 ? (
                       <div className="text-center py-10 text-muted-foreground">
                         <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                        <p className="text-xs">No reviews submitted by this customer.</p>
+                        <p className="text-xs">{t("admin_users.no_reviews")}</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -499,10 +501,10 @@ const AdminUsers = () => {
             <div className="px-5 sm:px-6 pt-4 pb-3 border-b flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-foreground">
-                  Add New Customer
+                  {t("admin_users.modal_title")}
                 </h2>
                 <p className="text-muted-foreground text-xs mt-0.5">
-                  Create a new customer profile in the store database.
+                  {t("admin_users.modal_desc")}
                 </p>
               </div>
               <button
@@ -517,7 +519,7 @@ const AdminUsers = () => {
             <form onSubmit={handleAddCustomer} className="px-5 sm:px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground">First Name *</label>
+                  <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_fname")} *</label>
                   <Input required value={newCustomer.firstName}
                     onChange={(e) => setNewCustomer({ ...newCustomer, firstName: e.target.value })}
                     placeholder="e.g. John"
@@ -525,7 +527,7 @@ const AdminUsers = () => {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground">Last Name *</label>
+                  <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_lname")} *</label>
                   <Input required value={newCustomer.lastName}
                     onChange={(e) => setNewCustomer({ ...newCustomer, lastName: e.target.value })}
                     placeholder="e.g. Doe"
@@ -534,7 +536,7 @@ const AdminUsers = () => {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground">Email Address *</label>
+                <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_email")} *</label>
                 <Input required type="email" value={newCustomer.email}
                   onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
                   placeholder="john.doe@example.com"
@@ -542,7 +544,7 @@ const AdminUsers = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground">Phone Number *</label>
+                <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_phone")} *</label>
                 <Input required value={newCustomer.phone}
                   onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
                   placeholder="+31 6 12345678"
@@ -550,10 +552,10 @@ const AdminUsers = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground">Password (Optional)</label>
+                <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_password")}</label>
                 <Input type="password" value={newCustomer.password}
                   onChange={(e) => setNewCustomer({ ...newCustomer, password: e.target.value })}
-                  placeholder="Leave empty → TempPass123!"
+                  placeholder={t("admin_users.form_password_help")}
                   className="focus-visible:ring-amber-500"
                 />
               </div>
@@ -564,14 +566,14 @@ const AdminUsers = () => {
                   onClick={() => setOpenAddModal(false)}
                   className="rounded-xl font-bold w-full sm:w-auto"
                 >
-                  Cancel
+                  {t("admin_users.button_cancel")}
                 </Button>
                 <Button type="submit" disabled={isSubmitting}
                   className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-sm w-full sm:w-auto sm:min-w-[130px]"
                 >
                   {isSubmitting
                     ? <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                    : "Save Customer"
+                    : t("admin_users.button_save")
                   }
                 </Button>
               </div>

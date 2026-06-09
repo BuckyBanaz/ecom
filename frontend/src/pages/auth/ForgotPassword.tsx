@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +9,7 @@ import { authRepository } from "@/client/apiClient";
 import { toast } from "sonner";
 
 export default function ForgotPassword() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,14 +22,14 @@ export default function ForgotPassword() {
       setLoading(true);
       const res = await authRepository.forgotPassword({ email });
       if (res.success) {
-        toast.success(res.message || "OTP sent to your email!");
+        toast.success(res.message || t("auth_pages.forgot.toast_sent"));
         // Navigate to reset password page and pass email in state
         navigate("/reset-password", { state: { email } });
       } else {
-        toast.error(res.message || "Failed to send reset email");
+        toast.error(res.message || t("auth_pages.forgot.toast_failed"));
       }
     } catch (error: any) {
-      toast.error(error.message || "An error occurred");
+      toast.error(error.message || t("auth_pages.forgot.toast_error"));
     } finally {
       setLoading(false);
     }
@@ -39,27 +41,27 @@ export default function ForgotPassword() {
         <div className="text-center">
           <Link to="/account" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary mb-6 transition-colors">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to login
+            {t("auth_pages.forgot.back_to_login")}
           </Link>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Forgot password?
+            {t("auth_pages.forgot.title")}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            No worries, we'll send you reset instructions.
+            {t("auth_pages.forgot.subtitle")}
           </p>
         </div>
 
         <div className="bg-white p-8 border rounded-2xl shadow-sm">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="email">{t("auth_pages.forgot.email_label")}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
                   required
-                  placeholder="Enter your email"
+                  placeholder={t("auth_pages.forgot.email_placeholder")}
                   className="pl-10 py-6"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -72,10 +74,10 @@ export default function ForgotPassword() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Sending instructions...
+                  {t("auth_pages.forgot.sending")}
                 </>
               ) : (
-                "Reset password"
+                t("auth_pages.forgot.submit")
               )}
             </Button>
           </form>

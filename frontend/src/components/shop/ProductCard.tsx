@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Heart, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "./StarRating";
@@ -9,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 export function ProductCard({ product }: { product: Product }) {
+  const { t } = useTranslation();
   const { add } = useCart();
   const { toggle, has } = useWishlist();
   const fav = has(product.id);
@@ -21,7 +23,7 @@ export function ProductCard({ product }: { product: Product }) {
       <Link to={`/product/${product.slug}`} className="relative block aspect-square overflow-hidden bg-muted">
         {product.inStock === false ? (
           <span className="absolute left-3 top-3 z-10 rounded-full bg-destructive px-2.5 py-1 text-xs font-bold text-destructive-foreground">
-            Out of Stock
+            {t("product.out_of_stock")}
           </span>
         ) : discount > 0 ? (
           <span className="absolute left-3 top-3 z-10 rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
@@ -34,7 +36,7 @@ export function ProductCard({ product }: { product: Product }) {
             toggle(product.id, product.name, product);
           }}
           className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-background/90 backdrop-blur transition hover:bg-background"
-          aria-label="Toggle wishlist"
+          aria-label={t("product.add_to_wishlist")}
         >
           <Heart size={16} className={cn(fav ? "fill-red-500 text-red-500" : "text-muted-foreground")} />
         </button>
@@ -68,7 +70,7 @@ export function ProductCard({ product }: { product: Product }) {
             size="icon"
             onClick={() => add(product)}
             disabled={product.inStock === false}
-            aria-label="Add to cart"
+            aria-label={t("product.add_to_cart")}
             className="h-10 w-10 rounded-full"
           >
             <ShoppingCart size={16} />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,6 +88,7 @@ const defaultConfig: HeaderFooterConfig = {
 };
 
 const CMSHeaderFooter = () => {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<HeaderFooterConfig>(defaultConfig);
 
   useEffect(() => {

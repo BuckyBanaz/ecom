@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, Heart, Menu, Search, ShoppingCart, User } from "lucide-react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { iconMap } from "@/utils/fontawesome";
@@ -13,9 +14,11 @@ import { navGroups } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
 import { useDebounce } from "@/hooks/use-debounce";
 import { productRepository, megaMenuRepository } from "@/client/apiClient";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 export function Header() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 300);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -135,7 +138,7 @@ export function Header() {
       <div className="absolute left-0 top-[calc(100%+8px)] w-full bg-background rounded-2xl shadow-2xl border overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
         <div className="p-2">
           {isSearching ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">Searching...</div>
+            <div className="p-4 text-center text-sm text-muted-foreground">{t("common.searching")}</div>
           ) : suggestions.length > 0 ? (
             <ul className="flex flex-col">
               {suggestions.map((p) => (
@@ -162,12 +165,12 @@ export function Header() {
                   className="w-full text-left px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/5 rounded-xl transition-colors flex items-center gap-2"
                 >
                   <Search size={14} />
-                  View all results for "{q}"
+                  {t("common.viewAllResultsFor", { query: q })}
                 </button>
               </li>
             </ul>
           ) : (
-            <div className="p-4 text-center text-sm text-muted-foreground">No matching products found.</div>
+            <div className="p-4 text-center text-sm text-muted-foreground">{t("common.noResults")}</div>
           )}
         </div>
       </div>
@@ -227,13 +230,13 @@ export function Header() {
       <div className="container-page flex items-center gap-4 py-3 md:gap-6 md:py-4">
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
+            <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t("header.menu")}>
               <Menu />
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[300px] overflow-y-auto p-0">
-            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-            <SheetDescription className="sr-only">Main navigation links</SheetDescription>
+            <SheetTitle className="sr-only">{t("header.menu")}</SheetTitle>
+            <SheetDescription className="sr-only">{t("header.menu")}</SheetDescription>
             <div className="border-b p-4">
               <Logo />
             </div>
@@ -280,12 +283,12 @@ export function Header() {
             onFocus={() => {
               if (q.trim()) setShowSuggestions(true);
             }}
-            placeholder="Search the entire store"
+            placeholder={t("header.search_placeholder")}
             className="h-12 rounded-full border-2 pl-5 pr-14 text-base focus-visible:ring-primary/20"
           />
           <button
             type="submit"
-            aria-label="Search"
+            aria-label={t("common.search")}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Search size={18} />
@@ -296,10 +299,11 @@ export function Header() {
         </form>
 
         <div className="ml-auto flex items-center gap-1">
-          <Button asChild variant="ghost" size="icon" aria-label="Account">
+          <LanguageSwitcher />
+          <Button asChild variant="ghost" size="icon" aria-label={t("header.account")}>
             <Link to="/account"><User /></Link>
           </Button>
-          <Button asChild variant="ghost" size="icon" aria-label="Wishlist" className="relative">
+          <Button asChild variant="ghost" size="icon" aria-label={t("header.wishlist")} className="relative">
             <Link to="/wishlist">
               <Heart />
               {ids.length > 0 && (
@@ -312,7 +316,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Cart"
+            aria-label={t("header.cart")}
             className="relative"
             onClick={() => setDrawerOpen(true)}
           >
@@ -338,12 +342,12 @@ export function Header() {
             onFocus={() => {
               if (q.trim()) setShowSuggestions(true);
             }}
-            placeholder="Search…"
+            placeholder={t("common.search") + "\u2026"}
             className="h-11 rounded-full pl-5 pr-14 focus-visible:ring-primary/20"
           />
           <button
             type="submit"
-            aria-label="Search"
+            aria-label={t("common.search")}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
           >
             <Search size={16} />

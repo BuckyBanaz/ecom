@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Package, FolderTree, ShoppingCart, Users, Settings,
   FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown,
@@ -49,6 +50,7 @@ const cmsChildren = [
 ];
 
 export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileOpen: (open: boolean) => void }) {
+  const { t } = useTranslation();
   const { user, logout, hasPermission } = useAdmin();
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);

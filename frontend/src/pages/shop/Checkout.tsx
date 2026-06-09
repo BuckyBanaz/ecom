@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircle2, MapPin, Plus, ChevronRight, Loader2, X,
   Home, Building2, CreditCard, Truck, Zap, Map
@@ -49,6 +50,7 @@ const emptyAddressForm = {
 };
 
 const Checkout = () => {
+  const { t } = useTranslation();
   const { items, subtotal, clear } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,7 +64,7 @@ const Checkout = () => {
       const sessionId = searchParams.get("session_id");
 
       if (location.pathname === "/checkout/cancel") {
-        toast.error("Payment was cancelled. You can try again.");
+        toast.error(t("checkout.toast_payment_cancelled"));
         navigate("/checkout", { replace: true });
       } else if (location.pathname === "/checkout/success" && sessionId) {
         setVerifyingSession(true);
@@ -71,14 +73,15 @@ const Checkout = () => {
           if (res.success) {
             clear();
             setDone(true);
-            toast.success("Order placed successfully!");
+            setConfirmedOrderNum(res.order?.orderNumber || `LG-${Math.floor(Math.random() * 900000 + 100000)}`);
+            toast.success(t("checkout.toast_order_success"));
             // Stay on page — done screen will render
           } else {
-            toast.error("Could not verify order payment. Please check your orders.");
+            toast.error(t("checkout.toast_verify_failed"));
             navigate("/dashboard?tab=orders", { replace: true });
           }
         } catch (err: any) {
-          toast.error(err.message || "Could not verify order payment.");
+          toast.error(err.message || t("checkout.toast_verify_error"));
           navigate("/checkout", { replace: true });
         } finally {
           setVerifyingSession(false);
@@ -104,7 +107,7 @@ const Checkout = () => {
   const [shipping, setShipping] = useState("standard");
   const [payment, setPayment] = useState("ideal");
   const [done, setDone] = useState(false);
-
+  const [confirmedOrderNum, setConfirmedOrderNum] = useState("");
   const [shipConfig, setShipConfig] = useState({
     freeShippingThreshold: 75,
     standardShippingFee: 5.95,
@@ -170,14 +173,14 @@ const Checkout = () => {
           ? (subtotal * coupon.value) / 100
           : coupon.value;
         setDiscountAmount(discount);
-        toast.success("Coupon applied successfully!");
+        toast.success(t("checkout.toast_coupon_applied"));
       } else {
-        toast.error(res.message || "Invalid coupon");
+        toast.error(res.message || t("checkout.toast_coupon_invalid"));
         setAppliedCoupon(null);
         setDiscountAmount(0);
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to apply coupon");
+      toast.error(err.message || t("checkout.toast_coupon_failed"));
       setAppliedCoupon(null);
       setDiscountAmount(0);
     } finally {
@@ -189,7 +192,7 @@ const Checkout = () => {
     setCouponCode("");
     setAppliedCoupon(null);
     setDiscountAmount(0);
-    toast.success("Coupon removed");
+    toast.success(t("checkout.toast_coupon_removed"));
   };
 
   // Contact form (pre-filled from user)
@@ -229,7 +232,7 @@ const Checkout = () => {
         setSelectedAddressId(def.id);
       }
     } catch {
-      toast.error("Could not load addresses");
+      toast.error(t("checkout.toast_load_addresses_error"));
     } finally {
       setLoadingAddresses(false);
     }
@@ -243,7 +246,7 @@ const Checkout = () => {
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (addrForm.houseNumber && !/^[0-9]+[a-zA-Z0-9\s-]*$/.test(addrForm.houseNumber)) {
-      setAddressError("House number must start with a number (e.g. 12, 12A)");
+      setAddressError(t("checkout.address_error_house_number"));
       return;
     }
     setAddressError("");
@@ -252,16 +255,16 @@ const Checkout = () => {
       setAddingAddress(true);
       const res = await addressRepository.create({ ...addrForm, isDefault: addresses.length === 0 });
       if (res.success || res.data) {
-        toast.success("Address added!");
+        toast.success(t("checkout.toast_address_added"));
         setShowAddDialog(false);
         setAddrForm(emptyAddressForm);
         await fetchAddresses();
         if (res.data?.id) setSelectedAddressId(res.data.id);
       } else {
-        toast.error(res.message || "Failed to add address");
+        toast.error(res.message || t("checkout.toast_add_address_failed"));
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to add address");
+      toast.error(err.message || t("checkout.toast_add_address_failed"));
     } finally {
       setAddingAddress(false);
     }
@@ -284,7 +287,7 @@ const Checkout = () => {
   const next = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1 && !selectedAddressId) {
-      toast.error("Please select a shipping address");
+      toast.error(t("checkout.toast_select_address"));
       return;
     }
     if (step < steps.length - 1) {
@@ -296,7 +299,7 @@ const Checkout = () => {
       try {
         const selectedAddr = addresses.find(a => a.id === selectedAddressId);
         if (!selectedAddr) {
-          toast.error("Invalid shipping address");
+          toast.error(t("checkout.toast_invalid_address"));
           setIsSubmitting(false);
           return;
         }
@@ -317,11 +320,11 @@ const Checkout = () => {
           // Redirect to Stripe Checkout page
           window.location.href = res.url;
         } else {
-          toast.error(res.message || "Failed to initiate checkout");
+          toast.error(res.message || t("checkout.toast_init_failed"));
           setIsSubmitting(false);
         }
       } catch (err: any) {
-        toast.error(err.message || "Error placing order");
+        toast.error(err.message || t("checkout.toast_place_order_error"));
         setIsSubmitting(false);
       }
     }
@@ -333,9 +336,9 @@ const Checkout = () => {
         <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-muted mb-4">
           <Truck className="h-10 w-10 text-muted-foreground" />
         </div>
-        <h1 className="text-2xl font-bold">Your cart is empty</h1>
-        <p className="text-muted-foreground mt-1">Add some products before checking out.</p>
-        <Button asChild className="mt-6 rounded-full"><Link to="/">Continue shopping</Link></Button>
+        <h1 className="text-2xl font-bold">{t("checkout.empty_cart_title")}</h1>
+        <p className="text-muted-foreground mt-1">{t("checkout.empty_cart_desc")}</p>
+        <Button asChild className="mt-6 rounded-full"><Link to="/">{t("checkout.button_continue_shopping")}</Link></Button>
       </div>
     );
   }
@@ -346,12 +349,12 @@ const Checkout = () => {
         <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-green-50">
           <CheckCircle2 className="h-14 w-14 text-green-500" />
         </div>
-        <h1 className="text-3xl font-bold">Order confirmed!</h1>
-        <p className="mt-2 text-muted-foreground">Thank you for your order. A confirmation has been sent to your email.</p>
-        <p className="mt-2 font-mono text-sm text-muted-foreground">Order #LG-{Math.floor(Math.random() * 900000 + 100000)}</p>
+        <h1 className="text-3xl font-bold">{t("checkout.order_confirmed_title")}</h1>
+        <p className="mt-2 text-muted-foreground">{t("checkout.order_confirmed_desc")}</p>
+        <p className="mt-2 font-mono text-sm text-muted-foreground">{t("checkout.order_number_prefix")}{confirmedOrderNum}</p>
         <div className="flex justify-center gap-3 mt-6">
-          <Button asChild variant="outline" className="rounded-full"><Link to="/dashboard">My Orders</Link></Button>
-          <Button asChild className="rounded-full"><Link to="/">Continue shopping</Link></Button>
+          <Button asChild variant="outline" className="rounded-full"><Link to="/dashboard">{t("checkout.button_my_orders")}</Link></Button>
+          <Button asChild className="rounded-full"><Link to="/">{t("checkout.button_continue_shopping")}</Link></Button>
         </div>
       </div>
     );
@@ -361,8 +364,8 @@ const Checkout = () => {
     return (
       <div className="container-page py-32 text-center flex flex-col items-center">
         <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
-        <h1 className="text-2xl font-bold">Verifying payment...</h1>
-        <p className="text-muted-foreground mt-2">Please wait while we confirm your order with Stripe.</p>
+        <h1 className="text-2xl font-bold">{t("checkout.verifying_title")}</h1>
+        <p className="text-muted-foreground mt-2">{t("checkout.verifying_desc")}</p>
       </div>
     );
   }
@@ -371,7 +374,7 @@ const Checkout = () => {
 
   return (
     <div className="container-page py-6 md:py-10">
-      <h1 className="text-2xl md:text-3xl font-bold mb-6">Checkout</h1>
+      <h1 className="text-2xl md:text-3xl font-bold mb-6">{t("checkout.page_title")}</h1>
 
       {/* Step indicator */}
       <ol className="flex items-center mb-8 overflow-x-auto">
@@ -384,11 +387,11 @@ const Checkout = () => {
                   i === step ? "border-primary text-primary" :
                     "border-border text-muted-foreground"
               )}>
-                {i < step ? "✓" : i + 1}
+                {i < step ? "\u2713" : i + 1}
               </span>
               <span className={cn("text-sm font-medium hidden sm:block",
                 i === step ? "text-primary font-semibold" : i < step ? "text-foreground" : "text-muted-foreground"
-              )}>{s}</span>
+              )}>{t(`checkout.step_${s.toLowerCase()}`)}</span>
             </div>
             {i < steps.length - 1 && (
               <ChevronRight className="mx-2 h-4 w-4 text-muted-foreground shrink-0" />
@@ -404,14 +407,14 @@ const Checkout = () => {
           {step === 0 && (
             <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-5">
               <div>
-                <h2 className="text-xl font-bold">Contact information</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Pre-filled from your account</p>
+                <h2 className="text-xl font-bold">{t("checkout.contact_info_heading")}</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">{t("checkout.contact_info_desc")}</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="First name" value={contact.firstName} onChange={v => setContact({ ...contact, firstName: v })} required />
-                <Field label="Last name" value={contact.lastName} onChange={v => setContact({ ...contact, lastName: v })} required />
-                <Field label="Email" type="email" value={contact.email} onChange={v => setContact({ ...contact, email: v })} required />
-                <Field label="Phone" type="tel" value={contact.phone} onChange={v => setContact({ ...contact, phone: v })} required />
+                <Field label={t("checkout.field_first_name")} value={contact.firstName} onChange={v => setContact({ ...contact, firstName: v })} required />
+                <Field label={t("checkout.field_last_name")} value={contact.lastName} onChange={v => setContact({ ...contact, lastName: v })} required />
+                <Field label={t("checkout.field_email")} type="email" value={contact.email} onChange={v => setContact({ ...contact, email: v })} required />
+                <Field label={t("checkout.field_phone")} type="tel" value={contact.phone} onChange={v => setContact({ ...contact, phone: v })} required />
               </div>
             </div>
           )}
@@ -422,12 +425,12 @@ const Checkout = () => {
               <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-bold">Shipping address</h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">Select or add a delivery address</p>
+                    <h2 className="text-xl font-bold">{t("checkout.shipping_address_heading")}</h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">{t("checkout.shipping_address_desc")}</p>
                   </div>
                   <Button type="button" variant="outline" size="sm" className="rounded-full gap-1.5 shrink-0"
                     onClick={() => { setAddrForm(emptyAddressForm); setShowAddDialog(true); }}>
-                    <Plus className="h-4 w-4" /> Add new
+                    <Plus className="h-4 w-4" /> {t("checkout.button_add_address")}
                   </Button>
                 </div>
 
@@ -436,9 +439,9 @@ const Checkout = () => {
                 ) : addresses.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <MapPin className="mx-auto h-8 w-8 mb-2 opacity-40" />
-                    <p>No saved addresses yet</p>
+                    <p>{t("checkout.no_addresses")}</p>
                     <Button type="button" className="mt-3 rounded-full" size="sm" onClick={() => setShowAddDialog(true)}>
-                      <Plus className="h-4 w-4 mr-1" /> Add address
+                      <Plus className="h-4 w-4 mr-1" /> {t("checkout.button_add_address_empty")}
                     </Button>
                   </div>
                 ) : (
@@ -457,7 +460,7 @@ const Checkout = () => {
                           <div className="flex items-center gap-1.5 mb-1">
                             {addr.label?.toLowerCase() === "home" ? <Home className="h-3.5 w-3.5 text-muted-foreground" /> : <Building2 className="h-3.5 w-3.5 text-muted-foreground" />}
                             <span className="font-semibold">{addr.label}</span>
-                            {addr.isDefault && <span className="text-[10px] bg-primary/10 text-primary rounded-full px-2 py-0.5">Default</span>}
+                            {addr.isDefault && <span className="text-[10px] bg-primary/10 text-primary rounded-full px-2 py-0.5">{t("checkout.label_default")}</span>}
                           </div>
                           <p className="text-muted-foreground leading-snug line-clamp-3">
                             {addr.firstName} {addr.lastName}<br />
@@ -473,15 +476,15 @@ const Checkout = () => {
 
               {/* Shipping method */}
               <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-3">
-                <h3 className="font-bold text-lg">Shipping method</h3>
+                <h3 className="font-bold text-lg">{t("checkout.shipping_method_heading")}</h3>
                 <RadioGroup value={shipping} onValueChange={setShipping} className="space-y-2">
                   <ShippingOption id="standard" value="standard" icon={<Truck className="h-5 w-5" />}
-                    title="Standard delivery" desc={`Next day before ${shipConfig.deliveryCutoffTime}`}
-                    price={subtotal > Number(shipConfig.freeShippingThreshold || 0) ? "Free" : `€${Number(shipConfig.standardShippingFee || 0).toFixed(2)}`} selected={shipping === "standard"} />
+                    title={t("checkout.shipping_standard_title")} desc={`${t("checkout.shipping_standard_desc_prefix")} ${shipConfig.deliveryCutoffTime}`}
+                    price={subtotal > Number(shipConfig.freeShippingThreshold || 0) ? t("checkout.shipping_free") : `\u20ac${Number(shipConfig.standardShippingFee || 0).toFixed(2)}`} selected={shipping === "standard"} />
                   {shipConfig.sameDayDelivery && (
                     <ShippingOption id="express" value="express" icon={<Zap className="h-5 w-5" />}
-                      title="Express delivery" desc="Same day in selected areas"
-                      price={`€${Number(shipConfig.expressShippingFee || 0).toFixed(2)}`} selected={shipping === "express"} />
+                      title={t("checkout.shipping_express_title")} desc={t("checkout.shipping_express_desc")}
+                      price={`\u20ac${Number(shipConfig.expressShippingFee || 0).toFixed(2)}`} selected={shipping === "express"} />
                   )}
                 </RadioGroup>
               </div>
@@ -492,24 +495,24 @@ const Checkout = () => {
           {step === 2 && (
             <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-4">
               <div>
-                <h2 className="text-xl font-bold">Payment method</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Secure payment via Stripe Checkout.</p>
+                <h2 className="text-xl font-bold">{t("checkout.payment_method_heading")}</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">{t("checkout.payment_desc")}</p>
               </div>
               <RadioGroup value={payment} onValueChange={setPayment} className="grid grid-cols-1 gap-3">
                 {paymentConfig.ideal && (
-                  <PaymentOption id="ideal" value="ideal" title="iDEAL" desc="Dutch bank transfer" selected={payment === "ideal"} imgSrc="https://www.iconpacks.net/icons/free-icons-6/free-ideal-logo-icon-19535.png" />
+                  <PaymentOption id="ideal" value="ideal" title={t("checkout.payment_ideal_title")} desc={t("checkout.payment_ideal_desc")} selected={payment === "ideal"} imgSrc="https://www.iconpacks.net/icons/free-icons-6/free-ideal-logo-icon-19535.png" />
                 )}
                 {paymentConfig.card && (
-                  <PaymentOption id="card" value="card" title="Credit / Debit Card" desc="Visa, Mastercard, Amex" selected={payment === "card"} />
+                  <PaymentOption id="card" value="card" title={t("checkout.payment_card_title")} desc={t("checkout.payment_card_desc")} selected={payment === "card"} />
                 )}
                 {paymentConfig.paypal && (
-                  <PaymentOption id="paypal" value="paypal" title="PayPal" desc="Pay securely with PayPal" selected={payment === "paypal"} imgSrc="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" />
+                  <PaymentOption id="paypal" value="paypal" title={t("checkout.payment_paypal_title")} desc={t("checkout.payment_paypal_desc")} selected={payment === "paypal"} imgSrc="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" />
                 )}
                 {paymentConfig.klarna && (
-                  <PaymentOption id="klarna" value="klarna" title="Klarna" desc="Buy now, pay later" selected={payment === "klarna"} imgSrc="https://cdn-icons-png.flaticon.com/128/39/39073.png" />
+                  <PaymentOption id="klarna" value="klarna" title={t("checkout.payment_klarna_title")} desc={t("checkout.payment_klarna_desc")} selected={payment === "klarna"} imgSrc="https://cdn-icons-png.flaticon.com/128/39/39073.png" />
                 )}
                 {paymentConfig.bancontact && (
-                  <PaymentOption id="bancontact" value="bancontact" title="Bancontact" desc="Belgian payments" selected={payment === "bancontact"} imgSrc="https://www.bancontact.com/img/bancontact-logo.png" />
+                  <PaymentOption id="bancontact" value="bancontact" title={t("checkout.payment_bancontact_title")} desc={t("checkout.payment_bancontact_desc")} selected={payment === "bancontact"} imgSrc="https://www.bancontact.com/img/bancontact-logo.png" />
                 )}
               </RadioGroup>
             </div>
@@ -520,14 +523,14 @@ const Checkout = () => {
             <Button type="button" variant="outline" className="rounded-full"
               onClick={() => step === 0 ? navigate("/cart") : setStep(step - 1)}
               disabled={isSubmitting}>
-              {step === 0 ? "Back to cart" : "← Back"}
+              {step === 0 ? t("checkout.button_back_to_cart") : t("checkout.button_back")}
             </Button>
             <Button type="submit" size="lg" className="rounded-full" disabled={isSubmitting}>
               {step === steps.length - 1 ? (
                 isSubmitting ? (
-                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Processing...</span>
-                ) : `Place order · ${formatPrice(total)}`
-              ) : "Continue →"}
+                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t("checkout.button_processing")}</span>
+                ) : `${t("checkout.button_place_order")} \u00b7 ${formatPrice(total)}`
+              ) : t("checkout.button_continue")}
             </Button>
           </div>
         </form>
@@ -535,7 +538,7 @@ const Checkout = () => {
         {/* Order summary sidebar */}
         <aside className="h-fit rounded-2xl border bg-card shadow-sm overflow-hidden">
           <div className="p-5 border-b">
-            <h2 className="text-lg font-bold">Order summary</h2>
+            <h2 className="text-lg font-bold">{t("checkout.order_summary")}</h2>
           </div>
           <ul className="divide-y px-5">
             {items.map((i) => (
@@ -562,13 +565,13 @@ const Checkout = () => {
             ) : (
               <>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal</span><span>{formatPrice(subtotal)}</span>
+                  <span>{t("checkout.summary_subtotal")}</span><span>{formatPrice(subtotal)}</span>
                 </div>
 
                 {appliedCoupon && (
                   <div className="flex justify-between text-green-600 font-medium">
                     <div className="flex items-center gap-1">
-                      <span>Discount ({appliedCoupon.code})</span>
+                      <span>{t("checkout.summary_discount")} ({appliedCoupon.code})</span>
                       <button type="button" onClick={removeCoupon} className="text-muted-foreground hover:text-red-500">
                         <X className="h-3 w-3" />
                       </button>
@@ -578,7 +581,7 @@ const Checkout = () => {
                 )}
 
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Shipping</span><span>{ship === 0 ? "Free" : formatPrice(ship)}</span>
+                  <span>{t("checkout.summary_shipping")}</span><span>{ship === 0 ? t("checkout.shipping_free") : formatPrice(ship)}</span>
                 </div>
 
                 {charges.map((charge) => {
@@ -593,7 +596,7 @@ const Checkout = () => {
                 })}
 
                 <div className="flex justify-between font-bold text-base pt-2 border-t mt-2">
-                  <span>Total</span>
+                  <span>{t("checkout.summary_total")}</span>
                   <div className="flex items-center gap-2">
                     {appliedCoupon && (
                       <span className="text-muted-foreground line-through text-sm font-medium">
@@ -615,7 +618,7 @@ const Checkout = () => {
                 onClick={() => setShowCouponInput(true)}
                 className="text-primary font-medium text-sm hover:underline"
               >
-                Have a coupon code?
+                {t("checkout.coupon_prompt")}
               </button>
             ) : !appliedCoupon ? (
               <div className="space-y-3">
@@ -624,11 +627,11 @@ const Checkout = () => {
                   onClick={() => setShowCouponInput(false)}
                   className="text-primary font-medium text-sm hover:underline"
                 >
-                  Have a coupon code?
+                  {t("checkout.coupon_prompt")}
                 </button>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Enter discount code"
+                    placeholder={t("checkout.coupon_placeholder")}
                     value={couponCode}
                     onChange={e => setCouponCode(e.target.value)}
                     className="h-10 bg-background text-sm rounded-lg border-primary/20 focus-visible:ring-primary/20"
@@ -640,7 +643,7 @@ const Checkout = () => {
                     onClick={handleApplyCoupon}
                     disabled={!couponCode || validatingCoupon}
                   >
-                    {validatingCoupon ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                    {validatingCoupon ? <Loader2 className="h-4 w-4 animate-spin" /> : t("checkout.coupon_apply")}
                   </Button>
                 </div>
               </div>
@@ -648,7 +651,7 @@ const Checkout = () => {
               <div className="flex items-center justify-between rounded-lg bg-green-50/50 border border-green-200 p-2.5">
                 <div className="flex items-center gap-2 text-green-700 text-sm">
                   <CheckCircle2 className="h-4 w-4" />
-                  <span className="font-medium">{appliedCoupon.code}</span> applied
+                  <span className="font-medium">{appliedCoupon.code}</span> {t("checkout.coupon_applied_text")}
                 </div>
               </div>
             )}
@@ -661,7 +664,7 @@ const Checkout = () => {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full sm:max-w-lg bg-background rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-              <h2 className="text-lg font-bold">Add new address</h2>
+              <h2 className="text-lg font-bold">{t("checkout.dialog_add_address")}</h2>
               <button onClick={() => setShowAddDialog(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
                 <X className="h-5 w-5" />
               </button>
@@ -669,63 +672,67 @@ const Checkout = () => {
             <form onSubmit={handleAddAddress} className="overflow-y-auto flex-1 p-6 space-y-4">
               {/* Label quick pick */}
               <div>
-                <Label className="mb-2 block">Label</Label>
+                <Label className="mb-2 block">{t("checkout.label_address_label")}</Label>
                 <div className="flex gap-2">
-                  {["Home", "Office", "Other"].map((l) => (
-                    <button key={l} type="button"
-                      onClick={() => setAddrForm({ ...addrForm, label: l })}
+                  {[
+                    { value: "Home", labelKey: "checkout.label_home" },
+                    { value: "Office", labelKey: "checkout.label_office" },
+                    { value: "Other", labelKey: "checkout.label_other" },
+                  ].map((l) => (
+                    <button key={l.value} type="button"
+                      onClick={() => setAddrForm({ ...addrForm, label: l.value })}
                       className={cn(
                         "flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-all",
-                        addrForm.label === l ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
+                        addrForm.label === l.value ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
                       )}>
-                      {l === "Home" ? <Home className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}
-                      {l}
+                      {l.value === "Home" ? <Home className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}
+                      {t(l.labelKey)}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="First name" value={addrForm.firstName} onChange={v => setAddrForm({ ...addrForm, firstName: v })} required />
-                <Field label="Last name" value={addrForm.lastName} onChange={v => setAddrForm({ ...addrForm, lastName: v })} required />
+                <Field label={t("checkout.field_first_name")} value={addrForm.firstName} onChange={v => setAddrForm({ ...addrForm, firstName: v })} required />
+                <Field label={t("checkout.field_last_name")} value={addrForm.lastName} onChange={v => setAddrForm({ ...addrForm, lastName: v })} required />
               </div>
-              <Field label="Phone" type="tel" value={addrForm.phone} onChange={v => setAddrForm({ ...addrForm, phone: v })} required />
+              <Field label={t("checkout.field_phone")} type="tel" value={addrForm.phone} onChange={v => setAddrForm({ ...addrForm, phone: v })} required />
 
               {/* Map picker */}
               <div>
-                <Label className="mb-1.5 block text-sm">Location <span className="text-muted-foreground font-normal">(optional — auto-fills address fields)</span></Label>
+                <Label className="mb-1.5 block text-sm">{t("checkout.label_location")} <span className="text-muted-foreground font-normal">{t("checkout.label_location_help")}</span></Label>
                 <button type="button" onClick={() => setShowMap(true)}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-all py-3 text-sm text-muted-foreground hover:text-primary">
                   <Map className="h-4 w-4" />
-                  {addrForm.lat ? `📍 ${parseFloat(addrForm.lat).toFixed(4)}, ${parseFloat(addrForm.lng).toFixed(4)} — change` : "Pick location on map"}
+                  {addrForm.lat ? `\ud83d\udccd ${parseFloat(addrForm.lat).toFixed(4)}, ${parseFloat(addrForm.lng).toFixed(4)} \u2014 ${t("checkout.button_change_location")}` : t("checkout.button_pick_location")}
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Street address" value={addrForm.street} onChange={v => setAddrForm({ ...addrForm, street: v })} required />
+                <Field label={t("checkout.field_street")} value={addrForm.street} onChange={v => setAddrForm({ ...addrForm, street: v })} required />
                 <Field
-                  label="House number (required)"
+                  label={t("checkout.field_house_number")}
                   value={addrForm.houseNumber || ""}
                   onChange={v => { setAddrForm({ ...addrForm, houseNumber: v }); setAddressError(""); }}
                   required
                   error={addressError}
                 />
               </div>
-              <Field label="Landmark (Optional)" value={addrForm.landmark || ""} onChange={v => setAddrForm({ ...addrForm, landmark: v })} />
+              <Field label={t("checkout.field_landmark")} value={addrForm.landmark || ""} onChange={v => setAddrForm({ ...addrForm, landmark: v })} />
               <div className="grid grid-cols-2 gap-3">
-                <Field label="City" value={addrForm.city} onChange={v => setAddrForm({ ...addrForm, city: v })} required />
-                <Field label="State / Province" value={addrForm.state} onChange={v => setAddrForm({ ...addrForm, state: v })} required />
+                <Field label={t("checkout.field_city")} value={addrForm.city} onChange={v => setAddrForm({ ...addrForm, city: v })} required />
+                <Field label={t("checkout.field_state")} value={addrForm.state} onChange={v => setAddrForm({ ...addrForm, state: v })} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Postal code" value={addrForm.pincode} onChange={v => setAddrForm({ ...addrForm, pincode: v })} required />
-                <Field label="Country" value={addrForm.country} onChange={v => setAddrForm({ ...addrForm, country: v })} required />
+                <Field label={t("checkout.field_postal_code")} value={addrForm.pincode} onChange={v => setAddrForm({ ...addrForm, pincode: v })} required />
+                <Field label={t("checkout.field_country")} value={addrForm.country} onChange={v => setAddrForm({ ...addrForm, country: v })} required />
               </div>
 
               <div className="flex gap-3 pt-2">
                 <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setShowAddDialog(false)}>
-                  Cancel
+                  {t("checkout.button_cancel")}
                 </Button>
                 <Button type="submit" className="flex-1 rounded-full" disabled={addingAddress}>
-                  {addingAddress ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : "Save address"}
+                  {addingAddress ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("checkout.button_saving")}</> : t("checkout.button_save_address")}
                 </Button>
               </div>
             </form>

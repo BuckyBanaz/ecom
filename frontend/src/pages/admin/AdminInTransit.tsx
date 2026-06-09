@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Package, Truck, CheckCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Order } from "./AdminOrders";
 import { ordersRepository } from "@/client/apiClient";
 
 export default function AdminInTransit() {
-
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,10 +41,10 @@ export default function AdminInTransit() {
       <div className="flex flex-col gap-1">
         <h2 className="text-2xl font-semibold flex items-center gap-2">
           <Truck className="h-6 w-6 text-primary" />
-          In Transit Orders
+          {t("admin_orders_in_transit.title")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Orders currently on the way to customers.
+          {t("admin_orders_in_transit.subtitle")}
         </p>
       </div>
 
@@ -51,7 +52,7 @@ export default function AdminInTransit() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by order or customer..."
+          placeholder={t("admin_orders_in_transit.search_placeholder")}
           className="pl-10 h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
         />
       </div>
@@ -60,19 +61,19 @@ export default function AdminInTransit() {
         <table className="w-full text-sm text-left border-collapse">
           <thead>
             <tr className="border-b bg-muted/40 text-muted-foreground font-medium text-xs">
-              <th className="p-4">Order ID</th>
-              <th className="p-4">Customer</th>
-              <th className="p-4">Carrier</th>
-              <th className="p-4">Tracking Number</th>
-              <th className="p-4">Status</th>
-              <th className="p-4 text-right">Action</th>
+              <th className="p-4">{t("admin_orders_in_transit.table_order_id")}</th>
+              <th className="p-4">{t("admin_orders_in_transit.table_customer")}</th>
+              <th className="p-4">{t("admin_orders_in_transit.table_carrier")}</th>
+              <th className="p-4">{t("admin_orders_in_transit.table_tracking")}</th>
+              <th className="p-4">{t("admin_orders_in_transit.table_status")}</th>
+              <th className="p-4 text-right">{t("admin_orders_in_transit.table_actions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y text-xs">
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                  No orders currently in transit.
+                  {t("admin_orders_in_transit.empty")}
                 </td>
               </tr>
             ) : (
@@ -109,7 +110,7 @@ export default function AdminInTransit() {
                         className="h-8 rounded-full shadow-sm text-xs gap-1"
                         onClick={() => navigate(`/admin/orders/${o.id}`)}
                       >
-                        <ArrowRight className="h-3.5 w-3.5" /> Details
+                        <ArrowRight className="h-3.5 w-3.5" /> {t("admin_orders_in_transit.button_details")}
                       </Button>
                     </td>
                   </tr>

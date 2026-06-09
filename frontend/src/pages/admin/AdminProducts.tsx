@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Trash2, Search, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { resolveImgUrl } from "@/utils/image";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminProducts = () => {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -29,7 +31,7 @@ const AdminProducts = () => {
         }
       } catch (err) {
         console.error("Failed to fetch products from API:", err);
-        toast.error("Failed to load products from server");
+        toast.error(t("admin_products.toast_load_failed"));
         setProductsList([]);
       } finally {
         setIsLoading(false);
@@ -49,22 +51,22 @@ const AdminProducts = () => {
 
   const handleDelete = async (p: any) => {
     if (!hasPermission("products")) {
-      toast.error("Only admins can delete products");
+      toast.error(t("admin_products.toast_no_permission_delete"));
       return;
     }
-    if (window.confirm(`Delete "${p.name}"? This action cannot be undone.`)) {
+    if (window.confirm(t("admin_products.confirm_delete", { name: p.name }))) {
       try {
         const data = await productRepository.delete(p.id);
         if (data.success) {
-          toast.success(`Deleted "${p.name}" successfully`);
+          toast.success(t("admin_products.toast_deleted", { name: p.name }));
           setProductsList((prev) => prev.filter((x) => x.id !== p.id));
           return;
         } else {
-          toast.error("Failed to delete product");
+          toast.error(t("admin_products.toast_delete_failed"));
         }
       } catch (err) {
         console.error("Failed to delete product via API:", err);
-        toast.error("Error communicating with server to delete product");
+        toast.error(t("admin_products.toast_delete_error"));
       }
     }
   };
@@ -72,10 +74,10 @@ const AdminProducts = () => {
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">{productsList.length} products total</p>
+        <p className="text-sm text-muted-foreground">{t("admin_products.total_count", { count: productsList.length })}</p>
         {hasPermission("products") && (
           <Button className="rounded-full gap-2" onClick={() => navigate("/admin/products/new")}>
-            <Plus className="h-4 w-4" /> Add Product
+            <Plus className="h-4 w-4" /> {t("admin_products.add_product")}
           </Button>
         )}
       </div>
@@ -85,7 +87,7 @@ const AdminProducts = () => {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search products..."
+          placeholder={t("admin_products.search_placeholder")}
           className="pl-10"
         />
       </div>
@@ -94,11 +96,11 @@ const AdminProducts = () => {
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold">Product</th>
-              <th className="px-4 py-3 text-left font-semibold hidden md:table-cell">Category</th>
-              <th className="px-4 py-3 text-left font-semibold">Price</th>
-              <th className="px-4 py-3 text-left font-semibold hidden sm:table-cell">Stock</th>
-              <th className="px-4 py-3 text-right font-semibold">Actions</th>
+              <th className="px-4 py-3 text-left font-semibold">{t("admin_products.th_product")}</th>
+              <th className="px-4 py-3 text-left font-semibold hidden md:table-cell">{t("admin_products.th_category")}</th>
+              <th className="px-4 py-3 text-left font-semibold">{t("admin_products.th_price")}</th>
+              <th className="px-4 py-3 text-left font-semibold hidden sm:table-cell">{t("admin_products.th_stock")}</th>
+              <th className="px-4 py-3 text-right font-semibold">{t("admin_products.th_actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -144,7 +146,7 @@ const AdminProducts = () => {
                         <SafeImage src={p.image} alt={p.name} className="h-10 w-10 rounded-lg object-cover border" fallbackType="product" />
                         <div>
                           <p className="font-semibold">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">{brandName || "Generic"}</p>
+                          <p className="text-xs text-muted-foreground">{brandName || t("admin_products.brand_fallback")}</p>
                         </div>
                       </div>
                     </td>
@@ -161,7 +163,7 @@ const AdminProducts = () => {
                           p.inStock ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
                         }`}
                       >
-                        {p.inStock ? "In stock" : "Out of stock"}
+                        {p.inStock ? t("admin_products.in_stock") : t("admin_products.out_of_stock")}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -170,6 +172,7 @@ const AdminProducts = () => {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
+                          title={t("admin_products.action_edit")}
                           onClick={() => navigate(`/admin/products/${p.id}/edit`)}
                         >
                           <Pencil className="h-4 w-4" />
@@ -177,7 +180,7 @@ const AdminProducts = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="View Reviews"
+                          title={t("admin_products.action_view_reviews")}
                           className="h-8 w-8 text-blue-600 hover:bg-blue-50"
                           onClick={() => navigate(`/admin/products/${p.id}/reviews`)}
                         >
@@ -187,6 +190,7 @@ const AdminProducts = () => {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          title={t("admin_products.action_delete")}
                           onClick={() => handleDelete(p)}
                         >
                           <Trash2 className="h-4 w-4" />

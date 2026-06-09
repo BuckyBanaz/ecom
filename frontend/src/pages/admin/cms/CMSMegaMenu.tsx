@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, RotateCcw, Save, FolderPlus, ListPlus, ChevronLeft, FileText, Globe, Sparkles, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog"
 type MegaMenuWithId = MegaMenu & { id?: string };
 
 export default function CMSMegaMenu() {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
   const [menus, setMenus] = useState<MegaMenuWithId[]>([]);

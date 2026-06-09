@@ -1,9 +1,11 @@
 import { Star } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function StarRating({ value = 0, size = 14 }: { value?: number; size?: number }) {
+  const { t } = useTranslation();
   const full = Math.round(value);
   return (
-    <div className="flex items-center gap-0.5" aria-label={`${value.toFixed(1)} out of 5`}>
+    <div className="flex items-center gap-0.5" aria-label={t("star_rating.aria_label", { value: value.toFixed(1) })}>
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}

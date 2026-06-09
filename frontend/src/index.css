@@ -2,6 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------
+   Hide the default Google Translate banner / iframe globally.
+   The translation engine still works (cookie-driven), we only
+   suppress the floating "Translated into English" bar.
+   --------------------------------------------------------------- */
+.goog-te-banner-frame.skiptranslate,
+.goog-te-banner-frame,
+iframe.goog-te-banner-frame,
+iframe.skiptranslate,
+.goog-te-ftab,
+.goog-te-balloon-frame,
+#goog-gt-tt,
+.goog-tooltip,
+.goog-tooltip:hover,
+.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
+.VIpgJd-ZVi9od-aZ2wEe-OiiCO,
+.VIpgJd-ZVi9od-ORHb-OEVmcd {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+html,
+html.translated-ltr,
+html.translated-rtl,
+body,
+body.translated-ltr,
+body.translated-rtl {
+  top: 0 !important;
+  position: static !important;
+  margin-top: 0 !important;
+}
+
+/* Remove yellow/blue highlight Google adds to translated text */
+.goog-text-highlight {
+  background: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */

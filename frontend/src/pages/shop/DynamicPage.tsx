@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { cmsPagesRepository } from "@/client/apiClient";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 
 export default function DynamicPage() {
+  const { t } = useTranslation();
   const { slug } = useParams();
   const navigate = useNavigate();
   const [page, setPage] = useState<any>(null);
@@ -60,7 +62,7 @@ export default function DynamicPage() {
   }, [page]);
 
   if (isLoading) {
-    return <div className="container-page py-20 text-center text-muted-foreground animate-pulse">Loading page...</div>;
+    return <div className="container-page py-20 text-center text-muted-foreground animate-pulse">{t("dynamic_page.loading")}</div>;
   }
 
   if (error || !page) {
@@ -77,7 +79,7 @@ export default function DynamicPage() {
         ) : (
           <div className="prose max-w-none dark:prose-invert">
             <h1>{page.title}</h1>
-            <p className="text-muted-foreground">This page has no content yet.</p>
+            <p className="text-muted-foreground">{t("dynamic_page.no_content")}</p>
           </div>
         )}
       </div>

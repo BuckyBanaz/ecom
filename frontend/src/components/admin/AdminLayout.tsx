@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet, Navigate } from "react-router-dom";
 import { useAdmin } from "@/context/AdminContext";
 import { AdminSidebar } from "./AdminSidebar";
@@ -15,6 +16,7 @@ import {
 import { useFcmToken } from "@/hooks/useFcmToken";
 
 export function AdminLayout() {
+  const { t } = useTranslation();
   const { isLoggedIn, logout } = useAdmin();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
@@ -82,4 +84,4 @@ export function AdminLayout() {
       </AlertDialog>
     </div>
   );
-}
+}

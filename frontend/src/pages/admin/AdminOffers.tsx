@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Trash2, Search, Percent, Gift, Calendar, Check, X, RefreshCw } from "lucide-react";
 import { couponRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ interface Coupon {
 }
 
 export default function AdminOffers() {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCoupon, setEditCoupon] = useState<Coupon | null>(null);

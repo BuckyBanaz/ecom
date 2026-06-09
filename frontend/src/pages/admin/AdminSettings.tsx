@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import { cmsFeaturesRepository, adminSettingsRepository, authRepository } from "
 import { useAdmin } from "@/context/AdminContext";
 
 const AdminSettings = () => {
+  const { t } = useTranslation();
   const { user: adminUser, hasPermission } = useAdmin();
   const isSuperAdmin = hasPermission("settings");
 
@@ -136,7 +138,7 @@ const AdminSettings = () => {
         phone: profileData.phone,
       });
       if (res.success) {
-        toast.success("Profile updated successfully");
+        toast.success(t("admin_settings.profile_toast_success"));
         const saved = localStorage.getItem("admin_user");
         if (saved) {
           const parsed = JSON.parse(saved);
@@ -144,10 +146,10 @@ const AdminSettings = () => {
           localStorage.setItem("admin_user", JSON.stringify(parsed));
         }
       } else {
-        toast.error("Failed to update profile");
+        toast.error(t("admin_settings.profile_toast_error"));
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to update profile");
+      toast.error(error.message || t("admin_settings.profile_toast_error"));
     } finally {
       setIsSavingProfile(false);
     }
@@ -156,7 +158,7 @@ const AdminSettings = () => {
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error("New passwords do not match");
+      toast.error(t("admin_settings.password_toast_mismatch"));
       return;
     }
     try {
@@ -166,13 +168,13 @@ const AdminSettings = () => {
         newPassword: passwordData.newPassword,
       });
       if (res.success) {
-        toast.success("Password updated successfully");
+        toast.success(t("admin_settings.password_toast_success"));
         setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       } else {
-        toast.error("Failed to update password");
+        toast.error(t("admin_settings.password_toast_error"));
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to update password");
+      toast.error(error.message || t("admin_settings.password_toast_error"));
     } finally {
       setIsUpdatingPassword(false);
     }
@@ -251,9 +253,9 @@ const AdminSettings = () => {
     try {
       const res = await cmsFeaturesRepository.update(featureItems);
       if (res.success) {
-        toast.success("Features settings saved successfully");
+        toast.success(t("admin_settings.smtp_toast_success"));
       } else {
-        toast.error("Failed to save features settings");
+        toast.error(t("admin_settings.features_button_save"));
       }
     } catch (error) {
       toast.error("An error occurred while saving features");
@@ -270,9 +272,9 @@ const AdminSettings = () => {
     try {
       const res = await adminSettingsRepository.updateSmtpSettings(smtpSettings);
       if (res.success) {
-        toast.success("SMTP settings saved successfully");
+        toast.success(t("admin_settings.smtp_toast_success"));
       } else {
-        toast.error("Failed to save SMTP settings");
+        toast.error(t("admin_settings.smtp_toast_error"));
       }
     } catch (error) {
       toast.error("An error occurred while saving SMTP settings");
@@ -284,9 +286,9 @@ const AdminSettings = () => {
     try {
       const res = await adminSettingsRepository.updatePaymentSettings(paymentSettings);
       if (res.success) {
-        toast.success("Payment settings saved successfully");
+        toast.success(t("admin_settings.payment_toast_success"));
       } else {
-        toast.error("Failed to save Payment settings");
+        toast.error(t("admin_settings.payment_toast_error"));
       }
     } catch (error) {
       toast.error("An error occurred while saving Payment settings");
@@ -298,9 +300,9 @@ const AdminSettings = () => {
     try {
       const res = await adminSettingsRepository.updateShippingSettings(shippingSettings);
       if (res.success) {
-        toast.success("Shipping settings saved successfully");
+        toast.success(t("admin_settings.shipping_toast_success"));
       } else {
-        toast.error("Failed to save Shipping settings");
+        toast.error(t("admin_settings.shipping_toast_error"));
       }
     } catch (error) {
       toast.error("An error occurred while saving Shipping settings");
@@ -312,9 +314,9 @@ const AdminSettings = () => {
     try {
       const res = await adminSettingsRepository.updateAuthSettings(authSettings);
       if (res.success) {
-        toast.success("Auth settings saved successfully");
+        toast.success(t("admin_settings.auth_toast_success"));
       } else {
-        toast.error("Failed to save Auth settings");
+        toast.error(t("admin_settings.auth_toast_error"));
       }
     } catch (error) {
       toast.error("An error occurred while saving Auth settings");
@@ -322,15 +324,15 @@ const AdminSettings = () => {
   };
 
   const handleSendTestEmail = async () => {
-    const testEmail = window.prompt("Enter email address to send test email to:");
+    const testEmail = window.prompt(t("admin_settings.smtp_test_prompt"));
     if (!testEmail) return;
 
     toast.promise(
       adminSettingsRepository.testSmtpSettings(testEmail),
       {
-        loading: "Sending test email...",
-        success: (res) => res.message || `Test email sent to ${testEmail}`,
-        error: (err) => err?.message || "Failed to send test email",
+        loading: t("admin_settings.smtp_test_loading"),
+        success: (res) => res.message || t("admin_settings.smtp_test_success", { email: testEmail }),
+        error: (err) => err?.message || t("admin_settings.smtp_test_error"),
       }
     );
   };
@@ -342,15 +344,15 @@ const AdminSettings = () => {
         {/* Scrollable tabs on mobile */}
         <div className="overflow-x-auto pb-1">
           <TabsList className="flex min-w-max w-full sm:w-auto flex-nowrap">
-            <TabsTrigger value="profile" className="text-xs sm:text-sm">My Profile</TabsTrigger>
+            <TabsTrigger value="profile" className="text-xs sm:text-sm">{t("admin_settings.tab_profile")}</TabsTrigger>
             {isSuperAdmin && (
               <>
-                <TabsTrigger value="general" className="text-xs sm:text-sm">General</TabsTrigger>
-                <TabsTrigger value="features" className="text-xs sm:text-sm">Features</TabsTrigger>
-                <TabsTrigger value="smtp" className="text-xs sm:text-sm">SMTP / Email</TabsTrigger>
-                <TabsTrigger value="auth" className="text-xs sm:text-sm">Login & Auth</TabsTrigger>
-                <TabsTrigger value="payments" className="text-xs sm:text-sm">Payments</TabsTrigger>
-                <TabsTrigger value="shipping" className="text-xs sm:text-sm">Shipping</TabsTrigger>
+                <TabsTrigger value="general" className="text-xs sm:text-sm">{t("admin_settings.tab_general")}</TabsTrigger>
+                <TabsTrigger value="features" className="text-xs sm:text-sm">{t("admin_settings.tab_features")}</TabsTrigger>
+                <TabsTrigger value="smtp" className="text-xs sm:text-sm">{t("admin_settings.tab_smtp")}</TabsTrigger>
+                <TabsTrigger value="auth" className="text-xs sm:text-sm">{t("admin_settings.tab_auth")}</TabsTrigger>
+                <TabsTrigger value="payments" className="text-xs sm:text-sm">{t("admin_settings.tab_payments")}</TabsTrigger>
+                <TabsTrigger value="shipping" className="text-xs sm:text-sm">{t("admin_settings.tab_shipping")}</TabsTrigger>
               </>
             )}
           </TabsList>
@@ -416,9 +418,9 @@ const AdminSettings = () => {
 
             {/* Change Password Form */}
             <form onSubmit={handleUpdatePassword} className="space-y-4 rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
-              <h3 className="font-semibold text-lg text-foreground">Change Password</h3>
+              <h3 className="font-semibold text-lg text-foreground">{t("admin_settings.password_title")}</h3>
               <div>
-                <Label>Current Password</Label>
+                <Label>{t("admin_settings.password_label_current")}</Label>
                 <Input 
                   type="password" 
                   value={passwordData.currentPassword} 
@@ -428,7 +430,7 @@ const AdminSettings = () => {
                 />
               </div>
               <div>
-                <Label>New Password</Label>
+                <Label>{t("admin_settings.password_label_new")}</Label>
                 <Input 
                   type="password" 
                   value={passwordData.newPassword} 
@@ -439,7 +441,7 @@ const AdminSettings = () => {
                 />
               </div>
               <div>
-                <Label>Confirm New Password</Label>
+                <Label>{t("admin_settings.password_label_confirm")}</Label>
                 <Input 
                   type="password" 
                   value={passwordData.confirmPassword} 
@@ -450,7 +452,7 @@ const AdminSettings = () => {
                 />
               </div>
               <Button type="submit" disabled={isUpdatingPassword} className="rounded-full w-full sm:w-auto">
-                {isUpdatingPassword ? "Updating..." : "Update Password"}
+                {isUpdatingPassword ? t("admin_settings.password_button_updating") : t("admin_settings.password_button")}
               </Button>
             </form>
           </div>

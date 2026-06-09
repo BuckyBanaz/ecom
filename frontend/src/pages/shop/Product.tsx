@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Heart, Truck, RotateCcw, ShieldCheck, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,6 +23,7 @@ import { ReviewModal } from "@/components/shop/ReviewModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const ProductPage = () => {
+  const { t } = useTranslation();
   const { slug = "" } = useParams();
   const { add } = useCart();
   const { toggle, has } = useWishlist();
@@ -238,7 +240,7 @@ const ProductPage = () => {
   return (
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-primary">Home</Link> /{" "}
+        <Link to="/" className="hover:text-primary">{t("breadcrumb.home")}</Link> /{" "}
         <Link to={`/category/${typeof product.category === "object" ? product.category.slug : product.category}`} className="hover:text-primary capitalize">{(typeof product.category === "object" ? (product.category.name || product.category.slug) : product.category).replace(/-/g, " ")}</Link> /{" "}
         <span className="text-foreground">{product.name}</span>
       </nav>
@@ -275,8 +277,8 @@ const ProductPage = () => {
 
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-3">
-            {product.isBestSelling && <Badge className="rounded-full px-3 py-0.5 bg-[#f59e0b] hover:bg-[#d97706] text-white border-transparent font-bold text-[12px] shadow-sm">Best Seller</Badge>}
-            {product.isNewArrival && <Badge className="rounded-full px-3 py-0.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white border-transparent font-bold text-[12px] shadow-sm">New Arrival</Badge>}
+            {product.isBestSelling && <Badge className="rounded-full px-3 py-0.5 bg-[#f59e0b] hover:bg-[#d97706] text-white border-transparent font-bold text-[12px] shadow-sm">{t("product.badge_best_seller")}</Badge>}
+            {product.isNewArrival && <Badge className="rounded-full px-3 py-0.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white border-transparent font-bold text-[12px] shadow-sm">{t("product.badge_new_arrival")}</Badge>}
             
             {product.inStock !== false ? (
               <div className="flex items-center gap-2 text-[12px] text-green-700 dark:text-green-400 font-bold bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 px-2.5 py-0.5 rounded-full">
@@ -284,14 +286,14 @@ const ProductPage = () => {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-600 dark:bg-green-500"></span>
                 </span>
-                In Stock
+                {t("product.in_stock")}
               </div>
             ) : (
               <div className="flex items-center gap-2 text-[12px] text-red-700 dark:text-red-400 font-bold bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 px-2.5 py-0.5 rounded-full">
                 <span className="relative flex h-2 w-2">
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600 dark:bg-red-500"></span>
                 </span>
-                Out of Stock
+                {t("product.out_of_stock")}
               </div>
             )}
           </div>
@@ -302,7 +304,7 @@ const ProductPage = () => {
             {/* Row 1: Brand & Series */}
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <div>
-                Brand: <span className="text-foreground underline underline-offset-4 hover:text-primary cursor-pointer">{typeof product.brand === "object" ? product.brand.name : product.brand}</span>
+                {t("product.label_brand")} <span className="text-foreground underline underline-offset-4 hover:text-primary cursor-pointer">{typeof product.brand === "object" ? product.brand.name : product.brand}</span>
               </div>
               {(() => {
                 let series = null;
@@ -318,7 +320,7 @@ const ProductPage = () => {
                 }
                 return series ? (
                   <div>
-                    Series: <span className="text-foreground underline underline-offset-4 hover:text-primary cursor-pointer">{series}</span>
+                    {t("product.label_series")} <span className="text-foreground underline underline-offset-4 hover:text-primary cursor-pointer">{series}</span>
                   </div>
                 ) : null;
               })()}
@@ -330,9 +332,9 @@ const ProductPage = () => {
                 <StarRating value={product.rating || 5} size={18} />
               </div>
               <a href="#reviews" className="text-[13.5px] font-medium text-foreground hover:underline cursor-pointer">
-                {(product.rating || 5).toFixed(1)} &middot; {product.reviewCount || 0} reviews
+                {(product.rating || 5).toFixed(1)} &middot; {product.reviewCount || 0} {t("product.reviews_label")}
               </a>
-              <span className="text-[13px] text-muted-foreground ml-auto">SKU: {String(product.id).substring(0, 8).toUpperCase()}</span>
+              <span className="text-[13px] text-muted-foreground ml-auto">{t("product.label_sku")} {String(product.id).substring(0, 8).toUpperCase()}</span>
             </div>
           </div>
 
@@ -347,7 +349,7 @@ const ProductPage = () => {
             {product.oldPrice && (
               <>
                 <span className="text-lg text-muted-foreground line-through">{formatPrice(product.oldPrice)}</span>
-                <Badge className="bg-primary text-white border-transparent">Sale</Badge>
+                <Badge className="bg-primary text-white border-transparent">{t("product.badge_sale")}</Badge>
               </>
             )}
           </div>
@@ -359,9 +361,9 @@ const ProductPage = () => {
               <button onClick={() => setQty(qty + 1)} className="px-4 py-2 hover:bg-muted text-muted-foreground transition-colors rounded-r-full text-lg leading-none">+</button>
             </div>
             <Button size="default" disabled={product.inStock === false} className="flex-1 rounded-full sm:flex-none font-bold bg-primary hover:bg-primary/90 text-white px-8 shadow-sm transition-all" onClick={() => add(product, qty)}>
-              {product.inStock === false ? "Out of stock" : "Add to cart"}
+              {product.inStock === false ? t("product.button_out_of_stock") : t("product.button_add_to_cart")}
             </Button>
-            <Button size="icon" variant="outline" className="h-10 w-10 rounded-full shadow-sm text-muted-foreground hover:text-foreground" onClick={() => toggle(product.id, product.name, product)} aria-label="Wishlist">
+            <Button size="icon" variant="outline" className="h-10 w-10 rounded-full shadow-sm text-muted-foreground hover:text-foreground" onClick={() => toggle(product.id, product.name, product)} aria-label={t("product.aria_wishlist")}>
               <Heart size={18} className={cn(fav ? "fill-red-500 text-red-500" : "text-muted-foreground")} />
             </Button>
           </div>
@@ -391,13 +393,13 @@ const ProductPage = () => {
       <div className="mt-16 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24">
         {/* Left: Description */}
         <div>
-          <h2 className="text-xl font-bold mb-6">Description</h2>
+          <h2 className="text-xl font-bold mb-6">{t("product.section_description")}</h2>
           <div className="prose prose-sm max-w-none text-foreground/90 leading-relaxed dark:prose-invert" dangerouslySetInnerHTML={{ __html: product.description }} />
         </div>
 
         {/* Right: Specifications */}
         <div>
-          <h2 className="text-xl font-bold mb-6">Specifications</h2>
+          <h2 className="text-xl font-bold mb-6">{t("product.section_specifications")}</h2>
           {renderSpecs()}
         </div>
       </div>
@@ -406,12 +408,12 @@ const ProductPage = () => {
 
       {(seriesProducts.length > 0 || brandProducts.length > 0 || relatedProducts.length > 0) && (
         <section className="mt-16">
-          <h2 className="mb-8 text-2xl font-bold">Similar products</h2>
+          <h2 className="mb-8 text-2xl font-bold">{t("product.section_similar")}</h2>
           
           <div className="space-y-12">
             {seriesProducts.length > 0 && (
               <div>
-                <h3 className="mb-4 text-lg font-semibold text-foreground/80 border-b pb-2">From this series</h3>
+                <h3 className="mb-4 text-lg font-semibold text-foreground/80 border-b pb-2">{t("product.similar_from_series")}</h3>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   {seriesProducts.map((p) => <ProductCard key={p.id} product={p} />)}
                 </div>
@@ -420,7 +422,7 @@ const ProductPage = () => {
 
             {brandProducts.length > 0 && (
               <div>
-                <h3 className="mb-4 text-lg font-semibold text-foreground/80 border-b pb-2">More from {product.brand?.name || product.brand || "this brand"}</h3>
+                <h3 className="mb-4 text-lg font-semibold text-foreground/80 border-b pb-2">{t("product.similar_from_brand")} {product.brand?.name || product.brand || t("product.this_brand")}</h3>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   {brandProducts.map((p) => <ProductCard key={p.id} product={p} />)}
                 </div>
@@ -429,7 +431,7 @@ const ProductPage = () => {
 
             {relatedProducts.length > 0 && (
               <div>
-                <h3 className="mb-4 text-lg font-semibold text-foreground/80 border-b pb-2">Related products</h3>
+                <h3 className="mb-4 text-lg font-semibold text-foreground/80 border-b pb-2">{t("product.similar_related")}</h3>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   {relatedProducts.map((p) => <ProductCard key={p.id} product={p} />)}
                 </div>
@@ -441,7 +443,7 @@ const ProductPage = () => {
 
       {/* 3. Customer Reviews Section */}
       <div className="mt-20 border-t pt-12">
-        <h2 className="text-xl font-bold mb-8">Customer reviews</h2>
+        <h2 className="text-xl font-bold mb-8">{t("product.section_reviews")}</h2>
         
         <div className="flex flex-wrap items-start justify-between gap-6 mb-10">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8">
@@ -450,7 +452,7 @@ const ProductPage = () => {
                 <span className="text-4xl font-extrabold">{(product.rating || 0).toFixed(1)}</span>
                 <StarRating value={product.rating} size={18} />
               </div>
-              <p className="text-xs text-muted-foreground font-medium">Based on {product.reviewCount || 0} reviews</p>
+              <p className="text-xs text-muted-foreground font-medium">{t("product.review_based_on")} {product.reviewCount || 0} {t("product.reviews_count_label")}</p>
             </div>
             
             <div className="space-y-1.5 w-[200px]">
@@ -470,22 +472,22 @@ const ProductPage = () => {
             </div>
           </div>
           <Button onClick={() => setReviewModalOpen(true)} variant="default" className="rounded-full px-6 font-bold bg-[#222] hover:bg-black text-white dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90 shadow-none">
-            Write a review
+            {t("product.button_write_review")}
           </Button>
         </div>
 
         {/* Filters bar */}
         <div className="flex justify-end mb-6">
            <select className="text-xs border rounded-md px-3 py-2 bg-background font-medium outline-none focus:border-primary">
-             <option>With photos</option>
-             <option>All reviews</option>
+             <option>{t("product.filter_with_photos")}</option>
+             <option>{t("product.filter_all_reviews")}</option>
            </select>
         </div>
 
         {/* Reviews Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {liveReviews.length === 0 ? (
-            <p className="text-muted-foreground col-span-full">No reviews yet. Be the first to write one!</p>
+            <p className="text-muted-foreground col-span-full">{t("product.no_reviews")}</p>
           ) : (
             liveReviews.map((r, i) => (
               <div 
@@ -506,14 +508,14 @@ const ProductPage = () => {
                     <StarRating value={r.rating} size={12} />
                     <span className="text-[10px] text-muted-foreground font-medium">{new Date(r.createdAt || Date.now()).toLocaleDateString()}</span>
                   </div>
-                  <h4 className="font-bold text-sm mb-2 leading-tight">{r.title || "Review"}</h4>
+                  <h4 className="font-bold text-sm mb-2 leading-tight">{r.title || t("product.review_default_title")}</h4>
                   <p className="text-[13px] text-muted-foreground mb-4 leading-relaxed flex-1 line-clamp-3">
-                    {r.text} <span className="text-primary hover:underline cursor-pointer ml-1 inline-block">Read more</span>
+                    {r.text} <span className="text-primary hover:underline cursor-pointer ml-1 inline-block">{t("product.read_more")}</span>
                   </p>
                   <div className="mt-auto">
-                    <p className="text-xs font-bold mb-3">{r.name} <span className="font-normal text-muted-foreground ml-1">Verified Buyer</span></p>
+                    <p className="text-xs font-bold mb-3">{r.name} <span className="font-normal text-muted-foreground ml-1">{t("product.verified_buyer")}</span></p>
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-3">
-                      <span>Did you find this review helpful?</span>
+                      <span>{t("product.helpful_question")}</span>
                       <div className="flex gap-2.5">
                         <button className="hover:text-foreground flex items-center gap-1" onClick={(e) => e.stopPropagation()}><ThumbsUp size={12} /> 0</button>
                         <button className="hover:text-foreground flex items-center gap-1" onClick={(e) => e.stopPropagation()}><ThumbsDown size={12} /> 0</button>
@@ -567,7 +569,7 @@ const ProductPage = () => {
               <div className={cn("p-6 flex flex-col w-full overflow-y-auto", ((selectedReview.images && selectedReview.images.length > 0) || selectedReview.image) ? "md:w-1/2" : "w-full")}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="font-bold text-lg leading-tight mb-1">{selectedReview.title || "Review"}</h3>
+                    <h3 className="font-bold text-lg leading-tight mb-1">{selectedReview.title || t("product.review_default_title")}</h3>
                     <div className="flex items-center gap-2">
                       <StarRating value={selectedReview.rating} size={14} />
                       <span className="text-xs text-muted-foreground">{new Date(selectedReview.createdAt || Date.now()).toLocaleDateString()}</span>
@@ -582,7 +584,7 @@ const ProductPage = () => {
                 <div className="mt-auto border-t pt-4">
                   <p className="text-sm font-bold">{selectedReview.name}</p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Verified Buyer
+                    <ShieldCheck className="w-3 h-3" /> {t("product.verified_buyer")}
                   </p>
                 </div>
               </div>
@@ -596,4 +598,4 @@ const ProductPage = () => {
 
 
 
-export default ProductPage;
+export default ProductPage;

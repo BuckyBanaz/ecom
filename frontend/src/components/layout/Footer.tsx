@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { CreditCard, Facebook, Instagram, ShieldCheck, Truck, Youtube } from "lucide-react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { iconMap } from "@/utils/fontawesome";
 import { Logo } from "./Logo";
 
 export function Footer() {
+  const { t } = useTranslation();
   const saved = localStorage.getItem("header_footer_data");
   const parsed = saved ? (() => { try { return JSON.parse(saved); } catch { return null; } })() : null;
   const footerAbout = parsed?.footerAbout;
@@ -29,7 +31,7 @@ export function Footer() {
         <div className="lg:col-span-2">
           <Logo />
           <p className="mt-4 max-w-sm text-sm text-secondary-foreground/70">
-            {footerAbout?.description || "Schip & ster — light up your moment. We carry over 10,000 lighting products with same-day shipping and 30-day returns."}
+            {footerAbout?.description || t("footer.about_description")}
           </p>
           <div className="mt-6 flex items-center gap-3">
             {normalizedSocial.length > 0 ? (
@@ -82,13 +84,13 @@ export function Footer() {
               })
             ) : (
               <>
-                <span className="flex items-center gap-2"><Truck size={14}/> Free shipping over €75</span>
-                <span className="flex items-center gap-2"><ShieldCheck size={14}/> Secure checkout</span>
-                <span className="flex items-center gap-2"><CreditCard size={14}/> iDEAL · Card · PayPal</span>
+                <span className="flex items-center gap-2"><Truck size={14}/> {t("footer.free_shipping")}</span>
+                <span className="flex items-center gap-2"><ShieldCheck size={14}/> {t("footer.secure_checkout")}</span>
+                <span className="flex items-center gap-2"><CreditCard size={14}/> {t("footer.payment_methods")}</span>
               </>
             )}
           </div>
-          <p>© {new Date().getFullYear()} Schip & ster. Demo clone for educational purposes.</p>
+          <p>{t("footer.copyright", { year: new Date().getFullYear() })}</p>
         </div>
       </div>
     </footer>

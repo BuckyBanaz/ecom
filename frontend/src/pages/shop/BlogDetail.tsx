@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { blogRepository } from "@/client/apiClient";
 import { initialBlogs } from "@/data/blogs";
 
 const BlogDetail = () => {
+  const { t } = useTranslation();
   const { slug = "" } = useParams();
   const [blogs, setBlogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,10 +78,10 @@ const BlogDetail = () => {
   if (!blog) {
     return (
       <div className="container-page py-12 text-center">
-        <h1 className="text-2xl font-bold">Blog not found</h1>
-        <p className="mt-2 text-muted-foreground">The article you are looking for does not exist.</p>
+        <h1 className="text-2xl font-bold">{t("blog_detail.not_found_title")}</h1>
+        <p className="mt-2 text-muted-foreground">{t("blog_detail.not_found_desc")}</p>
         <Link to="/blogs" className="mt-4 inline-flex items-center gap-2 text-primary font-semibold hover:underline">
-          <ArrowLeft size={16} /> Back to blogs
+          <ArrowLeft size={16} /> {t("blog_detail.link_back_to_blogs")}
         </Link>
       </div>
     );
@@ -88,7 +90,7 @@ const BlogDetail = () => {
   return (
     <div className="container-page py-10">
       <Link to="/blogs" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
-        <ArrowLeft size={16} /> Back to blogs
+        <ArrowLeft size={16} /> {t("blog_detail.link_back_to_blogs")}
       </Link>
 
       <article className="mt-6 overflow-hidden rounded-3xl border bg-card shadow-xs">
@@ -96,18 +98,18 @@ const BlogDetail = () => {
           {blog.cover ? (
             <img src={blog.cover} alt={blog.title} className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground text-sm font-semibold">No cover image</div>
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground text-sm font-semibold">{t("blog_detail.no_cover_image")}</div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <div className="absolute bottom-6 left-6 right-6 text-white">
-            <span className="bg-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">Article</span>
+            <span className="bg-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">{t("blog_detail.label_article")}</span>
             <h1 className="text-2xl md:text-4xl font-extrabold mt-3 tracking-tight">{blog.title}</h1>
           </div>
         </div>
         <div className="p-6 md:p-8 space-y-6">
           <div className="flex flex-wrap items-center justify-between text-xs text-muted-foreground border-b pb-4">
-            <span className="font-semibold text-foreground">By {blog.author || "Guest"}</span>
-            <span>Published on {blog.date}</span>
+            <span className="font-semibold text-foreground">{t("blog_detail.text_by")} {blog.author || t("blog_detail.fallback_author")}</span>
+            <span>{t("blog_detail.text_published_on")} {blog.date}</span>
           </div>
           {blog.excerpt && (
             <p className="text-lg text-foreground/90 font-medium italic border-l-4 border-primary pl-4 py-1 bg-muted/30 rounded-r-md">

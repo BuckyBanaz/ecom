@@ -1,6 +1,6 @@
 import express from "express";
 import { getAddresses, createAddress, updateAddress, deleteAddress } from "../controllers/addressController";
-import { authenticateJWT } from "../middlewares/authMiddleware";
+import { authenticateJWT, validateUserExists } from "../middlewares/authMiddleware";
 
 const router = express.Router();
 
@@ -81,7 +81,7 @@ router.get("/", getAddresses);
  *       201:
  *         description: Created
  */
-router.post("/", createAddress);
+router.post("/", validateUserExists, createAddress);
 
 /**
  * @swagger
@@ -107,7 +107,7 @@ router.post("/", createAddress);
  *       200:
  *         description: Updated
  */
-router.put("/:id", updateAddress);
+router.put("/:id", validateUserExists, updateAddress);
 
 /**
  * @swagger
@@ -127,6 +127,6 @@ router.put("/:id", updateAddress);
  *       200:
  *         description: Deleted
  */
-router.delete("/:id", deleteAddress);
+router.delete("/:id", validateUserExists, deleteAddress);
 
 export default router;

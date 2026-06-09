@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { categories } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
 import { ProductCard } from "@/components/shop/ProductCard";
@@ -46,6 +47,7 @@ const styleDescriptions: Record<string, string> = {
 };
 
 export default function ReliefCategory() {
+  const { t } = useTranslation();
   const { slug = "" } = useParams();
   const [menus, setMenus] = useState<any[]>([]);
   const [landingPage, setLandingPage] = useState<any>(null);
@@ -193,10 +195,10 @@ export default function ReliefCategory() {
   if (!matchedMenuObj) {
     return (
       <div className="container-page py-8 text-center">
-        <h1 className="text-2xl font-bold">Category not found</h1>
-        <p className="mt-2 text-muted-foreground">The requested category could not be found.</p>
+        <h1 className="text-2xl font-bold">{t("relief_category.not_found_title")}</h1>
+        <p className="mt-2 text-muted-foreground">{t("relief_category.not_found_desc")}</p>
         <Link to="/relief" className="mt-4 inline-block text-primary hover:underline">
-          Back to Relief
+          {t("relief_category.back_to_relief")}
         </Link>
       </div>
     );
@@ -214,8 +216,8 @@ export default function ReliefCategory() {
     <div className="container-page py-8 animate-fade-in">
       {/* Breadcrumbs */}
       <nav className="mb-6 text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-primary transition-colors">Home</Link> /{" "}
-        <Link to="/relief" className="hover:text-primary transition-colors">Relief</Link> /{" "}
+        <Link to="/" className="hover:text-primary transition-colors">{t("breadcrumb.home")}</Link> /{" "}
+        <Link to="/relief" className="hover:text-primary transition-colors">{t("breadcrumb.relief")}</Link> /{" "}
         <span className="text-foreground font-medium">{matchedMenuObj.menu}</span>
       </nav>
 
@@ -237,12 +239,10 @@ export default function ReliefCategory() {
                 {matchedMenuObj.menu}
               </h1>
               <p className="text-xl font-bold text-foreground/90 mb-4">
-                Looking to buy {matchedMenuObj.menu.toLowerCase()}? Choose a category below:
+                {t("relief_category.hero_intro", { name: matchedMenuObj.menu.toLowerCase() })}
               </p>
               <p className="text-muted-foreground leading-relaxed">
-                With {matchedMenuObj.menu.toLowerCase()}, the possibilities are endless. There are various styles and categories. 
-                It is important to choose the right lighting because it creates atmosphere in your home. In our large assortment, 
-                you will find virtually every type of lamp. Select the category you are looking for below.
+                {t("relief_category.hero_desc", { name: matchedMenuObj.menu.toLowerCase() })}
               </p>
             </div>
             <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-primary/10 to-transparent pointer-events-none" />
@@ -299,15 +299,15 @@ export default function ReliefCategory() {
           <div className="space-y-16">
             <div className="border-b pb-4">
               <h2 className="text-3xl font-bold tracking-tight text-foreground">
-                Popular styles of {matchedMenuObj.menu.toLowerCase()}
+                {t("relief_category.section_styles_title", { name: matchedMenuObj.menu.toLowerCase() })}
               </h2>
               <p className="mt-2 text-muted-foreground">
-                Curious about the different styles of {matchedMenuObj.menu.toLowerCase()}? Below, we have listed a selection of the most popular styles for you. Click on any subcategory under a style to view our curated selection.
+                {t("relief_category.section_styles_desc", { name: matchedMenuObj.menu.toLowerCase() })}
               </p>
             </div>
 
             {availableStyles.map((styleName: string) => {
-              const styleDesc = styleDescriptions[styleName] || `Explore our beautiful selection of ${styleName.toLowerCase()} styled lighting options, crafted to enhance your home's aesthetic.`;
+              const styleDesc = styleDescriptions[styleName] || t("relief_category.style_fallback_desc", { style: styleName.toLowerCase() });
               return (
                 <div key={styleName} className="space-y-6">
                   <div>

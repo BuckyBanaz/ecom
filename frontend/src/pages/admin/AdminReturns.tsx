@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,7 @@ import { Order } from './AdminOrders';
 import { ordersRepository } from "@/client/apiClient";
 
 export default function AdminReturns() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,10 +41,10 @@ export default function AdminReturns() {
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
         <h2 className="text-2xl font-semibold flex items-center gap-2">
-          <CheckCircle className="h-6 w-6 text-primary" /> Returned Orders
+          <CheckCircle className="h-6 w-6 text-primary" /> {t("admin_orders_returned.title")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Orders that have been returned by the customer.
+          {t("admin_orders_returned.subtitle")}
         </p>
       </div>
 
@@ -50,7 +52,7 @@ export default function AdminReturns() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by order or customer..."
+          placeholder={t("admin_orders_returned.search_placeholder")}
           className="pl-10 h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
         />
       </div>
@@ -59,18 +61,18 @@ export default function AdminReturns() {
         <table className="w-full text-sm text-left border-collapse">
           <thead>
             <tr className="border-b bg-muted/40 text-muted-foreground font-medium text-xs">
-              <th className="p-4">Order ID</th>
-              <th className="p-4">Customer</th>
-              <th className="p-4">Country</th>
-              <th className="p-4">Weight (kg)</th>
-              <th className="p-4 text-right">Action</th>
+              <th className="p-4">{t("admin_orders_returned.table_order_id")}</th>
+              <th className="p-4">{t("admin_orders_returned.table_customer")}</th>
+              <th className="p-4">{t("admin_orders_returned.table_country")}</th>
+              <th className="p-4">{t("admin_orders_returned.table_weight")}</th>
+              <th className="p-4 text-right">{t("admin_orders_returned.table_actions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y text-xs">
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="p-8 text-center text-muted-foreground">
-                  No returned orders.
+                  {t("admin_orders_returned.empty")}
                 </td>
               </tr>
             ) : (
@@ -90,7 +92,7 @@ export default function AdminReturns() {
                         className="h-8 rounded-full shadow-sm text-xs gap-1"
                         onClick={() => navigate(`/admin/orders/${o.id}`)}
                       >
-                        <Truck className="h-3.5 w-3.5" /> Details
+                        <Truck className="h-3.5 w-3.5" /> {t("admin_orders_returned.button_details")}
                       </Button>
                     </td>
                   </tr>

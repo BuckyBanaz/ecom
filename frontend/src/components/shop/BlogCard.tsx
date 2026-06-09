@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { SafeImage } from "@/components/ui/SafeImage";
 
@@ -13,6 +14,7 @@ export type BlogCardItem = {
 };
 
 export function BlogCard({ blog }: { blog: BlogCardItem }) {
+  const { t } = useTranslation();
   return (
     <Link
       to={`/blogs/${blog.slug}`}
@@ -28,13 +30,13 @@ export function BlogCard({ blog }: { blog: BlogCardItem }) {
             />
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground text-xs font-semibold">
-              No cover image
+              {t("blog_card.no_cover")}
             </div>
           )}
         </div>
         <div className="p-5 space-y-2">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>By {blog.author || "Guest"}</span>
+            <span>{t("blog_card.by_author", { author: blog.author || t("blog_card.fallback_author") })}</span>
             <span>{blog.date || ""}</span>
           </div>
           <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors line-clamp-2">
@@ -47,7 +49,7 @@ export function BlogCard({ blog }: { blog: BlogCardItem }) {
       </div>
       <div className="p-5 pt-0">
         <span className="text-xs font-bold text-primary flex items-center gap-1 group-hover:underline">
-          Read Article &rarr;
+          {t("blog_card.read_article")}
         </span>
       </div>
     </Link>

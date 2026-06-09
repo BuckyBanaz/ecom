@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Loader2, MapPin } from "lucide-react";
 
@@ -23,6 +24,7 @@ interface MapSelectorProps {
 }
 
 export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
+  const { t } = useTranslation();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const markerInstance = useRef<any>(null);
@@ -109,8 +111,8 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
       <div className="bg-card w-full max-w-3xl rounded-xl overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="p-4 border-b flex items-center justify-between bg-zinc-50">
-          <h3 className="font-bold flex items-center gap-2"><MapPin size={18} className="text-primary"/> Select Location on Map</h3>
-          <p className="text-xs text-muted-foreground">Click or drag the marker</p>
+          <h3 className="font-bold flex items-center gap-2"><MapPin size={18} className="text-primary"/> {t("map_selector.title")}</h3>
+          <p className="text-xs text-muted-foreground">{t("map_selector.hint")}</p>
         </div>
         
         <div 
@@ -119,9 +121,9 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
         />
         
         <div className="p-4 border-t flex justify-end gap-3 bg-zinc-50">
-          <Button variant="outline" onClick={onCancel} className="rounded-full">Cancel</Button>
+          <Button variant="outline" onClick={onCancel} className="rounded-full">{t("map_selector.cancel")}</Button>
           <Button onClick={handleConfirm} disabled={!selectedCoords || loading} className="rounded-full">
-            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Confirm"}
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : t("map_selector.confirm")}
           </Button>
         </div>
       </div>

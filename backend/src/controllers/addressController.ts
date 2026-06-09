@@ -44,6 +44,14 @@ export const createAddress = async (req: Request, res: Response, next: NextFunct
     const userId = req.user?.id;
     if (!userId) return next(new AppError("Not authorized", 401));
 
+    // Verify user exists in database
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    if (!userExists) {
+      return next(new AppError("User not found or has been deleted", 404));
+    }
+
     const parsed = addressSchema.safeParse(req.body);
     if (!parsed.success) {
       const errorMsgs = parsed.error.issues.map((i) => i.message).join(", ");

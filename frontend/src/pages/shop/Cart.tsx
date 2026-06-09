@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,22 +7,23 @@ import { formatPrice, useCart } from "@/context/CartContext";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 const Cart = () => {
+  const { t } = useTranslation();
   const { items, subtotal, remove, setQty } = useCart();
   const shipping = subtotal > 75 || subtotal === 0 ? 0 : 4.95;
 
   if (items.length === 0) {
     return (
       <div className="container-page py-20 text-center">
-        <h1 className="text-3xl font-bold">Your cart is empty</h1>
-        <p className="mt-2 text-muted-foreground">Browse our catalog and find something you love.</p>
-        <Button asChild className="mt-6 rounded-full"><Link to="/">Continue shopping</Link></Button>
+        <h1 className="text-3xl font-bold">{t("cart.empty")}</h1>
+        <p className="mt-2 text-muted-foreground">{t("cart.empty_description")}</p>
+        <Button asChild className="mt-6 rounded-full"><Link to="/">{t("cart.continue_shopping")}</Link></Button>
       </div>
     );
   }
 
   return (
     <div className="container-page py-6">
-      <h1 className="text-3xl font-bold">Shopping cart</h1>
+      <h1 className="text-3xl font-bold">{t("cart.page_title")}</h1>
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_360px]">
         <ul className="divide-y rounded-xl border bg-card">
           {items.map((i) => (
@@ -40,7 +42,7 @@ const Cart = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="font-bold">{formatPrice(i.product.price * i.qty)}</span>
-                    <button onClick={() => remove(i.id)} aria-label="Remove" className="text-muted-foreground hover:text-destructive">
+                    <button onClick={() => remove(i.id)} aria-label={t("cart.remove_item")} className="text-muted-foreground hover:text-destructive">
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -51,18 +53,18 @@ const Cart = () => {
         </ul>
 
         <aside className="h-fit rounded-xl border bg-card p-6">
-          <h2 className="text-lg font-bold">Order summary</h2>
+          <h2 className="text-lg font-bold">{t("cart.order_summary")}</h2>
           <dl className="mt-4 space-y-2 text-sm">
-            <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatPrice(subtotal)}</dd></div>
-            <div className="flex justify-between"><dt>Shipping</dt><dd>{shipping === 0 ? "Free" : formatPrice(shipping)}</dd></div>
-            <div className="flex justify-between border-t pt-2 text-base font-bold"><dt>Total</dt><dd>{formatPrice(subtotal + shipping)}</dd></div>
+            <div className="flex justify-between"><dt>{t("cart.subtotal")}</dt><dd>{formatPrice(subtotal)}</dd></div>
+            <div className="flex justify-between"><dt>{t("cart.shipping")}</dt><dd>{shipping === 0 ? t("cart.free") : formatPrice(shipping)}</dd></div>
+            <div className="flex justify-between border-t pt-2 text-base font-bold"><dt>{t("cart.total")}</dt><dd>{formatPrice(subtotal + shipping)}</dd></div>
           </dl>
           <div className="mt-4 flex gap-2">
-            <Input placeholder="Promo code" />
-            <Button variant="outline">Apply</Button>
+            <Input placeholder={t("cart.promo_code")} />
+            <Button variant="outline">{t("cart.apply")}</Button>
           </div>
           <Button asChild size="lg" className="mt-4 w-full rounded-full">
-            <Link to="/checkout">Continue to checkout</Link>
+            <Link to="/checkout">{t("cart.continue_to_checkout")}</Link>
           </Button>
         </aside>
       </div>

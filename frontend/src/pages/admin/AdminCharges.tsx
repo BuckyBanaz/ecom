@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Trash2, ShieldAlert, Percent, Coins, Check, X } from "lucide-react";
 import { chargeRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ interface StoreCharge {
 }
 
 export default function AdminCharges() {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCharge, setEditCharge] = useState<StoreCharge | null>(null);

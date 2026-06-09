@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Star, Upload, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ interface ReviewModalProps {
 import { reviewRepository } from "@/client/apiClient";
 
 export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess }: ReviewModalProps) => {
+  const { t } = useTranslation();
   const [rating, setRating] = useState(5);
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
@@ -31,7 +33,7 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
     const file = e.target.files?.[0];
     if (file) {
       if (images.length >= 3) {
-        toast.error("Maximum 3 images allowed");
+        toast.error(t("review_modal.toast_max_images"));
         return;
       }
       
@@ -46,7 +48,7 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !title || !text) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("review_modal.toast_fill_required"));
       return;
     }
 
@@ -55,7 +57,7 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
       const data = await reviewRepository.create(productId, { name, rating, title, text, images });
       
       if (data.success) {
-        toast.success("Review submitted successfully!");
+        toast.success(t("review_modal.toast_success"));
         onSuccess(data.review);
         setRating(5);
         setName("");
@@ -64,11 +66,11 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
         setImages([]);
         onClose();
       } else {
-        toast.error(data.error || "Failed to submit review");
+        toast.error(data.error || t("review_modal.toast_failed"));
       }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Network error");
+      toast.error(err.message || t("review_modal.toast_network_error"));
     } finally {
       setIsSubmitting(false);
     }
@@ -78,13 +80,13 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Write a Review for {productName}</DialogTitle>
-          <DialogDescription className="sr-only">Submit a new review for this product</DialogDescription>
+          <DialogTitle>{t("review_modal.title", { product: productName })}</DialogTitle>
+          <DialogDescription className="sr-only">{t("review_modal.description")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           
           <div className="space-y-2">
-            <Label>Rating</Label>
+            <Label>{t("review_modal.rating")}</Label>
             <div className="flex gap-1">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
@@ -104,33 +106,33 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="name">Your Name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" required />
+            <Label htmlFor="name">{t("review_modal.your_name")}</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("review_modal.name_placeholder")} required />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="title">Review Title</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Excellent product!" required />
+            <Label htmlFor="title">{t("review_modal.review_title")}</Label>
+            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("review_modal.title_placeholder")} required />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="text">Review Content</Label>
+            <Label htmlFor="text">{t("review_modal.review_content")}</Label>
             <Textarea
               id="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="What did you like or dislike?"
+              placeholder={t("review_modal.content_placeholder")}
               rows={4}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Add Photos (Max 3)</Label>
+            <Label>{t("review_modal.add_photos")}</Label>
             <div className="flex flex-wrap gap-2">
               {images.map((img, i) => (
                 <div key={i} className="relative w-16 h-16 border rounded bg-muted">
-                  <img src={img} alt="Preview" className="w-full h-full object-cover rounded" />
+                  <img src={img} alt={t("review_modal.image_preview_alt")} className="w-full h-full object-cover rounded" />
                   <button
                     type="button"
                     onClick={() => setImages(images.filter((_, idx) => idx !== i))}
@@ -143,7 +145,7 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
               {images.length < 3 && (
                 <label className="w-16 h-16 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors text-muted-foreground">
                   <Upload className="h-5 w-5 mb-1" />
-                  <span className="text-[10px]">Upload</span>
+                  <span className="text-[10px]">{t("review_modal.upload")}</span>
                   <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
                 </label>
               )}
@@ -151,9 +153,9 @@ export const ReviewModal = ({ isOpen, onClose, productId, productName, onSuccess
           </div>
 
           <div className="pt-4 flex justify-end gap-2 border-t mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{t("review_modal.cancel")}</Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Submitting..." : "Submit Review"}
+              {isSubmitting ? t("review_modal.submitting") : t("review_modal.submit")}
             </Button>
           </div>
         </form>

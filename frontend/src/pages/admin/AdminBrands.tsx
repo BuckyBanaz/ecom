@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Search, Building2, LayoutGrid } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { brandRepository, seriesRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import { resolveImgUrl } from "@/utils/image";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminBrands = () => {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   
   // Brand states
@@ -60,7 +62,7 @@ const AdminBrands = () => {
         }
       } catch (err) {
         console.error("Failed to fetch brands and series:", err);
-        toast.error("Failed to load data from server");
+        toast.error(t("admin_brands.toast_load_failed"));
         setBrandsList([]);
         setSeriesList([]);
       } finally {
@@ -91,7 +93,7 @@ const AdminBrands = () => {
     const name = formData.get("name") as string;
 
     if (!name.trim()) {
-      toast.error("Brand name is required");
+      toast.error(t("admin_brands.toast_brand_name_required"));
       return;
     }
 
@@ -103,41 +105,41 @@ const AdminBrands = () => {
       if (data.success && data.brand) {
         if (editBrand) {
           setBrandsList(prev => prev.map((b) => (b.id === editBrand.id ? data.brand : b)));
-          toast.success(`Brand "${name}" updated successfully`);
+          toast.success(t("admin_brands.toast_brand_updated", { name }));
         } else {
           setBrandsList(prev => [...prev, data.brand]);
-          toast.success(`Brand "${name}" added successfully`);
+          toast.success(t("admin_brands.toast_brand_added", { name }));
         }
         setDialogOpen(false);
         setEditBrand(null);
       } else {
-        toast.error("Failed to save brand");
+        toast.error(t("admin_brands.toast_brand_save_failed"));
       }
     } catch (err) {
       console.error("Failed to save brand via API:", err);
-      toast.error("Error communicating with server to save brand");
+      toast.error(t("admin_brands.toast_brand_save_error"));
     }
   };
 
   // Delete Brand Handler
   const handleDeleteBrand = async (id: string, name: string) => {
     if (!hasPermission("brands")) {
-      toast.error("Only admins can delete brands");
+      toast.error(t("admin_brands.toast_only_admin_delete_brand"));
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete brand "${name}"?`)) {
+    if (window.confirm(t("admin_brands.confirm_delete_brand", { name }))) {
       try {
         const data = await brandRepository.delete(id);
         if (data.success) {
-          toast.success(`Brand "${name}" deleted`);
+          toast.success(t("admin_brands.toast_brand_deleted", { name }));
           setBrandsList(prev => prev.filter((b) => b.id !== id));
         } else {
-          toast.error("Failed to delete brand");
+          toast.error(t("admin_brands.toast_brand_delete_failed"));
         }
       } catch (err) {
         console.error("Failed to delete brand via API:", err);
-        toast.error("Error communicating with server to delete brand");
+        toast.error(t("admin_brands.toast_brand_delete_error"));
       }
     }
   };
@@ -151,11 +153,11 @@ const AdminBrands = () => {
     const brandId = selectedSeriesBrand;
 
     if (!name.trim()) {
-      toast.error("Series name is required");
+      toast.error(t("admin_brands.toast_series_name_required"));
       return;
     }
     if (!brandId) {
-      toast.error("Please associate this series with a brand");
+      toast.error(t("admin_brands.toast_series_brand_required"));
       return;
     }
 
@@ -167,41 +169,41 @@ const AdminBrands = () => {
       if (data.success && data.series) {
         if (editSeries) {
           setSeriesList(prev => prev.map((s) => (s.id === editSeries.id ? data.series : s)));
-          toast.success(`Series "${name}" updated successfully`);
+          toast.success(t("admin_brands.toast_series_updated", { name }));
         } else {
           setSeriesList(prev => [...prev, data.series]);
-          toast.success(`Series "${name}" added successfully`);
+          toast.success(t("admin_brands.toast_series_added", { name }));
         }
         setSeriesDialogOpen(false);
         setEditSeries(null);
       } else {
-        toast.error("Failed to save series");
+        toast.error(t("admin_brands.toast_series_save_failed"));
       }
     } catch (err) {
       console.error("Failed to save series via API:", err);
-      toast.error("Error communicating with server to save series");
+      toast.error(t("admin_brands.toast_series_save_error"));
     }
   };
 
   // Delete Series Handler
   const handleDeleteSeries = async (id: string, name: string) => {
     if (!hasPermission("brands")) {
-      toast.error("Only admins can delete series");
+      toast.error(t("admin_brands.toast_only_admin_delete_series"));
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete series "${name}"?`)) {
+    if (window.confirm(t("admin_brands.confirm_delete_series", { name }))) {
       try {
         const data = await seriesRepository.delete(id);
         if (data.success) {
-          toast.success(`Series "${name}" deleted`);
+          toast.success(t("admin_brands.toast_series_deleted", { name }));
           setSeriesList(prev => prev.filter((s) => s.id !== id));
         } else {
-          toast.error("Failed to delete series");
+          toast.error(t("admin_brands.toast_series_delete_failed"));
         }
       } catch (err) {
         console.error("Failed to delete series via API:", err);
-        toast.error("Error communicating with server to delete series");
+        toast.error(t("admin_brands.toast_series_delete_error"));
       }
     }
   };
@@ -224,10 +226,10 @@ const AdminBrands = () => {
       <Tabs defaultValue="brands" className="w-full">
         <TabsList className="bg-muted/60 p-1 rounded-xl mb-6 grid w-full max-w-[400px] grid-cols-2">
           <TabsTrigger value="brands" className="rounded-lg text-xs font-bold py-2">
-            Brands ({brandsList.length})
+            {t("admin_brands.tab_brands", { count: brandsList.length })}
           </TabsTrigger>
           <TabsTrigger value="series" className="rounded-lg text-xs font-bold py-2">
-            Series & Collections ({seriesList.length})
+            {t("admin_brands.tab_series", { count: seriesList.length })}
           </TabsTrigger>
         </TabsList>
 
@@ -239,7 +241,7 @@ const AdminBrands = () => {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search brands by name..."
+                placeholder={t("admin_brands.search_brands")}
                 className="pl-10 rounded-xl bg-background/50 h-10 text-xs focus-visible:ring-1 border-muted-foreground/20"
               />
             </div>
@@ -247,23 +249,23 @@ const AdminBrands = () => {
               <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditBrand(null); }}>
                 <DialogTrigger asChild>
                   <Button className="rounded-full gap-2 text-xs font-bold h-10 px-5 shadow-sm hover:shadow transition-shadow">
-                    <Plus className="h-4 w-4" /> Add Brand
+                    <Plus className="h-4 w-4" /> {t("admin_brands.add_brand")}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="rounded-2xl max-w-md">
                   <DialogHeader>
                     <DialogTitle className="text-lg font-bold">
-                      {editBrand ? "Edit Brand Details" : "Add New Brand"}
+                      {editBrand ? t("admin_brands.edit_brand_title") : t("admin_brands.add_brand_title")}
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSaveBrand} className="space-y-5 mt-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="name" className="text-xs font-bold text-foreground/80">Brand Name</Label>
+                      <Label htmlFor="name" className="text-xs font-bold text-foreground/80">{t("admin_brands.label_brand_name")}</Label>
                       <Input
                         id="name"
                         name="name"
                         defaultValue={editBrand?.name}
-                        placeholder="e.g. Philips, Eglo"
+                        placeholder={t("admin_brands.placeholder_brand_name")}
                         className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                         required
                       />
@@ -278,10 +280,10 @@ const AdminBrands = () => {
                         onClick={() => { setDialogOpen(false); setEditBrand(null); }}
                         className="h-9 text-xs rounded-lg font-bold"
                       >
-                        Cancel
+                        {t("admin_brands.cancel")}
                       </Button>
                       <Button type="submit" className="h-9 text-xs rounded-lg font-bold">
-                        {editBrand ? "Save Changes" : "Create Brand"}
+                        {editBrand ? t("admin_brands.save_changes") : t("admin_brands.create_brand")}
                       </Button>
                     </div>
                   </form>
@@ -316,7 +318,7 @@ const AdminBrands = () => {
                     </div>
                     <div>
                       <h3 className="font-bold text-sm tracking-tight text-foreground/90">{b.name}</h3>
-                      <p className="text-[10px] text-muted-foreground font-semibold mt-0.5 uppercase bg-muted/60 px-2 py-0.5 rounded-full">Catalog Brand</p>
+                      <p className="text-[10px] text-muted-foreground font-semibold mt-0.5 uppercase bg-muted/60 px-2 py-0.5 rounded-full">{t("admin_brands.catalog_brand")}</p>
                     </div>
                   </div>
 
@@ -326,7 +328,7 @@ const AdminBrands = () => {
                       size="icon"
                       className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
                       onClick={() => { setEditBrand(b); setDialogOpen(true); }}
-                      title="Edit Brand"
+                      title={t("admin_brands.edit_brand_title_btn")}
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -336,7 +338,7 @@ const AdminBrands = () => {
                         size="icon"
                         className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
                         onClick={() => handleDeleteBrand(b.id, b.name)}
-                        title="Delete Brand"
+                        title={t("admin_brands.delete_brand_title_btn")}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -348,7 +350,7 @@ const AdminBrands = () => {
 
             {!isLoading && filteredBrands.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground text-xs font-semibold bg-muted/10 border rounded-2xl">
-                No brands found matching your search.
+                {t("admin_brands.empty_brands")}
               </div>
             )}
           </div>
@@ -362,7 +364,7 @@ const AdminBrands = () => {
               <Input
                 value={seriesSearch}
                 onChange={(e) => setSeriesSearch(e.target.value)}
-                placeholder="Search series by name or brand..."
+                placeholder={t("admin_brands.search_series")}
                 className="pl-10 rounded-xl bg-background/50 h-10 text-xs focus-visible:ring-1 border-muted-foreground/20"
               />
             </div>
@@ -370,33 +372,33 @@ const AdminBrands = () => {
               <Dialog open={seriesDialogOpen} onOpenChange={(v) => { setSeriesDialogOpen(v); if (!v) setEditSeries(null); }}>
                 <DialogTrigger asChild>
                   <Button className="rounded-full gap-2 text-xs font-bold h-10 px-5 shadow-sm hover:shadow transition-shadow">
-                    <Plus className="h-4 w-4" /> Add Series
+                    <Plus className="h-4 w-4" /> {t("admin_brands.add_series")}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="rounded-2xl max-w-md">
                   <DialogHeader>
                     <DialogTitle className="text-lg font-bold">
-                      {editSeries ? "Edit Series Details" : "Add New Series"}
+                      {editSeries ? t("admin_brands.edit_series_title") : t("admin_brands.add_series_title")}
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSaveSeries} className="space-y-5 mt-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="seriesName" className="text-xs font-bold text-foreground/80">Series / Collection Name</Label>
+                      <Label htmlFor="seriesName" className="text-xs font-bold text-foreground/80">{t("admin_brands.label_series_name")}</Label>
                       <Input
                         id="seriesName"
                         name="seriesName"
                         defaultValue={editSeries?.name}
-                        placeholder="e.g. Hue White and Color, Townshend"
+                        placeholder={t("admin_brands.placeholder_series_name")}
                         className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                         required
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-foreground/80">Associated Brand *</Label>
+                      <Label className="text-xs font-bold text-foreground/80">{t("admin_brands.label_associated_brand")}</Label>
                       <Select value={selectedSeriesBrand} onValueChange={setSelectedSeriesBrand}>
                         <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                          <SelectValue placeholder="Associate with a brand" />
+                          <SelectValue placeholder={t("admin_brands.placeholder_associated_brand")} />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
                           {brandsList.map((b) => (
@@ -409,13 +411,13 @@ const AdminBrands = () => {
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-foreground/80">Series Banner / Logo (Optional)</Label>
+                      <Label className="text-xs font-bold text-foreground/80">{t("admin_brands.label_series_logo")}</Label>
                       <div className="flex items-center gap-4 mt-1 bg-muted/20 p-3 rounded-xl border border-muted-foreground/10">
                         {seriesLogoPreview ? (
                           <div className="flex h-16 w-16 items-center justify-center rounded-xl border bg-card p-1">
                             <img
                               src={resolveImgUrl(seriesLogoPreview)}
-                              alt="Series Logo Preview"
+                              alt={t("admin_brands.alt_series_logo_preview")}
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
@@ -426,7 +428,7 @@ const AdminBrands = () => {
                         )}
                         <div className="flex-1 space-y-1">
                           <Button type="button" variant="outline" className="w-full text-left justify-start" onClick={() => setIsSeriesMediaLibraryOpen(true)}>
-                            {seriesLogoPreview ? "Change Logo" : "Browse Media Storage"}
+                            {seriesLogoPreview ? t("admin_brands.change_logo") : t("admin_brands.browse_media")}
                           </Button>
                         </div>
                       </div>
@@ -447,10 +449,10 @@ const AdminBrands = () => {
                         onClick={() => { setSeriesDialogOpen(false); setEditSeries(null); }}
                         className="h-9 text-xs rounded-lg font-bold"
                       >
-                        Cancel
+                        {t("admin_brands.cancel")}
                       </Button>
                       <Button type="submit" className="h-9 text-xs rounded-lg font-bold">
-                        {editSeries ? "Save Changes" : "Create Series"}
+                        {editSeries ? t("admin_brands.save_changes") : t("admin_brands.create_series")}
                       </Button>
                     </div>
                   </form>
@@ -491,7 +493,7 @@ const AdminBrands = () => {
                         <h3 className="font-bold text-sm tracking-tight text-foreground/90">{s.name}</h3>
                         <div className="flex flex-col items-center gap-1.5">
                           <span className="text-[9px] text-primary font-extrabold uppercase tracking-wider bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
-                            {brandObj ? brandObj.name : "Unknown Brand"}
+                            {brandObj ? brandObj.name : t("admin_brands.unknown_brand")}
                           </span>
                         </div>
                       </div>
@@ -503,7 +505,7 @@ const AdminBrands = () => {
                         size="icon"
                         className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
                         onClick={() => { setEditSeries(s); setSeriesDialogOpen(true); }}
-                        title="Edit Series"
+                        title={t("admin_brands.edit_series_title_btn")}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -513,7 +515,7 @@ const AdminBrands = () => {
                           size="icon"
                           className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
                           onClick={() => handleDeleteSeries(s.id, s.name)}
-                          title="Delete Series"
+                          title={t("admin_brands.delete_series_title_btn")}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -526,7 +528,7 @@ const AdminBrands = () => {
 
             {!isLoading && filteredSeries.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground text-xs font-semibold bg-muted/10 border rounded-2xl">
-                No series collections found. Click "Add Series" to create one.
+                {t("admin_brands.empty_series")}
               </div>
             )}
           </div>

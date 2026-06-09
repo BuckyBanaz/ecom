@@ -1,5 +1,6 @@
 // Admin Orders Page - Manages order states and filters
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, Eye, FileText, Tag, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,22 +181,22 @@ export const AUTO_STATUSES = [
 ];
 
 export const statusLabels: Record<string, string> = {
-  pending: "Unpaid",
-  payment_pending: "Payment Pending",
-  paid: "Pending (Paid)",
-  processing: "Processing",
-  ready_to_ship: "Ready to Ship",
-  label_generated: "Label Generated",
-  picked_up: "Picked Up",
-  in_transit: "In Transit",
-  out_for_delivery: "Out for Delivery",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  payment_failed: "Payment Failed",
-  returned: "Returned",
-  refunded: "Refunded",
-  delivery_failed: "Delivery Failed",
-  lost_in_transit: "Lost In Transit",
+  pending: "admin_orders.status_unpaid",
+  payment_pending: "admin_orders.status_payment_pending",
+  paid: "admin_orders.status_paid",
+  processing: "admin_orders.status_processing",
+  ready_to_ship: "admin_orders.status_ready_to_ship",
+  label_generated: "admin_orders.status_label_generated",
+  picked_up: "admin_orders.status_picked_up",
+  in_transit: "admin_orders.status_in_transit",
+  out_for_delivery: "admin_orders.status_out_for_delivery",
+  delivered: "admin_orders.status_delivered",
+  cancelled: "admin_orders.status_cancelled",
+  payment_failed: "admin_orders.status_payment_failed",
+  returned: "admin_orders.status_returned",
+  refunded: "admin_orders.status_refunded",
+  delivery_failed: "admin_orders.status_delivery_failed",
+  lost_in_transit: "admin_orders.status_lost_in_transit",
 };
 
 export const statusColors: Record<string, string> = {
@@ -220,11 +221,20 @@ export const statusColors: Record<string, string> = {
 import { ordersRepository } from "@/client/apiClient";
 
 export default function AdminOrders() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Memoize translated status options to avoid portal re-render issues
+  const translatedStatusOptions = useMemo(() => {
+    return Object.entries(statusLabels).map(([key, label]) => ({
+      key,
+      label: t(label),
+    }));
+  }, [t]);
 
   useEffect(() => {
     fetchOrders();
@@ -253,9 +263,9 @@ export default function AdminOrders() {
   return (
     <div className="space-y-6">
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading orders...</p>
+        <p className="text-sm text-muted-foreground">{t("admin_orders.loading")}</p>
       ) : (
-        <p className="text-sm text-muted-foreground">{filtered.length} orders total</p>
+        <p className="text-sm text-muted-foreground">{t("admin_orders.total", { count: filtered.length })}</p>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -264,18 +274,18 @@ export default function AdminOrders() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search orders by number or customer..."
+            placeholder={t("admin_orders.search_placeholder")}
             className="pl-10 h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[200px] h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-            <SelectValue placeholder="All statuses" />
+            <SelectValue placeholder={t("admin_orders.status_all")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="text-xs">All statuses</SelectItem>
-            {Object.entries(statusLabels).map(([key, label]) => (
-              <SelectItem key={key} value={key} className="text-xs">{label}</SelectItem>
+            <SelectItem value="all" className="text-xs">{t("admin_orders.status_all")}</SelectItem>
+            {translatedStatusOptions.map(({ key, label }) => (
+              <SelectItem key={key} value={key} className="text-xs"><span>{label}</span></SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -285,20 +295,20 @@ export default function AdminOrders() {
         <table className="w-full text-sm text-left border-collapse">
           <thead>
             <tr className="border-b bg-muted/40 text-muted-foreground font-medium text-xs">
-              <th className="p-4">Order</th>
-              <th className="p-4">Customer</th>
-              <th className="p-4 hidden md:table-cell">Payment Method</th>
-              <th className="p-4">Total</th>
-              <th className="p-4 hidden sm:table-cell">Status</th>
-              <th className="p-4 hidden lg:table-cell">Date</th>
-              <th className="p-4 text-right">Actions</th>
+              <th className="p-4">{t("admin_orders.table_order")}</th>
+              <th className="p-4">{t("admin_orders.table_customer")}</th>
+              <th className="p-4 hidden md:table-cell">{t("admin_orders.table_payment")}</th>
+              <th className="p-4">{t("admin_orders.table_total")}</th>
+              <th className="p-4 hidden sm:table-cell">{t("admin_orders.table_status")}</th>
+              <th className="p-4 hidden lg:table-cell">{t("admin_orders.table_date")}</th>
+              <th className="p-4 text-right">{t("admin_orders.table_actions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y text-xs">
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                  No orders found.
+                  {t("admin_orders.empty")}
                 </td>
               </tr>
             ) : (
@@ -318,7 +328,7 @@ export default function AdminOrders() {
                   <td className="p-4 font-semibold text-foreground">€{o.total.toFixed(2)}</td>
                   <td className="p-4 hidden sm:table-cell">
                     <Badge className={`${statusColors[o.status] || "bg-muted"} rounded-full shadow-none font-semibold text-[10px] uppercase py-0.5 px-2`}>
-                      {statusLabels[o.status] || o.status}
+                      {t(statusLabels[o.status]) || o.status}
                     </Badge>
                   </td>
                   <td className="p-4 text-muted-foreground hidden lg:table-cell">
@@ -334,7 +344,7 @@ export default function AdminOrders() {
                       size="icon"
                       className="h-8 w-8 rounded-full border border-border/80 bg-background/50 hover:bg-primary hover:text-primary-foreground shadow-sm transition-all"
                       onClick={() => navigate(`/admin/orders/${o.id}`)}
-                      title="View Details"
+                      title={t("admin_orders.button_details")}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>

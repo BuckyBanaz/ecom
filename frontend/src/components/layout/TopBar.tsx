@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Star, Truck, Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function TopBar() {
+  const { t } = useTranslation();
   const [hasCmsTopBar, setHasCmsTopBar] = useState(false);
 
   useEffect(() => {
@@ -26,22 +28,20 @@ export function TopBar() {
         <div className="flex items-center gap-6">
           <Link to="/help" className="flex items-center gap-1.5 hover:text-primary">
             <Star size={14} className="fill-primary text-primary" />
-            <span>
-              <strong>15,000+</strong> reviews
-            </span>
+            <span>{t("topbar.reviews", { count: "15,000" })}</span>
           </Link>
           <span className="flex items-center gap-1.5">
             <Truck size={14} className="text-primary" />
-            Ordered before <strong>22:00</strong>, delivered next day
+            {t("topbar.delivery", { time: "22:00" })}
           </span>
           <span className="flex items-center gap-1.5">
             <Calendar size={14} className="text-primary" />
-            <strong>30-day</strong> returns
+            {t("topbar.returns", { days: 30 })}
           </span>
         </div>
         <div className="flex items-center gap-5">
-          <Link to="/help" className="hover:text-primary">Business</Link>
-          <Link to="/help" className="hover:text-primary">Customer service</Link>
+          <Link to="/help" className="hover:text-primary">{t("header.business")}</Link>
+          <Link to="/help" className="hover:text-primary">{t("header.customer_service")}</Link>
         </div>
       </div>
     </div>

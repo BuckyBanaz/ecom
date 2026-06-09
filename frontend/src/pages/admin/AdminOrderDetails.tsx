@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, FileText, Tag, Printer, ClipboardCopy, Truck, CheckCircle2, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ const formatOrderWithShipment = (orderData: any) => {
 };
 
 export default function AdminOrderDetails() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [order, setOrder] = useState<any | null>(null);
@@ -67,6 +69,21 @@ export default function AdminOrderDetails() {
   const [loadingCarriers, setLoadingCarriers] = useState(false);
   const [carrierSearch, setCarrierSearch] = useState<string>("");
   const [isCarrierOpen, setIsCarrierOpen] = useState(false);
+
+  // Memoize translated status options to avoid portal re-render issues
+  const translatedStatusOptions = useMemo(() => {
+    return Object.entries(statusLabels).map(([key, label]) => ({
+      key,
+      label: t(label),
+      isAuto: AUTO_STATUSES.includes(key),
+    }));
+  }, [t]);
+
+  // Helper to get translated status label
+  const getTranslatedStatus = (statusKey: string | null): string => {
+    if (!statusKey) return statusKey || "";
+    return translatedStatusOptions.find(opt => opt.key === statusKey)?.label || statusKey;
+  };
 
   useEffect(() => {
     if (showShipmentModal && shippingMethods.length === 0) {
@@ -118,7 +135,7 @@ export default function AdminOrderDetails() {
   const handleStatusChange = async (newStatus: string) => {
     if (!order || updatingStatus) return;
     setUpdatingStatus(true);
-    const toastId = toast.loading(`Updating status to ${statusLabels[newStatus] || newStatus}...`);
+    const toastId = toast.loading(t("admin_order_details.toast_updating", { status: getTranslatedStatus(newStatus) || newStatus }));
     try {
       const res = await ordersRepository.updateStatus(order.id, newStatus);
       if (res.success) {
@@ -128,10 +145,10 @@ export default function AdminOrderDetails() {
           setSelectedStatus(formatted.status);
           return formatted;
         });
-        toast.success(`Order status updated to "${statusLabels[newStatus] || newStatus}"`, { id: toastId });
+        toast.success(t("admin_order_details.toast_updated", { status: getTranslatedStatus(newStatus) || newStatus }), { id: toastId });
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to update status", { id: toastId });
+      toast.error(err.message || t("admin_order_details.toast_error_failed"), { id: toastId });
     } finally {
       setUpdatingStatus(false);
     }
@@ -150,7 +167,7 @@ export default function AdminOrderDetails() {
     };
     setOrder(updated);
     setShowInvoiceMock(true);
-    toast.success("Invoice generated successfully");
+    toast.success(t("admin_order_details.toast_invoice_generated"));
   };
 
   const handleCreateShipment = async (e: React.FormEvent) => {
@@ -161,7 +178,7 @@ export default function AdminOrderDetails() {
     const toastId = toast.loading("Creating shipment via Sendcloud...");
     try {
       if (!selectedCarrier || isNaN(Number(selectedCarrier))) {
-        toast.error("Please select a valid shipping method", { id: toastId });
+        toast.error(t("admin_order_details.toast_select_carrier"), { id: toastId });
         setCreatingShipment(false);
         return;
       }
@@ -174,7 +191,7 @@ export default function AdminOrderDetails() {
           return formatOrderWithShipment(updated);
         });
         setShowShipmentModal(false);
-        toast.success("Shipment created successfully via Sendcloud", { id: toastId });
+        toast.success(t("admin_order_details.toast_shipment_created"), { id: toastId });
       } else {
         toast.error(res.message || "Failed to create shipment", { id: toastId });
       }
@@ -188,7 +205,7 @@ export default function AdminOrderDetails() {
   if (loading) {
     return (
       <div className="p-8 text-center space-y-4">
-        <p className="text-muted-foreground">Loading order...</p>
+        <p className="text-muted-foreground">{t("admin_order_details.loading")}</p>
       </div>
     );
   }
@@ -196,9 +213,9 @@ export default function AdminOrderDetails() {
   if (!order) {
     return (
       <div className="p-8 text-center space-y-4">
-        <p className="text-muted-foreground">Order not found.</p>
+        <p className="text-muted-foreground">{t("admin_order_details.not_found")}</p>
         <Button onClick={() => navigate("/admin/orders")} variant="outline" className="rounded-full">
-          Back to Orders
+          {t("admin_order_details.button_back")}
         </Button>
       </div>
     );
@@ -229,9 +246,9 @@ export default function AdminOrderDetails() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Order {order.orderNumber}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{t("admin_order_details.header_order", { orderNumber: order.orderNumber })}</h1>
             <p className="text-muted-foreground text-xs">
-              Placed on {new Date(order.createdAt).toLocaleString()}
+              {t("admin_order_details.header_placed", { date: new Date(order.createdAt).toLocaleString() })}
             </p>
           </div>
         </div>
@@ -243,7 +260,7 @@ export default function AdminOrderDetails() {
             onClick={handleGenerateInvoice}
             className="rounded-full text-xs font-bold gap-2 h-9"
           >
-            <FileText className="h-4 w-4" /> {order.invoiceNumber ? "View Invoice" : "Generate Invoice"}
+            <FileText className="h-4 w-4" /> {order.invoiceNumber ? t("admin_order_details.button_invoice") : t("admin_order_details.button_generate_invoice")}
           </Button>
           
           {/* Status Select */}
@@ -252,9 +269,9 @@ export default function AdminOrderDetails() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(statusLabels).map(([key, label]) => (
-                <SelectItem key={key} value={key} className="text-xs" disabled={AUTO_STATUSES.includes(key)}>
-                  {label} {AUTO_STATUSES.includes(key) && "(Auto)"}
+              {translatedStatusOptions.map(({ key, label, isAuto }) => (
+                <SelectItem key={key} value={key} className="text-xs" disabled={isAuto}>
+                  <span>{label}</span> {isAuto && <span className="text-xs text-muted-foreground">(Auto)</span>}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -270,7 +287,7 @@ export default function AdminOrderDetails() {
               disabled={updatingStatus}
               className="rounded-full text-xs font-bold h-9 bg-green-600 text-white hover:bg-green-700 shadow-sm transition-all"
             >
-              Save
+              {t("admin_order_details.button_save_status")}
             </Button>
           )}
 
@@ -284,7 +301,7 @@ export default function AdminOrderDetails() {
               disabled={updatingStatus}
               className="rounded-full text-xs font-bold gap-1.5 h-9 bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm"
             >
-              Next Step: {statusLabels[nextStatus]} <ArrowRight className="h-3.5 w-3.5" />
+              {t("admin_order_details.button_next", { status: getTranslatedStatus(nextStatus) })} <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           )}
 
@@ -294,13 +311,13 @@ export default function AdminOrderDetails() {
               onClick={() => setShowShipmentModal(true)}
               className="rounded-full text-xs font-bold gap-1.5 h-9 bg-amber-600 text-white hover:bg-amber-700 shadow-sm"
             >
-              <Truck className="h-4 w-4" /> Create Shipment
+              <Truck className="h-4 w-4" /> {t("admin_order_details.button_create_shipment")}
             </Button>
           )}
 
           {AUTO_STATUSES.includes(order.status) && order.status !== "delivered" && (
             <Button disabled className="rounded-full text-xs font-bold gap-1.5 h-9 bg-muted text-muted-foreground border">
-              Waiting For Carrier Update
+              {t("admin_order_details.button_waiting")}
             </Button>
           )}
         </div>
@@ -310,7 +327,7 @@ export default function AdminOrderDetails() {
         {/* Left Side: Items & Financial Summary */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-4">
-            <h3 className="font-bold text-sm border-b pb-3 text-foreground/90">Items Purchased</h3>
+            <h3 className="font-bold text-sm border-b pb-3 text-foreground/90">{t("admin_order_details.section_items")}</h3>
             <div className="divide-y divide-border/60">
               {(order.items || []).map((item, idx) => (
                 <div key={idx} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
@@ -322,7 +339,7 @@ export default function AdminOrderDetails() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold truncate text-foreground">{item.productName}</p>
                     <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                      Quantity: {item.quantity} {item.variant && `· ${item.variant}`}
+                      {t("admin_order_details.label_quantity")} {item.quantity} {item.variant && `· ${item.variant}`}
                     </p>
                   </div>
                   <div className="text-right">
@@ -336,32 +353,32 @@ export default function AdminOrderDetails() {
 
           {/* Financial summary */}
           <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-3">
-            <h3 className="font-bold text-sm border-b pb-3 text-foreground/90">Summary</h3>
+            <h3 className="font-bold text-sm border-b pb-3 text-foreground/90">{t("admin_order_details.section_summary")}</h3>
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>{t("admin_order_details.label_subtotal")}</span>
                 <span className="font-semibold text-foreground">€{order.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Shipping</span>
+                <span>{t("admin_order_details.label_shipping")}</span>
                 <span className="font-semibold text-foreground">
-                  {order.shipping === 0 ? "Free" : `€${order.shipping.toFixed(2)}`}
+                  {order.shipping === 0 ? t("admin_order_details.shipping_free") : `€${order.shipping.toFixed(2)}`}
                 </span>
               </div>
               {tax > 0 && (
                 <div className="flex justify-between">
-                  <span>Tax / GST</span>
+                  <span>{t("admin_order_details.label_tax")}</span>
                   <span className="font-semibold text-foreground">€{tax.toFixed(2)}</span>
                 </div>
               )}
               {discount > 0 && (
                 <div className="flex justify-between">
-                  <span>Discount</span>
+                  <span>{t("admin_order_details.label_discount")}</span>
                   <span className="font-semibold text-green-600">-€{discount.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between border-t pt-2 font-bold text-sm text-foreground">
-                <span>Total</span>
+                <span>{t("admin_order_details.label_total")}</span>
                 <span>€{order.total.toFixed(2)}</span>
               </div>
             </div>
@@ -371,28 +388,28 @@ export default function AdminOrderDetails() {
         {/* Right Side: Customer Details & Fulfillment info */}
         <div className="space-y-6">
           <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-4 text-xs">
-            <h3 className="font-bold text-sm border-b pb-3 text-foreground/90">Customer Details</h3>
+            <h3 className="font-bold text-sm border-b pb-3 text-foreground/90">{t("admin_order_details.section_customer")}</h3>
             <div className="space-y-2">
               <div>
-                <p className="text-muted-foreground font-semibold">Name</p>
+                <p className="text-muted-foreground font-semibold">{t("admin_order_details.label_name")}</p>
                 <p className="font-bold text-foreground mt-0.5">{order.customerName}</p>
               </div>
               <div>
-                <p className="text-muted-foreground font-semibold">Email</p>
+                <p className="text-muted-foreground font-semibold">{t("admin_order_details.label_email")}</p>
                 <p className="font-bold text-foreground mt-0.5">{order.customerEmail}</p>
               </div>
               <div className="mt-6">
-                <p className="text-sm text-muted-foreground mb-1">Shipping Address</p>
+                <p className="text-sm text-muted-foreground mb-1">{t("admin_order_details.label_address")}</p>
                 <div className="font-bold text-foreground mt-0.5 leading-relaxed space-y-1">
                   <p>{order.customerName || `${firstName} ${lastName}`.trim()}</p>
                   <p>{street ? `${street} ${houseNumber}`.trim() + `, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
-                  {landmark && <p className="text-muted-foreground italic text-[10px]">Landmark: {landmark}</p>}
-                  {phone && <p>Phone: {phone}</p>}
-                  <p>Email: {order.customerEmail || email}</p>
+                  {landmark && <p className="text-muted-foreground italic text-[10px]">{t("admin_order_details.label_landmark")} {landmark}</p>}
+                  {phone && <p>{t("admin_order_details.label_phone")} {phone}</p>}
+                  <p>{t("admin_order_details.label_email")}: {order.customerEmail || email}</p>
                 </div>
               </div>
               <div>
-                <p className="text-muted-foreground font-semibold">Payment Method</p>
+                <p className="text-muted-foreground font-semibold">{t("admin_order_details.label_payment")}</p>
                 <p className="font-bold text-foreground mt-0.5 capitalize">{order.paymentMethod}</p>
               </div>
             </div>
@@ -400,17 +417,17 @@ export default function AdminOrderDetails() {
 
           <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-4 text-xs">
             <h3 className="font-bold text-sm border-b pb-3 text-foreground/90 flex justify-between items-center">
-              <span>Logistics & Tracking</span>
+              <span>{t("admin_order_details.section_logistics")}</span>
               {order.shipment && <Badge variant="outline" className="text-[10px]">{order.shipment.carrier}</Badge>}
             </h3>
             
             {!order.shipment ? (
               <div className="py-6 text-center text-muted-foreground flex flex-col items-center gap-2">
                 <Truck className="h-8 w-8 opacity-20" />
-                <p>No shipment created yet.</p>
+                <p>{t("admin_order_details.no_shipment")}</p>
                 {order.status === "ready_to_ship" && (
                   <Button onClick={() => setShowShipmentModal(true)} size="sm" variant="outline" className="mt-2 text-xs rounded-full border-dashed">
-                    Create Shipment
+                    {t("admin_order_details.button_create_shipment")}
                   </Button>
                 )}
               </div>
@@ -418,22 +435,22 @@ export default function AdminOrderDetails() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-y-4">
                   <div>
-                    <p className="text-muted-foreground font-semibold">Carrier</p>
+                    <p className="text-muted-foreground font-semibold">{t("admin_order_details.label_carrier")}</p>
                     <p className="font-bold text-foreground mt-0.5">{order.shipment.carrier}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground font-semibold">Status</p>
+                    <p className="text-muted-foreground font-semibold">{t("admin_order_details.label_status")}</p>
                     <div className="mt-1">
                       <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] font-semibold">
-                        {statusLabels[order.status] || order.status}
+                        {getTranslatedStatus(order.status) || order.status}
                       </Badge>
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-muted-foreground font-semibold">Tracking Number</p>
+                    <p className="text-muted-foreground font-semibold">{t("admin_order_details.label_tracking")}</p>
                     <p className="font-mono font-bold text-primary mt-0.5 select-all flex items-center gap-1.5">
                       {order.shipment.trackingNumber}
-                      <button onClick={() => { navigator.clipboard.writeText(order.shipment!.trackingNumber); toast.success("Copied tracking ID"); }} className="text-muted-foreground hover:text-foreground">
+                      <button onClick={() => { navigator.clipboard.writeText(order.shipment!.trackingNumber); toast.success(t("admin_order_details.toast_tracking_copied")); }} className="text-muted-foreground hover:text-foreground">
                         <ClipboardCopy className="h-3.5 w-3.5" />
                       </button>
                     </p>
@@ -453,16 +470,16 @@ export default function AdminOrderDetails() {
                       variant="outline" 
                       className="text-[10px] h-7 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200"
                     >
-                      <Tag className="h-3 w-3 mr-1" /> View/Print Label
+                      <Tag className="h-3 w-3 mr-1" /> {t("admin_order_details.button_view_label")}
                     </Button>
                   ) : (
                     <Button onClick={() => setShowLabelMock(true)} size="sm" variant="outline" className="text-[10px] h-7 rounded-full">
-                      <Tag className="h-3 w-3 mr-1" /> View Label
+                      <Tag className="h-3 w-3 mr-1" /> {t("admin_order_details.button_view_label_mock")}
                     </Button>
                   )}
                   {order.shipment.trackingUrl && (
                     <Button size="sm" variant="outline" className="text-[10px] h-7 rounded-full" onClick={() => window.open(order.shipment!.trackingUrl, "_blank")}>
-                      Track Shipment
+                      {t("admin_order_details.button_track")}
                     </Button>
                   )}
                 </div>
@@ -479,24 +496,24 @@ export default function AdminOrderDetails() {
             <div className="flex justify-between items-start border-b pb-6">
               <div>
                 <Logo forceLight className="mb-1 pointer-events-none" />
-                <p className="text-xs text-stone-500 mt-1">Invoice Statement</p>
+                <p className="text-xs text-stone-500 mt-1">{t("admin_order_details.invoice_title")}</p>
               </div>
               <div className="text-right text-xs space-y-0.5">
-                <p className="font-bold">Invoice: {order.invoiceNumber}</p>
-                <p>Date: {new Date().toLocaleDateString()}</p>
-                <p>Order Reference: {order.orderNumber}</p>
+                <p className="font-bold">{t("admin_order_details.invoice_number")} {order.invoiceNumber}</p>
+                <p>{t("admin_order_details.invoice_date")} {new Date().toLocaleDateString()}</p>
+                <p>{t("admin_order_details.invoice_reference")} {order.orderNumber}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
-                <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Vendor</h4>
+                <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("admin_order_details.invoice_vendor")}</h4>
                 <p className="mt-1 font-semibold">Schip & Ster BV</p>
                 <p>Keizersgracht 456, Amsterdam</p>
                 <p>billing@schipandster.nl</p>
               </div>
               <div>
-                <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">Bill To</h4>
+                <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("admin_order_details.invoice_billto")}</h4>
                 <div className="mt-1 space-y-1">
                   <p className="font-semibold">{order.customerName || `${firstName} ${lastName}`.trim()}</p>
                   <p className="leading-relaxed">{street ? `${street} ${houseNumber}`.trim() + `, ${city} ${pincode}, ${state}, ${country}` : formattedAddress}</p>
@@ -511,10 +528,10 @@ export default function AdminOrderDetails() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold">
-                    <th className="p-3">Product Name</th>
-                    <th className="p-3 text-center">Qty</th>
-                    <th className="p-3 text-right">Price</th>
-                    <th className="p-3 text-right">Total</th>
+                    <th className="p-3">{t("admin_order_details.invoice_product")}</th>
+                    <th className="p-3 text-center">{t("admin_order_details.invoice_qty")}</th>
+                    <th className="p-3 text-right">{t("admin_order_details.invoice_price")}</th>
+                    <th className="p-3 text-right">{t("admin_order_details.invoice_total")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -534,23 +551,23 @@ export default function AdminOrderDetails() {
               <div className="w-64 space-y-2 border-t pt-3">
                 {/* Summary */}
                 <div className="mt-6 border-t pt-4 space-y-2 text-sm text-foreground">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>€{order.subtotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Shipping</span><span>{order.shipping === 0 ? "Free" : `€${order.shipping.toFixed(2)}`}</span></div>
-                  {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax / GST</span><span>€{tax.toFixed(2)}</span></div>}
-                  {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span className="text-green-600">-€{discount.toFixed(2)}</span></div>}
-                  <div className="flex justify-between font-bold text-base border-t pt-2"><span>Total</span><span>€{order.total.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_subtotal")}</span><span>€{order.subtotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_shipping")}</span><span>{order.shipping === 0 ? t("admin_order_details.shipping_free") : `€${order.shipping.toFixed(2)}`}</span></div>
+                  {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_tax")}</span><span>€{tax.toFixed(2)}</span></div>}
+                  {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_discount")}</span><span className="text-green-600">-€{discount.toFixed(2)}</span></div>}
+                  <div className="flex justify-between font-bold text-base border-t pt-2"><span>{t("admin_order_details.label_total")}</span><span>€{order.total.toFixed(2)}</span></div>
                 </div>
               </div>
             </div>
 
             <div className="flex justify-between items-center border-t pt-6">
-              <span className="text-[10px] text-stone-400">Thank you for shopping at Schip & Ster!</span>
+              <span className="text-[10px] text-stone-400">{t("admin_order_details.invoice_thank")}</span>
               <div className="flex gap-2">
                 <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full">
-                  <Printer className="h-3.5 w-3.5" /> Print
+                  <Printer className="h-3.5 w-3.5" /> {t("admin_order_details.button_print")}
                 </Button>
                 <Button onClick={() => setShowInvoiceMock(false)} size="sm" className="text-xs bg-amber-900 hover:bg-amber-950 text-white rounded-full">
-                  Done
+                  {t("admin_order_details.button_done")}
                 </Button>
               </div>
             </div>
@@ -588,8 +605,7 @@ export default function AdminOrderDetails() {
               </div>
             </div>
 
-            {/* Fake Barcode representation */}
-            <div className="flex flex-col items-center justify-center border-t-2 border-black pt-4 space-y-2">
+            <div className="flex justify-between items-center border-t-2 border-black pt-4 space-y-2">
               <div className="w-full h-16 bg-gradient-to-r from-black via-white to-black border border-black relative">
                 {/* Visual striping simulator */}
                 <div className="absolute inset-0 flex">
@@ -603,10 +619,10 @@ export default function AdminOrderDetails() {
 
             <div className="flex justify-between items-center border-t border-black pt-4">
               <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full border-black hover:bg-black hover:text-white">
-                <Printer className="h-3.5 w-3.5" /> Print Label
+                <Printer className="h-3.5 w-3.5" /> {t("admin_order_details.button_print")}
               </Button>
               <Button onClick={() => setShowLabelMock(false)} size="sm" className="text-xs bg-black hover:bg-stone-900 text-white rounded-full">
-                Close
+                {t("admin_order_details.button_close")}
               </Button>
             </div>
           </div>
@@ -619,7 +635,7 @@ export default function AdminOrderDetails() {
             <div className="border-b pb-3 relative">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Truck className="h-5 w-5 text-primary" /> Create Shipment
+                  <Truck className="h-5 w-5 text-primary" /> {t("admin_order_details.shipment_create_title")}
                 </h2>
                 <button 
                   onClick={() => setShowShipmentModal(false)}
@@ -629,14 +645,14 @@ export default function AdminOrderDetails() {
                 </button>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Enter weight and box dimensions for order {order.orderNumber}
+                {t("admin_order_details.shipment_enter", { orderNumber: order.orderNumber })}
               </p>
             </div>
 
             <form onSubmit={handleCreateShipment} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="weight" className="text-xs font-semibold">Weight (kg)</Label>
+                  <Label htmlFor="weight" className="text-xs font-semibold">{t("admin_order_details.shipment_weight")}</Label>
                   <Input
                     id="weight"
                     type="number"
@@ -650,7 +666,7 @@ export default function AdminOrderDetails() {
                 </div>
 
                 <div className="space-y-1.5 relative">
-                  <Label htmlFor="carrier" className="text-xs font-semibold">Carrier (Search & Select)</Label>
+                  <Label htmlFor="carrier" className="text-xs font-semibold">{t("admin_order_details.shipment_carrier")}</Label>
                   
                   <div 
                     className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
@@ -658,8 +674,8 @@ export default function AdminOrderDetails() {
                   >
                     <span className="truncate">
                       {selectedCarrier 
-                        ? shippingMethods.find(m => m.id.toString() === selectedCarrier)?.name || "Select Carrier"
-                        : "Select Carrier"}
+                        ? shippingMethods.find(m => m.id.toString() === selectedCarrier)?.name || t("admin_order_details.shipment_select")
+                        : t("admin_order_details.shipment_select")}
                     </span>
                     <ArrowRight className="h-3 w-3 opacity-50 rotate-90" />
                   </div>
@@ -725,10 +741,10 @@ export default function AdminOrderDetails() {
               </div>
 
               <div className="border-t border-muted/50 pt-3">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Dimensions (cm)</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{t("admin_order_details.shipment_dimensions")}</p>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor="length" className="text-[10px] text-muted-foreground">Length</Label>
+                    <Label htmlFor="length" className="text-[10px] text-muted-foreground">{t("admin_order_details.shipment_length")}</Label>
                     <Input
                       id="length"
                       type="number"
@@ -740,7 +756,7 @@ export default function AdminOrderDetails() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="width" className="text-[10px] text-muted-foreground">Width</Label>
+                    <Label htmlFor="width" className="text-[10px] text-muted-foreground">{t("admin_order_details.shipment_width")}</Label>
                     <Input
                       id="width"
                       type="number"
@@ -752,7 +768,7 @@ export default function AdminOrderDetails() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="height" className="text-[10px] text-muted-foreground">Height</Label>
+                    <Label htmlFor="height" className="text-[10px] text-muted-foreground">{t("admin_order_details.shipment_height")}</Label>
                     <Input
                       id="height"
                       type="number"
@@ -768,10 +784,10 @@ export default function AdminOrderDetails() {
 
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={() => setShowShipmentModal(false)} disabled={creatingShipment} className="rounded-full text-xs h-9">
-                  Cancel
+                  {t("admin_order_details.button_cancel")}
                 </Button>
                 <Button type="submit" disabled={creatingShipment} className="rounded-full text-xs h-9 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold">
-                  <Truck className="h-4 w-4" /> {creatingShipment ? "Creating..." : "Create Shipment"}
+                  <Truck className="h-4 w-4" /> {creatingShipment ? t("admin_order_details.shipment_creating") : t("admin_order_details.button_create_shipment")}
                 </Button>
               </div>
             </form>
@@ -785,10 +801,10 @@ export default function AdminOrderDetails() {
           <div className="bg-card text-foreground rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-6">
             <div>
               <h3 className="text-xl font-bold flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-600" /> Confirm Status
+                <CheckCircle2 className="h-5 w-5 text-green-600" /> {t("admin_order_details.confirm_title")}
               </h3>
               <p className="text-sm text-muted-foreground mt-2">
-                Are you sure you want to update the order status to <strong className="text-foreground">"{statusLabels[pendingStatusUpdate]}"</strong>?
+                {t("admin_order_details.confirm_msg")} <strong className="text-foreground">"{getTranslatedStatus(pendingStatusUpdate)}"</strong>?
               </p>
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-border">
@@ -800,7 +816,7 @@ export default function AdminOrderDetails() {
                 }} 
                 className="rounded-full h-9 text-xs font-bold"
               >
-                Cancel
+                {t("admin_order_details.button_cancel")}
               </Button>
               <Button 
                 onClick={() => {
@@ -810,7 +826,7 @@ export default function AdminOrderDetails() {
                 }} 
                 className="rounded-full h-9 bg-green-600 hover:bg-green-700 text-white text-xs font-bold"
               >
-                Yes, update status
+                {t("admin_order_details.button_confirm")}
               </Button>
             </div>
           </div>

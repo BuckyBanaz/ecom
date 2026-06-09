@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +9,7 @@ import { authRepository } from "@/client/apiClient";
 import { toast } from "sonner";
 
 export default function ResetPassword() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState(location.state?.email || "");
@@ -27,7 +29,7 @@ export default function ResetPassword() {
     if (!email || !otp || !newPassword) return;
 
     if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
+      toast.error(t("auth_pages.reset.toast_too_short"));
       return;
     }
 
@@ -35,13 +37,13 @@ export default function ResetPassword() {
       setLoading(true);
       const res = await authRepository.resetPassword({ email, otp, newPassword });
       if (res.success) {
-        toast.success(res.message || "Password reset successfully!");
+        toast.success(res.message || t("auth_pages.reset.toast_success"));
         navigate("/account");
       } else {
-        toast.error(res.message || "Failed to reset password");
+        toast.error(res.message || t("auth_pages.reset.toast_failed"));
       }
     } catch (error: any) {
-      toast.error(error.message || "An error occurred");
+      toast.error(error.message || t("auth_pages.reset.toast_error"));
     } finally {
       setLoading(false);
     }
@@ -53,27 +55,27 @@ export default function ResetPassword() {
         <div className="text-center">
           <Link to="/forgot-password" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary mb-6 transition-colors">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            {t("auth_pages.reset.back")}
           </Link>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Set new password
+            {t("auth_pages.reset.title")}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Please enter the OTP sent to your email and your new password.
+            {t("auth_pages.reset.subtitle")}
           </p>
         </div>
 
         <div className="bg-white p-8 border rounded-2xl shadow-sm">
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="email">{t("auth_pages.reset.email_label")}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
                   required
-                  placeholder="Enter your email"
+                  placeholder={t("auth_pages.reset.email_placeholder")}
                   className="pl-10 py-5"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -83,14 +85,14 @@ export default function ResetPassword() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="otp">6-Digit OTP</Label>
+              <Label htmlFor="otp">{t("auth_pages.reset.otp_label")}</Label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="otp"
                   type="text"
                   required
-                  placeholder="e.g. 123456"
+                  placeholder={t("auth_pages.reset.otp_placeholder")}
                   className="pl-10 py-5"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
@@ -100,14 +102,14 @@ export default function ResetPassword() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
+              <Label htmlFor="newPassword">{t("auth_pages.reset.new_password_label")}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="newPassword"
                   type={showPassword ? "text" : "password"}
                   required
-                  placeholder="At least 6 characters"
+                  placeholder={t("auth_pages.reset.new_password_placeholder")}
                   className="pl-10 py-5"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -127,10 +129,10 @@ export default function ResetPassword() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Resetting password...
+                  {t("auth_pages.reset.submitting")}
                 </>
               ) : (
-                "Update password"
+                t("auth_pages.reset.submit")
               )}
             </Button>
           </form>

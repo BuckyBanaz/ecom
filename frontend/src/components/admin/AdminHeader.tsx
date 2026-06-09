@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bell, Search, Menu, X, Check, Settings, LogOut, User,
@@ -97,6 +98,7 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
+  const { t } = useTranslation();
   const { user, logout, hasPermission } = useAdmin();
   const { pathname } = useLocation();
   const navigate = useNavigate();

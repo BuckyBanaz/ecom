@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { cmsHomepageRepository, productRepository, categoryRepository, blogRepository } from "@/client/apiClient";
 import { HomepageSkeleton } from "@/components/ui/SkeletonLoader";
 
 const Index = () => {
+  const { t } = useTranslation();
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [prefetchedData, setPrefetchedData] = useState<{products?: any[], categories?: any[], blogs?: any[]}>({});
@@ -70,9 +72,9 @@ const Index = () => {
       <section className="container-page mt-16 mb-16">
         <div className="overflow-hidden rounded-2xl bg-secondary p-8 text-secondary-foreground md:p-14">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-bold md:text-3xl">Be the first to know</h2>
+            <h2 className="text-2xl font-bold md:text-3xl">{t("newsletter.title")}</h2>
             <p className="mt-2 text-secondary-foreground/80">
-              Sign up and get early access to giveaways, new arrivals and exclusive deals.
+              {t("newsletter.description")}
             </p>
             <form
               onSubmit={(e) => {
@@ -84,11 +86,11 @@ const Index = () => {
               <input
                 type="email"
                 required
-                placeholder="your@email.com"
+                placeholder={t("newsletter.email_placeholder")}
                 className="flex-1 w-full rounded-full border-0 bg-white/10 px-5 py-3 text-sm text-secondary-foreground placeholder:text-secondary-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <button type="submit" className="shrink-0 rounded-full bg-primary px-8 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 whitespace-nowrap">
-                Sign up
+                {t("newsletter.signup")}
               </button>
             </form>
           </div>

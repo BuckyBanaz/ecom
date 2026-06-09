@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { 
   Package, ShoppingCart, Users, DollarSign, TrendingUp,
   Loader2, ShoppingBag 
@@ -14,6 +15,7 @@ import {
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const Dashboard = () => {
+  const { t } = useTranslation();
   const { user } = useAdmin();
   const [productsList, setProductsList] = useState<any[]>([]);
   const [ordersList, setOrdersList] = useState<any[]>([]);
@@ -131,13 +133,13 @@ const Dashboard = () => {
       {/* Page Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Store Analytics Dashboard</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">{t("admin_dashboard.page_title")}</h1>
           <p className="text-muted-foreground text-sm">
-            Welcome back, {user?.name}! Monitoring live store metrics and sales growth for {currentYear}.
+            {t("admin_dashboard.welcome_back", { name: user?.name, year: currentYear })}
           </p>
         </div>
         <div className="flex items-center gap-2 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20">
-          <span className="text-xs font-bold text-amber-700">Active Year: {currentYear}</span>
+          <span className="text-xs font-bold text-amber-700">{t("admin_dashboard.active_year", { year: currentYear })}</span>
         </div>
       </div>
 
@@ -147,13 +149,13 @@ const Dashboard = () => {
         <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl p-5 shadow-sm hover:scale-[1.02] hover:shadow-md transition-all duration-300 relative overflow-hidden group">
           <div className="absolute right-[-10px] top-[-10px] w-24 h-24 bg-white/5 rounded-full group-hover:scale-125 transition-transform" />
           <div className="flex justify-between items-start">
-            <p className="text-xs font-semibold text-blue-100 uppercase tracking-wider">Total Sales</p>
+            <p className="text-xs font-semibold text-blue-100 uppercase tracking-wider">{t("admin_dashboard.card_total_sales")}</p>
             <DollarSign className="h-4 w-4 text-blue-200" />
           </div>
           <p className="text-2xl font-bold mt-4">€{revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           <div className="flex items-center gap-1 mt-3 text-xs text-blue-100">
             <TrendingUp className="h-3 w-3" />
-            <span>Actual revenue generated</span>
+            <span>{t("admin_dashboard.card_total_sales_desc")}</span>
           </div>
         </div>
 
@@ -161,13 +163,13 @@ const Dashboard = () => {
         <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-5 shadow-sm hover:scale-[1.02] hover:shadow-md transition-all duration-300 relative overflow-hidden group">
           <div className="absolute right-[-10px] top-[-10px] w-24 h-24 bg-white/5 rounded-full group-hover:scale-125 transition-transform" />
           <div className="flex justify-between items-start">
-            <p className="text-xs font-semibold text-emerald-100 uppercase tracking-wider">Total Orders</p>
+            <p className="text-xs font-semibold text-emerald-100 uppercase tracking-wider">{t("admin_dashboard.card_total_orders")}</p>
             <ShoppingCart className="h-4 w-4 text-emerald-200" />
           </div>
           <p className="text-2xl font-bold mt-4">{paidOrders.length}</p>
           <div className="flex items-center gap-1 mt-3 text-xs text-emerald-100">
             <ShoppingCart className="h-3 w-3" />
-            <span>Successful orders completed</span>
+            <span>{t("admin_dashboard.card_total_orders_desc")}</span>
           </div>
         </div>
 
@@ -175,13 +177,13 @@ const Dashboard = () => {
         <div className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl p-5 shadow-sm hover:scale-[1.02] hover:shadow-md transition-all duration-300 relative overflow-hidden group">
           <div className="absolute right-[-10px] top-[-10px] w-24 h-24 bg-white/5 rounded-full group-hover:scale-125 transition-transform" />
           <div className="flex justify-between items-start">
-            <p className="text-xs font-semibold text-purple-100 uppercase tracking-wider">Average Order Value</p>
+            <p className="text-xs font-semibold text-purple-100 uppercase tracking-wider">{t("admin_dashboard.card_aov")}</p>
             <TrendingUp className="h-4 w-4 text-purple-200" />
           </div>
           <p className="text-2xl font-bold mt-4">€{aov.toFixed(2)}</p>
           <div className="flex items-center gap-1 mt-3 text-xs text-purple-100">
             <TrendingUp className="h-3 w-3" />
-            <span>Average revenue per order</span>
+            <span>{t("admin_dashboard.card_aov_desc")}</span>
           </div>
         </div>
 
@@ -189,13 +191,13 @@ const Dashboard = () => {
         <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-2xl p-5 shadow-sm hover:scale-[1.02] hover:shadow-md transition-all duration-300 relative overflow-hidden group">
           <div className="absolute right-[-10px] top-[-10px] w-24 h-24 bg-white/5 rounded-full group-hover:scale-125 transition-transform" />
           <div className="flex justify-between items-start">
-            <p className="text-xs font-semibold text-amber-100 uppercase tracking-wider">Active Customers</p>
+            <p className="text-xs font-semibold text-amber-100 uppercase tracking-wider">{t("admin_dashboard.card_customers")}</p>
             <Users className="h-4 w-4 text-amber-200" />
           </div>
           <p className="text-2xl font-bold mt-4">{customersCount}</p>
           <div className="flex items-center gap-1 mt-3 text-xs text-amber-100">
             <Users className="h-3 w-3" />
-            <span>Distinct customer accounts</span>
+            <span>{t("admin_dashboard.card_customers_desc")}</span>
           </div>
         </div>
       </div>
@@ -206,19 +208,19 @@ const Dashboard = () => {
         <div className="bg-card border rounded-2xl p-6 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="text-lg font-bold text-foreground">Monthly Revenue Trend</h2>
-              <p className="text-xs text-muted-foreground">Monthly store revenue generated in {currentYear}</p>
+              <h2 className="text-lg font-bold text-foreground">{t("admin_dashboard.revenue_chart_title")}</h2>
+              <p className="text-xs text-muted-foreground">{t("admin_dashboard.revenue_chart_subtitle", { year: currentYear })}</p>
             </div>
-            <Badge className="bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 border-none rounded-full px-2.5 font-bold">Revenue</Badge>
+            <Badge className="bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 border-none rounded-full px-2.5 font-bold">{t("admin_dashboard.revenue_badge")}</Badge>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(229, 231, 235, 0.4)" />
               <XAxis dataKey="month" stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} />
               <YAxis stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `€${v}`} />
-              <Tooltip formatter={(value) => [`€${Number(value).toLocaleString()}`, "Revenue"]} contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }} />
+              <Tooltip formatter={(value) => [`€${Number(value).toLocaleString()}`, t("admin_dashboard.revenue_label")]} contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }} />
               <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: "11px", fontWeight: "bold" }} />
-              <Line type="monotone" dataKey="revenue" name="Monthly Revenue" stroke="#d97706" strokeWidth={3} activeDot={{ r: 8 }} dot={{ r: 3, strokeWidth: 1 }} />
+              <Line type="monotone" dataKey="revenue" name={t("admin_dashboard.revenue_line_name")} stroke="#d97706" strokeWidth={3} activeDot={{ r: 8 }} dot={{ r: 3, strokeWidth: 1 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -227,19 +229,19 @@ const Dashboard = () => {
         <div className="bg-card border rounded-2xl p-6 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="text-lg font-bold text-foreground">Monthly Order Volume</h2>
-              <p className="text-xs text-muted-foreground">Number of orders processed per month</p>
+              <h2 className="text-lg font-bold text-foreground">{t("admin_dashboard.orders_chart_title")}</h2>
+              <p className="text-xs text-muted-foreground">{t("admin_dashboard.orders_chart_subtitle")}</p>
             </div>
-            <Badge className="bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 border-none rounded-full px-2.5 font-bold">Orders</Badge>
+            <Badge className="bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 border-none rounded-full px-2.5 font-bold">{t("admin_dashboard.orders_badge")}</Badge>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(229, 231, 235, 0.4)" />
               <XAxis dataKey="month" stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} />
               <YAxis stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} />
-              <Tooltip formatter={(value) => [Number(value), "Orders"]} contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }} />
+              <Tooltip formatter={(value) => [Number(value), t("admin_dashboard.orders_label")]} contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }} />
               <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: "11px", fontWeight: "bold" }} />
-              <Bar dataKey="orders" name="Orders Count" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+              <Bar dataKey="orders" name={t("admin_dashboard.orders_bar_name")} fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -249,19 +251,19 @@ const Dashboard = () => {
       <div className="bg-card border rounded-2xl p-6 shadow-sm">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Top Selling Products Revenue</h2>
-            <p className="text-xs text-muted-foreground">Actual revenue generated per product</p>
+            <h2 className="text-lg font-bold text-foreground">{t("admin_dashboard.products_chart_title")}</h2>
+            <p className="text-xs text-muted-foreground">{t("admin_dashboard.products_chart_subtitle")}</p>
           </div>
-          <Badge className="bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 border-none rounded-full px-2.5 font-bold">Product Performance</Badge>
+          <Badge className="bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 border-none rounded-full px-2.5 font-bold">{t("admin_dashboard.products_badge")}</Badge>
         </div>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={productPerformance} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(229, 231, 235, 0.4)" />
             <XAxis dataKey="name" stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
             <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `€${v}`} />
-            <Tooltip formatter={(value) => [`€${Number(value).toLocaleString()}`, "Revenue"]} contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb" }} />
+            <Tooltip formatter={(value) => [`€${Number(value).toLocaleString()}`, t("admin_dashboard.revenue_label")]} contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb" }} />
             <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: "10px", fontWeight: "bold" }} />
-            <Bar dataKey="sales" name="Actual Sales Revenue" fill="#d97706" radius={[4, 4, 0, 0]} barSize={24} />
+            <Bar dataKey="sales" name={t("admin_dashboard.products_bar_name")} fill="#d97706" radius={[4, 4, 0, 0]} barSize={24} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -271,8 +273,8 @@ const Dashboard = () => {
         {/* Recent orders */}
         <div className="rounded-2xl border bg-card p-6 shadow-sm lg:col-span-2">
           <div className="flex justify-between items-center mb-4 border-b pb-3">
-            <h2 className="text-base font-bold">Recent Store Transactions</h2>
-            <span className="text-xs text-muted-foreground font-semibold">Showing latest 5 orders</span>
+            <h2 className="text-base font-bold">{t("admin_dashboard.recent_orders_title")}</h2>
+            <span className="text-xs text-muted-foreground font-semibold">{t("admin_dashboard.recent_orders_subtitle")}</span>
           </div>
           <div className="space-y-3">
             {yearOrders.slice(0, 5).map((o) => (
@@ -293,7 +295,7 @@ const Dashboard = () => {
               </div>
             ))}
             {yearOrders.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-6">No orders placed in {currentYear} yet.</p>
+              <p className="text-xs text-muted-foreground text-center py-6">{t("admin_dashboard.recent_orders_empty", { year: currentYear })}</p>
             )}
           </div>
         </div>
@@ -301,26 +303,26 @@ const Dashboard = () => {
         {/* E-commerce Store Stats Summary */}
         <div className="rounded-2xl border bg-card p-6 shadow-sm text-xs space-y-4 flex flex-col justify-between">
           <div>
-            <h3 className="text-base font-bold border-b pb-3 mb-4">E-commerce Insights</h3>
+            <h3 className="text-base font-bold border-b pb-3 mb-4">{t("admin_dashboard.insights_title")}</h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center py-1">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-purple-600" />
-                  <span className="text-muted-foreground font-medium text-sm">Average Order Value</span>
+                  <span className="text-muted-foreground font-medium text-sm">{t("admin_dashboard.insights_aov")}</span>
                 </div>
                 <span className="font-extrabold text-foreground text-base">€{aov.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center py-1 border-t border-muted/50 pt-3">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-amber-600" />
-                  <span className="text-muted-foreground font-medium text-sm">Distinct Customers</span>
+                  <span className="text-muted-foreground font-medium text-sm">{t("admin_dashboard.insights_customers")}</span>
                 </div>
                 <span className="font-extrabold text-foreground text-base">{customersCount}</span>
               </div>
               <div className="flex justify-between items-center py-1 border-t border-muted/50 pt-3">
                 <div className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-blue-600" />
-                  <span className="text-muted-foreground font-medium text-sm">Total Products</span>
+                  <span className="text-muted-foreground font-medium text-sm">{t("admin_dashboard.insights_products")}</span>
                 </div>
                 <span className="font-extrabold text-foreground text-base">{productsList.length}</span>
               </div>
@@ -328,7 +330,7 @@ const Dashboard = () => {
           </div>
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mt-4 text-amber-800 text-[11px] font-semibold flex items-start gap-2">
             <ShoppingBag className="h-4 w-4 mt-0.5 shrink-0" />
-            <p>Metrics are computed strictly from real-time database orders and product inventory records.</p>
+            <p>{t("admin_dashboard.insights_footer")}</p>
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { db } from "@/config/firebase";
 import { collection, query, orderBy, onSnapshot, limit, updateDoc, doc, startAfter } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
@@ -20,6 +21,7 @@ interface AppNotification {
 }
 
 export default function AdminNotificationsPage() {
+  const { t } = useTranslation();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -38,7 +40,7 @@ export default function AdminNotificationsPage() {
       setLoading(false);
     }, (error) => {
       console.error("Firebase fetch error:", error);
-      toast.error("Failed to load notifications (Check Firebase rules).");
+      toast.error(t("admin_notifications.toast_error"));
       setLoading(false);
     });
 
@@ -58,7 +60,7 @@ export default function AdminNotificationsPage() {
     for (const notif of unreadNotifs) {
       await markAsRead(notif.id);
     }
-    toast.success("All notifications marked as read");
+    toast.success(t("admin_notifications.toast_marked_all"));
   };
 
   const handleNotificationClick = (notif: AppNotification) => {
@@ -69,7 +71,7 @@ export default function AdminNotificationsPage() {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-64 text-muted-foreground">Loading notifications...</div>;
+    return <div className="flex justify-center items-center h-64 text-muted-foreground">{t("admin_notifications.loading")}</div>;
   }
 
   return (
@@ -78,12 +80,12 @@ export default function AdminNotificationsPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Bell className="h-8 w-8 text-primary" />
-            All Notifications
+            {t("admin_notifications.title")}
           </h2>
-          <p className="text-muted-foreground">Stay updated with the latest store activities.</p>
+          <p className="text-muted-foreground">{t("admin_notifications.subtitle")}</p>
         </div>
         <Button onClick={markAllAsRead} variant="outline">
-          Mark All as Read
+          {t("admin_notifications.button_mark_all")}
         </Button>
       </div>
 
@@ -93,8 +95,8 @@ export default function AdminNotificationsPage() {
             <div className="h-16 w-16 bg-muted/50 rounded-full flex items-center justify-center mb-4">
               <Bell className="h-8 w-8 text-muted-foreground/50" />
             </div>
-            <h3 className="text-lg font-semibold text-foreground mb-1">No notifications yet</h3>
-            <p className="text-muted-foreground">When new orders are placed, they will appear here.</p>
+            <h3 className="text-lg font-semibold text-foreground mb-1">{t("admin_notifications.empty_title")}</h3>
+            <p className="text-muted-foreground">{t("admin_notifications.empty_text")}</p>
           </div>
         ) : (
           <div className="divide-y divide-border">

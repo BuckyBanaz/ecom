@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Trash2, Star, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveImgUrl } from "@/utils/image";
@@ -8,6 +9,7 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import { reviewRepository, productRepository } from "@/client/apiClient";
 
 const AdminReviews = () => {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const [reviews, setReviews] = useState<any[]>([]);
@@ -23,7 +25,7 @@ const AdminReviews = () => {
         if (data.success) {
           setReviews(data.reviews || []);
         } else {
-          toast.error("Failed to load reviews");
+          toast.error(t("admin_reviews.toast_load_failed"));
         }
         
         // Also fetch product name just for display
@@ -35,7 +37,7 @@ const AdminReviews = () => {
         }
       } catch (error) {
         console.error(error);
-        toast.error("Error loading reviews");
+        toast.error(t("admin_reviews.toast_error_loading"));
       } finally {
         setIsLoading(false);
       }
@@ -47,20 +49,20 @@ const AdminReviews = () => {
   }, [id]);
 
   const handleDelete = async (reviewId: string) => {
-    if (!window.confirm("Are you sure you want to delete this review?")) return;
+    if (!window.confirm(t("admin_reviews.confirm_delete"))) return;
 
     try {
       const data = await reviewRepository.delete(reviewId);
       
       if (data.success) {
-        toast.success("Review deleted successfully");
+        toast.success(t("admin_reviews.toast_delete_success"));
         setReviews(prev => prev.filter(r => r.id !== reviewId));
       } else {
-        toast.error(data.error || "Failed to delete review");
+        toast.error(data.error || t("admin_reviews.toast_delete_failed"));
       }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Error deleting review");
+      toast.error(err.message || t("admin_reviews.toast_delete_error"));
     }
   };
 
@@ -71,8 +73,8 @@ const AdminReviews = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Product Reviews</h1>
-          <p className="text-muted-foreground">Manage customer reviews for {productName || "Product"}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("admin_reviews.title")}</h1>
+          <p className="text-muted-foreground">{t("admin_reviews.subtitle", { name: productName || "Product" })}</p>
         </div>
       </div>
 
@@ -81,25 +83,25 @@ const AdminReviews = () => {
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground uppercase text-xs">
               <tr>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Rating</th>
-                <th className="px-4 py-3 font-medium">Review</th>
-                <th className="px-4 py-3 font-medium">Media</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th className="px-4 py-3 font-medium">{t("admin_reviews.table_customer")}</th>
+                <th className="px-4 py-3 font-medium">{t("admin_reviews.table_rating")}</th>
+                <th className="px-4 py-3 font-medium">{t("admin_reviews.table_review")}</th>
+                <th className="px-4 py-3 font-medium">{t("admin_reviews.table_media")}</th>
+                <th className="px-4 py-3 font-medium">{t("admin_reviews.table_date")}</th>
+                <th className="px-4 py-3 font-medium text-right">{t("admin_reviews.table_actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    Loading reviews...
+                    {t("admin_reviews.loading")}
                   </td>
                 </tr>
               ) : reviews.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    No reviews found for this product.
+                    {t("admin_reviews.empty")}
                   </td>
                 </tr>
               ) : (
@@ -125,13 +127,13 @@ const AdminReviews = () => {
                           ))}
                           {r.images.length > 3 && (
                             <div className="w-10 h-10 flex items-center justify-center bg-muted rounded border text-xs font-medium">
-                              +{r.images.length - 3}
+                              {t("admin_reviews.media_more", { count: r.images.length - 3 })}
                             </div>
                           )}
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-xs flex items-center gap-1">
-                          <ImageIcon className="w-3 h-3" /> None
+                          <ImageIcon className="w-3 h-3" /> {t("admin_reviews.media_none")}
                         </span>
                       )}
                     </td>
@@ -144,7 +146,7 @@ const AdminReviews = () => {
                         size="icon"
                         className="h-8 w-8 text-destructive hover:bg-destructive/10"
                         onClick={() => handleDelete(r.id)}
-                        title="Delete Review"
+                        title={t("admin_reviews.delete_title")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
