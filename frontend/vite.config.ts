@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
   build: {
     target: "es2020",
@@ -28,6 +28,8 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
 
+          // Only split very large optional deps. Do NOT split react/react-dom —
+          // that causes "__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED" crashes.
           if (id.includes("fontawesome-admin")) return "fontawesome-full";
           if (
             id.includes("@fortawesome/free-solid-svg-icons") &&
@@ -42,14 +44,7 @@ export default defineConfig(({ mode }) => ({
             return "fontawesome-full";
           }
           if (id.includes("firebase")) return "firebase";
-          if (id.includes("lucide-react")) return "lucide";
           if (id.includes("recharts") || id.includes("d3-")) return "charts";
-          if (id.includes("@radix-ui")) return "radix-ui";
-          if (id.includes("i18next") || id.includes("react-i18next")) return "i18n";
-          if (id.includes("react-dom") || id.includes("react-router")) return "react-vendor";
-          if (id.includes("@tanstack")) return "query";
-
-          return "vendor";
         },
       },
     },
