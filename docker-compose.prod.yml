@@ -84,6 +84,7 @@ services:
 
 networks:
   ecom_net:
+    external: true
     name: ecom_net
 
 volumes:

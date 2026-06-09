@@ -8,8 +8,15 @@ cd "$REPO_DIR"
 echo "==> 1. Pull latest config"
 git pull origin v1.4
 
-echo "==> 2. Ensure shared Docker network exists"
-docker network inspect ecom_net >/dev/null 2>&1 || docker network create ecom_net
+echo "==> 2. Fix shared Docker network (ecom_net)"
+# Both compose files use external ecom_net — remove broken/manual network if needed
+if docker network inspect ecom_net >/dev/null 2>&1; then
+  for container in $(docker network inspect ecom_net --format '{{range $k, $v := .Containers}}{{$v.Name}} {{end}}' 2>/dev/null); do
+    docker network disconnect ecom_net "$container" 2>/dev/null || true
+  done
+  docker network rm ecom_net 2>/dev/null || true
+fi
+docker network create ecom_net
 
 echo "==> 3. Recreate Jenkins (no public ports)"
 docker compose -f docker-compose.jenkins.yml down || true

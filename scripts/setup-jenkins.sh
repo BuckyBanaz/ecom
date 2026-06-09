@@ -21,6 +21,11 @@ fi
 
 chmod +x "${REPO_DIR}/scripts/"*.sh
 
+# Shared network for Caddy ↔ Jenkins (external in both compose files)
+if ! docker network inspect ecom_net >/dev/null 2>&1; then
+  docker network create ecom_net
+fi
+
 # Docker socket GID for jenkins container (optional)
 export DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999)"
 
