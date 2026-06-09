@@ -35,6 +35,9 @@ const AdminProductForm = () => {
 
   const isEdit = id !== undefined && id !== "new";
 
+  // Mount guard for portal-based components
+  const [isMounted, setIsMounted] = useState(false);
+
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
   const [isProductLoading, setIsProductLoading] = useState(isEdit);
@@ -69,6 +72,11 @@ const AdminProductForm = () => {
   // Dynamic Specification states
   const [specs, setSpecs] = useState<SpecItem[]>([]);
   const [newParamName, setNewParamName] = useState("");
+
+  // Set mounted flag on component mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Load brands, categories, attributes, series
   useEffect(() => {
@@ -692,46 +700,50 @@ const AdminProductForm = () => {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="brand" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_brand")}</Label>
-                    <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-                      <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                        <SelectValue placeholder={t("admin_product_form.placeholder_brand")} />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        {brands.map((b) => (
-                          <SelectItem key={b.id} value={b.name} className="text-xs rounded-lg">
-                            {b.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isMounted && (
+                      <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                        <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                          <SelectValue placeholder={t("admin_product_form.placeholder_brand")} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          {brands.map((b) => (
+                            <SelectItem key={b.id} value={b.name} className="text-xs rounded-lg">
+                              {b.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="series" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_series")}</Label>
-                    <Select
-                      value={selectedSeries}
-                      onValueChange={setSelectedSeries}
-                      disabled={!selectedBrand}
-                    >
-                      <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                        <SelectValue placeholder={selectedBrand ? t("admin_product_form.placeholder_series_select") : t("admin_product_form.placeholder_series_first")} />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        <SelectItem value="none" className="text-xs rounded-lg italic text-muted-foreground">
-                          {t("admin_product_form.series_none")}
-                        </SelectItem>
-                        {seriesList
-                          .filter((s) => {
-                            const brandId = brands.find((b) => b.name === selectedBrand)?.id;
-                            return s.brandId === brandId;
-                          })
-                          .map((s) => (
-                            <SelectItem key={s.id} value={s.name} className="text-xs rounded-lg">
-                              {s.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    {isMounted && (
+                      <Select
+                        value={selectedSeries}
+                        onValueChange={setSelectedSeries}
+                        disabled={!selectedBrand}
+                      >
+                        <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                          <SelectValue placeholder={selectedBrand ? t("admin_product_form.placeholder_series_select") : t("admin_product_form.placeholder_series_first")} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="none" className="text-xs rounded-lg italic text-muted-foreground">
+                            {t("admin_product_form.series_none")}
+                          </SelectItem>
+                          {seriesList
+                            .filter((s) => {
+                              const brandId = brands.find((b) => b.name === selectedBrand)?.id;
+                              return s.brandId === brandId;
+                            })
+                            .map((s) => (
+                              <SelectItem key={s.id} value={s.name} className="text-xs rounded-lg">
+                                {s.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
@@ -1067,18 +1079,20 @@ const AdminProductForm = () => {
               <CardContent className="space-y-5">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_category")}</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                      <SelectValue placeholder={t("admin_product_form.placeholder_category")} />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {categoriesList.map((c) => (
-                        <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isMounted && (
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                        <SelectValue placeholder={t("admin_product_form.placeholder_category")} />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {categoriesList.map((c) => (
+                          <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-muted-foreground/10 space-y-4">
@@ -1152,7 +1166,7 @@ const AdminProductForm = () => {
                             )}
 
                             {/* Select Dropdown (Single option) */}
-                            {attr.type === "select" && (
+                            {attr.type === "select" && isMounted && (
                               <Select
                                 value={currentVals[0] || ""}
                                 onValueChange={(val) => {

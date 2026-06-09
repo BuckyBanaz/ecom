@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { Plus, Save, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { IconPicker } from "@/components/admin/IconPicker";
+import { cmsHeaderFooterRepository } from "@/client/apiClient";
 
 const HEADER_FOOTER_KEY = "header_footer_data";
 
@@ -90,34 +91,104 @@ const defaultConfig: HeaderFooterConfig = {
 const CMSHeaderFooter = () => {
   const { t } = useTranslation();
   const [config, setConfig] = useState<HeaderFooterConfig>(defaultConfig);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedConfig = localStorage.getItem(HEADER_FOOTER_KEY);
-    if (savedConfig) {
+    const loadConfig = async () => {
       try {
-        const parsed = JSON.parse(savedConfig);
-        const legacySocial = parsed.footerSocial && !Array.isArray(parsed.footerSocial)
-          ? [
-              { icon: "facebook", label: "Facebook", href: parsed.footerSocial.facebook || "#" },
-              { icon: "instagram", label: "Instagram", href: parsed.footerSocial.instagram || "#" },
-              { icon: "youtube", label: "Youtube", href: parsed.footerSocial.youtube || "#" },
-            ]
-          : parsed.footerSocial;
-        setConfig({
-          ...defaultConfig,
-          ...parsed,
-          footerSocial: legacySocial || defaultConfig.footerSocial,
-        });
-      } catch {
-        setConfig(defaultConfig);
+        setIsLoading(true);
+        const result = await cmsHeaderFooterRepository.get();
+        if (result.success && result.data) {
+          const parsed = result.data;
+          const legacySocial = parsed.footerSocial && !Array.isArray(parsed.footerSocial)
+            ? [
+                { icon: "facebook", label: "Facebook", href: parsed.footerSocial.facebook || "#" },
+                { icon: "instagram", label: "Instagram", href: parsed.footerSocial.instagram || "#" },
+                { icon: "youtube", label: "Youtube", href: parsed.footerSocial.youtube || "#" },
+              ]
+            : parsed.footerSocial;
+          setConfig({
+            ...defaultConfig,
+            ...parsed,
+            footerSocial: legacySocial || defaultConfig.footerSocial,
+          });
+          // Also save to localStorage for fallback
+          localStorage.setItem(HEADER_FOOTER_KEY, JSON.stringify({
+            ...defaultConfig,
+            ...parsed,
+            footerSocial: legacySocial || defaultConfig.footerSocial,
+          }));
+        } else {
+          // Fallback to localStorage if API fails
+          const savedConfig = localStorage.getItem(HEADER_FOOTER_KEY);
+          if (savedConfig) {
+            const parsed = JSON.parse(savedConfig);
+            const legacySocial = parsed.footerSocial && !Array.isArray(parsed.footerSocial)
+              ? [
+                  { icon: "facebook", label: "Facebook", href: parsed.footerSocial.facebook || "#" },
+                  { icon: "instagram", label: "Instagram", href: parsed.footerSocial.instagram || "#" },
+                  { icon: "youtube", label: "Youtube", href: parsed.footerSocial.youtube || "#" },
+                ]
+              : parsed.footerSocial;
+            setConfig({
+              ...defaultConfig,
+              ...parsed,
+              footerSocial: legacySocial || defaultConfig.footerSocial,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error loading header footer config:", error);
+        // Fallback to localStorage
+        const savedConfig = localStorage.getItem(HEADER_FOOTER_KEY);
+        if (savedConfig) {
+          try {
+            const parsed = JSON.parse(savedConfig);
+            const legacySocial = parsed.footerSocial && !Array.isArray(parsed.footerSocial)
+              ? [
+                  { icon: "facebook", label: "Facebook", href: parsed.footerSocial.facebook || "#" },
+                  { icon: "instagram", label: "Instagram", href: parsed.footerSocial.instagram || "#" },
+                  { icon: "youtube", label: "Youtube", href: parsed.footerSocial.youtube || "#" },
+                ]
+              : parsed.footerSocial;
+            setConfig({
+              ...defaultConfig,
+              ...parsed,
+              footerSocial: legacySocial || defaultConfig.footerSocial,
+            });
+          } catch {
+            setConfig(defaultConfig);
+          }
+        }
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+
+    loadConfig();
   }, []);
 
-  const save = (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem(HEADER_FOOTER_KEY, JSON.stringify(config));
-    toast.success("Header and footer saved");
+    setIsSaving(true);
+    try {
+      const result = await cmsHeaderFooterRepository.update(config);
+      if (result.success) {
+        // Also save to localStorage
+        localStorage.setItem(HEADER_FOOTER_KEY, JSON.stringify(config));
+        toast.success("Header and footer saved");
+      } else {
+        toast.error("Failed to save header and footer");
+      }
+    } catch (error) {
+      console.error("Error saving header footer config:", error);
+      // Still save to localStorage as fallback
+      localStorage.setItem(HEADER_FOOTER_KEY, JSON.stringify(config));
+      toast.success("Header and footer saved (local)");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

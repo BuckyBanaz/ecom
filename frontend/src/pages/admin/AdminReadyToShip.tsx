@@ -15,6 +15,7 @@ import { ordersRepository } from "@/client/apiClient";
 
 export default function AdminReadyToShip() {
   const { t } = useTranslation();
+  const [isMounted, setIsMounted] = useState(false);
   const [search, setSearch] = useState("");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,10 @@ export default function AdminReadyToShip() {
   const [isCarrierOpen, setIsCarrierOpen] = useState(false);
   const [carrierSearch, setCarrierSearch] = useState<string>("");
   const [loadingCarriers, setLoadingCarriers] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const fetchOrders = async () => {
     try {

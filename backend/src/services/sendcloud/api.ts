@@ -102,112 +102,115 @@ export const sendcloudApi = {
     assertHasKeys(config);
 
     const shippingMethodId = parcelData.shipment?.id;
-    const shippingOptionCode = await this.getShippingOptionCode(shippingMethodId);
     const fromAddress = await this.getDefaultSenderAddress();
 
-    // API v3 shipments payload structure
-    const shipmentBody = {
-      to_address: {
-        name: parcelData.name,
-        company_name: parcelData.company_name || "",
-        address_line_1: parcelData.address,
-        house_number: parcelData.house_number || "",
-        city: parcelData.city,
-        postal_code: parcelData.postal_code,
-        country_code: parcelData.country,
-        phone_number: parcelData.telephone || "",
-        email: parcelData.email || "",
-      },
-      from_address: fromAddress,
-      ship_with: {
-        type: "shipping_option_code",
-        properties: {
-          shipping_option_code: shippingOptionCode
-        }
-      },
-      parcels: [
-        {
-          weight: {
-            value: parseFloat(parcelData.weight || "1").toFixed(3),
-            unit: "kg"
-          }
-        }
-      ],
+    // Use v2 API /parcels endpoint (simpler, doesn't auto-announce)
+    const parcelBody = {
+      name: parcelData.name,
+      company_name: parcelData.company_name || "",
+      address: parcelData.address,
+      house_number: parcelData.house_number || "",
+      city: parcelData.city,
+      postal_code: parcelData.postal_code,
+      country: parcelData.country,
+      telephone: parcelData.telephone || "",
+      email: parcelData.email || "",
+      weight: parseFloat(parcelData.weight || "1").toFixed(3),
       order_number: parcelData.order_number,
-      create_return: false,
-      apply_shipping_rules: false,
+      quantity: parcelData.quantity || 1,
+      shipment: {
+        id: shippingMethodId
+      },
+      sender_address: fromAddress.id || 795760,  // Use sender address ID
+      request_label: true,
     };
 
-    console.log("📦 Sendcloud v3 Shipment Body:", JSON.stringify(shipmentBody, null, 2));
+    console.log("📦 Sendcloud v2 Parcel Body:", JSON.stringify(parcelBody, null, 2));
 
-    const response = await fetch(`${BASE_URL_V3}/shipments/announce`, {
+    // Use v2 /parcels endpoint (creates parcel without auto-announcing)
+    const response = await fetch(`${BASE_URL_V2}/parcels`, {
       method: "POST",
       headers: getSendcloudAuthHeaders(),
-      body: JSON.stringify(shipmentBody),
+      body: JSON.stringify(parcelBody),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
       console.error("❌ Sendcloud createParcel FAILED:", response.status, errorData);
-      throw new Error(`Sendcloud create parcel failed (${response.status}): ${errorData}`);
+
+      // Try to extract a friendly message
+      let friendly = `Sendcloud create parcel failed (${response.status})`;
+      try {
+        const parsed = JSON.parse(errorData);
+        const detail = parsed?.error?.message || parsed?.parcel?.errors?.[0] || parsed?.message;
+        if (detail) {
+          if (/not allowed|permission/i.test(String(detail))) {
+            friendly = `Sendcloud permission issue: ${detail}. Check account settings or contact Sendcloud support.`;
+          } else {
+            friendly = String(detail);
+          }
+        }
+      } catch {
+        /* keep generic message */
+      }
+
+      throw new Error(friendly);
     }
 
     const data = await response.json();
-    console.log("📦 Raw Sendcloud v3 Response:", JSON.stringify(data, null, 2));
+    console.log("📦 Sendcloud v2 Parcel Response:", JSON.stringify(data, null, 2));
     
-    const shipment = data.data || data.shipment || data;
-    const parcelId = shipment?.parcels?.[0]?.id;
-    let trackingNum = shipment?.parcels?.[0]?.tracking_number || "";
-    let trackingUrl = shipment?.parcels?.[0]?.tracking_url || "";
-    let normalPrinter = shipment?.parcels?.[0]?.label_file?.label_printer_pdf || shipment?.parcels?.[0]?.documents?.[0]?.link || shipment?.label?.normal_printer || "";
-    const carrierObj = shipment?.carrier;
-    const carrier = (typeof carrierObj === "object" && carrierObj !== null)
-      ? (carrierObj.name || carrierObj.code || "Sendcloud")
-      : (shipment?.ship_with?.properties?.shipping_option_code?.split(":")?.[0] || "Sendcloud");
+    const parcel = data.parcel || data;
+    const trackingNum = parcel?.tracking_number || `SC-${parcel?.id || Math.floor(100000 + Math.random() * 900000)}`;
+    const trackingUrl = parcel?.tracking_url || `https://tracking.sendcloud.sc/tracking/shipment/${parcel?.id || trackingNum}`;
+    const labelUrl = parcel?.label?.normal_printer || parcel?.documents?.[0]?.link || `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`;
+    const carrier = parcel?.carrier?.name || parcel?.carrier?.code || "Sendcloud";
 
-    // For local testing (like unstamped letters or test modes that don't generate labels), mock properties so UI works
-    if (!trackingNum) {
-      trackingNum = `SC-${parcelId || Math.floor(100000 + Math.random() * 900000)}`;
-    }
-    if (!trackingUrl) {
-      trackingUrl = `https://tracking.sendcloud.sc/tracking/shipment/${parcelId || trackingNum}`;
-    }
-    if (!normalPrinter) {
-      normalPrinter = `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`;
-    }
-
-    // Normalize v3 response to look like v2 (parcel key) so controller code works
     return {
       parcel: {
-        ...shipment,
-        id: parcelId,
+        ...parcel,
         tracking_number: trackingNum,
         tracking_url: trackingUrl,
-        carrier: typeof carrier === "string" ? carrier : "Sendcloud",
-        status: { message: shipment?.status?.message || "Label Generated" },
-        documents: normalPrinter ? [{ link: normalPrinter }] : [],
+        carrier: carrier,
+        status: parcel?.status || { message: "Parcel Created" },
+        documents: labelUrl ? [{ link: labelUrl }] : [],
       }
     };
   },
 
   /**
    * Get available shipping methods (using v2 for dropdown selection compatibility)
+   * Note: Sendcloud v2 doesn't support query filters. We fetch all and return them.
+   * Frontend will filter by destination country and weight constraints.
    */
-  async getShippingMethods() {
+  async getShippingMethods(_toCountry?: string, _weight?: number) {
     const config = getSendcloudConfig();
     assertHasKeys(config);
 
-    const response = await fetch(`${BASE_URL_V2}/shipping_methods`, {
+    // Sendcloud v2 doesn't support ?to_country or ?weight filters in API
+    // Always fetch all methods; filtering is done client-side
+    const url = `${BASE_URL_V2}/shipping_methods`;
+    console.log(`📡 Sendcloud v2 API - Fetching all shipping methods`);
+
+    const response = await fetch(url, {
       method: "GET",
       headers: getSendcloudAuthHeaders(),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
+      console.error(`❌ Sendcloud shipping_methods failed (${response.status}):`, errorData);
       throw new Error(`Sendcloud get shipping methods failed: ${errorData}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    const methodCount = data?.shipping_methods?.length || 0;
+    console.log(`✅ Sendcloud returned ${methodCount} shipping methods (total available)`);
+    if (methodCount > 0 && methodCount <= 20) {
+      console.log("   Methods:", data.shipping_methods.map((m: any) => ({ id: m.id, name: m.name, to_country: m.to_country })));
+    }
+
+    return data;
   },
 
   /**

@@ -69,98 +69,108 @@ import ForgotPassword from "./pages/auth/ForgotPassword.tsx";
 import ResetPassword from "./pages/auth/ResetPassword.tsx";
 import { ScrollToTop } from "./components/layout/ScrollToTop.tsx";
 import { SEOInjector } from "./components/layout/SEOInjector.tsx";
+import { MaintenanceGuard } from "./components/MaintenanceGuard.tsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <ScrollToTop />
-        <SEOInjector />
-        <WishlistProvider>
-          <CartProvider>
-            <AdminProvider>
-              <Routes>
-                {/* Storefront */}
-                <Route element={<SiteLayout />}>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/relief" element={<Relief />} />
-                  <Route path="/relief/category/:slug" element={<Category />} />
-                  <Route path="/relief/:slug" element={<ReliefCategory />} />
-                  <Route path="/category" element={<Category />} />
-                  <Route path="/category/:slug" element={<Category />} />
-                  <Route path="/deals" element={<Navigate to="/category/deals" replace />} />
-                  <Route path="/product/:slug" element={<ProductPage />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/checkout/success" element={<Checkout />} />
-                  <Route path="/checkout/cancel" element={<Checkout />} />
-                  <Route path="/checkout/retry/:orderId" element={<CheckoutRetry />} />
-                  <Route path="/search" element={<Search />} />
-                  <Route path="/account" element={<AccountAuth />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/dashboard" element={<UserDashboard />} />
-                  <Route path="/faqs" element={<Faqs />} />
-                  <Route path="/blogs" element={<Blogs />} />
-                  <Route path="/blogs/:slug" element={<BlogDetail />} />
-                  <Route path="/wishlist" element={<Wishlist />} />
-                  <Route path="/:slug" element={<DynamicPage />} />
-                  <Route path="*" element={<NotFound />} />
-                </Route>
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <div className="notranslate" translate="no">
+            <ScrollToTop />
+            <SEOInjector />
+            <WishlistProvider>
+              <CartProvider>
+                <AdminProvider>
+                  <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center"><div className="text-center"><h1 className="text-2xl font-bold mb-4">Oops! Something went wrong</h1><p className="text-gray-600 mb-4">Please refresh the page to continue.</p><button onClick={() => window.location.reload()} className="px-4 py-2 bg-primary text-white rounded">Refresh Page</button></div></div>}>
+                    <MaintenanceGuard>
+                      <Routes>
+                        {/* Storefront */}
+                        <Route element={<SiteLayout />}>
+                          <Route path="/" element={<Index />} />
+                          <Route path="/relief" element={<Relief />} />
+                          <Route path="/relief/category/:slug" element={<Category />} />
+                          <Route path="/relief/:slug" element={<ReliefCategory />} />
+                          <Route path="/category" element={<Category />} />
+                          <Route path="/category/:slug" element={<Category />} />
+                          <Route path="/deals" element={<Navigate to="/category/deals" replace />} />
+                          <Route path="/product/:slug" element={<ProductPage />} />
+                          <Route path="/cart" element={<Cart />} />
+                          <Route path="/checkout" element={<Checkout />} />
+                          <Route path="/checkout/success" element={<Checkout />} />
+                          <Route path="/checkout/cancel" element={<Checkout />} />
+                          <Route path="/checkout/retry/:orderId" element={<CheckoutRetry />} />
+                          <Route path="/search" element={<Search />} />
+                          <Route path="/account" element={<AccountAuth />} />
+                          <Route path="/forgot-password" element={<ForgotPassword />} />
+                          <Route path="/reset-password" element={<ResetPassword />} />
+                          <Route path="/dashboard" element={<UserDashboard />} />
+                          <Route path="/faqs" element={<Faqs />} />
+                          <Route path="/blogs" element={<Blogs />} />
+                          <Route path="/blogs/:slug" element={<BlogDetail />} />
+                          <Route path="/wishlist" element={<Wishlist />} />
+                          <Route path="/:slug" element={<DynamicPage />} />
+                          <Route path="*" element={<NotFound />} />
+                        </Route>
 
-                {/* Standalone Route for Print/Invoice */}
-                <Route path="/invoice" element={<InvoicePage />} />
+                        {/* Standalone Route for Print/Invoice */}
+                        <Route path="/invoice" element={<InvoicePage />} />
 
-                {/* Admin */}
-                <Route path="/admin/login" element={<AdminLogin />} />
-                <Route path="/admin" element={<AdminLayout />}>
-                  <Route index element={<Dashboard />} />
-                  <Route path="analytics" element={<AdminAnalytics />} />
-                  <Route path="products" element={<AdminProducts />} />
-                  <Route path="products/new" element={<AdminProductForm />} />
-                  <Route path="products/:id/edit" element={<AdminProductForm />} />
-                  <Route path="products/:id/reviews" element={<AdminReviews />} />
-                  <Route path="categories" element={<AdminCategories />} />
-                  <Route path="brands" element={<AdminBrands />} />
-                  <Route path="attributes" element={<AdminAttributes />} />
-                  <Route path="orders" element={<AdminOrders />} />
-                  <Route path="orders/ready-to-ship" element={<AdminReadyToShip />} />
-                  <Route path="orders/in-transit" element={<AdminInTransit />} />
-                  <Route path="orders/delivered" element={<AdminDelivered />} />
-                  <Route path="orders/returns" element={<AdminReturns />} />
-                  <Route path="orders/labels" element={<AdminLabels />} />
-                  <Route path="orders/:id" element={<AdminOrderDetails />} />
-                  <Route path="offers" element={<AdminOffers />} />
-                  <Route path="charges" element={<AdminCharges />} />
-                  <Route path="testimonials" element={<AdminTestimonials />} />
-                  <Route path="cms" element={<Navigate to="/admin/cms/homepage" replace />} />
-                  <Route path="cms/homepage" element={<CMSHomepage />} />
-                  <Route path="cms/megamenu" element={<CMSMegaMenu />} />
-                  <Route path="cms/header-footer" element={<CMSHeaderFooter />} />
-                  <Route path="cms/faqs" element={<CMSFaqs />} />
-                  <Route path="cms/relief" element={<CMSRelief />} />
-                  <Route path="cms/:kind" element={<CMSLegal />} />
-                  <Route path="cms/pages" element={<CMSPages />} />
-                  <Route path="cms/blogs" element={<CMSBlogs />} />
-                  <Route path="cms/seo" element={<CMSSeo />} />
-                  <Route path="cms/email-templates" element={<AdminEmailTemplates />} />
-                  <Route path="storage" element={<MediaLibrary />} />
-                  <Route path="users" element={<AdminUsers />} />
-                  <Route path="manage-users" element={<AdminManageUsers />} />
-                  <Route path="settings" element={<AdminSettings />} />
-                  <Route path="notifications" element={<AdminNotificationsPage />} />
-                </Route>
-              </Routes>
-            </AdminProvider>
-          </CartProvider>
-        </WishlistProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+                        {/* Admin */}
+                        <Route path="/admin/login" element={<AdminLogin />} />
+                        <Route path="/admin" element={<AdminLayout />}>
+                          <Route index element={<Dashboard />} />
+                          <Route path="analytics" element={<AdminAnalytics />} />
+                          <Route path="products" element={<AdminProducts />} />
+                          <Route path="products/new" element={<AdminProductForm />} />
+                          <Route path="products/:id/edit" element={<AdminProductForm />} />
+                          <Route path="products/:id/reviews" element={<AdminReviews />} />
+                          <Route path="categories" element={<AdminCategories />} />
+                          <Route path="brands" element={<AdminBrands />} />
+                          <Route path="attributes" element={<AdminAttributes />} />
+                          <Route path="orders" element={<AdminOrders />} />
+                          <Route path="orders/ready-to-ship" element={<AdminReadyToShip />} />
+                          <Route path="orders/in-transit" element={<AdminInTransit />} />
+                          <Route path="orders/delivered" element={<AdminDelivered />} />
+                          <Route path="orders/returns" element={<AdminReturns />} />
+                          <Route path="orders/labels" element={<AdminLabels />} />
+                          <Route path="orders/:id" element={<AdminOrderDetails />} />
+                          <Route path="offers" element={<AdminOffers />} />
+                          <Route path="charges" element={<AdminCharges />} />
+                          <Route path="testimonials" element={<AdminTestimonials />} />
+                          <Route path="cms" element={<Navigate to="/admin/cms/homepage" replace />} />
+                          <Route path="cms/homepage" element={<CMSHomepage />} />
+                          <Route path="cms/megamenu" element={<CMSMegaMenu />} />
+                          <Route path="cms/header-footer" element={<CMSHeaderFooter />} />
+                          <Route path="cms/faqs" element={<CMSFaqs />} />
+                          <Route path="cms/relief" element={<CMSRelief />} />
+                          <Route path="cms/:kind" element={<CMSLegal />} />
+                          <Route path="cms/pages" element={<CMSPages />} />
+                          <Route path="cms/blogs" element={<CMSBlogs />} />
+                          <Route path="cms/seo" element={<CMSSeo />} />
+                          <Route path="cms/email-templates" element={<AdminEmailTemplates />} />
+                          <Route path="storage" element={<MediaLibrary />} />
+                          <Route path="users" element={<AdminUsers />} />
+                          <Route path="manage-users" element={<AdminManageUsers />} />
+                          <Route path="settings" element={<AdminSettings />} />
+                          <Route path="notifications" element={<AdminNotificationsPage />} />
+                        </Route>
+                      </Routes>
+                    </MaintenanceGuard>
+                  </ErrorBoundary>
+                </AdminProvider>
+              </CartProvider>
+            </WishlistProvider>
+          </div>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;

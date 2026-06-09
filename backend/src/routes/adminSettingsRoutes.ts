@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData } from "../controllers/adminSettingsController";
+import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData, getGeneralSettings, updateGeneralSettings } from "../controllers/adminSettingsController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
 const router = Router();
@@ -7,6 +7,34 @@ const router = Router();
 // Apply auth middleware for all routes in this file
 router.use(authenticateJWT);
 router.use(requireAdmin);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/general:
+ *   get:
+ *     summary: Get general store settings (name, URL, email, currency, maintenance mode)
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: General settings
+ */
+router.get("/general", getGeneralSettings);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/general:
+ *   put:
+ *     summary: Update general store settings
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Settings updated successfully
+ */
+router.put("/general", updateGeneralSettings);
 
 /**
  * @swagger

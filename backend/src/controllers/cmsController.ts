@@ -244,3 +244,48 @@ export const deletePage = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ==========================================
+// HEADER & FOOTER CMS METHODS
+// ==========================================
+
+export const getHeaderFooter = async (req: Request, res: Response) => {
+  try {
+    const config = await prisma.cmsConfig.findUnique({
+      where: { key: "header_footer_data" },
+    });
+
+    if (!config) {
+      return res.status(404).json({ success: false, message: "Header & Footer configuration not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error fetching header footer config:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const updateHeaderFooter = async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+
+    const config = await prisma.cmsConfig.upsert({
+      where: { key: "header_footer_data" },
+      update: { value: data },
+      create: { key: "header_footer_data", value: data },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Header & Footer configuration updated",
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error updating header footer config:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

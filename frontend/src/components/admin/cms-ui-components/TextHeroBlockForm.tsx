@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ interface TextHeroBlockFormProps {
 }
 
 export function TextHeroBlockForm({ onInsert, onCancel }: TextHeroBlockFormProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [description, setDescription] = useState("");

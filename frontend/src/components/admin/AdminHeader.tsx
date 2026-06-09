@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
 import { AdminNotifications } from "./AdminNotifications";
+import { LanguageSwitcher } from "../layout/LanguageSwitcher";
 
 // ─── Route → Page Title Map ──────────────────────────────────────────────────
 const PAGE_TITLES: Record<string, string> = {
@@ -214,6 +215,9 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
           >
             <Search className="h-4 w-4" />
           </Button>
+
+          {/* Language Switcher */}
+          <LanguageSwitcher />
 
           {/* Notification Bell */}
           <AdminNotifications />

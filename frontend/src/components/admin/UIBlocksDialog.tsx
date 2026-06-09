@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,8 @@ export type UIBlocksDialogProps = {
 type BlockType = "hero-banner" | "text-hero" | "category-block" | "menu-category" | "product-block" | "features-block" | "deals-block" | "brands-block" | "blogs-block" | "reviews-block" | null;
 
 export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode }: UIBlocksDialogProps) {
+  const { t } = useTranslation();
+  const [isMounted, setIsMounted] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState<BlockType>(null);
   
   // Shared Form State
@@ -46,6 +49,10 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
 
   // Products Specific
   const [productType, setProductType] = useState("bestsellers");
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Features Specific
   const [features, setFeatures] = useState<FeatureItem[]>([

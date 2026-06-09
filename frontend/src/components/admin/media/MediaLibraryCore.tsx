@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Folder, Image as ImageIcon, Upload, Plus, Trash2, ArrowLeft, ChevronRight, Copy, Check,
   RefreshCw, Filter, LayoutGrid, List, PanelRightClose, PanelRightOpen, Search, Edit2,
@@ -133,6 +134,7 @@ function FolderPickerDialog({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: MediaLibraryCoreProps) {
+  const { t } = useTranslation();
   const [currentPath, setCurrentPath] = useState<string>("");
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);

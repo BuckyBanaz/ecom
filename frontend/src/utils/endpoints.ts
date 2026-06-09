@@ -12,6 +12,7 @@ export const ENDPOINTS = {
   CMS_RELIEF: `${BASE_URL}${API_PREFIX}/cms/relief`,
   CMS_PAGES: `${BASE_URL}${API_PREFIX}/cms/pages`,
   CMS_PAGE: `${BASE_URL}${API_PREFIX}/cms`,
+  CMS_HEADER_FOOTER: `${BASE_URL}${API_PREFIX}/cms/header-footer`,
   MEDIA: `${BASE_URL}${API_PREFIX}/media`,
   AUTH: `${BASE_URL}${API_PREFIX}/auth`,
   BLOGS: `${BASE_URL}${API_PREFIX}/blogs`,
@@ -29,4 +30,6 @@ export const ENDPOINTS = {
   ADMIN_SEO_CONFIG: `${BASE_URL}${API_PREFIX}/admin/settings/seo/config`,
   PUBLIC_SEO_CONFIG: `${BASE_URL}${API_PREFIX}/cms/seo-config`,
   ADMIN_ANALYTICS_DATA: `${BASE_URL}${API_PREFIX}/admin/settings/analytics/data`,
+  ADMIN_GENERAL_SETTINGS: `${BASE_URL}${API_PREFIX}/admin/settings/general`,
+  PUBLIC_MAINTENANCE_STATUS: `${BASE_URL}${API_PREFIX}/cms/maintenance-status`,
 };

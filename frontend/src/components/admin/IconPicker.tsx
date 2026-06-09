@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ type IconPickerProps = {
 };
 
 export const IconPicker = ({ value, onChange, buttonLabel }: IconPickerProps) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const normalized = query.trim().toLowerCase();
@@ -36,25 +38,25 @@ export const IconPicker = ({ value, onChange, buttonLabel }: IconPickerProps) =>
     <div>
       <Button type="button" variant="outline" className="w-full justify-start gap-2" onClick={() => setOpen(true)}>
         {activeIcon && <FontAwesomeIcon icon={activeIcon} className="h-4 w-4 text-primary" />}
-        <span>{buttonLabel || labelFromName(value || "star")}</span>
+        <span>{buttonLabel || t("admin_icon_picker.button_label")}</span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Select icon</DialogTitle>
+            <DialogTitle>{t("admin_icon_picker.title")}</DialogTitle>
           </DialogHeader>
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search icons..."
+            placeholder={t("admin_icon_picker.search_placeholder")}
             className="mt-2"
           />
           <div className="mt-2 text-xs text-muted-foreground">
-            {normalized ? `${filtered.length} icons found` : "Type to search all icons"}
+            {normalized ? t("admin_icon_picker.results", { count: filtered.length }) : t("admin_icon_picker.search_hint")}
           </div>
           {displayList.length === 0 ? (
             <div className="mt-4 rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No icons found. Try a different keyword.
+              {t("admin_icon_picker.no_results")}
             </div>
           ) : (
             <div key={normalized} className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[320px] overflow-y-auto">

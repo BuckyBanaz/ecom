@@ -21,6 +21,7 @@ import { SafeImage } from "@/components/ui/SafeImage";
 const AdminBrands = () => {
   const { t } = useTranslation();
   const { hasPermission } = useAdmin();
+  const [isMounted, setIsMounted] = useState(false);
   
   // Brand states
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -41,6 +42,11 @@ const AdminBrands = () => {
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
+
+  // Set mounted flag on component mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Load brands and series
   useEffect(() => {
@@ -396,18 +402,20 @@ const AdminBrands = () => {
 
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-foreground/80">{t("admin_brands.label_associated_brand")}</Label>
-                      <Select value={selectedSeriesBrand} onValueChange={setSelectedSeriesBrand}>
-                        <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                          <SelectValue placeholder={t("admin_brands.placeholder_associated_brand")} />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          {brandsList.map((b) => (
-                            <SelectItem key={b.id} value={b.id} className="text-xs rounded-lg">
-                              {b.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {isMounted && (
+                        <Select value={selectedSeriesBrand} onValueChange={setSelectedSeriesBrand}>
+                          <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                            <SelectValue placeholder={t("admin_brands.placeholder_associated_brand")} />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {brandsList.map((b) => (
+                              <SelectItem key={b.id} value={b.id} className="text-xs rounded-lg">
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">

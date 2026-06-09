@@ -363,6 +363,20 @@ export const cmsPagesRepository = {
   },
 };
 
+// 9.5 CMS Header & Footer Repository
+export const cmsHeaderFooterRepository = {
+  get: async () => {
+    return request<any>(ENDPOINTS.CMS_HEADER_FOOTER, { method: "GET" });
+  },
+  
+  update: async (data: any) => {
+    return request<any>(ENDPOINTS.CMS_HEADER_FOOTER, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // 10. Media Repository
 export const mediaRepository = {
   list: async (folder: string = "") => {
@@ -552,6 +566,18 @@ export const adminSettingsRepository = {
       body: JSON.stringify(data),
     });
   },
+  getGeneralSettings: async () => {
+    return request<any>(ENDPOINTS.ADMIN_GENERAL_SETTINGS, { method: "GET" });
+  },
+  updateGeneralSettings: async (data: any) => {
+    return request<any>(ENDPOINTS.ADMIN_GENERAL_SETTINGS, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  getMaintenanceStatus: async () => {
+    return request<any>(ENDPOINTS.PUBLIC_MAINTENANCE_STATUS, { method: "GET" });
+  },
 };
 
 // 15. Email Templates Repository
@@ -707,8 +733,12 @@ export const ordersRepository = {
   getInvoice: async (token: string) => {
     return request<any>(`${ENDPOINTS.ORDERS}/invoice/${token}`, { method: "GET" });
   },
-  getShippingMethods: async () => {
-    return request<any>(`${ENDPOINTS.ORDERS}/sendcloud/methods`, { method: "GET" });
+  getShippingMethods: async (params?: { toCountry?: string; weight?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.toCountry) qs.set("to_country", params.toCountry);
+    if (params?.weight && params.weight > 0) qs.set("weight", String(params.weight));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<any>(`${ENDPOINTS.ORDERS}/sendcloud/methods${suffix}`, { method: "GET" });
   },
   createShipment: async (id: string, weight: number, shippingMethodId: number) => {
     return request<any>(`${ENDPOINTS.ORDERS}/${id}/sendcloud/shipment`, {

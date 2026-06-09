@@ -62,15 +62,15 @@ const AdminTestimonials = () => {
     setOpen(true);
   };
 
-  const openEdit = (t: Testimonial) => {
-    setEdit(t);
+  const openEdit = (item: Testimonial) => {
+    setEdit(item);
     setForm({
-      name: t.name,
-      title: t.title,
-      rating: t.rating,
-      message: t.message,
-      avatar: t.avatar,
-      published: t.published,
+      name: item.name,
+      title: item.title,
+      rating: item.rating,
+      message: item.message,
+      avatar: item.avatar,
+      published: item.published,
     });
     setOpen(true);
   };
@@ -83,10 +83,10 @@ const AdminTestimonials = () => {
     }
     const today = new Date().toISOString().slice(0, 10);
     if (edit) {
-      const updated = testimonials.map((t) =>
-        t.id === edit.id
-          ? { ...t, ...form, rating: Number(form.rating), date: today }
-          : t
+      const updated = testimonials.map((item) =>
+        item.id === edit.id
+          ? { ...item, ...form, rating: Number(form.rating), date: today }
+          : item
       );
       persist(updated);
       toast.success(t("admin_testimonials.toast_updated"));
@@ -104,7 +104,7 @@ const AdminTestimonials = () => {
   };
 
   const remove = (id: string) => {
-    persist(testimonials.filter((t) => t.id !== id));
+    persist(testimonials.filter((item) => item.id !== id));
     toast.success(t("admin_testimonials.toast_deleted"));
   };
 
@@ -202,39 +202,39 @@ const AdminTestimonials = () => {
             {t("admin_testimonials.empty_text")}
           </div>
         ) : (
-          testimonials.map((t) => (
-            <div key={t.id} className="rounded-xl border bg-card p-5 shadow-xs">
+          testimonials.map((item) => (
+            <div key={item.id} className="rounded-xl border bg-card p-5 shadow-xs">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 overflow-hidden rounded-full border bg-muted">
-                  {t.avatar ? (
-                    <img src={t.avatar} alt="" className="h-full w-full object-cover" />
+                  {item.avatar ? (
+                    <img src={item.avatar} alt="" className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">{t("admin_testimonials.no_image")}</div>
                   )}
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-foreground">{t.name}</div>
-                  <div className="text-xs text-muted-foreground">{t.title || "—"}</div>
+                  <div className="font-semibold text-foreground">{item.name}</div>
+                  <div className="text-xs text-muted-foreground">{item.title || "—"}</div>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${t.published ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
-                  {t.published ? t("admin_testimonials.badge_published") : t("admin_testimonials.badge_draft")}
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${item.published ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                  {item.published ? t("admin_testimonials.badge_published") : t("admin_testimonials.badge_draft")}
                 </span>
               </div>
 
               <div className="mt-3 flex items-center gap-1 text-amber-500">
-                {Array.from({ length: t.rating }).map((_, i) => (
+                {Array.from({ length: item.rating }).map((_, i) => (
                   <Star key={i} className="h-4 w-4 fill-current" />
                 ))}
               </div>
 
-              <p className="mt-3 text-sm text-muted-foreground line-clamp-4">{t.message}</p>
+              <p className="mt-3 text-sm text-muted-foreground line-clamp-4">{item.message}</p>
               <div className="mt-4 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">{t.date}</span>
+                <span className="text-xs text-muted-foreground">{item.date}</span>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="gap-1" onClick={() => openEdit(t)}>
+                  <Button variant="ghost" size="sm" className="gap-1" onClick={() => openEdit(item)}>
                     <Pencil className="h-3 w-3" /> {t("admin_testimonials.button_edit")}
                   </Button>
-                  <Button variant="ghost" size="sm" className="gap-1 text-destructive" onClick={() => remove(t.id)}>
+                  <Button variant="ghost" size="sm" className="gap-1 text-destructive" onClick={() => remove(item.id)}>
                     <Trash2 className="h-3 w-3" /> {t("admin_testimonials.button_delete")}
                   </Button>
                 </div>

@@ -28,6 +28,7 @@ interface StoreCharge {
 export default function AdminCharges() {
   const { t } = useTranslation();
   const { hasPermission } = useAdmin();
+  const [isMounted, setIsMounted] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCharge, setEditCharge] = useState<StoreCharge | null>(null);
   const [chargesList, setChargesList] = useState<StoreCharge[]>([]);
@@ -39,6 +40,10 @@ export default function AdminCharges() {
   const [value, setValue] = useState(0);
   const [isActive, setIsActive] = useState(true);
   const [minFreeLimit, setMinFreeLimit] = useState(0);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const fetchCharges = async () => {
     setIsLoading(true);
@@ -183,15 +188,17 @@ export default function AdminCharges() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="chargeType" className="text-xs font-bold text-foreground/80">Charge Type</Label>
-                    <Select value={type} onValueChange={setType}>
-                      <SelectTrigger id="chargeType" className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="percentage" className="text-xs">Percentage (%)</SelectItem>
-                        <SelectItem value="flat" className="text-xs">Flat Value (€)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {isMounted && (
+                      <Select value={type} onValueChange={setType}>
+                        <SelectTrigger id="chargeType" className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="percentage" className="text-xs">Percentage (%)</SelectItem>
+                          <SelectItem value="flat" className="text-xs">Flat Value (€)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="chargeValue" className="text-xs font-bold text-foreground/80">Value</Label>

@@ -16,6 +16,60 @@ export const DEFAULT_LANGUAGE: SupportedLanguage = "nl";
 export const FALLBACK_LANGUAGE: SupportedLanguage = "en";
 export const LANGUAGE_STORAGE_KEY = "i18nextLng";
 
+function disableNativeDomTranslation() {
+  if (typeof document === "undefined") return;
+
+  document.documentElement.classList.add("notranslate");
+  document.documentElement.setAttribute("translate", "no");
+  document.body?.classList.add("notranslate");
+  document.body?.setAttribute("translate", "no");
+  document.getElementById("root")?.classList.add("notranslate");
+  document.getElementById("root")?.setAttribute("translate", "no");
+}
+
+function removeGoogleTranslateArtifacts() {
+  if (typeof document === "undefined") return;
+
+  document.getElementById("google_translate_element")?.remove();
+  document
+    .querySelectorAll<HTMLScriptElement>('script[src*="translate.google.com/translate_a/element.js"]')
+    .forEach((script) => script.remove());
+  document
+    .querySelectorAll<HTMLElement>(
+      "iframe.skiptranslate, div.skiptranslate, .goog-te-banner-frame, .goog-te-ftab, #goog-gt-tt, .goog-tooltip",
+    )
+    .forEach((element) => element.remove());
+}
+
+export function clearGoogleTranslateCookie() {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+
+  const hostname = window.location.hostname;
+  const domains = new Set<string>([""]);
+
+  if (hostname) {
+    domains.add(hostname);
+
+    const parts = hostname.split(".").filter(Boolean);
+    if (parts.length > 1) {
+      domains.add("." + parts.slice(-2).join("."));
+    }
+  }
+
+  domains.forEach((domain) => {
+    const domainPart = domain ? `; domain=${domain}` : "";
+    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domainPart}`;
+  });
+
+  document.documentElement.classList.remove("translated-ltr", "translated-rtl");
+  document.body?.classList.remove("translated-ltr", "translated-rtl");
+  removeGoogleTranslateArtifacts();
+  disableNativeDomTranslation();
+}
+
+disableNativeDomTranslation();
+clearGoogleTranslateCookie();
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -39,21 +93,18 @@ i18n
     returnNull: false,
   });
 
-// Keep <html lang="..."> in sync so the browser's built-in translator
-// (Chrome / Edge) can detect & offer auto-translate suggestions like
-// the native Google Translate popup.
+// Keep <html lang="..."> in sync for accessibility and SEO.
 const syncHtmlLang = (lng: string) => {
   if (typeof document !== "undefined") {
     document.documentElement.lang = lng;
+    disableNativeDomTranslation();
   }
 };
 
 syncHtmlLang(i18n.language || DEFAULT_LANGUAGE);
 i18n.on("languageChanged", syncHtmlLang);
 
-// Defensive: Google Translate injects its top banner iframe AFTER our CSS
-// loads, and re-applies inline styles. Continuously force-hide it and reset
-// any body offset Google adds so our layout never jumps.
+// Defensive cleanup for any stale Google Translate UI left by older sessions.
 if (typeof window !== "undefined") {
   const hideGoogleTranslateBanner = () => {
     const selectors = [

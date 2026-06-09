@@ -19,7 +19,14 @@ app.use(requestLogger);
 // Configure Cross-Origin Resource Sharing matching our React client URL
 app.use(
   cors({
-    origin: env.CLIENT_URL,
+    origin: (origin, callback) => {
+      // Allow requests from localhost on any dev port or from no origin (mobile/curl)
+      if (!origin || /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );

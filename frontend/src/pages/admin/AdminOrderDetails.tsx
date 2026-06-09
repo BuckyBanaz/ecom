@@ -46,6 +46,7 @@ export default function AdminOrderDetails() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [isMounted, setIsMounted] = useState(false);
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -58,6 +59,10 @@ export default function AdminOrderDetails() {
 
   // Modal dialog view states for print/preview simulations
   const [showInvoiceMock, setShowInvoiceMock] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [showLabelMock, setShowLabelMock] = useState(false);
   const [showShipmentModal, setShowShipmentModal] = useState(false);
   const [selectedCarrier, setSelectedCarrier] = useState<string>("Auto Cheapest");
@@ -86,15 +91,90 @@ export default function AdminOrderDetails() {
   };
 
   useEffect(() => {
-    if (showShipmentModal && shippingMethods.length === 0) {
+    if (showShipmentModal && order) {
       const fetchMethods = async () => {
         try {
           setLoadingCarriers(true);
-          const res = await ordersRepository.getShippingMethods();
+          let toCountry: string | undefined = undefined;
+          try {
+            const addr = typeof order.shippingAddress === "string"
+              ? JSON.parse(order.shippingAddress)
+              : order.shippingAddress;
+            const rawCountry = String(addr?.country || "").toLowerCase().trim();
+            const countryMap: Record<string, string> = {
+              // Netherlands
+              "netherlands": "NL", "nederland": "NL", "nl": "NL",
+              // Germany
+              "germany": "DE", "deutschland": "DE", "de": "DE",
+              // Belgium
+              "belgium": "BE", "belgië": "BE", "be": "BE",
+              // France
+              "france": "FR", "fr": "FR",
+              // India
+              "india": "IN", "in": "IN",
+              // United Kingdom
+              "united kingdom": "GB", "uk": "GB", "gb": "GB", "england": "GB", "scotland": "GB",
+              // United States
+              "united states": "US", "usa": "US", "us": "US", "america": "US",
+              // New Zealand
+              "new zealand": "NZ", "nz": "NZ", "aotearoa": "NZ",
+              // Australia
+              "australia": "AU", "au": "AU",
+              // Canada
+              "canada": "CA", "ca": "CA",
+              // Italy
+              "italy": "IT", "it": "IT", "italia": "IT",
+              // Spain
+              "spain": "ES", "es": "ES", "españa": "ES",
+              // Portugal
+              "portugal": "PT", "pt": "PT",
+              // Poland
+              "poland": "PL", "pl": "PL",
+              // Sweden
+              "sweden": "SE", "se": "SE",
+              // Norway
+              "norway": "NO", "no": "NO",
+              // Denmark
+              "denmark": "DK", "dk": "DK",
+              // Austria
+              "austria": "AT", "at": "AT",
+              // Switzerland
+              "switzerland": "CH", "ch": "CH", "suisse": "CH",
+              // Czech Republic
+              "czech republic": "CZ", "czech": "CZ", "cz": "CZ",
+            };
+            toCountry = countryMap[rawCountry] || (addr?.country ? String(addr.country).toUpperCase().substring(0, 2) : undefined);
+            console.log("🌍 Destination Country:", rawCountry, "→", toCountry, "| Weight:", weight, "kg");
+          } catch (e) {
+            console.warn("Failed to parse shipping address:", e);
+          }
+
+          const w = parseFloat(weight);
+          console.log("📡 Fetching all Sendcloud shipping methods...");
+          
+          const res = await ordersRepository.getShippingMethods({
+            toCountry,
+            weight: !isNaN(w) && w > 0 ? w : undefined,
+          });
+
           if (res.success && res.data && res.data.shipping_methods) {
-            setShippingMethods(res.data.shipping_methods);
-            if (res.data.shipping_methods.length > 0) {
-              setSelectedCarrier(res.data.shipping_methods[0].id.toString());
+            const allMethods = res.data.shipping_methods;
+            console.log(`✅ Got ${allMethods.length} shipping methods from Sendcloud`);
+            
+            setShippingMethods(allMethods);
+            if (allMethods.length > 0) {
+              setSelectedCarrier(allMethods[0].id.toString());
+              
+              // Show info toast if destination is international
+              if (toCountry && toCountry !== "NL") {
+                toast.info(
+                  `${allMethods.length} shipping methods available for ${toCountry}. Some may not support this destination or weight — the API will confirm on submit.`,
+                  { duration: 5000 }
+                );
+              }
+            } else {
+              setSelectedCarrier("");
+              toast.error("No shipping methods available. Configure carriers in Sendcloud.");
             }
           }
         } catch (err) {
@@ -106,7 +186,7 @@ export default function AdminOrderDetails() {
       };
       fetchMethods();
     }
-  }, [showShipmentModal]);
+  }, [showShipmentModal, order, weight]);
 
   const fetchOrder = async () => {
     if (!id) return;
@@ -264,18 +344,20 @@ export default function AdminOrderDetails() {
           </Button>
           
           {/* Status Select */}
-          <Select value={selectedStatus || order?.status} onValueChange={setSelectedStatus} disabled={updatingStatus}>
-            <SelectTrigger className="w-[220px] h-9 text-xs bg-background border-muted-foreground/20 rounded-full font-bold">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {translatedStatusOptions.map(({ key, label, isAuto }) => (
-                <SelectItem key={key} value={key} className="text-xs" disabled={isAuto}>
-                  <span>{label}</span> {isAuto && <span className="text-xs text-muted-foreground">(Auto)</span>}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {isMounted && (
+            <Select value={selectedStatus || order?.status} onValueChange={setSelectedStatus} disabled={updatingStatus}>
+              <SelectTrigger className="w-[220px] h-9 text-xs bg-background border-muted-foreground/20 rounded-full font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {translatedStatusOptions.map(({ key, label, isAuto }) => (
+                  <SelectItem key={key} value={key} className="text-xs" disabled={isAuto}>
+                    <span>{label}</span> {isAuto && <span className="text-xs text-muted-foreground">(Auto)</span>}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Save Status Button */}
           {selectedStatus && order && selectedStatus !== order.status && (

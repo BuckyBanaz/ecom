@@ -227,6 +227,7 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
   // Memoize translated status options to avoid portal re-render issues
   const translatedStatusOptions = useMemo(() => {
@@ -237,8 +238,14 @@ export default function AdminOrders() {
   }, [t]);
 
   useEffect(() => {
-    fetchOrders();
+    setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (isMounted) {
+      fetchOrders();
+    }
+  }, [isMounted]);
 
   const fetchOrders = async () => {
     try {
@@ -278,17 +285,19 @@ export default function AdminOrders() {
             className="pl-10 h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[200px] h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-            <SelectValue placeholder={t("admin_orders.status_all")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" className="text-xs">{t("admin_orders.status_all")}</SelectItem>
-            {translatedStatusOptions.map(({ key, label }) => (
-              <SelectItem key={key} value={key} className="text-xs"><span>{label}</span></SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isMounted && (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[200px] h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+              <SelectValue placeholder={t("admin_orders.status_all")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">{t("admin_orders.status_all")}</SelectItem>
+              {translatedStatusOptions.map(({ key, label }) => (
+                <SelectItem key={key} value={key} className="text-xs"><span>{label}</span></SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">

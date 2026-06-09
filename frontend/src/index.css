@@ -3,9 +3,8 @@
 @tailwind utilities;
 
 /* ---------------------------------------------------------------
-   Hide the default Google Translate banner / iframe globally.
-   The translation engine still works (cookie-driven), we only
-   suppress the floating "Translated into English" bar.
+   Hide stale Google Translate banner / iframe UI globally.
+   Language switching is handled by i18next inside React.
    --------------------------------------------------------------- */
 .goog-te-banner-frame.skiptranslate,
 .goog-te-banner-frame,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ interface HeroBannerFormProps {
 }
 
 export function HeroBannerForm({ slides, onAddSlide, onRemoveSlide, onUpdateSlide }: HeroBannerFormProps) {
+  const { t } = useTranslation();
   const [activeSlideIndex, setActiveSlideIndex] = useState<number | null>(null);
 
   return (

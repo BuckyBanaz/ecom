@@ -15,10 +15,15 @@ import { useAdmin } from "@/context/AdminContext";
 const AdminSettings = () => {
   const { t } = useTranslation();
   const { user: adminUser, hasPermission } = useAdmin();
+  const [isMounted, setIsMounted] = useState(false);
   const isSuperAdmin = hasPermission("settings");
 
   const queryTab = new URLSearchParams(window.location.search).get("tab") || (isSuperAdmin ? "features" : "profile");
   const [tab, setTab] = useState(!isSuperAdmin && queryTab !== "profile" ? "profile" : queryTab);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -82,9 +87,19 @@ const AdminSettings = () => {
     smsProvider: "twilio",
     twilioAccountSid: "",
     twilioAuthToken: "",
-    twilioSenderNumber: "",
-  });
+    twilioSenderNumber: "",  });
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+
+  const [generalSettings, setGeneralSettings] = useState({
+    storeName: "",
+    storeUrl: "",
+    supportEmail: "",
+    currency: "EUR",
+    maintenanceMode: false,
+    maintenanceMessage: "",
+  });
+  const [isLoadingGeneral, setIsLoadingGeneral] = useState(true);
+  const [isSavingGeneral, setIsSavingGeneral] = useState(false);
 
   const [profileData, setProfileData] = useState({
     firstName: "",
@@ -242,14 +257,32 @@ const AdminSettings = () => {
         setIsLoadingAuth(false);
       }
     };
+    const fetchGeneralSettings = async () => {
+      try {
+        const res = await adminSettingsRepository.getGeneralSettings();
+        if (res.success && res.data) {
+          setGeneralSettings({
+            storeName: res.data.storeName || "",
+            storeUrl: res.data.storeUrl || "",
+            supportEmail: res.data.supportEmail || "",
+            currency: res.data.currency || "EUR",
+            maintenanceMode: !!res.data.maintenanceMode,
+            maintenanceMessage: res.data.maintenanceMessage || "",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching general settings:", error);
+      } finally {
+        setIsLoadingGeneral(false);
+      }
+    };
     fetchFeatures();
     fetchSmtpSettings();
     fetchPaymentSettings();
     fetchShippingSettings();
     fetchAuthSettings();
-  }, [isSuperAdmin]);
-
-  const handleSaveFeatures = async () => {
+    fetchGeneralSettings();
+  }, [isSuperAdmin]);  const handleSaveFeatures = async () => {
     try {
       const res = await cmsFeaturesRepository.update(featureItems);
       if (res.success) {
@@ -265,6 +298,23 @@ const AdminSettings = () => {
   const handleSave = (section: string) => (e: React.FormEvent) => {
     e.preventDefault();
     toast.success(`${section} settings saved (demo)`);
+  };
+
+  const handleSaveGeneral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSavingGeneral(true);
+      const res = await adminSettingsRepository.updateGeneralSettings(generalSettings);
+      if (res.success) {
+        toast.success("General settings saved successfully");
+      } else {
+        toast.error(res.message || "Failed to save general settings");
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "An error occurred while saving general settings");
+    } finally {
+      setIsSavingGeneral(false);
+    }
   };
 
   const handleSaveSmtp = async (e: React.FormEvent) => {
@@ -459,15 +509,86 @@ const AdminSettings = () => {
         </TabsContent>
 
         <TabsContent value="general">
-          <form onSubmit={handleSave("General")} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-            <div><Label>Store Name</Label><Input defaultValue="SCHIP & STER" className="mt-1" /></div>
-            <div><Label>Store URL</Label><Input defaultValue="https://schipandster.nl" className="mt-1" /></div>
-            <div><Label>Support Email</Label><Input defaultValue="support@schipandster.nl" className="mt-1" /></div>
-            <div><Label>Currency</Label>
-              <Select defaultValue="EUR"><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (€)</SelectItem><SelectItem value="USD">USD ($)</SelectItem><SelectItem value="GBP">GBP (£)</SelectItem></SelectContent></Select>
-            </div>
-            <div className="flex items-center gap-2"><Switch defaultChecked /><Label>Maintenance Mode</Label></div>
-            <Button type="submit" className="rounded-full w-full sm:w-auto">Save Changes</Button>
+          <form onSubmit={handleSaveGeneral} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
+            {isLoadingGeneral ? (
+              <div className="text-sm text-muted-foreground">Loading general settings...</div>
+            ) : (
+              <>
+                <div>
+                  <Label>Store Name</Label>
+                  <Input
+                    value={generalSettings.storeName}
+                    onChange={(e) => setGeneralSettings({ ...generalSettings, storeName: e.target.value })}
+                    placeholder="SCHIP & STER"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Store URL</Label>
+                  <Input
+                    value={generalSettings.storeUrl}
+                    onChange={(e) => setGeneralSettings({ ...generalSettings, storeUrl: e.target.value })}
+                    placeholder="https://schipandster.nl"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Support Email</Label>
+                  <Input
+                    type="email"
+                    value={generalSettings.supportEmail}
+                    onChange={(e) => setGeneralSettings({ ...generalSettings, supportEmail: e.target.value })}
+                    placeholder="support@schipandster.nl"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Currency</Label>
+                  {isMounted && (
+                    <Select
+                      value={generalSettings.currency}
+                      onValueChange={(val) => setGeneralSettings({ ...generalSettings, currency: val })}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="EUR">EUR (€)</SelectItem>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="GBP">GBP (£)</SelectItem>
+                        <SelectItem value="INR">INR (₹)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Label className="text-base">Maintenance Mode</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        When enabled, only admins can access the website. All other visitors will see a maintenance page.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={generalSettings.maintenanceMode}
+                      onCheckedChange={(val) => setGeneralSettings({ ...generalSettings, maintenanceMode: val })}
+                    />
+                  </div>
+                  {generalSettings.maintenanceMode && (
+                    <div>
+                      <Label className="text-sm">Maintenance Message</Label>
+                      <Input
+                        value={generalSettings.maintenanceMessage}
+                        onChange={(e) => setGeneralSettings({ ...generalSettings, maintenanceMessage: e.target.value })}
+                        placeholder="We're currently performing maintenance. We'll be back shortly!"
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+                </div>
+                <Button type="submit" disabled={isSavingGeneral} className="rounded-full w-full sm:w-auto">
+                  {isSavingGeneral ? "Saving..." : "Save Changes"}
+                </Button>
+              </>
+            )}
           </form>
         </TabsContent>
 
@@ -551,7 +672,9 @@ const AdminSettings = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><Label>Port</Label><Input value={smtpSettings.port} onChange={(e) => setSmtpSettings({...smtpSettings, port: e.target.value})} className="mt-1" /></div>
                 <div><Label>Encryption</Label>
-                  <Select value={smtpSettings.encryption} onValueChange={(v) => setSmtpSettings({...smtpSettings, encryption: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tls">TLS</SelectItem><SelectItem value="ssl">SSL</SelectItem><SelectItem value="none">None</SelectItem></SelectContent></Select>
+                  {isMounted && (
+                    <Select value={smtpSettings.encryption} onValueChange={(v) => setSmtpSettings({...smtpSettings, encryption: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tls">TLS</SelectItem><SelectItem value="ssl">SSL</SelectItem><SelectItem value="none">None</SelectItem></SelectContent></Select>
+                  )}
                 </div>
               </div>
               <div><Label>Username</Label><Input value={smtpSettings.username} onChange={(e) => setSmtpSettings({...smtpSettings, username: e.target.value})} className="mt-1" /></div>
@@ -588,22 +711,26 @@ const AdminSettings = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">Sign Up Method</p><p className="text-xs text-muted-foreground">What details are required at sign up?</p></div>
-                  <Select value={authSettings.registerMethod} onValueChange={v => setAuthSettings({...authSettings, registerMethod: v})}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="both">Email & Phone</SelectItem>
-                      <SelectItem value="email_only">Email Only</SelectItem>
-                      <SelectItem value="phone_only">Phone Only</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {isMounted && (
+                    <Select value={authSettings.registerMethod} onValueChange={v => setAuthSettings({...authSettings, registerMethod: v})}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="both">Email & Phone</SelectItem>
+                        <SelectItem value="email_only">Email Only</SelectItem>
+                        <SelectItem value="phone_only">Phone Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
               
               <h3 className="font-semibold text-lg mt-6">Phone / SMS Settings</h3>
               <div><Label>SMS Provider</Label>
-                <Select value={authSettings.smsProvider} onValueChange={v => setAuthSettings({...authSettings, smsProvider: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="twilio">Twilio</SelectItem><SelectItem value="messagebird">MessageBird</SelectItem><SelectItem value="vonage">Vonage</SelectItem></SelectContent></Select>
+                {isMounted && (
+                  <Select value={authSettings.smsProvider} onValueChange={v => setAuthSettings({...authSettings, smsProvider: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="twilio">Twilio</SelectItem><SelectItem value="messagebird">MessageBird</SelectItem><SelectItem value="vonage">Vonage</SelectItem></SelectContent></Select>
+                )}
               </div>
               
               {authSettings.smsProvider === "twilio" && (

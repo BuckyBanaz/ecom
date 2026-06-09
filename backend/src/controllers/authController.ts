@@ -422,7 +422,7 @@ export const sendOTP = async (
     const redisKey = type === "login" ? `otp:${phone}` : `otp:register:${phone}`;
     await redis.setex(redisKey, 300, otp);
 
-    const smsBody = `[Schip & Ster] Your verification code is ${otp}. Valid for 5 minutes.`;
+    const smsBody = `Schip & Ster Your verification code is ${otp}. Valid for 5 minutes.`;
     const twilioRes = await twilioService.sendSMS(phone, smsBody);
 
     if (!twilioRes.success) {

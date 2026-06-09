@@ -11,42 +11,42 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
-  { to: "/admin", icon: LayoutDashboard, label: "Dashboard", permission: "dashboard" },
-  { to: "/admin/analytics", icon: BarChart3, label: "Analytics", permission: "dashboard" },
-  { to: "/admin/products", icon: Package, label: "Products", permission: "products" },
-  { to: "/admin/categories", icon: FolderTree, label: "Categories", permission: "categories" },
-  { to: "/admin/brands", icon: Tag, label: "Brands", permission: "brands" },
-  { to: "/admin/attributes", icon: Sliders, label: "Attributes", permission: "attributes" },
-  { to: "/admin/offers", icon: Percent, label: "Offers", permission: "offers" },
-  { to: "/admin/charges", icon: Coins, label: "Charges", permission: "charges" },
-  { to: "/admin/testimonials", icon: Quote, label: "Testimonials", permission: "testimonials" },
-  { to: "/admin/storage", icon: HardDrive, label: "Storage", permission: "storage" },
-  { to: "/admin/users", icon: Users, label: "Users", permission: "users" },
-  { to: "/admin/settings", icon: Settings, label: "Settings", permission: "settings" },
+const navItemsBase = [
+  { to: "/admin", icon: LayoutDashboard, labelKey: "dashboard", permission: "dashboard" },
+  { to: "/admin/analytics", icon: BarChart3, labelKey: "analytics", permission: "dashboard" },
+  { to: "/admin/products", icon: Package, labelKey: "products", permission: "products" },
+  { to: "/admin/categories", icon: FolderTree, labelKey: "categories", permission: "categories" },
+  { to: "/admin/brands", icon: Tag, labelKey: "brands", permission: "brands" },
+  { to: "/admin/attributes", icon: Sliders, labelKey: "attributes", permission: "attributes" },
+  { to: "/admin/offers", icon: Percent, labelKey: "offers", permission: "offers" },
+  { to: "/admin/charges", icon: Coins, labelKey: "charges", permission: "charges" },
+  { to: "/admin/testimonials", icon: Quote, labelKey: "testimonials", permission: "testimonials" },
+  { to: "/admin/storage", icon: HardDrive, labelKey: "storage", permission: "storage" },
+  { to: "/admin/users", icon: Users, labelKey: "users", permission: "users" },
+  { to: "/admin/settings", icon: Settings, labelKey: "settings", permission: "settings" },
 ];
 
-const ordersChildren = [
-  { to: "/admin/orders", icon: ShoppingCart, label: "All Orders" },
-  { to: "/admin/orders/ready-to-ship", icon: Truck, label: "Ready To Ship" },
-  { to: "/admin/orders/in-transit", icon: ArrowRight, label: "In Transit" },
-  { to: "/admin/orders/delivered", icon: CheckCircle, label: "Delivered" },
-  { to: "/admin/orders/returns", icon: RotateCcw, label: "Returns" },
-  { to: "/admin/orders/labels", icon: Tag, label: "Shipping Labels" }
+const ordersChildrenBase = [
+  { to: "/admin/orders", icon: ShoppingCart, labelKey: "all_orders" },
+  { to: "/admin/orders/ready-to-ship", icon: Truck, labelKey: "ready_to_ship" },
+  { to: "/admin/orders/in-transit", icon: ArrowRight, labelKey: "in_transit" },
+  { to: "/admin/orders/delivered", icon: CheckCircle, labelKey: "delivered" },
+  { to: "/admin/orders/returns", icon: RotateCcw, labelKey: "returns" },
+  { to: "/admin/orders/labels", icon: Tag, labelKey: "shipping_labels" }
 ];
 
-const cmsChildren = [
-  { to: "/admin/cms/homepage", icon: Home, label: "Homepage" },
-  { to: "/admin/cms/header-footer", icon: FileText, label: "Header & Footer" },
-  { to: "/admin/cms/faqs", icon: FileText, label: "FAQs" },
-  { to: "/admin/cms/megamenu", icon: FolderTree, label: "Mega Menu" },
-  { to: "/admin/cms/relief", icon: FileText, label: "Relief Page" },
-  { to: "/admin/cms/privacy-policy", icon: ScrollText, label: "Privacy Policy" },
-  { to: "/admin/cms/terms-conditions", icon: ScrollText, label: "Terms & Conditions" },
-  { to: "/admin/cms/pages", icon: FileCode, label: "Dynamic Pages" },
-  { to: "/admin/cms/blogs", icon: Newspaper, label: "Blogs" },
-  { to: "/admin/cms/email-templates", icon: Mail, label: "Email Templates" },
-  { to: "/admin/cms/seo", icon: Search, label: "SEO Settings" },
+const cmsChildrenBase = [
+  { to: "/admin/cms/homepage", icon: Home, labelKey: "homepage" },
+  { to: "/admin/cms/header-footer", icon: FileText, labelKey: "header_footer" },
+  { to: "/admin/cms/faqs", icon: FileText, labelKey: "faqs" },
+  { to: "/admin/cms/megamenu", icon: FolderTree, labelKey: "mega_menu" },
+  { to: "/admin/cms/relief", icon: FileText, labelKey: "relief_page" },
+  { to: "/admin/cms/privacy-policy", icon: ScrollText, labelKey: "privacy_policy" },
+  { to: "/admin/cms/terms-conditions", icon: ScrollText, labelKey: "terms_conditions" },
+  { to: "/admin/cms/pages", icon: FileCode, labelKey: "dynamic_pages" },
+  { to: "/admin/cms/blogs", icon: Newspaper, labelKey: "blogs" },
+  { to: "/admin/cms/email-templates", icon: Mail, labelKey: "email_templates" },
+  { to: "/admin/cms/seo", icon: Search, labelKey: "seo_settings" },
 ];
 
 export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileOpen: (open: boolean) => void }) {
@@ -56,6 +56,11 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
   const [collapsed, setCollapsed] = useState(false);
   const [cmsOpen, setCmsOpen] = useState(pathname.startsWith("/admin/cms"));
   const [ordersOpen, setOrdersOpen] = useState(pathname.startsWith("/admin/orders"));
+
+  // Create translated menu items - use full key path with admin_sidebar namespace
+  const navItems = navItemsBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
+  const ordersChildren = ordersChildrenBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
+  const cmsChildren = cmsChildrenBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
 
   useEffect(() => {
     setMobileOpen(false);
@@ -84,7 +89,7 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
           {(!collapsed || mobileOpen) && (
             <div className="flex items-center gap-2">
               <Shield className="h-6 w-6 text-primary" />
-              <span className="text-lg font-bold">Admin</span>
+              <span className="text-lg font-bold">{t("admin_sidebar.admin")}</span>
             </div>
           )}
           <Button variant="ghost" size="icon" onClick={() => setCollapsed(!collapsed)} className="ml-auto h-8 w-8 hidden md:inline-flex">
@@ -133,7 +138,7 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
               <ShoppingCart className="h-5 w-5 shrink-0" />
               {!collapsed && (
                 <>
-                  <span className="flex-1 text-left">Orders</span>
+                  <span className="flex-1 text-left">{t("admin_sidebar.orders")}</span>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", ordersOpen ? "rotate-0" : "-rotate-90")} />
                 </>
               )}
@@ -179,7 +184,7 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
               <FileText className="h-5 w-5 shrink-0" />
               {!collapsed && (
                 <>
-                  <span className="flex-1 text-left">CMS</span>
+                  <span className="flex-1 text-left">{t("admin_sidebar.cms")}</span>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", cmsOpen ? "rotate-0" : "-rotate-90")} />
                 </>
               )}
@@ -239,7 +244,7 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
         )}
         <Button variant="ghost" size={collapsed ? "icon" : "default"} onClick={logout} className="w-full justify-start gap-2 text-destructive hover:text-destructive">
           <LogOut className="h-4 w-4" />
-          {!collapsed && "Logout"}
+          {!collapsed && t("admin_sidebar.logout")}
         </Button>
       </div>
     </aside>

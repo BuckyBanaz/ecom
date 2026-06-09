@@ -29,6 +29,7 @@ interface Coupon {
 export default function AdminOffers() {
   const { t } = useTranslation();
   const { hasPermission } = useAdmin();
+  const [isMounted, setIsMounted] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCoupon, setEditCoupon] = useState<Coupon | null>(null);
   const [couponsList, setCouponsList] = useState<Coupon[]>([]);
@@ -42,6 +43,10 @@ export default function AdminOffers() {
   const [minOrderValue, setMinOrderValue] = useState(0);
   const [isActive, setIsActive] = useState(true);
   const [expiresAt, setExpiresAt] = useState("");
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const fetchCoupons = async () => {
     setIsLoading(true);
@@ -214,15 +219,17 @@ export default function AdminOffers() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="discountType" className="text-xs font-bold text-foreground/80">Type</Label>
-                    <Select value={discountType} onValueChange={setDiscountType}>
-                      <SelectTrigger id="discountType" className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="percentage" className="text-xs">Percentage (%)</SelectItem>
-                        <SelectItem value="flat" className="text-xs">Flat Rate (€)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {isMounted && (
+                      <Select value={discountType} onValueChange={setDiscountType}>
+                        <SelectTrigger id="discountType" className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="percentage" className="text-xs">Percentage (%)</SelectItem>
+                          <SelectItem value="flat" className="text-xs">Flat Rate (€)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="value" className="text-xs font-bold text-foreground/80">Discount Value</Label>

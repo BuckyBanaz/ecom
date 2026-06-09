@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -17,8 +18,14 @@ interface MenuCategoryBlockFormProps {
 }
 
 export function MenuCategoryBlockForm({ onInsert, onCancel }: MenuCategoryBlockFormProps) {
+  const { t } = useTranslation();
+  const [isMounted, setIsMounted] = useState(false);
   const [menuSlug, setMenuSlug] = useState("");
   const [showLabel, setShowLabel] = useState(true);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleInsert = () => {
     let shortcode = `[menu-category menu_slug="${menuSlug}" show_label="${showLabel}"][/menu-category]`;
@@ -29,18 +36,20 @@ export function MenuCategoryBlockForm({ onInsert, onCancel }: MenuCategoryBlockF
     <div className="space-y-4">
       <div className="space-y-2">
         <Label>Select Mega Menu Section</Label>
-        <Select value={menuSlug} onValueChange={setMenuSlug}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select a menu to display its categories" />
-          </SelectTrigger>
-          <SelectContent>
-            {megaMenuData.map((menu) => (
-              <SelectItem key={menu.slug} value={menu.slug}>
-                {menu.menu}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isMounted && (
+          <Select value={menuSlug} onValueChange={setMenuSlug}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a menu to display its categories" />
+            </SelectTrigger>
+            <SelectContent>
+              {megaMenuData.map((menu) => (
+                <SelectItem key={menu.slug} value={menu.slug}>
+                  {menu.menu}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <p className="text-xs text-muted-foreground mt-1">
           This block will dynamically render all the categories that belong to the selected Mega Menu.
         </p>

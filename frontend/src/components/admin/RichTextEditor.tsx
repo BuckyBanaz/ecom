@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { 
   Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -19,6 +20,7 @@ interface RichTextEditorProps {
 }
 
 export function RichTextEditor({ value, onChange, label, placeholder }: RichTextEditorProps) {
+  const { t } = useTranslation();
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
@@ -56,81 +58,29 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     if (!isSourceMode) {
       let processedValue = value || "";
       
-      // Auto-wrap raw shortcodes into visual blocks
-      try {
-        if (processedValue && processedValue.includes('[')) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(processedValue, 'text/html');
-          const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
-          let node;
-          const textNodes = [];
-          while (node = walker.nextNode()) {
-            if (node.nodeValue && node.nodeValue.includes('[')) {
-              if (!(node.parentElement?.closest('.cms-block'))) {
-                textNodes.push(node);
-              }
-            }
-          }
-          
-          let changed = false;
-          textNodes.forEach(textNode => {
-            let text = textNode.nodeValue || "";
-            const regex = /\[([a-zA-Z0-9-]+)([^\]]*)\]\[\/\1\]/g;
-            if (regex.test(text)) {
-              changed = true;
-              const fragment = document.createDocumentFragment();
-              let lastIndex = 0;
-              let match;
-              regex.lastIndex = 0;
-              
-              while ((match = regex.exec(text)) !== null) {
-                if (match.index > lastIndex) {
-                  fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
-                }
-                const shortcodeType = match[1];
-                const fullShortcode = match[0];
-                const friendlyName = shortcodeType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-                
-                const wrapper = document.createElement("div");
-                wrapper.className = "cms-block";
-                wrapper.contentEditable = "false";
-                wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
-                wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-  <span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span>
-  <button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button>
-  <button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button>
-  <button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button>
-  <button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button>
-  <button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button>
-  <button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button>
-</span>${fullShortcode}`;
-                
-                fragment.appendChild(wrapper);
-                lastIndex = regex.lastIndex;
-              }
-              
-              if (lastIndex < text.length) {
-                fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-              }
-              
-              textNode.parentNode?.replaceChild(fragment, textNode);
-            }
-          });
-          
-          if (changed) {
-            processedValue = doc.body.innerHTML;
-          }
-        }
-      } catch (e) {
-        console.error("Error parsing shortcodes to blocks", e);
-      }
-
       if (editorRef.current && editorRef.current.innerHTML !== processedValue) {
         editorRef.current.innerHTML = processedValue;
       }
       
-      // Aggressively enforce contenteditable="false" and user-select on all blocks
+      // Clean up and ensure all blocks are properly structured
       if (editorRef.current) {
+        // Step 1: Unwrap nested .cms-block elements - keep only the outer one
+        const allBlocks = editorRef.current.querySelectorAll('.cms-block');
+        allBlocks.forEach(b => {
+          const nestedBlocks = b.querySelectorAll('.cms-block');
+          nestedBlocks.forEach(nested => {
+            // Extract the shortcode text from nested block and remove the nested wrapper
+            const shortcodeMatch = nested.innerHTML.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+            if (shortcodeMatch) {
+              const textNode = document.createTextNode(shortcodeMatch[0]);
+              nested.replaceWith(textNode);
+            } else {
+              nested.remove();
+            }
+          });
+        });
+        
+        // Step 2: Now process each top-level block - remove old toolbars, keep shortcode, add fresh toolbar
         const blocks = editorRef.current.querySelectorAll('.cms-block');
         blocks.forEach(b => {
           if (!b.textContent?.trim()) {
@@ -140,22 +90,61 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           b.setAttribute('contenteditable', 'false');
           (b as HTMLElement).style.userSelect = 'none';
           
-          // Inject missing inline buttons for legacy blocks
-          if (!b.querySelector('.cms-block-edit-btn')) {
-            const span = b.querySelector('span[style*="position: absolute"]');
-            if (span) {
-              const friendlyName = span.textContent?.trim() || 'Block';
-              span.innerHTML = `
-                <span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span>
-                <button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button>
-                <button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button>
-                <button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button>
-                <button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button>
-                <button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button>
-                <button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button>
-              `;
+          // Extract the pure shortcode from the block
+          const shortcodeMatch = b.textContent.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+          if (!shortcodeMatch) return;
+          
+          const shortcode = shortcodeMatch[0];
+          const blockType = shortcodeMatch[1];
+          const friendlyName = blockType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+          
+          // Rebuild the block with single clean toolbar
+          b.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span><button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button><button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button><button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button><button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button><button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button><button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button></span>${shortcode}`;
+        });
+        
+        // Step 3: Auto-wrap any raw shortcodes that aren't yet wrapped (in text nodes)
+        const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_TEXT, null);
+        const textNodesToWrap: Text[] = [];
+        let node;
+        while (node = walker.nextNode()) {
+          if (node.nodeValue && node.nodeValue.includes('[') && !(node.parentElement?.closest('.cms-block'))) {
+            const regex = /\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/;
+            if (regex.test(node.nodeValue)) {
+              textNodesToWrap.push(node as Text);
             }
           }
+        }
+        
+        textNodesToWrap.forEach(textNode => {
+          const text = textNode.nodeValue || "";
+          const regex = /\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/g;
+          const fragment = document.createDocumentFragment();
+          let lastIndex = 0;
+          let match;
+          
+          while ((match = regex.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+              fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+            }
+            const shortcodeType = match[1];
+            const fullShortcode = match[0];
+            const friendlyName = shortcodeType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+            
+            const wrapper = document.createElement("div");
+            wrapper.className = "cms-block";
+            wrapper.contentEditable = "false";
+            wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
+            wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span><button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button><button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button><button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button><button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button><button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button><button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button></span>${fullShortcode}`;
+            
+            fragment.appendChild(wrapper);
+            lastIndex = regex.lastIndex;
+          }
+          
+          if (lastIndex < text.length) {
+            fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+          }
+          
+          textNode.parentNode?.replaceChild(fragment, textNode);
         });
       }
     } else {
@@ -934,8 +923,33 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
             }
             setEditingShortcode(null);
             handleInput();
-          } else {
-            setTimeout(() => executeCommand("insertHTML", shortcode), 50);
+          } else if (editorRef.current) {
+            // For new blocks, wrap them properly with toolbar
+            const shortcodeMatch = shortcode.match(/\[([a-zA-Z0-9-]+)([^\]]*)\]\[\/\1\]/);
+            if (shortcodeMatch) {
+              const blockType = shortcodeMatch[1];
+              const friendlyName = blockType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+              
+              const wrapper = document.createElement("div");
+              wrapper.className = "cms-block";
+              wrapper.contentEditable = "false";
+              wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
+              
+              wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span>
+                <button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button>
+                <button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button>
+                <button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button>
+                <button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button>
+                <button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button>
+                <button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button>
+              </span>${shortcode}`;
+              
+              restoreSelection();
+              editorRef.current.appendChild(wrapper);
+              setActiveBlockNode(wrapper);
+              handleInput();
+            }
           }
         }} 
         editingShortcode={editingShortcode}

@@ -16,6 +16,7 @@ const AccountAuth = () => {
   const location = useLocation();
   const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
 
+  const [isMounted, setIsMounted] = useState(false);
   const [authConfig, setAuthConfig] = useState({
     emailLogin: true,
     phoneLogin: true,
@@ -23,6 +24,12 @@ const AccountAuth = () => {
   });
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     // If user is already logged in, redirect to dashboard
     const token = localStorage.getItem("customer_token");
     if (token) {
@@ -44,7 +51,7 @@ const AccountAuth = () => {
       }
     };
     fetchConfig();
-  }, [navigate]);
+  }, [navigate, isMounted]);
 
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
   const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
@@ -311,17 +318,19 @@ const AccountAuth = () => {
                       <div className="space-y-1.5">
                         <Label htmlFor="login-phone" className="text-zinc-700">{t("auth_pages.login.phone_label")}</Label>
                         <div className="flex bg-zinc-50 border border-zinc-200 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden transition-all">
-                          <Select value={phoneCode} onValueChange={setPhoneCode}>
-                            <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-11 text-zinc-600 font-medium shadow-none">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="+31">🇳🇱 +31</SelectItem>
-                              <SelectItem value="+91">🇮🇳 +91</SelectItem>
-                              <SelectItem value="+1">🇺🇸 +1</SelectItem>
-                              <SelectItem value="+44">🇬🇧 +44</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {isMounted && (
+                            <Select value={phoneCode} onValueChange={setPhoneCode}>
+                              <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-11 text-zinc-600 font-medium shadow-none">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="+31">🇳🇱 +31</SelectItem>
+                                <SelectItem value="+91">🇮🇳 +91</SelectItem>
+                                <SelectItem value="+1">🇺🇸 +1</SelectItem>
+                                <SelectItem value="+44">🇬🇧 +44</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
                           <div className="w-[1px] h-6 bg-zinc-200 self-center"></div>
                           <Input 
                             id="login-phone" 
@@ -431,17 +440,19 @@ const AccountAuth = () => {
                     <div className="space-y-1.5">
                       <Label htmlFor="reg-phone" className="text-zinc-700">{t("auth_pages.register.phone_label")}</Label>
                       <div className="flex bg-zinc-50 border border-zinc-200 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden transition-all">
-                        <Select value={regPhoneCode} onValueChange={setRegPhoneCode}>
-                          <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-11 text-zinc-600 font-medium shadow-none">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="+31">🇳🇱 +31</SelectItem>
-                            <SelectItem value="+91">🇮🇳 +91</SelectItem>
-                            <SelectItem value="+1">🇺🇸 +1</SelectItem>
-                            <SelectItem value="+44">🇬🇧 +44</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        {isMounted && (
+                          <Select value={regPhoneCode} onValueChange={setRegPhoneCode}>
+                            <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-11 text-zinc-600 font-medium shadow-none">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="+31">🇳🇱 +31</SelectItem>
+                              <SelectItem value="+91">🇮🇳 +91</SelectItem>
+                              <SelectItem value="+1">🇺🇸 +1</SelectItem>
+                              <SelectItem value="+44">🇬🇧 +44</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
                         <div className="w-[1px] h-6 bg-zinc-200 self-center"></div>
                         <Input 
                           id="reg-phone" 

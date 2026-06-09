@@ -11,7 +11,7 @@ import { StarRating } from "@/components/shop/StarRating";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { iconMap } from "@/utils/fontawesome";
 import { cmsFeaturesRepository } from "@/client/apiClient";
-import { findProduct, products, reviews } from "@/data/products";
+import { findProduct, products } from "@/data/products";
 import { formatPrice, useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { cn } from "@/lib/utils";

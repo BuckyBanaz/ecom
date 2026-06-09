@@ -276,6 +276,79 @@ export const updateAuthSettings = async (
 };
 
 // ----------------------------------------------------
+// GET GENERAL SETTINGS (Store info + Maintenance Mode)
+// ----------------------------------------------------
+export const getGeneralSettings = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const settings = {
+      storeName: process.env.STORE_NAME || "SCHIP & STER",
+      storeUrl: process.env.STORE_URL || "https://schipandster.nl",
+      supportEmail: process.env.SUPPORT_EMAIL || "support@schipandster.nl",
+      currency: process.env.STORE_CURRENCY || "EUR",
+      maintenanceMode: process.env.MAINTENANCE_MODE === "true",
+      maintenanceMessage: process.env.MAINTENANCE_MESSAGE || "We're currently performing maintenance. We'll be back shortly!",
+    };
+
+    res.status(200).json({ success: true, data: settings });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// UPDATE GENERAL SETTINGS
+// ----------------------------------------------------
+export const updateGeneralSettings = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { storeName, storeUrl, supportEmail, currency, maintenanceMode, maintenanceMessage } = req.body;
+
+    const updates: Record<string, string> = {};
+    if (storeName !== undefined) updates.STORE_NAME = storeName;
+    if (storeUrl !== undefined) updates.STORE_URL = storeUrl;
+    if (supportEmail !== undefined) updates.SUPPORT_EMAIL = supportEmail;
+    if (currency !== undefined) updates.STORE_CURRENCY = currency;
+    if (maintenanceMode !== undefined) updates.MAINTENANCE_MODE = maintenanceMode ? "true" : "false";
+    if (maintenanceMessage !== undefined) updates.MAINTENANCE_MESSAGE = maintenanceMessage;
+
+    updateEnvFile(updates);
+
+    res.status(200).json({ success: true, message: "General Settings updated successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// PUBLIC: GET MAINTENANCE STATUS (no auth required)
+// ----------------------------------------------------
+export const getMaintenanceStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    res.status(200).json({
+      success: true,
+      data: {
+        maintenanceMode: process.env.MAINTENANCE_MODE === "true",
+        maintenanceMessage: process.env.MAINTENANCE_MESSAGE || "We're currently performing maintenance. We'll be back shortly!",
+        storeName: process.env.STORE_NAME || "SCHIP & STER",
+      },
+    });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
 // 8. GET SEO CONFIG
 // ----------------------------------------------------
 export const getSeoConfig = async (

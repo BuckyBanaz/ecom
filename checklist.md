@@ -98,9 +98,9 @@
 - [x] `admin/AdminLayout.tsx`
 - [x] `admin/AdminSidebar.tsx`
 - [x] `admin/AdminNotifications.tsx`
-- [ ] `admin/IconPicker.tsx`
-- [ ] `admin/RichTextEditor.tsx`
-- [ ] `admin/UIBlocksDialog.tsx`
-- [ ] `admin/cms-ui-components/*`
-- [ ] `admin/media/MediaLibraryCore.tsx`
-- [ ] `admin/media/MediaLibraryDialog.tsx`
+- [x] `admin/IconPicker.tsx`
+- [x] `admin/RichTextEditor.tsx`
+- [x] `admin/UIBlocksDialog.tsx`
+- [x] `admin/cms-ui-components/*`
+- [x] `admin/media/MediaLibraryCore.tsx`
+- [x] `admin/media/MediaLibraryDialog.tsx`

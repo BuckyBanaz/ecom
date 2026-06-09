@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Hint to Chrome/Edge built-in translator (shows the native "Translate?" popup) -->
-    <meta name="google" content="translate" />
+    <!-- Language switching is handled in React with i18next; avoid DOM mutation by auto translators. -->
+    <meta name="google" content="notranslate" />
     <title>Schip & ster — Light up your moment</title>
     <meta name="description" content="Shop indoor &amp; outdoor lighting, light bulbs, smart home and more. Ordered before 22:00, delivered next day. 30-day returns.">
     <meta name="author" content="Schip & ster" />
@@ -26,8 +26,7 @@
   <meta property="og:description" content="Shop indoor &amp; outdoor lighting, light bulbs, smart home and more. Ordered before 22:00, delivered next day. 30-day returns.">
   <meta name="twitter:description" content="Shop indoor &amp; outdoor lighting, light bulbs, smart home and more. Ordered before 22:00, delivered next day. 30-day returns.">
 
-  <!-- Hide the default Google Translate top banner / iframe but keep the
-       translation engine itself active (driven by the googtrans cookie). -->
+  <!-- Hide any stale Google Translate UI left by browser extensions or older sessions. -->
   <style>
     /* Hide the floating banner frame */
     .goog-te-banner-frame,
@@ -50,30 +49,7 @@
 </head>
 
   <body>
-    <div id="root"></div>
-    <!-- Hidden mount point for the Google Translate widget. The custom
-         LanguageSwitcher in the React app drives it programmatically so the
-         dynamic API content (Dutch) can also be translated on-demand. -->
-    <div id="google_translate_element" style="display:none"></div>
-    <script type="text/javascript">
-      function googleTranslateElementInit() {
-        // eslint-disable-next-line no-undef
-        new google.translate.TranslateElement(
-          {
-            pageLanguage: 'nl',
-            includedLanguages: 'en,nl',
-            autoDisplay: false,
-            layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-          },
-          'google_translate_element'
-        );
-      }
-    </script>
-    <script
-      type="text/javascript"
-      src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
-      async
-    ></script>
+    <div id="root" class="notranslate" translate="no"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

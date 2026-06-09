@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { BlogCard } from "@/components/shop/BlogCard";
 import { categories } from "@/data/categories";
-import { dealProducts, featuredProducts, reviews } from "@/data/products";
+import { dealProducts, featuredProducts } from "@/data/products";
 import { initialBlogs } from "@/data/blogs";
 import { StarRating } from "@/components/shop/StarRating";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -33,6 +33,21 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
   const [dbBlogs, setDbBlogs] = useState<any[]>(prefetchedData?.blogs || []);
   const [dbBrands, setDbBrands] = useState<any[]>(prefetchedData?.brands || []);
+  const [dbTestimonials, setDbTestimonials] = useState<any[]>([]);
+
+  // Load testimonials from admin storage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("testimonials_data");
+      if (saved) {
+        const list = JSON.parse(saved);
+        const published = Array.isArray(list) ? list.filter((t: any) => t.published !== false) : [];
+        setDbTestimonials(published);
+      }
+    } catch {
+      setDbTestimonials([]);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -479,25 +494,31 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             );
           }
 
-          case "reviews-block":
+          case "reviews-block": {
+            if (dbTestimonials.length === 0) return null;
             return (
               <section key={index} className="container-page">
                 <div className="mb-6 flex items-end justify-between">
                   {attributes.title && <h2 className="text-2xl font-bold md:text-3xl">{attributes.title}</h2>}
-                  <span className="hidden text-sm text-muted-foreground md:block">15,000+ verified reviews</span>
                 </div>
                 <div className="grid gap-4 md:grid-cols-3">
-                  {reviews.map((r) => (
-                    <div key={r.name} className="rounded-xl border bg-card p-5 shadow-sm">
-                      <StarRating value={r.rating} size={16} />
-                      <h3 className="mt-2 font-semibold">{r.title}</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">{r.text}</p>
-                      <p className="mt-4 text-xs font-semibold text-foreground">— {r.name}</p>
+                  {dbTestimonials.map((r: any) => (
+                    <div key={r.id || r.name} className="rounded-xl border bg-card p-5 shadow-sm">
+                      <StarRating value={r.rating || 5} size={16} />
+                      {r.title && <h3 className="mt-2 font-semibold">{r.title}</h3>}
+                      <p className="mt-2 text-sm text-muted-foreground">{r.message || r.text}</p>
+                      <div className="mt-4 flex items-center gap-2">
+                        {r.avatar && (
+                          <img src={r.avatar} alt={r.name} className="h-8 w-8 rounded-full object-cover" />
+                        )}
+                        <p className="text-xs font-semibold text-foreground">— {r.name}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
               </section>
             );
+          }
 
           default:
             return null;

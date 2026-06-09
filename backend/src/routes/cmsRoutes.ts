@@ -10,9 +10,11 @@ import {
   getPageBySlug,
   createPage,
   updatePage,
-  deletePage
+  deletePage,
+  getHeaderFooter,
+  updateHeaderFooter
 } from "../controllers/cmsController";
-import { getPublicSeoConfig } from "../controllers/adminSettingsController";
+import { getPublicSeoConfig, getMaintenanceStatus } from "../controllers/adminSettingsController";
 
 const router = Router();
 
@@ -50,6 +52,19 @@ router.get("/homepage", getHomepage);
  *         description: SEO Configuration data
  */
 router.get("/seo-config", getPublicSeoConfig);
+
+/**
+ * @swagger
+ * /api/v1/cms/maintenance-status:
+ *   get:
+ *     summary: Get current maintenance mode status (public)
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: Maintenance status
+ */
+router.get("/maintenance-status", getMaintenanceStatus);
+
 
 /**
  * @swagger
@@ -211,6 +226,43 @@ router.get("/pages", getAllPages);
  *         description: Server error
  */
 router.post("/pages", createPage);
+
+/**
+ * @swagger
+ * /api/v1/cms/header-footer:
+ *   get:
+ *     summary: Get header and footer configuration
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: Header & Footer configuration data
+ *       404:
+ *         description: Configuration not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/header-footer", getHeaderFooter);
+
+/**
+ * @swagger
+ * /api/v1/cms/header-footer:
+ *   put:
+ *     summary: Update header and footer configuration
+ *     tags: [CMS]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: The entire JSON configuration for header and footer
+ *     responses:
+ *       200:
+ *         description: Header & Footer configuration successfully updated
+ *       500:
+ *         description: Server error
+ */
+router.put("/header-footer", updateHeaderFooter);
 
 /**
  * @swagger

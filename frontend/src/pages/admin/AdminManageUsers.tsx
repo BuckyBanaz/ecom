@@ -71,7 +71,7 @@ const RoleIcon = ({ role }: { role: string }) => {
 /* ─── Component ────────────────────────────────────────────────────────────── */
 const AdminManageUsers = () => {
   const { t } = useTranslation();
-  const { hasPermission } = useAdmin();
+  const { hasPermission, user } = useAdmin();
   const [adminsList,        setAdminsList]        = useState<any[]>([]);
   const [loading,           setLoading]           = useState(true);
   const [openModal,         setOpenModal]         = useState(false);
@@ -237,7 +237,7 @@ const AdminManageUsers = () => {
             {t("admin_manage_users.subtitle")}
           </p>
         </div>
-        {isSuperAdmin && (
+        {user?.role === "superadmin" && (
           <Button
             onClick={() => setOpenCreateModal(true)}
             className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl gap-2 shadow-sm self-start sm:self-auto shrink-0"
@@ -272,7 +272,7 @@ const AdminManageUsers = () => {
       <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
         <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b bg-muted/30 flex items-center justify-between">
           <h2 className="font-bold text-sm sm:text-base text-foreground">{t("admin_manage_users.section_accounts")}</h2>
-          <span className="text-xs text-muted-foreground font-medium">{{count}} {t("admin_manage_users.no_accounts")}</span>
+          <span className="text-xs text-muted-foreground font-medium">{adminsList.length} {t("admin_manage_users.no_accounts")}</span>
         </div>
 
         {loading ? (

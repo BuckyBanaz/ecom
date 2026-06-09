@@ -459,7 +459,10 @@ export const getInvoiceByToken = async (req: Request, res: Response, next: NextF
 // Sendcloud Integration Controllers
 export const getSendcloudMethods = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const methods = await sendcloudApi.getShippingMethods();
+    const toCountry = typeof req.query.to_country === "string" ? req.query.to_country : undefined;
+    const weightRaw = typeof req.query.weight === "string" ? parseFloat(req.query.weight) : undefined;
+    const weight = weightRaw && !isNaN(weightRaw) && weightRaw > 0 ? weightRaw : undefined;
+    const methods = await sendcloudApi.getShippingMethods(toCountry, weight);
     res.status(200).json({ success: true, data: methods });
   } catch (error) {
     next(error);

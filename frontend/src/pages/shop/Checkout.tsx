@@ -16,6 +16,7 @@ import { addressRepository, shippingRepository, couponRepository, chargeReposito
 import { toast } from "sonner";
 import { MapSelector } from "@/components/shop/MapSelector";
 import { PhonePicker } from "@/components/ui/PhonePicker";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const steps = ["Contact", "Shipping", "Payment"] as const;
 
@@ -32,7 +33,9 @@ interface Address {
   state: string;
   pincode: string;
   country: string;
-  isDefault: boolean;
+  isDefault?: boolean;
+  lat?: string;
+  lng?: string;
 }
 
 const emptyAddressForm = {
@@ -47,6 +50,8 @@ const emptyAddressForm = {
   state: "",
   pincode: "",
   country: "Netherlands",
+  lat: "",
+  lng: "",
 };
 
 const Checkout = () => {
@@ -742,22 +747,24 @@ const Checkout = () => {
 
       {/* Map Selector Modal */}
       {showMap && (
-        <MapSelector
-          onSelect={(loc) => {
-            setAddrForm(prev => ({
-              ...prev,
-              lat: loc.lat,
-              lng: loc.lng,
-              street: loc.street || prev.street,
-              city: loc.city || prev.city,
-              state: loc.state || prev.state,
-              pincode: loc.pincode || prev.pincode,
-              country: loc.country || prev.country,
-            }));
-            setShowMap(false);
-          }}
-          onCancel={() => setShowMap(false)}
-        />
+        <ErrorBoundary fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center"><div className="bg-white p-4 rounded">Map failed to load. Please refresh.</div></div>}>
+          <MapSelector
+            onSelect={(loc) => {
+              setAddrForm(prev => ({
+                ...prev,
+                lat: loc.lat,
+                lng: loc.lng,
+                street: loc.street || prev.street,
+                city: loc.city || prev.city,
+                state: loc.state || prev.state,
+                pincode: loc.pincode || prev.pincode,
+                country: loc.country || prev.country,
+              }));
+              setShowMap(false);
+            }}
+            onCancel={() => setShowMap(false)}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );

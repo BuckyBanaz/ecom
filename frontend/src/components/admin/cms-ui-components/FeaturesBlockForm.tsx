@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ interface FeaturesBlockFormProps {
 }
 
 export function FeaturesBlockForm({ features, onAddFeature, onRemoveFeature, onUpdateFeature }: FeaturesBlockFormProps) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4 border rounded-md p-4 bg-muted/20">
       <div className="flex items-center justify-between">

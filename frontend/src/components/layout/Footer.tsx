@@ -1,18 +1,56 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CreditCard, Facebook, Instagram, ShieldCheck, Truck, Youtube } from "lucide-react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { iconMap } from "@/utils/fontawesome";
+import { cmsHeaderFooterRepository } from "@/client/apiClient";
 import { Logo } from "./Logo";
 
 export function Footer() {
   const { t } = useTranslation();
-  const saved = localStorage.getItem("header_footer_data");
-  const parsed = saved ? (() => { try { return JSON.parse(saved); } catch { return null; } })() : null;
-  const footerAbout = parsed?.footerAbout;
-  const footerSocial = parsed?.footerSocial;
-  const footerColumns = parsed?.footerColumns || [];
-  const footerBottom = parsed?.footerBottom || [];
+  const [footerData, setFooterData] = useState<any>(null);
+
+  useEffect(() => {
+    const loadFooterData = async () => {
+      try {
+        const result = await cmsHeaderFooterRepository.get();
+        if (result.success && result.data) {
+          setFooterData(result.data);
+          // Also cache in localStorage
+          localStorage.setItem("header_footer_data", JSON.stringify(result.data));
+        } else {
+          // Fallback to localStorage
+          const saved = localStorage.getItem("header_footer_data");
+          if (saved) {
+            try {
+              setFooterData(JSON.parse(saved));
+            } catch {
+              setFooterData(null);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading footer data:", error);
+        // Fallback to localStorage
+        const saved = localStorage.getItem("header_footer_data");
+        if (saved) {
+          try {
+            setFooterData(JSON.parse(saved));
+          } catch {
+            setFooterData(null);
+          }
+        }
+      }
+    };
+
+    loadFooterData();
+  }, []);
+
+  const footerAbout = footerData?.footerAbout;
+  const footerSocial = footerData?.footerSocial;
+  const footerColumns = footerData?.footerColumns || [];
+  const footerBottom = footerData?.footerBottom || [];
   const normalizedSocial = Array.isArray(footerSocial)
     ? footerSocial
     : footerSocial

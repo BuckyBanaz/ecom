@@ -12,40 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+  clearGoogleTranslateCookie,
   DEFAULT_LANGUAGE,
   SUPPORTED_LANGUAGES,
   type SupportedLanguage,
 } from "@/i18n";
-
-/**
- * Sets the `googtrans` cookie that controls the Google Translate widget so the
- * entire page (including dynamic API content) is translated from Dutch into
- * the chosen language. Resetting to Dutch removes the cookie and reloads.
- *
- * `googtrans` cookie format: `/<source>/<target>` (e.g. `/nl/en`).
- * The cookie is written for both the current host and the parent domain so it
- * works on production sub-domains as well.
- */
-function setGoogleTranslateCookie(target: SupportedLanguage) {
-  const hostname = typeof window !== "undefined" ? window.location.hostname : "";
-  const parts = hostname.split(".");
-  const rootDomain = parts.length > 1 ? "." + parts.slice(-2).join(".") : hostname;
-
-  if (target === DEFAULT_LANGUAGE) {
-    // Clear so the Google widget no longer re-translates the page.
-    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-    if (rootDomain) {
-      document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${rootDomain}`;
-    }
-    return;
-  }
-
-  const value = `/${DEFAULT_LANGUAGE}/${target}`;
-  document.cookie = `googtrans=${value}; path=/`;
-  if (rootDomain) {
-    document.cookie = `googtrans=${value}; path=/; domain=${rootDomain}`;
-  }
-}
 
 interface LanguageSwitcherProps {
   /** Compact mode: icon-only trigger (for header). */
@@ -73,12 +44,9 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
 
   const changeLanguage = (code: SupportedLanguage) => {
     if (code === current) return;
-    // 1. Update i18next for static (keyed) UI strings.
-    i18n.changeLanguage(code);
-    // 2. Drive the Google Translate widget so dynamic API content also gets
-    //    translated. A reload is required for the widget to (un)apply.
-    setGoogleTranslateCookie(code);
-    window.location.reload();
+    clearGoogleTranslateCookie();
+    setCurrent(code);
+    void i18n.changeLanguage(code);
   };
 
   const active =

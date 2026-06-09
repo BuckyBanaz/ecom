@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -130,6 +131,7 @@ export function CategoryBlockForm({
   initialCategories = "",
   isEditing = false,
 }: CategoryBlockFormProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState(initialTitle);
   const [categories, setCategories] = useState(initialCategories);
 
