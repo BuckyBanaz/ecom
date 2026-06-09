@@ -1,29 +1,6 @@
-# Run on VPS: docker compose -f docker-compose.jenkins.yml up -d --build
-# Jenkins UI: https://jenkins.<DOMAIN>  (via Caddy — port 8080 not public)
-# Uses the same Docker project/network as docker-compose.prod.yml (name: ecom)
+# DEPRECATED — Jenkins lives in docker-compose.prod.yml now.
+# Run: docker compose -f docker-compose.prod.yml up -d jenkins
+# Or:  bash scripts/restart-jenkins-stack.sh
+
 name: ecom
-
-services:
-  jenkins:
-    build:
-      context: ./jenkins
-      dockerfile: Dockerfile
-    image: ecom-jenkins:lts
-    container_name: ecom-jenkins
-    restart: unless-stopped
-    user: root
-    # No host ports — only reachable via Caddy at https://jenkins.<DOMAIN> on ecom_default network
-    volumes:
-      - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /opt/ecom:/opt/ecom
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - JENKINS_OPTS=--httpPort=8080
-    env_file:
-      - .env.production
-    group_add:
-      - "${DOCKER_GID:-999}"
-
-volumes:
-  jenkins_home:
+services: {}

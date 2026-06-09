@@ -4,7 +4,7 @@
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/opt/ecom}"
-JENKINS_COMPOSE="${REPO_DIR}/docker-compose.jenkins.yml"
+PROD_COMPOSE="${REPO_DIR}/docker-compose.prod.yml"
 
 echo "==> Ecom Jenkins setup"
 echo "    Repo: ${REPO_DIR}"
@@ -25,7 +25,7 @@ chmod +x "${REPO_DIR}/scripts/"*.sh
 export DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999)"
 
 cd "${REPO_DIR}"
-docker compose -f "${JENKINS_COMPOSE}" up -d --build
+docker compose -f "${PROD_COMPOSE}" up -d --build jenkins
 
 echo ""
 DOMAIN="${DOMAIN:-schipenster.com}"

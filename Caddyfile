@@ -14,7 +14,7 @@ api.{$DOMAIN} {
 
 jenkins.{$DOMAIN} {
   # No gzip here — Jenkins UI uses long-polling / websockets
-  reverse_proxy ecom-jenkins:8080 {
+  reverse_proxy jenkins:8080 {
     flush_interval -1
     header_up Host {host}
     header_up X-Real-IP {remote_host}
