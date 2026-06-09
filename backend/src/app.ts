@@ -5,7 +5,7 @@ import { env } from "./config/env";
 import { errorHandler, AppError } from "./middlewares/errorMiddleware";
 import { setupSwagger } from "./config/swagger";
 import { requestLogger } from "./middlewares/loggerMiddleware";
-import "./config/redis";
+import redis from "./config/redis";
 import { seedTemplates } from "./utils/seedTemplates";
 
 // Run seed script on startup
@@ -59,10 +59,28 @@ app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
 setupSwagger(app);
 
 // Health probe endpoint for monitoring
-app.get("/health", (_req, res) => {
-  res.status(200).json({
-    success: true,
-    status: "healthy",
+app.get("/health", async (_req, res) => {
+  let redisStatus: "connected" | "disabled" | "error" = "disabled";
+
+  if (env.ENABLE_REDIS === "true") {
+    if (!redis) {
+      redisStatus = "error";
+    } else {
+      try {
+        const pong = await redis.ping();
+        redisStatus = pong === "PONG" ? "connected" : "error";
+      } catch {
+        redisStatus = "error";
+      }
+    }
+  }
+
+  const healthy = redisStatus !== "error";
+
+  res.status(healthy ? 200 : 503).json({
+    success: healthy,
+    status: healthy ? "healthy" : "degraded",
+    redis: redisStatus,
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });

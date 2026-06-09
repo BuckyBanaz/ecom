@@ -1,5 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
+import { seedTemplates } from "../src/utils/seedTemplates";
+import { seedExtraProduct } from "./seedProduct";
 
 const prisma = new PrismaClient();
 
@@ -772,6 +774,12 @@ async function main() {
       }
     }
   });
+
+  console.log("📧 Seeding email templates...");
+  await seedTemplates();
+
+  console.log("📦 Seeding extra product...");
+  await seedExtraProduct();
 
   console.log("✨ Seeding completed successfully!");
 }

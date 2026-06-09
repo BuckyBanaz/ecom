@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-async function main() {
+export async function seedExtraProduct() {
   console.log("🌱 Seeding product: Suspended Office Light...");
 
   // We don't have the exact IDs since they might not exist, let's create or find the brand and category first
@@ -90,14 +90,20 @@ async function main() {
     ]
   });
 
-  console.log("✅ Seed completed successfully!");
+  console.log("✅ Extra product seed completed successfully!");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+async function main() {
+  await seedExtraProduct();
+}
+
+if (require.main === module) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
