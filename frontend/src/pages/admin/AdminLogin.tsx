@@ -56,13 +56,6 @@ const AdminLogin = () => {
             {isLoading ? t("admin_login.signing_in") : t("admin_login.sign_in")}
           </Button>
         </form>
-        <div className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-          <p className="font-semibold mb-1">{t("admin_login.demo_title")}</p>
-          <p>{t("admin_login.demo_superadmin")}</p>
-          <p>{t("admin_login.demo_admin")}</p>
-          <p>{t("admin_login.demo_moderator")}</p>
-          <p className="mt-1">{t("admin_login.demo_password")}</p>
-        </div>
       </div>
     </div>
   );
