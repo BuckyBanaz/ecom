@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Prisma engine needs OpenSSL on Alpine
+RUN apk add --no-cache openssl libc6-compat
+
 # Copy package files
 COPY package*.json ./
 COPY tsconfig.json ./
@@ -27,6 +30,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Prisma migrate/generate requires OpenSSL on Alpine
+RUN apk add --no-cache openssl libc6-compat
+
 # Copy package files
 COPY package*.json ./
 
@@ -35,6 +41,9 @@ RUN npm ci && npm cache clean --force
 
 # Copy prisma files
 COPY prisma ./prisma
+
+# Generate Prisma client for this image (builder client is not copied)
+RUN npx prisma generate
 
 # Copy built dist from builder
 COPY --from=builder /app/dist ./dist
@@ -46,4 +55,4 @@ RUN mkdir -p public/uploads
 EXPOSE 5000
 
 # Run migrations and start app
-CMD ["sh", "-c", "npx prisma migrate deploy || true && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
