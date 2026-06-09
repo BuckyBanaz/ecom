@@ -87,8 +87,11 @@ export const categoryRepository = {
     });
   },
   
-  delete: async (id: string) => {
-    return request<any>(`${ENDPOINTS.CATEGORIES}/${id}`, { method: "DELETE" });
+  delete: async (id: string, options?: { reassignToCategoryId?: string }) => {
+    const qs = options?.reassignToCategoryId
+      ? `?reassignTo=${encodeURIComponent(options.reassignToCategoryId)}`
+      : "";
+    return request<any>(`${ENDPOINTS.CATEGORIES}/${id}${qs}`, { method: "DELETE" });
   },
 };
 

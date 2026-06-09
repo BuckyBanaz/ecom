@@ -2,8 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Heart, Menu, Search, ShoppingCart, User } from "lucide-react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { iconMap } from "@/utils/fontawesome";
+import { FaIcon } from "@/components/ui/FaIcon";
 import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,8 +30,6 @@ export function Header() {
   const [menuList, setMenuList] = useState<any[]>([]);
   const [topLeft, setTopLeft] = useState<any[]>([]);
   const [topRight, setTopRight] = useState<any[]>([]);
-
-  const resolveIcon = (value: string) => iconMap.get(value) || iconMap.get("star");
 
   useEffect(() => {
     const loadData = async () => {
@@ -185,15 +182,12 @@ export function Header() {
             {/* Desktop Layout */}
             <div className="hidden md:flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-4">
-                {topLeft.map((item, idx) => {
-                  const icon = resolveIcon(item.icon);
-                  return (
+                {topLeft.map((item, idx) => (
                     <span key={`desk-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
-                      {icon && <FontAwesomeIcon icon={icon} className="h-4 w-4 text-primary" />}
+                      {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
                       {item.text}
                     </span>
-                  );
-                })}
+                  ))}
               </div>
               <div className="flex items-center gap-4 text-muted-foreground">
                 {topRight.map((link, idx) => (
@@ -209,15 +203,14 @@ export function Header() {
               <div className="flex w-max animate-marquee items-center gap-6">
                 {[...topLeft, ...topRight, ...topLeft, ...topRight].map((item: any, idx) => {
                   const isLink = item.href !== undefined;
-                  const icon = !isLink ? resolveIcon(item.icon) : null;
-                  
+
                   return isLink ? (
                     <Link key={`mob-r-${item.label}-${idx}`} to={item.href} className="hover:text-primary font-medium whitespace-nowrap">
                       {item.label}
                     </Link>
                   ) : (
                     <span key={`mob-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground whitespace-nowrap">
-                      {icon && <FontAwesomeIcon icon={icon} className="h-4 w-4 text-primary" />}
+                      {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
                       {item.text}
                     </span>
                   );

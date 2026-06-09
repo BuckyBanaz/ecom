@@ -613,6 +613,14 @@
     "toast_add_failed": "Failed to add category to server",
     "toast_delete_failed": "Failed to delete category from server",
     "confirm_delete": "Are you sure you want to delete category \"{{name}}\"?",
+    "delete_title": "Delete category",
+    "delete_description": "Are you sure you want to delete \"{{name}}\"?",
+    "delete_with_products": "This category has {{count}} product(s). Move them to another category before deleting.",
+    "delete_reassign_label": "Move products to",
+    "delete_reassign_placeholder": "Select a category",
+    "delete_confirm": "Delete category",
+    "toast_reassign_required": "Select a category to move the products to.",
+    "form_description": "Create or update a product category.",
     "card_meta": "{{count}} products \u00b7 Menu: {{menu}}"
   },
   "admin_brands": {

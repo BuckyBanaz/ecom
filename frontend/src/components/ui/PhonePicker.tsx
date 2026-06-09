@@ -24,8 +24,8 @@ export function PhonePicker({ value, onChange, required, id, className, disabled
     if (value) {
       if (value.startsWith("+31")) { setCode("+31"); setNumber(value.slice(3)); }
       else if (value.startsWith("+91")) { setCode("+91"); setNumber(value.slice(3)); }
-      else if (value.startsWith("+44")) { setCode("+44"); setNumber(value.slice(3)); }
-      else if (value.startsWith("+1")) { setCode("+1"); setNumber(value.slice(2)); }
+      // else if (value.startsWith("+44")) { setCode("+44"); setNumber(value.slice(3)); }
+      // else if (value.startsWith("+1")) { setCode("+1"); setNumber(value.slice(2)); }
       else {
         // Default, no matched code
         setNumber(value);
@@ -57,8 +57,8 @@ export function PhonePicker({ value, onChange, required, id, className, disabled
           <SelectContent>
             <SelectItem value="+31">🇳🇱 +31</SelectItem>
             <SelectItem value="+91">🇮🇳 +91</SelectItem>
-            <SelectItem value="+1">🇺🇸 +1</SelectItem>
-            <SelectItem value="+44">🇬🇧 +44</SelectItem>
+            {/* <SelectItem value="+1">🇺🇸 +1</SelectItem>
+            <SelectItem value="+44">🇬🇧 +44</SelectItem> */}
           </SelectContent>
         </Select>
       )}

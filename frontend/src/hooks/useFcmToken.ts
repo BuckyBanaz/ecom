@@ -12,9 +12,12 @@ export function useFcmToken() {
   useEffect(() => {
     const requestPermissionAndGetToken = async () => {
       try {
-        if (!messaging) return;
+        if (!messaging || typeof Notification === "undefined") return;
 
-        const permission = await Notification.requestPermission();
+        const permission = Notification.permission;
+        if (permission === "denied") return;
+        if (permission === "default") return;
+
         if (permission === "granted") {
           const token = await getToken(messaging, { vapidKey: VAPID_KEY });
           if (token) {

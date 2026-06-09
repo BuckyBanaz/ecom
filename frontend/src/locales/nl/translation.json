@@ -613,6 +613,14 @@
     "toast_add_failed": "Categorie toevoegen aan server mislukt",
     "toast_delete_failed": "Categorie verwijderen van server mislukt",
     "confirm_delete": "Weet je zeker dat je categorie \"{{name}}\" wilt verwijderen?",
+    "delete_title": "Categorie verwijderen",
+    "delete_description": "Weet je zeker dat je \"{{name}}\" wilt verwijderen?",
+    "delete_with_products": "Deze categorie heeft {{count}} product(en). Verplaats ze naar een andere categorie voordat je verwijdert.",
+    "delete_reassign_label": "Producten verplaatsen naar",
+    "delete_reassign_placeholder": "Selecteer een categorie",
+    "delete_confirm": "Categorie verwijderen",
+    "toast_reassign_required": "Selecteer een categorie om de producten naartoe te verplaatsen.",
+    "form_description": "Maak een categorie aan of werk deze bij.",
     "card_meta": "{{count}} producten \u00b7 Menu: {{menu}}"
   },
   "admin_brands": {

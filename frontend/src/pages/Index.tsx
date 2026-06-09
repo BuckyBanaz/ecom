@@ -11,53 +11,69 @@ const Index = () => {
   const [prefetchedData, setPrefetchedData] = useState<{products?: any[], categories?: any[], blogs?: any[]}>({});
 
   useEffect(() => {
+    let active = true;
+
     const fetchHomepage = async () => {
       setIsLoading(true);
       try {
-        const [res, prodRes, catRes, blogRes] = await Promise.all([
-          cmsHomepageRepository.get(),
-          productRepository.getAll({ limit: 40 }),
-          categoryRepository.getAll(),
-          blogRepository.getAll({ published: true }).catch(() => ({ success: false }))
-        ]);
+        const res = await cmsHomepageRepository.get();
+        if (!active) return;
 
-        if (res.success && res.data && res.data.content) {
+        if (res.success && res.data?.content) {
           setContent(res.data.content);
-          
+
           if (res.data.seoTitle) document.title = res.data.seoTitle;
           if (res.data.seoDesc) {
             let metaDesc = document.querySelector('meta[name="description"]');
             if (!metaDesc) {
-              metaDesc = document.createElement('meta');
-              metaDesc.setAttribute('name', 'description');
+              metaDesc = document.createElement("meta");
+              metaDesc.setAttribute("name", "description");
               document.head.appendChild(metaDesc);
             }
-            metaDesc.setAttribute('content', res.data.seoDesc);
+            metaDesc.setAttribute("content", res.data.seoDesc);
           }
           if (res.data.seoKeywords) {
             let metaKeywords = document.querySelector('meta[name="keywords"]');
             if (!metaKeywords) {
-              metaKeywords = document.createElement('meta');
-              metaKeywords.setAttribute('name', 'keywords');
+              metaKeywords = document.createElement("meta");
+              metaKeywords.setAttribute("name", "keywords");
               document.head.appendChild(metaKeywords);
             }
-            metaKeywords.setAttribute('content', res.data.seoKeywords);
+            metaKeywords.setAttribute("content", res.data.seoKeywords);
           }
         }
+      } catch (error) {
+        console.error("Failed to load homepage data", error);
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
 
-        const pd: any = {};
+    const fetchSupplementaryData = async () => {
+      try {
+        const [prodRes, catRes, blogRes] = await Promise.all([
+          productRepository.getAll({ limit: 40 }),
+          categoryRepository.getAll(),
+          blogRepository.getAll({ published: true }).catch(() => ({ success: false })),
+        ]);
+        if (!active) return;
+
+        const pd: { products?: any[]; categories?: any[]; blogs?: any[] } = {};
         if (prodRes.success && prodRes.products) pd.products = prodRes.products;
         if (catRes.success && catRes.categories) pd.categories = catRes.categories;
         if (blogRes.success && blogRes.blogs) pd.blogs = blogRes.blogs;
         setPrefetchedData(pd);
-
       } catch (error) {
-        console.error("Failed to load homepage data", error);
-      } finally {
-        setIsLoading(false);
+        console.error("Failed to load homepage supplementary data", error);
       }
     };
+
     fetchHomepage();
+    fetchSupplementaryData();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (isLoading) {

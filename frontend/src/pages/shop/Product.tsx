@@ -8,8 +8,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { Badge } from "@/components/ui/badge";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { StarRating } from "@/components/shop/StarRating";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { iconMap } from "@/utils/fontawesome";
+import { FaIcon } from "@/components/ui/FaIcon";
 import { cmsFeaturesRepository } from "@/client/apiClient";
 import { findProduct, products } from "@/data/products";
 import { formatPrice, useCart } from "@/context/CartContext";
@@ -45,8 +44,6 @@ const ProductPage = () => {
     { id: 3, icon: "shield-check", title: "2-year warranty", description: "Quality you can trust" },
     { id: 4, icon: "headset", title: "Expert support", description: "7 days a week" },
   ]);
-
-  const resolveIcon = (name: string) => iconMap.get(name) || iconMap.get("star");
 
   useEffect(() => {
     const fetchFeatures = async () => {
@@ -376,7 +373,7 @@ const ProductPage = () => {
           {featureItems.map(item => (
             <div key={item.id} className="flex items-center gap-4">
               <div className="flex flex-shrink-0 items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary">
-                <FontAwesomeIcon icon={resolveIcon(item.icon)!} className="w-5 h-5" />
+                <FaIcon name={item.icon} className="w-5 h-5" />
               </div>
               <div>
                 <h4 className="font-bold text-[15px] text-foreground leading-tight">{item.title}</h4>

@@ -4,12 +4,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, MapPin, Search, LocateFixed } from "lucide-react";
 
-// Declare L as a global variable since we loaded Leaflet via CDN
 declare global {
   interface Window {
     L: any;
   }
 }
+
+let leafletLoadPromise: Promise<void> | null = null;
+
+const loadLeaflet = (): Promise<void> => {
+  if (window.L) return Promise.resolve();
+  if (leafletLoadPromise) return leafletLoadPromise;
+
+  leafletLoadPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-leaflet-css]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      link.setAttribute("data-leaflet-css", "true");
+      document.head.appendChild(link);
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load map library"));
+    document.head.appendChild(script);
+  });
+
+  return leafletLoadPromise;
+};
 
 interface MapSelectorProps {
   onSelect: (location: {
@@ -47,82 +72,84 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!mapRef.current || !window.L) return;
+    if (!mapRef.current) return;
 
+    let cancelled = false;
     const containerEl = mapRef.current;
-    
-    // Create a completely isolated DOM tree for Leaflet
-    // This prevents React from trying to reconcile Leaflet's DOM mutations
-    const leafletContainer = document.createElement("div");
-    leafletContainer.style.width = "100%";
-    leafletContainer.style.height = "100%";
-    leafletContainer.style.position = "relative";
-    containerEl.appendChild(leafletContainer);
+    let leafletContainerRef: HTMLDivElement | null = null;
 
-    // Store reference so cleanup can access it
-    const leafletContainerRef = leafletContainer;
-
-    const initialLat = 28.6139;
-    const initialLng = 77.2090;
-
-    try {
-      mapInstance.current = window.L.map(leafletContainer).setView([initialLat, initialLng], 13);
-      
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(mapInstance.current);
-
-      markerInstance.current = window.L.marker([initialLat, initialLng], { draggable: true }).addTo(mapInstance.current);
-
-      mapInstance.current.on('click', (e: any) => {
-        const { lat, lng } = e.latlng;
-        if (markerInstance.current) {
-          markerInstance.current.setLatLng([lat, lng]);
-          setSelectedCoords({ lat, lng });
-        }
-      });
-
-      markerInstance.current.on('dragend', () => {
-        const position = markerInstance.current.getLatLng();
-        setSelectedCoords({ lat: position.lat, lng: position.lng });
-      });
-
-      // Try to get user's current location
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            if (!mapInstance.current || !markerInstance.current) return;
-            const { latitude, longitude } = position.coords;
-            mapInstance.current.setView([latitude, longitude], 15);
-            markerInstance.current.setLatLng([latitude, longitude]);
-            setSelectedCoords({ lat: latitude, lng: longitude });
-          },
-          () => {
-            // geolocation failed, use default (already set)
-          }
-        );
+    const initMap = async () => {
+      try {
+        await loadLeaflet();
+      } catch {
+        return;
       }
-    } catch (e) {
-      console.error("Failed to initialize Leaflet map:", e);
-    }
+      if (cancelled || !mapRef.current || !window.L) return;
+
+      const leafletContainer = document.createElement("div");
+      leafletContainer.style.width = "100%";
+      leafletContainer.style.height = "100%";
+      leafletContainer.style.position = "relative";
+      containerEl.appendChild(leafletContainer);
+      leafletContainerRef = leafletContainer;
+
+      const initialLat = 28.6139;
+      const initialLng = 77.2090;
+
+      try {
+        mapInstance.current = window.L.map(leafletContainer).setView([initialLat, initialLng], 13);
+
+        window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+        }).addTo(mapInstance.current);
+
+        markerInstance.current = window.L.marker([initialLat, initialLng], { draggable: true }).addTo(mapInstance.current);
+
+        mapInstance.current.on("click", (e: any) => {
+          const { lat, lng } = e.latlng;
+          if (markerInstance.current) {
+            markerInstance.current.setLatLng([lat, lng]);
+            setSelectedCoords({ lat, lng });
+          }
+        });
+
+        markerInstance.current.on("dragend", () => {
+          const position = markerInstance.current.getLatLng();
+          setSelectedCoords({ lat: position.lat, lng: position.lng });
+        });
+
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              if (!mapInstance.current || !markerInstance.current) return;
+              const { latitude, longitude } = position.coords;
+              mapInstance.current.setView([latitude, longitude], 15);
+              markerInstance.current.setLatLng([latitude, longitude]);
+              setSelectedCoords({ lat: latitude, lng: longitude });
+            },
+            () => undefined
+          );
+        }
+      } catch (e) {
+        console.error("Failed to initialize Leaflet map:", e);
+      }
+    };
+
+    initMap();
 
     return () => {
+      cancelled = true;
       try {
-        // Completely remove Leaflet instance
         if (mapInstance.current) {
-          // Leaflet's remove() also removes all children, so do it first
           mapInstance.current.remove();
           mapInstance.current = null;
         }
         markerInstance.current = null;
 
-        // Then remove the container from React's tree
-        // Use a try/catch in case Leaflet already removed it
         if (leafletContainerRef && leafletContainerRef.parentNode === containerEl) {
           try {
             containerEl.removeChild(leafletContainerRef);
           } catch (e) {
-            // Container may have already been removed by Leaflet
             console.debug("Leaflet container already removed:", e);
           }
         }

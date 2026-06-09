@@ -8,8 +8,7 @@ import { categories } from "@/data/categories";
 import { dealProducts, featuredProducts } from "@/data/products";
 import { initialBlogs } from "@/data/blogs";
 import { StarRating } from "@/components/shop/StarRating";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { iconMap } from "@/utils/fontawesome";
+import { FaIcon } from "@/components/ui/FaIcon";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { megaMenuData } from "@/data/megaMenu";
 import { resolveImgUrl } from "@/utils/image";
@@ -425,20 +424,17 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             return (
               <section key={index} className="container-page">
                 <div className="grid grid-cols-2 gap-4 rounded-2xl bg-muted p-6 md:grid-cols-4">
-                  {feats.map((f, i) => {
-                    const iconDef = iconMap.get(f.icon) || iconMap.get("star");
-                    return (
+                  {feats.map((f, i) => (
                       <div key={i} className="flex items-start gap-3">
                         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                          {iconDef && <FontAwesomeIcon icon={iconDef} size="sm" />}
+                          <FaIcon name={f.icon || "star"} className="h-4 w-4" />
                         </span>
                         <div>
                           <div className="text-sm font-bold">{f.title}</div>
                           <div className="text-xs text-muted-foreground">{f.desc}</div>
                         </div>
                       </div>
-                    );
-                  })}
+                    ))}
                 </div>
               </section>
             );

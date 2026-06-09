@@ -7,7 +7,7 @@ import { Category } from "@/data/categories";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { categoryRepository, megaMenuRepository } from "@/client/apiClient";
@@ -26,6 +26,9 @@ const AdminCategories = () => {
   const [imagePreview, setImagePreview] = useState<string>("");
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<(Category & { id?: string; _count?: { products?: number } }) | null>(null);
+  const [reassignCategoryId, setReassignCategoryId] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const groupMapping: Record<string, string> = {
@@ -158,22 +161,41 @@ const AdminCategories = () => {
     setEditCat(null);
   };
 
-  const handleDelete = async (slug: string, name: string) => {
-    if (window.confirm(t("admin_categories.confirm_delete", { name }))) {
-      const catToDelete = categoriesList.find((c) => c.slug === slug);
-      const catId = (catToDelete as any)?.id;
+  const openDeleteDialog = (category: Category) => {
+    setDeleteTarget(category as Category & { id?: string; _count?: { products?: number } });
+    const firstOther = categoriesList.find((c) => c.slug !== category.slug);
+    setReassignCategoryId((firstOther as any)?.id || "");
+  };
 
-      try {
-        if (catId) {
-          await categoryRepository.delete(catId);
-        }
-        const updated = categoriesList.filter((c) => c.slug !== slug);
-        setCategoriesList(updated);
-        toast.success(t("admin_categories.toast_deleted"));
-      } catch (error) {
-        console.error("Failed to delete category from backend", error);
-        toast.error(t("admin_categories.toast_delete_failed"));
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+
+    const catId = (deleteTarget as any)?.id;
+    const productCount = (deleteTarget as any)?._count?.products ?? 0;
+
+    if (productCount > 0 && !reassignCategoryId) {
+      toast.error(t("admin_categories.toast_reassign_required"));
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      if (catId) {
+        await categoryRepository.delete(catId, {
+          reassignToCategoryId: productCount > 0 ? reassignCategoryId : undefined,
+        });
       }
+      const updated = categoriesList.filter((c) => c.slug !== deleteTarget.slug);
+      setCategoriesList(updated);
+      toast.success(t("admin_categories.toast_deleted"));
+      setDeleteTarget(null);
+      setReassignCategoryId("");
+    } catch (error) {
+      console.error("Failed to delete category from backend", error);
+      const message = error instanceof Error ? error.message : t("admin_categories.toast_delete_failed");
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -187,7 +209,10 @@ const AdminCategories = () => {
               <Button className="rounded-full gap-2"><Plus className="h-4 w-4" /> {t("admin_categories.add")}</Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>{editCat ? t("admin_categories.edit_title") : t("admin_categories.add_title")}</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>{editCat ? t("admin_categories.edit_title") : t("admin_categories.add_title")}</DialogTitle>
+                <DialogDescription>{t("admin_categories.form_description")}</DialogDescription>
+              </DialogHeader>
               <form onSubmit={handleSave} className="space-y-4 mt-4">
                 <div>
                   <Label>{t("admin_categories.label_name")}</Label>
@@ -302,7 +327,7 @@ const AdminCategories = () => {
                         <Pencil className="h-4 w-4" />
                       </Button>
                       {hasPermission("categories") && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(c.slug, c.name)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDeleteDialog(c)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
@@ -314,6 +339,53 @@ const AdminCategories = () => {
           })
         )}
       </div>
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setReassignCategoryId(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("admin_categories.delete_title")}</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? ((deleteTarget as any)?._count?.products > 0
+                  ? t("admin_categories.delete_with_products", {
+                      count: (deleteTarget as any)?._count?.products ?? 0,
+                    })
+                  : t("admin_categories.delete_description", { name: deleteTarget.name }))
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteTarget && (deleteTarget as any)?._count?.products > 0 && (
+            <div>
+              <Label>{t("admin_categories.delete_reassign_label")}</Label>
+              <select
+                value={reassignCategoryId}
+                onChange={(e) => setReassignCategoryId(e.target.value)}
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                required
+              >
+                <option value="">{t("admin_categories.delete_reassign_placeholder")}</option>
+                {categoriesList
+                  .filter((c) => c.slug !== deleteTarget.slug && (c as any).id)
+                  .map((c) => (
+                    <option key={c.slug} value={(c as any).id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => { setDeleteTarget(null); setReassignCategoryId(""); }}>
+              {t("admin_categories.cancel")}
+            </Button>
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {t("admin_categories.delete_confirm")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

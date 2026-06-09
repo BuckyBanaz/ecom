@@ -1,17 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { iconList, iconMap } from "@/utils/fontawesome";
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { faStar } from "@fortawesome/free-solid-svg-icons/faStar";
+import { resolveIconAsync } from "@/utils/fontawesome";
 
 const labelFromName = (name: string) =>
   name
     .replace(/-/g, " ")
     .replace(/\b\w/g, (m) => m.toUpperCase());
 
-const resolveIcon = (value: string) => iconMap.get(value) || iconMap.get("star");
 
 type IconPickerProps = {
   value: string;
@@ -23,6 +24,18 @@ export const IconPicker = ({ value, onChange, buttonLabel }: IconPickerProps) =>
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [iconList, setIconList] = useState<IconDefinition[]>([]);
+  const [activeIcon, setActiveIcon] = useState<IconDefinition>(faStar);
+
+  useEffect(() => {
+    resolveIconAsync(value).then(setActiveIcon);
+  }, [value]);
+
+  useEffect(() => {
+    if (!open || iconList.length > 0) return;
+    import("@/utils/fontawesome-admin").then((mod) => setIconList(mod.iconList));
+  }, [open, iconList.length]);
+
   const normalized = query.trim().toLowerCase();
   const filtered = normalized
     ? iconList.filter((i) => {
@@ -32,7 +45,6 @@ export const IconPicker = ({ value, onChange, buttonLabel }: IconPickerProps) =>
       })
     : iconList.slice(0, 240);
   const displayList = filtered.slice(0, 240);
-  const activeIcon = resolveIcon(value);
 
   return (
     <div>
