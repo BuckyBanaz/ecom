@@ -16,7 +16,8 @@ import { faqs as defaultFaqs } from "@/data/faqs";
 import { megaMenuRepository, categoryRepository, productRepository } from "@/client/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
-import { normalizeUploadedUrl } from "@/utils/image";
+import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { getClientBaseUrl } from "@/utils/siteUrl";
 
 type MegaMenuWithId = MegaMenu & { id?: string };
 
@@ -603,7 +604,7 @@ export default function CMSMegaMenu() {
                   <Label>Google Search Preview</Label>
                   <div className="border rounded-xl p-4 bg-muted/20 space-y-1 text-left shadow-xs">
                     <div className="text-[11px] text-muted-foreground truncate">
-                      {(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '')}{activePageBuilder.type === "menu" ? "/relief/" : "/category/"}{pageSlug}
+                      {getClientBaseUrl()}{activePageBuilder.type === "menu" ? "/relief/" : "/category/"}{pageSlug}
                     </div>
                     <div className="text-blue-600 dark:text-blue-400 font-medium text-base hover:underline cursor-pointer truncate">
                       {seoTitle || pageTitle || "Page Title"}
@@ -661,7 +662,7 @@ export default function CMSMegaMenu() {
                   <div className="flex items-center gap-4">
                     {seoImage && (
                       <div className="relative shrink-0 border rounded overflow-hidden shadow-sm">
-                        <img src={seoImage} alt="SEO Preview" className="h-16 w-24 object-cover" />
+                        <img src={resolveImgUrl(seoImage)} alt="SEO Preview" className="h-16 w-24 object-cover" />
                         <button 
                           onClick={() => setSeoImage("")} 
                           className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-1 hover:bg-red-500 transition-colors"

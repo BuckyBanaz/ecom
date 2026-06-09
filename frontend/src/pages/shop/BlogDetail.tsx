@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { blogRepository } from "@/client/apiClient";
+import { SafeImage } from "@/components/ui/SafeImage";
 import { initialBlogs } from "@/data/blogs";
 
 const BlogDetail = () => {
@@ -96,7 +97,7 @@ const BlogDetail = () => {
       <article className="mt-6 overflow-hidden rounded-3xl border bg-card shadow-xs">
         <div className="relative aspect-video w-full overflow-hidden bg-muted">
           {blog.cover ? (
-            <img src={blog.cover} alt={blog.title} className="h-full w-full object-cover" />
+            <SafeImage src={blog.cover} alt={blog.title} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-foreground text-sm font-semibold">{t("blog_detail.no_cover_image")}</div>
           )}

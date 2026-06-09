@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
 import { authRepository } from "@/client/apiClient";
+import { ENDPOINTS } from "@/utils/endpoints";
 import { cn } from "@/lib/utils";
 
 /* ─── Permission Definitions ──────────────────────────────────────────────── */
@@ -196,7 +197,7 @@ const AdminManageUsers = () => {
     if (!form.email || !form.password) { toast.error("Please fill in email and password"); return; }
     setIsSubmitting(true);
     try {
-      const response = await fetch("http://localhost:5000/api/v1/auth/create-admin", {
+      const response = await fetch(`${ENDPOINTS.AUTH}/create-admin`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

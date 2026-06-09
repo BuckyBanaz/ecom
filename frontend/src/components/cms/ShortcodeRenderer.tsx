@@ -509,7 +509,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                       <p className="mt-2 text-sm text-muted-foreground">{r.message || r.text}</p>
                       <div className="mt-4 flex items-center gap-2">
                         {r.avatar && (
-                          <img src={r.avatar} alt={r.name} className="h-8 w-8 rounded-full object-cover" />
+                          <SafeImage src={r.avatar} alt={r.name} className="h-8 w-8 rounded-full object-cover" />
                         )}
                         <p className="text-xs font-semibold text-foreground">— {r.name}</p>
                       </div>

@@ -1,4 +1,4 @@
-import { ENDPOINTS, BASE_URL, API_PREFIX } from "../utils/endpoints";
+import { ENDPOINTS, getBaseUrl, API_PREFIX } from "../utils/endpoints";
 
 // Helper request wrapper around fetch
 async function request<T>(url: string, config: RequestInit = {}): Promise<T> {
@@ -679,14 +679,14 @@ export const chargeRepository = {
 // 25. Shipping Settings Config (Public)
 export const shippingRepository = {
   getConfig: async () => {
-    return request<any>(`${BASE_URL}${API_PREFIX}/shipping/config`, { method: "GET" });
+    return request<any>(`${getBaseUrl()}${API_PREFIX}/shipping/config`, { method: "GET" });
   }
 };
 
 // 26. Payment Config (Public)
 export const paymentRepository = {
   getConfig: async () => {
-    return request<any>(`${BASE_URL}${API_PREFIX}/payments/config`, { method: "GET" });
+    return request<any>(`${getBaseUrl()}${API_PREFIX}/payments/config`, { method: "GET" });
   }
 };
 

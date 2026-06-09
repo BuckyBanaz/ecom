@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { getClientBaseUrl } from "@/utils/siteUrl";
 
 type ImgState = string | null;
 
@@ -150,7 +151,7 @@ const CMSLegal = () => {
                 <Label>Google Search Preview</Label>
                 <div className="border rounded-xl p-4 bg-muted/20 space-y-1 text-left shadow-xs">
                   <div className="text-[11px] text-muted-foreground truncate">
-                    {(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '')}/{preset.slug}
+                    {getClientBaseUrl()}/{preset.slug}
                   </div>
                   <div className="text-blue-600 dark:text-blue-400 font-medium text-base hover:underline cursor-pointer truncate">
                     {seoTitle || preset.title}

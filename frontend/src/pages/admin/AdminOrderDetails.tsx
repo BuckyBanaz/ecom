@@ -11,6 +11,7 @@ import { Order, statusLabels, MANUAL_STATUSES, AUTO_STATUSES } from "./AdminOrde
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/layout/Logo";
 import { ordersRepository } from "@/client/apiClient";
+import { ENDPOINTS } from "@/utils/endpoints";
 import { parseOrderMetadata } from "@/utils/formatters";
 
 const formatOrderWithShipment = (orderData: any) => {
@@ -544,8 +545,7 @@ export default function AdminOrderDetails() {
                     <Button 
                       onClick={() => {
                         const token = localStorage.getItem("admin_token") || localStorage.getItem("customer_token") || "";
-                        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-                        const url = `${baseUrl}/api/v1/orders/${order.id}/sendcloud/label?token=${token}`;
+                        const url = `${ENDPOINTS.ORDERS}/${order.id}/sendcloud/label?token=${token}`;
                         window.open(url, "_blank");
                       }}
                       size="sm" 

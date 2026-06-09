@@ -5,6 +5,7 @@ import { Save } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { cmsReliefRepository } from "@/client/apiClient";
+import { getClientBaseUrl } from "@/utils/siteUrl";
 
 interface ReliefPageData {
   title?: string;
@@ -87,8 +88,8 @@ export default function CMSRelief() {
           <h1 className="text-3xl font-bold tracking-tight">Relief Page Builder</h1>
           <div className="flex items-center gap-3 mt-1">
             <p className="text-muted-foreground">Design your Relief landing page using the rich text composer and custom layout blocks.</p>
-            <a href={(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '') + "/relief"} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md transition-colors border flex items-center gap-1">
-              Live URL: {(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '')}/relief
+            <a href={`${getClientBaseUrl()}/relief`} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md transition-colors border flex items-center gap-1">
+              Live URL: {getClientBaseUrl()}/relief
             </a>
           </div>
         </div>

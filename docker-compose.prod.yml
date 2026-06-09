@@ -55,6 +55,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: https://api.${DOMAIN}
+        VITE_APP_URL: https://${DOMAIN}
     restart: unless-stopped
     depends_on:
       - backend

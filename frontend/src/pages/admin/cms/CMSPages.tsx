@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { cmsPagesRepository } from "@/client/apiClient";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { getClientBaseUrl } from "@/utils/siteUrl";
 
 type ImgState = string | null;
 
@@ -234,7 +235,7 @@ const CMSPages = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 bg-muted/50 border rounded-md px-3 py-1">
-                    <span className="text-muted-foreground whitespace-nowrap text-sm">{(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/^https?:\/\//, '').replace(/\/$/, '')}/</span>
+                    <span className="text-muted-foreground whitespace-nowrap text-sm">{getClientBaseUrl().replace(/^https?:\/\//, "")}/</span>
                     <input 
                       value={slug} 
                       onChange={e => { setSlug(e.target.value); setAutoSlug(false); }}

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { getClientBaseUrl } from "@/utils/siteUrl";
 
 const FAQ_KEY = "faq_data";
 
@@ -42,8 +43,8 @@ const CMSFaqs = () => {
           <h1 className="text-3xl font-bold">FAQs</h1>
           <div className="flex items-center gap-3 mt-1">
             <p className="text-muted-foreground">Manage the questions shown on the customer service page.</p>
-            <a href={(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '') + "/faqs"} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md transition-colors border flex items-center gap-1">
-              Live URL: {(import.meta.env.VITE_APP_URL || "https://yourshop.com").replace(/\/$/, '')}/faqs
+            <a href={`${getClientBaseUrl()}/faqs`} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md transition-colors border flex items-center gap-1">
+              Live URL: {getClientBaseUrl()}/faqs
             </a>
           </div>
         </div>

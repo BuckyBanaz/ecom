@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getToken } from "firebase/messaging";
 import { messaging } from "@/config/firebase";
 import axios from "axios";
+import { ENDPOINTS } from "@/utils/endpoints";
 
 const VAPID_KEY = "BKUVRggTv1D96jFaRKoNKhYcApUtw9fJt1TwqXTU_oOLV-pjFpHxO-DmRvpLNA4IpCLr94CpzhFyg40sfpO6koU";
 
@@ -22,7 +23,7 @@ export function useFcmToken() {
             const authToken = localStorage.getItem("adminToken") || localStorage.getItem("token");
             if (authToken) {
               await axios.post(
-                "http://localhost:5000/api/v1/auth/fcm-token",
+                `${ENDPOINTS.AUTH}/fcm-token`,
                 { token },
                 { headers: { Authorization: `Bearer ${authToken}` } }
               ).catch(err => console.error("Failed to save FCM token to backend", err));
