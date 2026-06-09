@@ -5,6 +5,7 @@ import { env } from "./config/env";
 import { errorHandler, AppError } from "./middlewares/errorMiddleware";
 import { setupSwagger } from "./config/swagger";
 import { requestLogger } from "./middlewares/loggerMiddleware";
+import { globalLimiter } from "./middlewares/rateLimitMiddleware";
 import redis from "./config/redis";
 import { seedTemplates } from "./utils/seedTemplates";
 
@@ -15,6 +16,9 @@ const app = express();
 
 // Register HTTP request logger middleware
 app.use(requestLogger);
+
+// Rate limiting — protects against brute-force and abuse
+app.use(globalLimiter);
 
 const allowedOrigins = new Set([
   env.CLIENT_URL,
@@ -110,6 +114,7 @@ import orderRoutes from "./routes/orderRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import configRoutes from "./routes/configRoutes";
+import logsRoutes from "./routes/logsRoutes";
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -127,6 +132,7 @@ app.use("/api/v1/cms", cmsRoutes);
 app.use("/api/v1/media", mediaRoutes);
 app.use("/api/v1/config", configRoutes);
 app.use("/api/v1/admin/settings", adminSettingsRoutes);
+app.use("/api/v1/admin/logs", logsRoutes);
 app.use("/api/v1/admin/email-templates", emailTemplateRoutes);
 app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/charges", chargeRoutes);

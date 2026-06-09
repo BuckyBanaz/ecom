@@ -1,5 +1,6 @@
 import app from "./app";
 import { env } from "./config/env";
+import { addLog } from "./services/logStore";
 import { execSync } from "child_process";
 import path from "path";
 
@@ -30,9 +31,9 @@ try {
 }
 
 const server = app.listen(env.PORT, () => {
-  console.log(
-    `🚀 Server successfully booted on http://localhost:${env.PORT} in [${env.NODE_ENV}] mode`
-  );
+  const bootMessage = `Server booted on port ${env.PORT} in ${env.NODE_ENV} mode`;
+  addLog({ level: "info", type: "system", message: bootMessage });
+  console.log(`🚀 ${bootMessage}`);
 });
 
 // Centralized handlers for unhandled errors

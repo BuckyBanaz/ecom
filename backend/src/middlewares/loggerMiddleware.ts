@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { addLog } from "../services/logStore";
 
 export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
@@ -9,18 +10,33 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
     const { statusCode } = res;
 
     let statusEmoji = "ℹ️";
+    let level: "info" | "warn" | "error" = "info";
     if (statusCode >= 500) {
       statusEmoji = "🚨";
+      level = "error";
     } else if (statusCode >= 400) {
       statusEmoji = "⚠️";
+      level = "warn";
     } else if (statusCode >= 300) {
       statusEmoji = "🔄";
     } else if (statusCode >= 200) {
       statusEmoji = "✅";
     }
 
+    const message = `${method} ${originalUrl} - ${statusCode} - ${duration}ms`;
+
+    addLog({
+      level,
+      type: "request",
+      message,
+      method,
+      url: originalUrl,
+      statusCode,
+      durationMs: duration,
+    });
+
     console.log(
-      `${statusEmoji} [${new Date().toISOString()}] ${method} ${originalUrl} - Status: ${statusCode} - ${duration}ms`
+      `${statusEmoji} [${new Date().toISOString()}] ${message}`
     );
 
     // Detailed debug logs for development environment

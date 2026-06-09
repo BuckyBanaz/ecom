@@ -14,6 +14,7 @@ import {
   downloadSendcloudLabel
 } from "../controllers/orderController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
+import { checkoutLimiter } from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 
@@ -43,7 +44,7 @@ router.get("/debug-orders", async (req, res) => {
  *       200:
  *         description: Checkout session initiated
  */
-router.post("/initiate", initiateCheckout);
+router.post("/initiate", checkoutLimiter, initiateCheckout);
 /**
  * @swagger
  * /api/v1/orders/verify/{sessionId}:

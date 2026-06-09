@@ -1,12 +1,16 @@
 import { ENDPOINTS, getBaseUrl, API_PREFIX } from "../utils/endpoints";
+import { cacheKey, getCached, isCacheStale, setCache } from "../lib/apiCache";
 
-// Helper request wrapper around fetch
-async function request<T>(url: string, config: RequestInit = {}): Promise<T> {
+type RequestOptions = RequestInit & { cacheTtl?: number };
+
+const inflight = new Map<string, Promise<unknown>>();
+
+async function fetchAndParse<T>(url: string, config: RequestInit): Promise<T> {
   const isAdminPanel = window.location.pathname.startsWith("/admin");
   const token = isAdminPanel
     ? (localStorage.getItem("admin_token") || localStorage.getItem("customer_token"))
     : (localStorage.getItem("customer_token") || localStorage.getItem("admin_token"));
-  
+
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...config.headers,
@@ -17,7 +21,7 @@ async function request<T>(url: string, config: RequestInit = {}): Promise<T> {
   }
 
   const response = await fetch(url, { ...config, headers });
-  
+
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
     const message = errorBody.message || `HTTP Error ${response.status}`;
@@ -26,9 +30,52 @@ async function request<T>(url: string, config: RequestInit = {}): Promise<T> {
     }
     throw new Error(message);
   }
-  
+
   return response.json() as Promise<T>;
 }
+
+// Helper request wrapper around fetch with optional GET caching
+async function request<T>(url: string, config: RequestOptions = {}): Promise<T> {
+  const method = (config.method || "GET").toUpperCase();
+  const isAdminPanel = window.location.pathname.startsWith("/admin");
+  const { cacheTtl, ...fetchConfig } = config;
+  const key = cacheKey(method, url);
+
+  if (method === "GET" && cacheTtl && !isAdminPanel) {
+    const cached = getCached<T>(key);
+    if (cached) {
+      const staleAfter = Math.floor(cacheTtl / 3);
+      if (isCacheStale(key, staleAfter) && !inflight.has(key)) {
+        inflight.set(
+          key,
+          fetchAndParse<T>(url, fetchConfig)
+            .then((fresh) => {
+              setCache(key, fresh, cacheTtl);
+              return fresh;
+            })
+            .finally(() => inflight.delete(key))
+        );
+      }
+      return cached;
+    }
+  }
+
+  const promise = fetchAndParse<T>(url, fetchConfig);
+  if (method === "GET" && cacheTtl && !isAdminPanel) {
+    return promise.then((data) => {
+      setCache(key, data, cacheTtl);
+      return data;
+    });
+  }
+
+  return promise;
+}
+
+const CACHE = {
+  SHORT: 5 * 60_000,
+  MEDIUM: 15 * 60_000,
+  LONG: 30 * 60_000,
+} as const;
 
 // 1. Products Repository
 export const productRepository = {
@@ -41,11 +88,11 @@ export const productRepository = {
     });
     const queryString = query.toString();
     const url = queryString ? `${ENDPOINTS.PRODUCTS}?${queryString}` : ENDPOINTS.PRODUCTS;
-    return request<any>(url, { method: "GET" });
+    return request<any>(url, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   
   getByIdOrSlug: async (idOrSlug: string) => {
-    return request<any>(`${ENDPOINTS.PRODUCTS}/${idOrSlug}`, { method: "GET" });
+    return request<any>(`${ENDPOINTS.PRODUCTS}/${idOrSlug}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   
   create: async (data: any) => {
@@ -70,7 +117,7 @@ export const productRepository = {
 // 2. Categories Repository
 export const categoryRepository = {
   getAll: async () => {
-    return request<any>(ENDPOINTS.CATEGORIES, { method: "GET" });
+    return request<any>(ENDPOINTS.CATEGORIES, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   create: async (data: any) => {
@@ -98,11 +145,11 @@ export const categoryRepository = {
 // 3. Brands Repository
 export const brandRepository = {
   getAll: async () => {
-    return request<any>(ENDPOINTS.BRANDS, { method: "GET" });
+    return request<any>(ENDPOINTS.BRANDS, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   getById: async (id: string) => {
-    return request<any>(`${ENDPOINTS.BRANDS}/${id}`, { method: "GET" });
+    return request<any>(`${ENDPOINTS.BRANDS}/${id}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   
   create: async (data: any) => {
@@ -181,7 +228,7 @@ export const attributeRepository = {
 // 6. Mega Menu Repository
 export const megaMenuRepository = {
   getAll: async () => {
-    return request<any>(ENDPOINTS.MEGAMENUS, { method: "GET" });
+    return request<any>(ENDPOINTS.MEGAMENUS, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   sync: async (data: any) => {
@@ -298,7 +345,7 @@ export const authRepository = {
 // 8. CMS Homepage Repository
 export const cmsHomepageRepository = {
   get: async () => {
-    return request<any>(ENDPOINTS.CMS_HOMEPAGE, { method: "GET" });
+    return request<any>(ENDPOINTS.CMS_HOMEPAGE, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   
   update: async (data: any) => {
@@ -312,7 +359,7 @@ export const cmsHomepageRepository = {
 // 8.5 CMS Relief Repository
 export const cmsReliefRepository = {
   get: async () => {
-    return request<any>(ENDPOINTS.CMS_RELIEF, { method: "GET" });
+    return request<any>(ENDPOINTS.CMS_RELIEF, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   
   update: async (data: any) => {
@@ -326,7 +373,7 @@ export const cmsReliefRepository = {
 // 8.6 CMS Features Repository
 export const cmsFeaturesRepository = {
   get: async () => {
-    return request<any>(ENDPOINTS.CMS_FEATURES, { method: "GET" });
+    return request<any>(ENDPOINTS.CMS_FEATURES, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   
   update: async (data: any) => {
@@ -344,7 +391,7 @@ export const cmsPagesRepository = {
   },
   
   getBySlug: async (slug: string) => {
-    return request<any>(`${ENDPOINTS.CMS_PAGE}/${slug}`, { method: "GET" });
+    return request<any>(`${ENDPOINTS.CMS_PAGE}/${slug}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   
   create: async (data: any) => {
@@ -369,7 +416,7 @@ export const cmsPagesRepository = {
 // 9.5 CMS Header & Footer Repository
 export const cmsHeaderFooterRepository = {
   get: async () => {
-    return request<any>(ENDPOINTS.CMS_HEADER_FOOTER, { method: "GET" });
+    return request<any>(ENDPOINTS.CMS_HEADER_FOOTER, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   update: async (data: any) => {
@@ -473,10 +520,10 @@ export const mediaRepository = {
 export const blogRepository = {
   getAll: async (params: { published?: boolean } = {}) => {
     const query = params.published !== undefined ? `?published=${params.published}` : "";
-    return request<any>(`${ENDPOINTS.BLOGS}${query}`, { method: "GET" });
+    return request<any>(`${ENDPOINTS.BLOGS}${query}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   getById: async (id: string) => {
-    return request<any>(`${ENDPOINTS.BLOGS}/${id}`, { method: "GET" });
+    return request<any>(`${ENDPOINTS.BLOGS}/${id}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
   },
   create: async (data: any) => {
     return request<any>(ENDPOINTS.BLOGS, {
@@ -498,7 +545,7 @@ export const blogRepository = {
 // 12. Reviews Repository
 export const reviewRepository = {
   getByProduct: async (productId: string) => {
-    return request<any>(`${ENDPOINTS.REVIEWS}/product/${productId}`, { method: "GET" });
+    return request<any>(`${ENDPOINTS.REVIEWS}/product/${productId}`, { method: "GET", cacheTtl: CACHE.SHORT });
   },
   create: async (productId: string, data: any) => {
     return request<any>(`${ENDPOINTS.REVIEWS}/product/${productId}`, {
@@ -579,7 +626,7 @@ export const adminSettingsRepository = {
     });
   },
   getMaintenanceStatus: async () => {
-    return request<any>(ENDPOINTS.PUBLIC_MAINTENANCE_STATUS, { method: "GET" });
+    return request<any>(ENDPOINTS.PUBLIC_MAINTENANCE_STATUS, { method: "GET", cacheTtl: CACHE.SHORT });
   },
 };
 
@@ -682,14 +729,14 @@ export const chargeRepository = {
 // 25. Shipping Settings Config (Public)
 export const shippingRepository = {
   getConfig: async () => {
-    return request<any>(`${getBaseUrl()}${API_PREFIX}/shipping/config`, { method: "GET" });
+    return request<any>(`${getBaseUrl()}${API_PREFIX}/shipping/config`, { method: "GET", cacheTtl: CACHE.LONG });
   }
 };
 
 // 26. Payment Config (Public)
 export const paymentRepository = {
   getConfig: async () => {
-    return request<any>(`${getBaseUrl()}${API_PREFIX}/payments/config`, { method: "GET" });
+    return request<any>(`${getBaseUrl()}${API_PREFIX}/payments/config`, { method: "GET", cacheTtl: CACHE.LONG });
   }
 };
 

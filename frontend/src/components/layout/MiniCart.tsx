@@ -12,7 +12,7 @@ export function MiniCart() {
 
   return (
     <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-      <SheetContent className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" className="flex h-full !w-full max-w-full flex-col p-0 sm:!max-w-md">
         <SheetHeader className="border-b p-4">
           <SheetTitle>{t("minicart.title", { count: items.length })}</SheetTitle>
           <SheetDescription className="sr-only">{t("minicart.description")}</SheetDescription>

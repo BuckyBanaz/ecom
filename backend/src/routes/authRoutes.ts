@@ -19,6 +19,11 @@ import {
   getAllUsers,
 } from "../controllers/authController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
+import {
+  adminAuthLimiter,
+  authLimiter,
+  sensitiveAuthLimiter,
+} from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 
@@ -115,7 +120,7 @@ const router = Router();
  *       409:
  *         description: Conflict (Email or phone already registered)
  */
-router.post("/register", registerCustomer);
+router.post("/register", authLimiter, registerCustomer);
 
 /**
  * @swagger
@@ -191,7 +196,7 @@ router.post("/register", registerCustomer);
  *       401:
  *         description: Unauthorized (Invalid credentials)
  */
-router.post("/login", loginCustomer);
+router.post("/login", authLimiter, loginCustomer);
 
 /**
  * @swagger
@@ -331,7 +336,7 @@ router.post(
  *       403:
  *         description: Access Denied (Not an admin)
  */
-router.post("/login-admin", loginAdmin);
+router.post("/login-admin", adminAuthLimiter, loginAdmin);
 
 
 /**
@@ -360,7 +365,7 @@ router.post("/login-admin", loginAdmin);
  *       404:
  *         description: No account found with this phone number
  */
-router.post("/send-otp", sendOTP);
+router.post("/send-otp", sensitiveAuthLimiter, sendOTP);
 
 /**
  * @swagger
@@ -394,7 +399,7 @@ router.post("/send-otp", sendOTP);
  *       404:
  *         description: User not found
  */
-router.post("/verify-otp", verifyOTPLogin);
+router.post("/verify-otp", authLimiter, verifyOTPLogin);
 
 /**
  * @swagger
@@ -513,7 +518,7 @@ router.put("/change-password", authenticateJWT, changePassword);
  *       200:
  *         description: Password reset OTP sent
  */
-router.post("/forgot-password", forgotPassword);
+router.post("/forgot-password", sensitiveAuthLimiter, forgotPassword);
 
 /**
  * @swagger
@@ -542,7 +547,7 @@ router.post("/forgot-password", forgotPassword);
  *       200:
  *         description: Password reset successfully
  */
-router.post("/reset-password", resetPassword);
+router.post("/reset-password", sensitiveAuthLimiter, resetPassword);
 
 // ----------------------------------------------------
 // Customer Users Management (Admin view all users)

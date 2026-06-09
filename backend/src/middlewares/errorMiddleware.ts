@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { env } from "../config/env";
+import { addLog } from "../services/logStore";
 
 /**
  * Custom operational API Error class
@@ -28,7 +29,17 @@ export const errorHandler = (
   const statusCode = err instanceof AppError ? err.statusCode : 500;
   const message = err.message || "Something went wrong on the server";
 
-  // In development, return detailed stack logs; in production, keep them hidden
+  addLog({
+    level: statusCode >= 500 ? "error" : "warn",
+    type: "error",
+    message,
+    statusCode,
+    meta: {
+      name: err.name,
+      ...(env.NODE_ENV === "development" && err.stack ? { stack: err.stack } : {}),
+    },
+  });
+
   if (statusCode >= 500) {
     console.error("[Global Error Handler]", err);
   }

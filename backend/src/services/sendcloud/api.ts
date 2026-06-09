@@ -26,6 +26,16 @@ export const getSendcloudAuthHeaders = () => {
 const BASE_URL_V3 = "https://panel.sendcloud.sc/api/v3";
 const BASE_URL_V2 = "https://panel.sendcloud.sc/api/v2";
 
+const normalizePostalCode = (postalCode: string, countryCode: string) => {
+  const trimmed = String(postalCode || "").trim();
+  if (!trimmed) return trimmed;
+  const compact = trimmed.replace(/\s+/g, "");
+  if (countryCode === "NL" && /^\d{4}[A-Za-z]{2}$/.test(compact)) {
+    return compact.toUpperCase();
+  }
+  return trimmed;
+};
+
 export const sendcloudApi = {
   /**
    * Helper to fetch the default sender address from the Sendcloud account
@@ -42,6 +52,7 @@ export const sendcloudApi = {
         if (defaultAddr) {
           console.log("📦 Default Sender Address from Sendcloud API:", JSON.stringify(defaultAddr, null, 2));
           return {
+            id: defaultAddr.id,
             name: defaultAddr.contact_name || defaultAddr.company_name || "Sender",
             company_name: defaultAddr.company_name || "",
             address_line_1: defaultAddr.address || defaultAddr.street || defaultAddr.address_line_1 || defaultAddr.address1 || "Zegwaardstraat",
@@ -74,6 +85,11 @@ export const sendcloudApi = {
   /**
    * Helper to resolve the V3 shipping option code from a V2 method ID
    */
+  async getV2ShippingMethodById(shippingMethodId: number) {
+    const data = await this.getShippingMethods();
+    return data.shipping_methods?.find((method: any) => Number(method.id) === Number(shippingMethodId));
+  },
+
   async getShippingOptionCode(shippingMethodId: number) {
     try {
       const response = await fetch(`${BASE_URL_V3}/compat/shipping-options`, {
@@ -81,101 +97,287 @@ export const sendcloudApi = {
         headers: getSendcloudAuthHeaders(),
         body: JSON.stringify({ shipping_method_ids: [shippingMethodId] }),
       });
+
+      const raw = await response.text();
       if (response.ok) {
-        const data = await response.json();
+        const data = JSON.parse(raw);
         const optionCode = data.data?.[String(shippingMethodId)];
-        if (optionCode) return optionCode;
+        if (optionCode) {
+          console.log(`📦 Mapped shipping method ${shippingMethodId} → ${optionCode}`);
+          return optionCode;
+        }
       } else {
-        console.warn("⚠️ Sendcloud compat mapping endpoint returned status:", response.status);
+        console.warn("⚠️ Sendcloud compat mapping failed:", response.status, raw);
       }
     } catch (e) {
       console.warn("⚠️ Failed to fetch shipping option code mapping:", e);
     }
-    return "postnl:standard"; // Default fallback
+
+    const method = await this.getV2ShippingMethodById(shippingMethodId);
+    const methodName = String(method?.name || "").toLowerCase();
+    if (methodName.includes("unstamp") || methodName.includes("letter")) {
+      return "sendcloud:letter";
+    }
+
+    throw new Error(
+      `Could not map shipping method ${shippingMethodId}${method?.name ? ` (${method.name})` : ""} to a Sendcloud v3 option.`
+    );
+  },
+
+  async fetchShippingOptions(filter: Record<string, unknown>) {
+    const response = await fetch(`${BASE_URL_V3}/shipping-options`, {
+      method: "POST",
+      headers: getSendcloudAuthHeaders(),
+      body: JSON.stringify(filter),
+    });
+
+    const raw = await response.text();
+    if (!response.ok) {
+      console.warn("⚠️ Sendcloud shipping-options failed:", response.status, raw);
+      return [];
+    }
+
+    const data = JSON.parse(raw);
+    const options = Array.isArray(data.data) ? data.data : [];
+    console.log(`📦 Sendcloud shipping-options returned ${options.length} option(s)`);
+    return options;
+  },
+
+  pickShippingOption(options: any[], preferredCode: string, v2Method?: any) {
+    if (!options.length) return null;
+
+    const exact = options.find((option) => option.code === preferredCode);
+    if (exact) return exact;
+
+    const byPrefix = options.find(
+      (option) =>
+        option.code?.startsWith(`${preferredCode}/`) ||
+        option.code?.startsWith(`${preferredCode}:`) ||
+        preferredCode.startsWith(String(option.product?.code || ""))
+    );
+    if (byPrefix) return byPrefix;
+
+    if (v2Method?.name) {
+      const targetName = String(v2Method.name).toLowerCase();
+      const byName = options.find((option) => String(option.name || "").toLowerCase() === targetName);
+      if (byName) return byName;
+    }
+
+    if (v2Method?.carrier) {
+      const byCarrier = options.find((option) => option.carrier?.code === v2Method.carrier);
+      if (byCarrier) return byCarrier;
+    }
+
+    return options[0];
+  },
+
+  async resolveShipmentShippingOption(params: {
+    senderAddress: any;
+    parcelData: any;
+    shippingMethodId: number;
+    preferredCode: string;
+    v2Method?: any;
+  }) {
+    const { senderAddress, parcelData, shippingMethodId, preferredCode, v2Method } = params;
+    const weightValue = parseFloat(parcelData.weight || "1").toFixed(3);
+    const toCountry = parcelData.country;
+    const fromCountry = senderAddress.country_code || "NL";
+
+    if (preferredCode === "sendcloud:letter") {
+      return { code: "sendcloud:letter", contractId: undefined, name: "Unstamped letter" };
+    }
+
+    const baseFilter = {
+      from_address: {
+        country_code: fromCountry,
+        postal_code: normalizePostalCode(senderAddress.postal_code, fromCountry),
+        address_line_1: senderAddress.address_line_1,
+        city: senderAddress.city,
+      },
+      to_address: {
+        country_code: toCountry,
+        postal_code: normalizePostalCode(parcelData.postal_code, toCountry),
+        address_line_1: parcelData.address,
+        city: parcelData.city,
+      },
+      parcels: [{ weight: { value: weightValue, unit: "kg" } }],
+      calculate_quotes: false,
+    };
+
+    let options = await this.fetchShippingOptions({
+      ...baseFilter,
+      shipping_option_code: preferredCode,
+    });
+
+    if (!options.length && v2Method?.carrier) {
+      options = await this.fetchShippingOptions({
+        ...baseFilter,
+        carrier_code: v2Method.carrier,
+      });
+    }
+
+    if (!options.length) {
+      options = await this.fetchShippingOptions(baseFilter);
+    }
+
+    const selected = this.pickShippingOption(options, preferredCode, v2Method);
+    if (!selected) {
+      throw new Error(
+        `No active Sendcloud shipping option found for method ${shippingMethodId}${v2Method?.name ? ` (${v2Method.name})` : ""} on route ${fromCountry} → ${toCountry}. Enable the carrier in Sendcloud or choose another method.`
+      );
+    }
+
+    console.log(
+      `📦 Resolved shipping option: ${selected.code} (contract ${selected.contract?.id ?? "n/a"}) for method ${shippingMethodId}`
+    );
+
+    return {
+      code: selected.code,
+      contractId: selected.contract?.id,
+      name: selected.name,
+    };
   },
 
   /**
-   * Create a new shipment (parcel) in Sendcloud — API v3
+   * Create and announce a shipment in Sendcloud — API v3
    */
   async createParcel(parcelData: any) {
     const config = getSendcloudConfig();
     assertHasKeys(config);
 
-    const shippingMethodId = parcelData.shipment?.id;
-    const fromAddress = await this.getDefaultSenderAddress();
-
-    // Use v2 API /parcels endpoint (simpler, doesn't auto-announce)
-    const parcelBody = {
-      name: parcelData.name,
-      company_name: parcelData.company_name || "",
-      address: parcelData.address,
-      house_number: parcelData.house_number || "",
-      city: parcelData.city,
-      postal_code: parcelData.postal_code,
-      country: parcelData.country,
-      telephone: parcelData.telephone || "",
-      email: parcelData.email || "",
-      weight: parseFloat(parcelData.weight || "1").toFixed(3),
-      order_number: parcelData.order_number,
-      quantity: parcelData.quantity || 1,
-      shipment: {
-        id: shippingMethodId
-      },
-      sender_address: fromAddress.id || 795760,  // Use sender address ID
-      request_label: true,
-    };
-
-    console.log("📦 Sendcloud v2 Parcel Body:", JSON.stringify(parcelBody, null, 2));
-
-    // Use v2 /parcels endpoint (creates parcel without auto-announcing)
-    const response = await fetch(`${BASE_URL_V2}/parcels`, {
-      method: "POST",
-      headers: getSendcloudAuthHeaders(),
-      body: JSON.stringify(parcelBody),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("❌ Sendcloud createParcel FAILED:", response.status, errorData);
-
-      // Try to extract a friendly message
-      let friendly = `Sendcloud create parcel failed (${response.status})`;
-      try {
-        const parsed = JSON.parse(errorData);
-        const detail = parsed?.error?.message || parsed?.parcel?.errors?.[0] || parsed?.message;
-        if (detail) {
-          if (/not allowed|permission/i.test(String(detail))) {
-            friendly = `Sendcloud permission issue: ${detail}. Check account settings or contact Sendcloud support.`;
-          } else {
-            friendly = String(detail);
-          }
-        }
-      } catch {
-        /* keep generic message */
-      }
-
-      throw new Error(friendly);
+    const shippingMethodId = Number(parcelData.shipment?.id);
+    if (!shippingMethodId || Number.isNaN(shippingMethodId)) {
+      throw new Error("Please select a shipping carrier before creating the label.");
     }
 
-    const data = await response.json();
-    console.log("📦 Sendcloud v2 Parcel Response:", JSON.stringify(data, null, 2));
-    
-    const parcel = data.parcel || data;
-    const trackingNum = parcel?.tracking_number || `SC-${parcel?.id || Math.floor(100000 + Math.random() * 900000)}`;
-    const trackingUrl = parcel?.tracking_url || `https://tracking.sendcloud.sc/tracking/shipment/${parcel?.id || trackingNum}`;
-    const labelUrl = parcel?.label?.normal_printer || parcel?.documents?.[0]?.link || `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`;
-    const carrier = parcel?.carrier?.name || parcel?.carrier?.code || "Sendcloud";
+    const [senderAddress, preferredCode, v2Method] = await Promise.all([
+      this.getDefaultSenderAddress(),
+      this.getShippingOptionCode(shippingMethodId),
+      this.getV2ShippingMethodById(shippingMethodId),
+    ]);
+
+    const resolvedOption = await this.resolveShipmentShippingOption({
+      senderAddress,
+      parcelData,
+      shippingMethodId,
+      preferredCode,
+      v2Method,
+    });
+
+    const shipWithProperties: Record<string, unknown> = {
+      shipping_option_code: resolvedOption.code,
+    };
+    if (resolvedOption.contractId) {
+      shipWithProperties.contract_id = resolvedOption.contractId;
+    }
+
+    const toCountry = parcelData.country;
+    const shipmentBody = {
+      to_address: {
+        name: parcelData.name,
+        company_name: parcelData.company_name || "",
+        address_line_1: parcelData.address,
+        house_number: parcelData.house_number || "",
+        postal_code: normalizePostalCode(parcelData.postal_code, toCountry),
+        city: parcelData.city,
+        country_code: toCountry,
+        phone_number: parcelData.telephone || "",
+        email: parcelData.email || "",
+      },
+      from_address: senderAddress.id
+        ? { sender_address_id: senderAddress.id }
+        : {
+            name: senderAddress.name,
+            company_name: senderAddress.company_name || "",
+            address_line_1: senderAddress.address_line_1,
+            house_number: senderAddress.house_number || "",
+            postal_code: senderAddress.postal_code,
+            city: senderAddress.city,
+            country_code: senderAddress.country_code,
+            phone_number: senderAddress.phone_number || "",
+            email: senderAddress.email || "",
+          },
+      ship_with: {
+        type: "shipping_option_code",
+        properties: shipWithProperties,
+      },
+      order_number: parcelData.order_number,
+      parcels: [
+        {
+          weight: {
+            value: parseFloat(parcelData.weight || "1").toFixed(3),
+            unit: "kg",
+          },
+        },
+      ],
+    };
+
+    console.log("📦 Sendcloud v3 Shipment Body:", JSON.stringify(shipmentBody, null, 2));
+
+    const response = await fetch(`${BASE_URL_V3}/shipments/announce`, {
+      method: "POST",
+      headers: getSendcloudAuthHeaders(),
+      body: JSON.stringify(shipmentBody),
+    });
+
+    const raw = await response.text();
+    if (!response.ok) {
+      console.error("❌ Sendcloud createParcel FAILED:", response.status, raw);
+      throw new Error(this.parseSendcloudError(raw, response.status));
+    }
+
+    const data = JSON.parse(raw);
+    console.log("📦 Sendcloud v3 Shipment Response:", JSON.stringify(data, null, 2));
+
+    const shipment = data.data;
+    const parcel = shipment?.parcels?.[0];
+    if (!parcel) {
+      throw new Error("Sendcloud accepted the request but returned no parcel data.");
+    }
+
+    const shipmentErrors = Array.isArray(shipment?.errors) ? shipment.errors : [];
+    if (shipmentErrors.length > 0) {
+      const detail = shipmentErrors.map((err: any) => err.detail || err.title).filter(Boolean).join(" | ");
+      throw new Error(detail || "Sendcloud could not announce this shipment.");
+    }
+
+    const labelUrl = parcel?.documents?.find((doc: any) => doc.link)?.link || "";
+    const carrier = shipment?.carrier?.name || shipment?.carrier?.code || v2Method?.carrier || "Sendcloud";
 
     return {
       parcel: {
         ...parcel,
-        tracking_number: trackingNum,
-        tracking_url: trackingUrl,
-        carrier: carrier,
-        status: parcel?.status || { message: "Parcel Created" },
-        documents: labelUrl ? [{ link: labelUrl }] : [],
-      }
+        tracking_number: parcel.tracking_number || "",
+        tracking_url: parcel.tracking_url || "",
+        carrier,
+        status: parcel.status || { message: "Label Generated" },
+        documents: labelUrl ? [{ link: labelUrl }] : parcel.documents || [],
+      },
     };
+  },
+
+  parseSendcloudError(raw: string, status: number) {
+    let friendly = `Sendcloud create shipment failed (${status})`;
+    try {
+      const parsed = JSON.parse(raw);
+      const detail =
+        parsed?.errors?.[0]?.detail ||
+        parsed?.error?.message ||
+        parsed?.parcel?.errors?.[0] ||
+        parsed?.message;
+      if (detail) {
+        friendly = String(detail);
+      }
+    } catch {
+      if (raw) friendly = raw;
+    }
+
+    if (/not allowed to announce/i.test(friendly)) {
+      friendly +=
+        " Enable direct debit billing in the Sendcloud panel (Settings > Billing) and ensure the selected carrier contract is active.";
+    }
+
+    return friendly;
   },
 
   /**
