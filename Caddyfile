@@ -13,14 +13,14 @@ api.{$DOMAIN} {
 }
 
 jenkins.{$DOMAIN} {
-  # No gzip here — Jenkins UI uses long-polling / websockets
+  # No gzip — Jenkins uses long-polling / websockets
   reverse_proxy jenkins:8080 {
     flush_interval -1
     header_up Host {host}
     header_up X-Real-IP {remote_host}
     header_up X-Forwarded-For {remote_host}
-    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Proto https
     header_up X-Forwarded-Host {host}
-    header_up X-Forwarded-Port {server_port}
+    header_up X-Forwarded-Port 443
   }
 }
