@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Trash2, Plus, Link as LinkIcon, Upload } from "lucide-react";
 import { MediaLibraryDialog } from "../media/MediaLibraryDialog";
+import { normalizeUploadedUrl } from "@/utils/image";
 
 export interface HeroSlide {
   title: string;
@@ -113,7 +114,7 @@ export function HeroBannerForm({ slides, onAddSlide, onRemoveSlide, onUpdateSlid
         onOpenChange={(open) => !open && setActiveSlideIndex(null)}
         onSelect={(url) => {
           if (activeSlideIndex !== null) {
-            onUpdateSlide(activeSlideIndex, "bgImage", url.startsWith("http") ? url : `http://localhost:5000${url}`);
+            onUpdateSlide(activeSlideIndex, "bgImage", normalizeUploadedUrl(url));
           }
         }}
       />

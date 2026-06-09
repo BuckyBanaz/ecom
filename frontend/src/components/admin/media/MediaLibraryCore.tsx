@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
+import { resolveImgUrl } from "@/utils/image";
 
 export type MediaItem = {
   name: string;
@@ -365,10 +366,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
 
   const copyUrlToClipboard = (url: string | null) => {
     if (!url) return;
-    const full = import.meta.env.VITE_API_URL
-      ? `${import.meta.env.VITE_API_URL.replace("/api/v1", "")}${url}`
-      : `http://localhost:5000${url}`;
-    navigator.clipboard.writeText(full);
+    navigator.clipboard.writeText(resolveImgUrl(url));
     toast.success("URL copied!");
   };
 
@@ -391,7 +389,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
   const lastSelectedPath = Array.from(selectedItems).pop();
   const selectedItemDetails = items.find((i) => i.path === lastSelectedPath);
   const showWidget = uploadTasks.length > 0;
-  const imgSrc = (url: string) => url.startsWith("http") ? url : `http://localhost:5000${url}`;
+  const imgSrc = (url: string) => resolveImgUrl(url);
   const statusColor = (s: UploadTaskStatus) =>
     s === "completed" ? "bg-green-500" : s === "stopped" ? "bg-orange-400" : s === "error" ? "bg-red-500" : "bg-blue-500";
 

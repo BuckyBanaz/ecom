@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { normalizeUploadedUrl } from "@/utils/image";
 import { toast } from "sonner";
 
 const STORAGE_KEY = "testimonials_data";
@@ -145,7 +146,7 @@ const AdminTestimonials = () => {
                 open={isMediaLibraryOpen}
                 onOpenChange={setIsMediaLibraryOpen}
                 onSelect={(url) => {
-                  setForm((prev) => ({ ...prev, avatar: url.startsWith("http") ? url : `http://localhost:5000${url}` }));
+                  setForm((prev) => ({ ...prev, avatar: normalizeUploadedUrl(url) }));
                   setIsMediaLibraryOpen(false);
                 }}
               />

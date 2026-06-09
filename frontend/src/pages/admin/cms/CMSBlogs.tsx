@@ -11,6 +11,7 @@ import { Plus, Pencil, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { initialBlogs, Blog } from "@/data/blogs";
 import { blogRepository } from "@/client/apiClient";
+import { normalizeUploadedUrl } from "@/utils/image";
 
 const CMSBlogs = () => {
   const [blogs, setBlogs] = useState<Blog[]>([]);
@@ -119,7 +120,7 @@ const CMSBlogs = () => {
               open={isMediaLibraryOpen}
               onOpenChange={setIsMediaLibraryOpen}
               onSelect={(url) => {
-                setForm((p) => ({ ...p, cover: url.startsWith("http") ? url : `http://localhost:5000${url}` }));
+                setForm((p) => ({ ...p, cover: normalizeUploadedUrl(url) }));
                 setIsMediaLibraryOpen(false);
               }}
             />

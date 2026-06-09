@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { categoryRepository, megaMenuRepository } from "@/client/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
-import { resolveImgUrl } from "@/utils/image";
+import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminCategories = () => {
@@ -233,7 +233,7 @@ const AdminCategories = () => {
                     open={isMediaLibraryOpen}
                     onOpenChange={setIsMediaLibraryOpen}
                     onSelect={(url) => {
-                      setImagePreview(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+                      setImagePreview(normalizeUploadedUrl(url));
                       setIsMediaLibraryOpen(false);
                     }}
                   />

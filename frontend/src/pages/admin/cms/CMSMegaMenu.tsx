@@ -16,6 +16,7 @@ import { faqs as defaultFaqs } from "@/data/faqs";
 import { megaMenuRepository, categoryRepository, productRepository } from "@/client/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { normalizeUploadedUrl } from "@/utils/image";
 
 type MegaMenuWithId = MegaMenu & { id?: string };
 
@@ -678,7 +679,7 @@ export default function CMSMegaMenu() {
                     open={isMediaLibraryOpen} 
                     onOpenChange={setIsMediaLibraryOpen} 
                     onSelect={(url) => {
-                      setSeoImage(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+                      setSeoImage(normalizeUploadedUrl(url));
                       setIsMediaLibraryOpen(false);
                     }} 
                   />

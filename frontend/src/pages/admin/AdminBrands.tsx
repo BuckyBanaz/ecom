@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Brand, Series } from "@/data/brands";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
-import { resolveImgUrl } from "@/utils/image";
+import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminBrands = () => {
@@ -444,7 +444,7 @@ const AdminBrands = () => {
                         open={isSeriesMediaLibraryOpen}
                         onOpenChange={setIsSeriesMediaLibraryOpen}
                         onSelect={(url) => {
-                          setSeriesLogoPreview(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+                          setSeriesLogoPreview(normalizeUploadedUrl(url));
                           setIsSeriesMediaLibraryOpen(false);
                         }}
                       />

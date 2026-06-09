@@ -17,7 +17,7 @@ import { Attribute } from "@/data/attributes";
 import { brandRepository, categoryRepository, attributeRepository, productRepository, seriesRepository } from "@/client/apiClient";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { cn } from "@/lib/utils";
-import { resolveImgUrl } from "@/utils/image";
+import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 
 
 export interface SpecItem {
@@ -1307,7 +1307,7 @@ const AdminProductForm = () => {
         open={mediaDialogTarget !== null}
         onOpenChange={(open) => !open && setMediaDialogTarget(null)}
         onSelect={(url) => {
-          const formattedUrl = url.startsWith("http") ? url : `http://localhost:5000${url}`;
+          const formattedUrl = normalizeUploadedUrl(url);
           if (mediaDialogTarget === "thumbnail") {
             setThumbnail(formattedUrl);
           } else if (mediaDialogTarget === "gallery") {

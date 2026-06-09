@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { UIBlocksDialog } from "./UIBlocksDialog";
 import { MediaLibraryDialog } from "./media/MediaLibraryDialog";
 import { LayoutTemplate } from "lucide-react";
+import { normalizeUploadedUrl } from "@/utils/image";
 
 interface RichTextEditorProps {
   value: string;
@@ -901,7 +902,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
         open={isMediaLibraryOpen}
         onOpenChange={setIsMediaLibraryOpen}
         onSelect={(url) => {
-          setCompressedDataUrl(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+          setCompressedDataUrl(normalizeUploadedUrl(url));
           setIsMediaLibraryOpen(false);
         }}
       />

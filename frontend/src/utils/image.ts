@@ -1,20 +1,42 @@
+export const getApiBaseUrl = (): string => {
+  const base = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  return base.replace(/\/api\/v1\/?$/, "");
+};
+
+/** Resolve an image path for display in img src attributes */
 export const resolveImgUrl = (src?: string | null): string => {
   if (!src) return "";
-  
-  if (
-    src.startsWith("http://") ||
-    src.startsWith("https://") ||
-    src.startsWith("data:") ||
-    src.startsWith("blob:")
-  ) {
+
+  if (src.startsWith("data:") || src.startsWith("blob:")) {
     return src;
   }
 
-  // Prepend backend API URL if it's a relative uploads path
+  const baseUrl = getApiBaseUrl();
+
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    if (src.includes("localhost:5000/uploads")) {
+      const path = src.replace(/^https?:\/\/[^/]+/, "");
+      return `${baseUrl}${path}`;
+    }
+    return src;
+  }
+
   if (src.startsWith("/uploads")) {
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
     return `${baseUrl}${src}`;
   }
 
   return src;
+};
+
+/** Store relative /uploads paths instead of localhost URLs */
+export const normalizeUploadedUrl = (url: string): string => {
+  if (!url) return "";
+  if (url.startsWith("/uploads")) return url;
+
+  if (url.includes("/uploads/")) {
+    const idx = url.indexOf("/uploads/");
+    return url.slice(idx);
+  }
+
+  return url;
 };

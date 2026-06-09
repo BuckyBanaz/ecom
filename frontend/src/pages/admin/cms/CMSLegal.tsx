@@ -11,6 +11,7 @@ import { Save, Eye, Image as ImageIcon, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 
 type ImgState = string | null;
 
@@ -26,7 +27,7 @@ function ImageUploader({ label, value, onChange }: { label: string; value: ImgSt
       >
         {value ? (
           <div className="relative aspect-video w-full">
-            <img src={value} alt="" className="h-full w-full object-cover" />
+            <img src={resolveImgUrl(value)} alt="" className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={() => setIsDialogOpen(true)}>Change</Button>
               <Button type="button" variant="destructive" size="sm" onClick={() => onChange(null)}>Remove</Button>
@@ -45,7 +46,7 @@ function ImageUploader({ label, value, onChange }: { label: string; value: ImgSt
         open={isDialogOpen} 
         onOpenChange={setIsDialogOpen} 
         onSelect={(url) => {
-          onChange(url.startsWith("http") ? url : `http://localhost:5000${url}`);
+          onChange(normalizeUploadedUrl(url));
         }} 
       />
     </div>
