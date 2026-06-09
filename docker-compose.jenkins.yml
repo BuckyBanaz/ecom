@@ -1,5 +1,8 @@
 # Run on VPS: docker compose -f docker-compose.jenkins.yml up -d --build
 # Jenkins UI: https://jenkins.<DOMAIN>  (via Caddy — port 8080 not public)
+# Uses the same Docker project/network as docker-compose.prod.yml (name: ecom)
+name: ecom
+
 services:
   jenkins:
     build:
@@ -9,7 +12,7 @@ services:
     container_name: ecom-jenkins
     restart: unless-stopped
     user: root
-    # No host ports — only reachable via Caddy at https://jenkins.<DOMAIN> on ecom_net
+    # No host ports — only reachable via Caddy at https://jenkins.<DOMAIN> on ecom_default network
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
@@ -21,13 +24,6 @@ services:
       - .env.production
     group_add:
       - "${DOCKER_GID:-999}"
-    networks:
-      - ecom_net
-
-networks:
-  ecom_net:
-    external: true
-    name: ecom_net
 
 volumes:
   jenkins_home:

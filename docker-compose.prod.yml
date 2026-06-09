@@ -1,3 +1,5 @@
+name: ecom
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -78,14 +80,6 @@ services:
     depends_on:
       - frontend
       - backend
-    networks:
-      - default
-      - ecom_net
-
-networks:
-  ecom_net:
-    external: true
-    name: ecom_net
 
 volumes:
   postgres_data:
