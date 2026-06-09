@@ -91,6 +91,7 @@ import shippingRoutes from "./routes/shippingRoutes";
 import orderRoutes from "./routes/orderRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
+import configRoutes from "./routes/configRoutes";
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -106,6 +107,7 @@ app.use("/api/v1/megamenus", megaMenuRoutes);
 app.use("/api/v1/blogs", blogRoutes);
 app.use("/api/v1/cms", cmsRoutes);
 app.use("/api/v1/media", mediaRoutes);
+app.use("/api/v1/config", configRoutes);
 app.use("/api/v1/admin/settings", adminSettingsRoutes);
 app.use("/api/v1/admin/email-templates", emailTemplateRoutes);
 app.use("/api/v1/coupons", couponRoutes);

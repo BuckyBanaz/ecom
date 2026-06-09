@@ -1,6 +1,17 @@
 export const getApiBaseUrl = (): string => {
-  const base = import.meta.env.VITE_API_URL || "http://localhost:5000";
-  return base.replace(/\/api\/v1\/?$/, "");
+  const fromEnv = import.meta.env.VITE_API_URL as string | undefined;
+  if (fromEnv && fromEnv.startsWith("http")) {
+    return fromEnv.replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname.replace(/^www\./, "");
+    if (host && !host.startsWith("api.") && !host.includes("localhost")) {
+      return `${window.location.protocol}//api.${host}`;
+    }
+  }
+
+  return "http://localhost:5000";
 };
 
 /** Resolve an image path for display in img src attributes */

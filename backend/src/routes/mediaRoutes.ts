@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { toPublicMediaUrl } from "../utils/mediaUrl";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia } from "../controllers/mediaController";
 
@@ -174,7 +175,7 @@ router.post("/upload", upload, (req, res) => {
     message: "File uploaded successfully",
     file: {
       name: filename,
-      url: `/uploads/${relativePath}`,
+      url: toPublicMediaUrl(`/uploads/${relativePath}`),
       path: relativePath
     }
   });

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import fs from "fs/promises";
 import path from "path";
 import multer from "multer";
+import { toPublicMediaUrl } from "../utils/mediaUrl";
 
 const UPLOADS_DIR = path.join(__dirname, "../../public/uploads");
 
@@ -56,7 +57,9 @@ export const listMedia = async (req: Request, res: Response) => {
         size: stat.size,
         createdAt: stat.birthtime,
         updatedAt: stat.mtime,
-        url: isFolder ? null : `/uploads/${relativeUrl.startsWith('/') ? relativeUrl.substring(1) : relativeUrl}`,
+        url: isFolder
+          ? null
+          : toPublicMediaUrl(`/uploads/${relativeUrl.startsWith("/") ? relativeUrl.substring(1) : relativeUrl}`),
         path: relativeUrl
       };
     }));

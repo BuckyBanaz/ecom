@@ -39,6 +39,7 @@ services:
       NODE_ENV: production
       PORT: 5000
       CLIENT_URL: https://${DOMAIN}
+      API_URL: https://api.${DOMAIN}
       ENABLE_REDIS: "true"
     volumes:
       - backend_uploads:/app/public/uploads
