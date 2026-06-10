@@ -31,6 +31,7 @@
 
 | Topic | File |
 |-------|------|
+| **VPS ops commands** (Docker, deploy, logs, disk) | `docs/vps_operations_runbook.md` |
 | Production deploy | `docs/production_deployment_checklist.md` |
 | Backup & restore | `docs/backup_restore_guide.md` |
 | Sendcloud setup | `docs/sendcloud_integration.md` |

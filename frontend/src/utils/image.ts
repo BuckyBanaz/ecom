@@ -18,9 +18,14 @@ export const getApiBaseUrl = (): string => {
   return "http://localhost:5000";
 };
 
+const PLACEHOLDER = "/placeholder.svg";
+
 const LEGACY_ASSET_ALIASES: Record<string, string> = {
-  "/assets/cat-chandeliers.jpg": "/assets/cat-chandelier.jpg",
-  "/assets/cat-office-lighting.jpg": "/assets/cat-office.jpg",
+  "/assets/cat-chandeliers.jpg": PLACEHOLDER,
+  "/assets/cat-office-lighting.jpg": PLACEHOLDER,
+  "/assets/cat-chandelier.jpg": PLACEHOLDER,
+  "/assets/cat-office.jpg": PLACEHOLDER,
+  "/assets/cat-generic.jpg": PLACEHOLDER,
 };
 
 /** Resolve an image path for display in img src attributes */

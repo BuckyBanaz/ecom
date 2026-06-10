@@ -590,7 +590,7 @@ const AdminProductForm = () => {
       seoTitle,
       seoDescription,
       seoKeywords,
-      image: thumbnail || "/assets/cat-generic.jpg",
+      image: thumbnail || "/placeholder.svg",
       images: galleryImages,
       attributes: selectedAttributeValues, // EAV dynamic mapping
       specs: serializedSpecs,
