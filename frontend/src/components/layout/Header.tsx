@@ -12,8 +12,19 @@ import { useWishlist } from "@/context/WishlistContext";
 import { navGroups } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
 import { useDebounce } from "@/hooks/use-debounce";
-import { productRepository, megaMenuRepository } from "@/client/apiClient";
+import { productRepository, megaMenuRepository, cmsHeaderFooterRepository } from "@/client/apiClient";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+
+const defaultTopLeft = [
+  { icon: "star", text: "15,000+ reviews" },
+  { icon: "truck", text: "Ordered before 22:00, delivered next day" },
+  { icon: "calendar", text: "30-day returns" },
+];
+
+const defaultTopRight = [
+  { label: "Business", href: "/help" },
+  { label: "Customer service", href: "/help" },
+];
 
 export function Header() {
   const navigate = useNavigate();
@@ -62,15 +73,45 @@ export function Header() {
         }
       }
 
-      const savedHeaderFooter = localStorage.getItem("header_footer_data");
-      if (savedHeaderFooter) {
-        try {
-          const parsed = JSON.parse(savedHeaderFooter);
-          setTopLeft(parsed.topLeft || []);
-          setTopRight(parsed.topRight || []);
-        } catch (e) {
-          setTopLeft([]);
-          setTopRight([]);
+      // Load Header Footer Config
+      try {
+        const hfRes = await cmsHeaderFooterRepository.get();
+        if (hfRes.success && hfRes.data) {
+          setTopLeft(hfRes.data.topLeft || defaultTopLeft);
+          setTopRight(hfRes.data.topRight || defaultTopRight);
+          localStorage.setItem("header_footer_data", JSON.stringify(hfRes.data));
+        } else {
+          // Fallback to localStorage
+          const saved = localStorage.getItem("header_footer_data");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              setTopLeft(parsed.topLeft || defaultTopLeft);
+              setTopRight(parsed.topRight || defaultTopRight);
+            } catch {
+              setTopLeft(defaultTopLeft);
+              setTopRight(defaultTopRight);
+            }
+          } else {
+            setTopLeft(defaultTopLeft);
+            setTopRight(defaultTopRight);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load header footer config:", e);
+        const saved = localStorage.getItem("header_footer_data");
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            setTopLeft(parsed.topLeft || defaultTopLeft);
+            setTopRight(parsed.topRight || defaultTopRight);
+          } catch {
+            setTopLeft(defaultTopLeft);
+            setTopRight(defaultTopRight);
+          }
+        } else {
+          setTopLeft(defaultTopLeft);
+          setTopRight(defaultTopRight);
         }
       }
     };

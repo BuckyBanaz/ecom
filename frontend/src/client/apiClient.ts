@@ -52,10 +52,16 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
           key,
           fetchAndParse<T>(url, fetchConfig)
             .then(async (fresh) => {
-              const currentLang = localStorage.getItem("i18nextLng") || "nl";
-              const translated = await translateJsonObject(fresh, currentLang);
-              setCache(key, translated, cacheTtl);
-              return translated;
+              try {
+                const currentLang = localStorage.getItem("i18nextLng") || "nl";
+                const translated = await translateJsonObject(fresh, currentLang);
+                setCache(key, translated, cacheTtl);
+                return translated;
+              } catch (err) {
+                console.error("Translation fail in cache reload:", err);
+                setCache(key, fresh, cacheTtl);
+                return fresh;
+              }
             })
             .finally(() => inflight.delete(key))
         );
@@ -67,17 +73,28 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
   const promise = fetchAndParse<T>(url, fetchConfig);
   if (method === "GET" && cacheTtl && !isAdminPanel) {
     return promise.then(async (data) => {
-      const currentLang = localStorage.getItem("i18nextLng") || "nl";
-      const translated = await translateJsonObject(data, currentLang);
-      setCache(key, translated, cacheTtl);
-      return translated;
+      try {
+        const currentLang = localStorage.getItem("i18nextLng") || "nl";
+        const translated = await translateJsonObject(data, currentLang);
+        setCache(key, translated, cacheTtl);
+        return translated;
+      } catch (err) {
+        console.error("Translation fail in fetch:", err);
+        setCache(key, data, cacheTtl);
+        return data;
+      }
     });
   }
 
   return promise.then(async (data) => {
     if (!isAdminPanel && method === "GET") {
-      const currentLang = localStorage.getItem("i18nextLng") || "nl";
-      return await translateJsonObject(data, currentLang);
+      try {
+        const currentLang = localStorage.getItem("i18nextLng") || "nl";
+        return await translateJsonObject(data, currentLang);
+      } catch (err) {
+        console.error("Translation fail in direct get:", err);
+        return data;
+      }
     }
     return data;
   });

@@ -78,8 +78,7 @@ i18n
       nl: { translation: nlCommon },
       en: { translation: enCommon },
     },
-    lng: DEFAULT_LANGUAGE,
-    fallbackLng: FALLBACK_LANGUAGE,
+    fallbackLng: DEFAULT_LANGUAGE,
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
     nonExplicitSupportedLngs: true,
     load: "languageOnly",
@@ -87,8 +86,7 @@ i18n
       escapeValue: false,
     },
     detection: {
-      // NL is the site default; only honour an explicit user choice in localStorage.
-      order: ["localStorage", "htmlTag"],
+      order: ["localStorage", "navigator", "htmlTag"],
       caches: ["localStorage"],
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
     },
