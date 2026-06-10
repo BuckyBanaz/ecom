@@ -13,9 +13,23 @@ interface MaintenanceStatus {
   storeName: string;
 }
 
+const readCachedMaintenanceStatus = (): MaintenanceStatus => {
+  try {
+    const raw = localStorage.getItem("maintenance_status");
+    if (!raw) return { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
+    const parsed = JSON.parse(raw);
+    return {
+      maintenanceMode: !!parsed.maintenanceMode,
+      maintenanceMessage: parsed.maintenanceMessage || "",
+      storeName: parsed.storeName || "",
+    };
+  } catch {
+    return { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
+  }
+};
+
 export const MaintenanceGuard = ({ children }: MaintenanceGuardProps) => {
-  const [status, setStatus] = useState<MaintenanceStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<MaintenanceStatus>(readCachedMaintenanceStatus);
   const location = useLocation();
 
   useEffect(() => {
@@ -24,38 +38,28 @@ export const MaintenanceGuard = ({ children }: MaintenanceGuardProps) => {
       try {
         const res = await adminSettingsRepository.getMaintenanceStatus();
         if (cancelled) return;
-        if (res?.success && res.data) {
-          setStatus({
-            maintenanceMode: !!res.data.maintenanceMode,
-            maintenanceMessage: res.data.maintenanceMessage || "",
-            storeName: res.data.storeName || "",
-          });
-        } else {
-          setStatus({ maintenanceMode: false, maintenanceMessage: "", storeName: "" });
-        }
-      } catch (error) {
-        // If status can't be fetched, fail open (don't block site)
+        const nextStatus: MaintenanceStatus = res?.success && res.data
+          ? {
+              maintenanceMode: !!res.data.maintenanceMode,
+              maintenanceMessage: res.data.maintenanceMessage || "",
+              storeName: res.data.storeName || "",
+            }
+          : { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
+        setStatus(nextStatus);
+        localStorage.setItem("maintenance_status", JSON.stringify(nextStatus));
+      } catch {
         if (!cancelled) {
           setStatus({ maintenanceMode: false, maintenanceMessage: "", storeName: "" });
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     };
     fetchStatus();
-    // Re-check on route change so toggling from admin reflects immediately
     return () => {
       cancelled = true;
     };
   }, [location.pathname]);
 
-  // Admin routes always pass through so admins can toggle maintenance off
   const isAdminRoute = location.pathname.startsWith("/admin");
-
-  if (loading) {
-    // Avoid flashing public content; render nothing briefly
-    return null;
-  }
 
   // Check if visitor is a logged-in admin
   const adminUserRaw = localStorage.getItem("admin_user");

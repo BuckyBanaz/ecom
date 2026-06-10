@@ -34,7 +34,7 @@ const Index = () => {
     let active = true;
 
     const fetchHomepage = async () => {
-      setIsLoading(true);
+      if (!initialContent) setIsLoading(true);
       try {
         const res = await cmsHomepageRepository.get();
         if (!active) return;

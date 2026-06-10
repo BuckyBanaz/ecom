@@ -30,6 +30,13 @@ for i in $(seq 1 24); do
   sleep 5
 done
 
+echo "==> Trust GitHub SSH host key (fixes 'Host key verification failed')"
+docker compose -f docker-compose.prod.yml exec -T -u jenkins jenkins bash -c '
+  mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+  chmod 644 ~/.ssh/known_hosts
+' || true
+
 echo "==> Restart Caddy"
 docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
 sleep 5

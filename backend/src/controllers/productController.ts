@@ -14,6 +14,7 @@ const parseFilters = (query: any) => {
     limit = "20",
     isNewArrival,
     isBestSelling,
+    facets: facetsParam,
     ...attributeParams
   } = query;
 
@@ -37,6 +38,7 @@ const parseFilters = (query: any) => {
     limit: parseInt(limit as string, 10),
     isNewArrival: isNewArrival === "true",
     isBestSelling: isBestSelling === "true",
+    includeFacets: facetsParam === "true",
     attributeFilters: filters,
   };
 };
@@ -54,6 +56,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       limit,
       isNewArrival,
       isBestSelling,
+      includeFacets,
       attributeFilters,
     } = parseFilters(req.query);
 
@@ -150,132 +153,141 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
     const totalItems = await prisma.product.count({ where: whereConditions });
     const skip = (page - 1) * limit;
 
+    const listInclude = includeFacets
+      ? {
+          brand: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+          productAttributeValues: {
+            include: {
+              attribute: true,
+              attributeValue: true,
+            },
+          },
+          variants: {
+            include: {
+              variantAttributeValues: {
+                include: {
+                  attributeValue: true,
+                },
+              },
+            },
+          },
+        }
+      : {
+          brand: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        };
+
     const products = await prisma.product.findMany({
       where: whereConditions,
       orderBy,
       skip,
       take: limit,
-      include: {
-        brand: true,
-        category: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-        productAttributeValues: {
-          include: {
-            attribute: true,
-            attributeValue: true,
-          },
-        },
-        variants: {
-          include: {
-            variantAttributeValues: {
-              include: {
-                attributeValue: true,
-              },
-            },
-          },
-        },
-      },
+      include: listInclude,
     });
 
-    // ----------------------------------------------------
-    // Enterprise Facets (Filter counts) calculation
-    // ----------------------------------------------------
-    // We compute facets for the current search/category scope to show counts
-    const scopeConditions = { ...whereConditions };
-
-    // Get all matched product IDs under current conditions
-    const matchedProducts = await prisma.product.findMany({
-      where: scopeConditions,
-      select: { id: true, brandId: true },
-    });
-    const matchedProductIds = matchedProducts.map((p) => p.id);
-
-    // 1. Attribute Value Facets
-    const attrFacetsRaw = await prisma.productAttributeValue.groupBy({
-      by: ["attributeValueId", "attributeId"],
-      where: {
-        productId: { in: matchedProductIds },
-      },
-      _count: {
-        productId: true,
-      },
-    });
-
-    // Resolve attribute details for facets
-    const valueIds = attrFacetsRaw.map((f) => f.attributeValueId);
-    const attrValues = await prisma.attributeValue.findMany({
-      where: { id: { in: valueIds } },
-      include: { attribute: true },
-    });
-
-    const facets: Record<string, Array<{ value: string; colorCode?: string; count: number }>> = {};
-    for (const val of attrValues) {
-      const facetGroup = val.attribute.slug;
-      if (!facets[facetGroup]) {
-        facets[facetGroup] = [];
-      }
-      const rawMatch = attrFacetsRaw.find((f) => f.attributeValueId === val.id);
-      facets[facetGroup].push({
-        value: val.value,
-        colorCode: val.colorCode || undefined,
-        count: rawMatch ? rawMatch._count.productId : 0,
-      });
-    }
-
-    // 2. Brand Facets
-    const brandFacetsRaw = await prisma.product.groupBy({
-      by: ["brandId"],
-      where: {
-        id: { in: matchedProductIds },
-        brandId: { not: null },
-      },
-      _count: {
-        id: true,
-      },
-    });
-
-    const brandIds = brandFacetsRaw.map((f) => f.brandId as string);
-    const brandsList = await prisma.brand.findMany({
-      where: { id: { in: brandIds } },
-    });
-
-    const brandFacets = brandsList.map((b) => {
-      const rawMatch = brandFacetsRaw.find((f) => f.brandId === b.id);
-      return {
-        id: b.id,
-        name: b.name,
-        count: rawMatch ? rawMatch._count.id : 0,
-      };
-    });
-
-    // 3. Price Stats (Min / Max of current scope)
-    const priceStats = await prisma.product.aggregate({
-      where: scopeConditions,
-      _min: { price: true },
-      _max: { price: true },
-    });
-
-    res.status(200).json({
+    const response: Record<string, unknown> = {
       success: true,
       products,
-      facets,
-      brandFacets,
-      priceRange: {
-        min: priceStats._min.price || 0,
-        max: priceStats._max.price || 1000,
-      },
       pagination: {
         totalItems,
         page,
         limit,
         totalPages: Math.ceil(totalItems / limit),
       },
-    });
+    };
+
+    if (includeFacets) {
+      const scopeConditions = { ...whereConditions };
+
+      const matchedProducts = await prisma.product.findMany({
+        where: scopeConditions,
+        select: { id: true, brandId: true },
+      });
+      const matchedProductIds = matchedProducts.map((p) => p.id);
+
+      const attrFacetsRaw = await prisma.productAttributeValue.groupBy({
+        by: ["attributeValueId", "attributeId"],
+        where: {
+          productId: { in: matchedProductIds },
+        },
+        _count: {
+          productId: true,
+        },
+      });
+
+      const valueIds = attrFacetsRaw.map((f) => f.attributeValueId);
+      const attrValues = await prisma.attributeValue.findMany({
+        where: { id: { in: valueIds } },
+        include: { attribute: true },
+      });
+
+      const facets: Record<string, Array<{ value: string; colorCode?: string; count: number }>> = {};
+      for (const val of attrValues) {
+        const facetGroup = val.attribute.slug;
+        if (!facets[facetGroup]) {
+          facets[facetGroup] = [];
+        }
+        const rawMatch = attrFacetsRaw.find((f) => f.attributeValueId === val.id);
+        facets[facetGroup].push({
+          value: val.value,
+          colorCode: val.colorCode || undefined,
+          count: rawMatch ? rawMatch._count.productId : 0,
+        });
+      }
+
+      const brandFacetsRaw = await prisma.product.groupBy({
+        by: ["brandId"],
+        where: {
+          id: { in: matchedProductIds },
+          brandId: { not: null },
+        },
+        _count: {
+          id: true,
+        },
+      });
+
+      const brandIds = brandFacetsRaw.map((f) => f.brandId as string);
+      const brandsList = await prisma.brand.findMany({
+        where: { id: { in: brandIds } },
+      });
+
+      const brandFacets = brandsList.map((b) => {
+        const rawMatch = brandFacetsRaw.find((f) => f.brandId === b.id);
+        return {
+          id: b.id,
+          name: b.name,
+          count: rawMatch ? rawMatch._count.id : 0,
+        };
+      });
+
+      const priceStats = await prisma.product.aggregate({
+        where: scopeConditions,
+        _min: { price: true },
+        _max: { price: true },
+      });
+
+      response.facets = facets;
+      response.brandFacets = brandFacets;
+      response.priceRange = {
+        min: priceStats._min.price || 0,
+        max: priceStats._max.price || 1000,
+      };
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }

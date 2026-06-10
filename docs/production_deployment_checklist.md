@@ -23,6 +23,7 @@ This document outlines all the necessary steps and checks required before and du
 
 ## 4. Third-Party Webhooks & Integrations
 - [ ] **Stripe Webhooks:** Update the Stripe Dashboard with the live webhook endpoint (e.g., `https://api.yourdomain.com/api/v1/orders/webhook/stripe`) to receive payment updates.
+- [ ] **Sendcloud Setup:** Activate billing (direct debit), carrier contracts (e.g. PostNL), and sender address in the Sendcloud panel. See `docs/sendcloud_integration.md`.
 - [ ] **Sendcloud Webhooks:** Update the live webhook URL in the Sendcloud panel for real-time shipment tracking updates.
 - [ ] **SMTP Configuration:** Ensure live SMTP credentials (e.g., Amazon SES, SendGrid, or custom webmail) are set in Admin Panel / `.env` for order confirmation and notification emails.
 

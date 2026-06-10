@@ -27,6 +27,13 @@ export DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999)"
 cd "${REPO_DIR}"
 docker compose -f "${PROD_COMPOSE}" up -d --build jenkins
 
+echo "==> Trust GitHub SSH host key inside Jenkins (for git@github.com clones)"
+docker compose -f "${PROD_COMPOSE}" exec -T -u jenkins jenkins bash -c '
+  mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+  chmod 644 ~/.ssh/known_hosts
+' || echo "    (Jenkins still starting — re-run ssh-keyscan after container is up)"
+
 echo ""
 DOMAIN="${DOMAIN:-schipenster.com}"
 if [[ -f "${REPO_DIR}/.env.production" ]]; then

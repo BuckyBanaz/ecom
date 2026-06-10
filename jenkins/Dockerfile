@@ -21,4 +21,9 @@ RUN apt-get update \
 
 RUN usermod -aG docker jenkins 2>/dev/null || true
 
+# Git over SSH from Jenkins needs GitHub in known_hosts (strict checking).
+RUN mkdir -p /etc/ssh \
+  && ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> /etc/ssh/ssh_known_hosts 2>/dev/null \
+  && chmod 644 /etc/ssh/ssh_known_hosts
+
 USER jenkins
