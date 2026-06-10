@@ -1,5 +1,7 @@
 import { ENDPOINTS, getBaseUrl, API_PREFIX } from "../utils/endpoints";
 import { cacheKey, getCached, isCacheStale, setCache } from "../lib/apiCache";
+import { normalizeApiProduct } from "../utils/formatters";
+import { translateJsonObject } from "../utils/translator";
 
 type RequestOptions = RequestInit & { cacheTtl?: number };
 
@@ -49,9 +51,11 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
         inflight.set(
           key,
           fetchAndParse<T>(url, fetchConfig)
-            .then((fresh) => {
-              setCache(key, fresh, cacheTtl);
-              return fresh;
+            .then(async (fresh) => {
+              const currentLang = localStorage.getItem("i18nextLng") || "nl";
+              const translated = await translateJsonObject(fresh, currentLang);
+              setCache(key, translated, cacheTtl);
+              return translated;
             })
             .finally(() => inflight.delete(key))
         );
@@ -62,13 +66,21 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
 
   const promise = fetchAndParse<T>(url, fetchConfig);
   if (method === "GET" && cacheTtl && !isAdminPanel) {
-    return promise.then((data) => {
-      setCache(key, data, cacheTtl);
-      return data;
+    return promise.then(async (data) => {
+      const currentLang = localStorage.getItem("i18nextLng") || "nl";
+      const translated = await translateJsonObject(data, currentLang);
+      setCache(key, translated, cacheTtl);
+      return translated;
     });
   }
 
-  return promise;
+  return promise.then(async (data) => {
+    if (!isAdminPanel && method === "GET") {
+      const currentLang = localStorage.getItem("i18nextLng") || "nl";
+      return await translateJsonObject(data, currentLang);
+    }
+    return data;
+  });
 }
 
 const CACHE = {
@@ -88,11 +100,19 @@ export const productRepository = {
     });
     const queryString = query.toString();
     const url = queryString ? `${ENDPOINTS.PRODUCTS}?${queryString}` : ENDPOINTS.PRODUCTS;
-    return request<any>(url, { method: "GET", cacheTtl: CACHE.MEDIUM });
+    const data = await request<any>(url, { method: "GET", cacheTtl: CACHE.MEDIUM });
+    if (data?.products) {
+      data.products = data.products.map(normalizeApiProduct);
+    }
+    return data;
   },
   
   getByIdOrSlug: async (idOrSlug: string) => {
-    return request<any>(`${ENDPOINTS.PRODUCTS}/${idOrSlug}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
+    const data = await request<any>(`${ENDPOINTS.PRODUCTS}/${idOrSlug}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
+    if (data?.product) {
+      data.product = normalizeApiProduct(data.product);
+    }
+    return data;
   },
   
   create: async (data: any) => {

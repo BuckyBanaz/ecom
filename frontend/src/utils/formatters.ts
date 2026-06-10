@@ -72,18 +72,40 @@ export function parseOrderMetadata(shippingAddressRaw: string) {
 /** Safe brand label — API may return brand: null (typeof null === "object" in JS). */
 export function getProductBrandName(brand: unknown): string {
   if (brand == null) return "";
-  if (typeof brand === "object" && "name" in brand) {
-    const name = (brand as { name?: string }).name;
-    return name ?? "";
+  if (typeof brand === "string") return brand;
+  if (typeof brand === "object" && !Array.isArray(brand)) {
+    return (brand as { name?: string | null }).name ?? "";
   }
-  return String(brand);
+  return "";
 }
 
 export function getProductCategorySlug(category: unknown): string {
   if (category == null) return "";
-  if (typeof category === "object" && "slug" in category) {
+  if (typeof category === "string") return category;
+  if (typeof category === "object" && !Array.isArray(category)) {
     return String((category as { slug?: string }).slug ?? "");
   }
-  return String(category);
+  return "";
+}
+
+/** Normalize API product so null brand/category never crash the UI. */
+export function normalizeApiProduct<T extends Record<string, unknown>>(product: T): T {
+  if (!product || typeof product !== "object") return product;
+  return {
+    ...product,
+    brand: getProductBrandName(product.brand),
+    category:
+      product.category == null
+        ? ""
+        : typeof product.category === "object" && !Array.isArray(product.category)
+          ? {
+              ...(product.category as object),
+              name: (product.category as { name?: string | null }).name ?? "",
+              slug: getProductCategorySlug(product.category),
+            }
+          : product.category,
+    rating: (product.rating as number) ?? 0,
+    reviewCount: (product.reviewCount as number) ?? 0,
+  };
 }
 

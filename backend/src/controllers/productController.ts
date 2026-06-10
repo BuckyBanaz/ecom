@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/db";
+import { sanitizeProductForClient, sanitizeProductsForClient } from "../utils/productSerializer";
 
 // Helper to extract filters from query parameters
 const parseFilters = (query: any) => {
@@ -200,7 +201,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
 
     const response: Record<string, unknown> = {
       success: true,
-      products,
+      products: sanitizeProductsForClient(products),
       pagination: {
         totalItems,
         page,
@@ -340,7 +341,7 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
       return;
     }
 
-    res.status(200).json({ success: true, product });
+    res.status(200).json({ success: true, product: sanitizeProductForClient(product) });
   } catch (error) {
     next(error);
   }
