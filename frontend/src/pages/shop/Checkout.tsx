@@ -18,6 +18,7 @@ import { MapSelector } from "@/components/shop/MapSelector";
 import { PhonePicker } from "@/components/ui/PhonePicker";
 import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LottieLoader } from "@/components/ui/PageLoader";
 
 const steps = ["Contact", "Shipping", "Payment"] as const;
 
@@ -389,7 +390,7 @@ const Checkout = () => {
   if (verifyingSession) {
     return (
       <div className="container-page py-32 text-center flex flex-col items-center">
-        <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+        <LottieLoader className="w-24 h-24 mb-4" />
         <h1 className="text-2xl font-bold">{t("checkout.verifying_title")}</h1>
         <p className="text-muted-foreground mt-2">{t("checkout.verifying_desc")}</p>
       </div>

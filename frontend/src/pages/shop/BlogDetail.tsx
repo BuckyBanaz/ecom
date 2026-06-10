@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { blogRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { initialBlogs } from "@/data/blogs";
+import { LottieLoader } from "@/components/ui/PageLoader";
 
 const BlogDetail = () => {
   const { t } = useTranslation();
@@ -71,7 +72,7 @@ const BlogDetail = () => {
   if (loading) {
     return (
       <div className="container-page py-20 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <LottieLoader className="w-24 h-24" />
       </div>
     );
   }
