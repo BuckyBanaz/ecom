@@ -10,7 +10,7 @@ pipeline {
   parameters {
     choice(
       name: 'BRANCH',
-      choices: ['v1.4', 'v1.3'],
+      choices: ['code-deploy', 'main', 'v0.0', 'v1.4'],
       description: 'Git branch to deploy'
     )
     booleanParam(
