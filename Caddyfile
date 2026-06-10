@@ -1,0 +1,26 @@
+{
+  email {$ACME_EMAIL}
+}
+
+{$DOMAIN}, www.{$DOMAIN} {
+  encode gzip zstd
+  reverse_proxy frontend:80
+}
+
+api.{$DOMAIN} {
+  encode gzip zstd
+  reverse_proxy backend:5000
+}
+
+jenkins.{$DOMAIN} {
+  # No gzip — Jenkins uses long-polling / websockets
+  reverse_proxy jenkins:8080 {
+    flush_interval -1
+    header_up Host {host}
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto https
+    header_up X-Forwarded-Host {host}
+    header_up X-Forwarded-Port 443
+  }
+}

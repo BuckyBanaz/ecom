@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Search, Building2, LayoutGrid } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { brandRepository, seriesRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdmin } from "@/context/AdminContext";
@@ -10,17 +12,23 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { brands as initialBrands, Brand, series as initialSeries, Series } from "@/data/brands";
+import type { Brand, Series } from "@/data/brands";
+import { Skeleton } from "@/components/ui/skeleton";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminBrands = () => {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
+  const [isMounted, setIsMounted] = useState(false);
   
   // Brand states
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editBrand, setEditBrand] = useState<Brand | null>(null);
   const [brandsList, setBrandsList] = useState<Brand[]>([]);
   const [search, setSearch] = useState("");
-  const [logoPreview, setLogoPreview] = useState<string>("");
+
 
   // Series states
   const [seriesDialogOpen, setSeriesDialogOpen] = useState(false);
@@ -29,66 +37,49 @@ const AdminBrands = () => {
   const [seriesSearch, setSeriesSearch] = useState("");
   const [seriesLogoPreview, setSeriesLogoPreview] = useState<string>("");
   const [selectedSeriesBrand, setSelectedSeriesBrand] = useState<string>("");
+  const [isBrandMediaLibraryOpen, setIsBrandMediaLibraryOpen] = useState(false);
+  const [isSeriesMediaLibraryOpen, setIsSeriesMediaLibraryOpen] = useState(false);
+  
+  // Loading state
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Set mounted flag on component mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Load brands and series
   useEffect(() => {
     const fetchBrandsAndSeries = async () => {
-      // 1. Load Brands
+      setIsLoading(true);
       try {
-        const res = await fetch("/api/v1/brands");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.brands) {
-            setBrandsList(data.brands);
-          }
+        const brandData = await brandRepository.getAll();
+        if (brandData.success && brandData.brands) {
+          setBrandsList(brandData.brands);
         } else {
-          throw new Error();
+          setBrandsList([]);
         }
-      } catch (e) {
-        const savedBrands = localStorage.getItem("brands_data");
-        if (savedBrands) {
-          try { setBrandsList(JSON.parse(savedBrands)); } catch (e) { setBrandsList(initialBrands); }
+        
+        const seriesData = await seriesRepository.getAll();
+        if (seriesData.success && seriesData.series) {
+          setSeriesList(seriesData.series);
         } else {
-          setBrandsList(initialBrands);
+          setSeriesList([]);
         }
-      }
-
-      // 2. Load Series
-      try {
-        const res = await fetch("/api/v1/series");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.series) {
-            setSeriesList(data.series);
-          }
-        } else {
-          throw new Error();
-        }
-      } catch (e) {
-        const savedSeries = localStorage.getItem("series_data");
-        if (savedSeries) {
-          try {
-            setSeriesList(JSON.parse(savedSeries));
-          } catch (e) {
-            setSeriesList(initialSeries);
-          }
-        } else {
-          setSeriesList(initialSeries);
-        }
+      } catch (err) {
+        console.error("Failed to fetch brands and series:", err);
+        toast.error(t("admin_brands.toast_load_failed"));
+        setBrandsList([]);
+        setSeriesList([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchBrandsAndSeries();
   }, []);
 
-  // Sync logo preview for Brands
-  useEffect(() => {
-    if (editBrand) {
-      setLogoPreview(editBrand.logo || "");
-    } else {
-      setLogoPreview("");
-    }
-  }, [editBrand, dialogOpen]);
+
 
   // Sync state for Series
   useEffect(() => {
@@ -106,96 +97,56 @@ const AdminBrands = () => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget as HTMLFormElement);
     const name = formData.get("name") as string;
-    const logo = logoPreview || "/assets/brand-generic.png";
 
     if (!name.trim()) {
-      toast.error("Brand name is required");
+      toast.error(t("admin_brands.toast_brand_name_required"));
       return;
     }
 
-    let updatedList: Brand[] = [];
-
-    // Attempt backend save
     try {
-      const url = editBrand ? `/api/v1/brands/${editBrand.id}` : "/api/v1/brands";
-      const method = editBrand ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, logo }),
-      });
+      const data = editBrand 
+        ? await brandRepository.update(editBrand.id, { name })
+        : await brandRepository.create({ name });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.brand) {
-          if (editBrand) {
-            updatedList = brandsList.map((b) => (b.id === editBrand.id ? data.brand : b));
-            toast.success(`Brand "${name}" updated successfully`);
-          } else {
-            updatedList = [...brandsList, data.brand];
-            toast.success(`Brand "${name}" added successfully`);
-          }
-          setBrandsList(updatedList);
-          localStorage.setItem("brands_data", JSON.stringify(updatedList));
-          setDialogOpen(false);
-          setEditBrand(null);
-          return;
+      if (data.success && data.brand) {
+        if (editBrand) {
+          setBrandsList(prev => prev.map((b) => (b.id === editBrand.id ? data.brand : b)));
+          toast.success(t("admin_brands.toast_brand_updated", { name }));
+        } else {
+          setBrandsList(prev => [...prev, data.brand]);
+          toast.success(t("admin_brands.toast_brand_added", { name }));
         }
+        setDialogOpen(false);
+        setEditBrand(null);
+      } else {
+        toast.error(t("admin_brands.toast_brand_save_failed"));
       }
     } catch (err) {
-      console.warn("Backend API save failed, syncing to local storage only.");
+      console.error("Failed to save brand via API:", err);
+      toast.error(t("admin_brands.toast_brand_save_error"));
     }
-
-    // Local Storage Fallback
-    if (editBrand) {
-      updatedList = brandsList.map((b) =>
-        b.id === editBrand.id ? { ...b, name, logo } : b
-      );
-      toast.success(`Brand "${name}" updated (Local Mode)`);
-    } else {
-      const newBrand: Brand = {
-        id: `b-${Date.now()}`,
-        name,
-        logo,
-      };
-      updatedList = [...brandsList, newBrand];
-      toast.success(`Brand "${name}" added (Local Mode)`);
-    }
-
-    setBrandsList(updatedList);
-    localStorage.setItem("brands_data", JSON.stringify(updatedList));
-    setDialogOpen(false);
-    setEditBrand(null);
   };
 
   // Delete Brand Handler
   const handleDeleteBrand = async (id: string, name: string) => {
-    if (!hasPermission("admin")) {
-      toast.error("Only admins can delete brands");
+    if (!hasPermission("brands")) {
+      toast.error(t("admin_brands.toast_only_admin_delete_brand"));
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete brand "${name}"?`)) {
-      let updatedList = brandsList.filter((b) => b.id !== id);
-
+    if (window.confirm(t("admin_brands.confirm_delete_brand", { name }))) {
       try {
-        const res = await fetch(`/api/v1/brands/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            toast.success(`Brand "${name}" deleted`);
-            setBrandsList(updatedList);
-            localStorage.setItem("brands_data", JSON.stringify(updatedList));
-            return;
-          }
+        const data = await brandRepository.delete(id);
+        if (data.success) {
+          toast.success(t("admin_brands.toast_brand_deleted", { name }));
+          setBrandsList(prev => prev.filter((b) => b.id !== id));
+        } else {
+          toast.error(t("admin_brands.toast_brand_delete_failed"));
         }
       } catch (err) {
-        console.warn("Backend API delete failed, syncing to local storage only.");
+        console.error("Failed to delete brand via API:", err);
+        toast.error(t("admin_brands.toast_brand_delete_error"));
       }
-
-      toast.success(`Brand "${name}" deleted (Local Mode)`);
-      setBrandsList(updatedList);
-      localStorage.setItem("brands_data", JSON.stringify(updatedList));
     }
   };
 
@@ -208,98 +159,58 @@ const AdminBrands = () => {
     const brandId = selectedSeriesBrand;
 
     if (!name.trim()) {
-      toast.error("Series name is required");
+      toast.error(t("admin_brands.toast_series_name_required"));
       return;
     }
     if (!brandId) {
-      toast.error("Please associate this series with a brand");
+      toast.error(t("admin_brands.toast_series_brand_required"));
       return;
     }
 
-    let updatedList: Series[] = [];
-
-    // Attempt backend save
     try {
-      const url = editSeries ? `/api/v1/series/${editSeries.id}` : "/api/v1/series";
-      const method = editSeries ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, brandId, logo }),
-      });
+      const data = editSeries
+        ? await seriesRepository.update(editSeries.id, { name, brandId, logo })
+        : await seriesRepository.create({ name, brandId, logo });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.series) {
-          if (editSeries) {
-            updatedList = seriesList.map((s) => (s.id === editSeries.id ? data.series : s));
-            toast.success(`Series "${name}" updated successfully`);
-          } else {
-            updatedList = [...seriesList, data.series];
-            toast.success(`Series "${name}" added successfully`);
-          }
-          setSeriesList(updatedList);
-          localStorage.setItem("series_data", JSON.stringify(updatedList));
-          setSeriesDialogOpen(false);
-          setEditSeries(null);
-          return;
+      if (data.success && data.series) {
+        if (editSeries) {
+          setSeriesList(prev => prev.map((s) => (s.id === editSeries.id ? data.series : s)));
+          toast.success(t("admin_brands.toast_series_updated", { name }));
+        } else {
+          setSeriesList(prev => [...prev, data.series]);
+          toast.success(t("admin_brands.toast_series_added", { name }));
         }
+        setSeriesDialogOpen(false);
+        setEditSeries(null);
+      } else {
+        toast.error(t("admin_brands.toast_series_save_failed"));
       }
     } catch (err) {
-      console.warn("Backend API save failed, syncing to local storage only.");
+      console.error("Failed to save series via API:", err);
+      toast.error(t("admin_brands.toast_series_save_error"));
     }
-
-    // Local Storage Fallback
-    if (editSeries) {
-      updatedList = seriesList.map((s) =>
-        s.id === editSeries.id ? { ...s, name, brandId, logo } : s
-      );
-      toast.success(`Series "${name}" updated (Local Mode)`);
-    } else {
-      const newS: Series = {
-        id: `s-${Date.now()}`,
-        name,
-        brandId,
-        logo,
-      };
-      updatedList = [...seriesList, newS];
-      toast.success(`Series "${name}" added (Local Mode)`);
-    }
-
-    setSeriesList(updatedList);
-    localStorage.setItem("series_data", JSON.stringify(updatedList));
-    setSeriesDialogOpen(false);
-    setEditSeries(null);
   };
 
   // Delete Series Handler
   const handleDeleteSeries = async (id: string, name: string) => {
-    if (!hasPermission("admin")) {
-      toast.error("Only admins can delete series");
+    if (!hasPermission("brands")) {
+      toast.error(t("admin_brands.toast_only_admin_delete_series"));
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete series "${name}"?`)) {
-      let updatedList = seriesList.filter((s) => s.id !== id);
-
+    if (window.confirm(t("admin_brands.confirm_delete_series", { name }))) {
       try {
-        const res = await fetch(`/api/v1/series/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            toast.success(`Series "${name}" deleted`);
-            setSeriesList(updatedList);
-            localStorage.setItem("series_data", JSON.stringify(updatedList));
-            return;
-          }
+        const data = await seriesRepository.delete(id);
+        if (data.success) {
+          toast.success(t("admin_brands.toast_series_deleted", { name }));
+          setSeriesList(prev => prev.filter((s) => s.id !== id));
+        } else {
+          toast.error(t("admin_brands.toast_series_delete_failed"));
         }
       } catch (err) {
-        console.warn("Backend API delete failed, syncing to local storage only.");
+        console.error("Failed to delete series via API:", err);
+        toast.error(t("admin_brands.toast_series_delete_error"));
       }
-
-      toast.success(`Series "${name}" deleted (Local Mode)`);
-      setSeriesList(updatedList);
-      localStorage.setItem("series_data", JSON.stringify(updatedList));
     }
   };
 
@@ -316,24 +227,15 @@ const AdminBrands = () => {
   });
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-card/40 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Brands & Series</h1>
-          <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-0.5">
-            Manage catalog manufacturers, logos, and series collections
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6 pb-12">
 
       <Tabs defaultValue="brands" className="w-full">
         <TabsList className="bg-muted/60 p-1 rounded-xl mb-6 grid w-full max-w-[400px] grid-cols-2">
           <TabsTrigger value="brands" className="rounded-lg text-xs font-bold py-2">
-            Brands ({brandsList.length})
+            {t("admin_brands.tab_brands", { count: brandsList.length })}
           </TabsTrigger>
           <TabsTrigger value="series" className="rounded-lg text-xs font-bold py-2">
-            Series & Collections ({seriesList.length})
+            {t("admin_brands.tab_series", { count: seriesList.length })}
           </TabsTrigger>
         </TabsList>
 
@@ -345,77 +247,37 @@ const AdminBrands = () => {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search brands by name..."
+                placeholder={t("admin_brands.search_brands")}
                 className="pl-10 rounded-xl bg-background/50 h-10 text-xs focus-visible:ring-1 border-muted-foreground/20"
               />
             </div>
-            {hasPermission("admin") && (
+            {hasPermission("brands") && (
               <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditBrand(null); }}>
                 <DialogTrigger asChild>
                   <Button className="rounded-full gap-2 text-xs font-bold h-10 px-5 shadow-sm hover:shadow transition-shadow">
-                    <Plus className="h-4 w-4" /> Add Brand
+                    <Plus className="h-4 w-4" /> {t("admin_brands.add_brand")}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="rounded-2xl max-w-md">
                   <DialogHeader>
                     <DialogTitle className="text-lg font-bold">
-                      {editBrand ? "Edit Brand Details" : "Add New Brand"}
+                      {editBrand ? t("admin_brands.edit_brand_title") : t("admin_brands.add_brand_title")}
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSaveBrand} className="space-y-5 mt-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="name" className="text-xs font-bold text-foreground/80">Brand Name</Label>
+                      <Label htmlFor="name" className="text-xs font-bold text-foreground/80">{t("admin_brands.label_brand_name")}</Label>
                       <Input
                         id="name"
                         name="name"
                         defaultValue={editBrand?.name}
-                        placeholder="e.g. Philips, Eglo"
+                        placeholder={t("admin_brands.placeholder_brand_name")}
                         className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                         required
                       />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-foreground/80">Brand Logo</Label>
-                      <div className="flex items-center gap-4 mt-1 bg-muted/20 p-3 rounded-xl border border-muted-foreground/10">
-                        {logoPreview ? (
-                          <div className="flex h-16 w-16 items-center justify-center rounded-xl border bg-card p-1">
-                            <img
-                              src={logoPreview}
-                              alt="Logo Preview"
-                              className="max-h-full max-w-full object-contain"
-                              onError={(e) => {
-                                (e.target as HTMLElement).style.display = "none";
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex h-16 w-16 items-center justify-center rounded-xl border bg-muted">
-                            <Building2 className="h-7 w-7 text-muted-foreground/60" />
-                          </div>
-                        )}
-                        <div className="flex-1 space-y-1">
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setLogoPreview(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                            className="cursor-pointer text-xs h-9 file:text-[10px] file:font-bold file:rounded-md file:bg-primary file:text-primary-foreground border-muted-foreground/20 rounded-lg bg-background/50"
-                          />
-                          <p className="text-[9px] text-muted-foreground">
-                            Upload a png or jpg file.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+
 
                     <div className="flex gap-2 justify-end pt-2">
                       <Button
@@ -424,10 +286,10 @@ const AdminBrands = () => {
                         onClick={() => { setDialogOpen(false); setEditBrand(null); }}
                         className="h-9 text-xs rounded-lg font-bold"
                       >
-                        Cancel
+                        {t("admin_brands.cancel")}
                       </Button>
                       <Button type="submit" className="h-9 text-xs rounded-lg font-bold">
-                        {editBrand ? "Save Changes" : "Create Brand"}
+                        {editBrand ? t("admin_brands.save_changes") : t("admin_brands.create_brand")}
                       </Button>
                     </div>
                   </form>
@@ -437,50 +299,64 @@ const AdminBrands = () => {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {filteredBrands.map((b) => (
-              <div key={b.id} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300 hover:shadow-md hover:border-muted-foreground/25">
-                <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
-                    {b.logo ? (
-                      <img src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain" />
-                    ) : (
-                      <Building2 className="h-9 w-9 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm tracking-tight text-foreground/90">{b.name}</h3>
-                    <p className="text-[10px] text-muted-foreground font-semibold mt-0.5 uppercase bg-muted/60 px-2 py-0.5 rounded-full">Catalog Brand</p>
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, idx) => (
+                <div key={idx} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <Skeleton className="h-20 w-20 rounded-2xl shrink-0" />
+                    <div className="space-y-1.5 flex flex-col items-center">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-4.5 w-24 rounded-full" />
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : (
+              filteredBrands.map((b) => (
+                <div key={b.id} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300 hover:shadow-md hover:border-muted-foreground/25">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
+                      {b.logo ? (
+                        <SafeImage src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain" fallbackType="brand" />
+                      ) : (
+                        <Building2 className="h-9 w-9 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm tracking-tight text-foreground/90">{b.name}</h3>
+                      <p className="text-[10px] text-muted-foreground font-semibold mt-0.5 uppercase bg-muted/60 px-2 py-0.5 rounded-full">{t("admin_brands.catalog_brand")}</p>
+                    </div>
+                  </div>
 
-                <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
-                    onClick={() => { setEditBrand(b); setDialogOpen(true); }}
-                    title="Edit Brand"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  {hasPermission("admin") && (
+                  <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
-                      onClick={() => handleDeleteBrand(b.id, b.name)}
-                      title="Delete Brand"
+                      className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
+                      onClick={() => { setEditBrand(b); setDialogOpen(true); }}
+                      title={t("admin_brands.edit_brand_title_btn")}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                  )}
+                    {hasPermission("brands") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
+                        onClick={() => handleDeleteBrand(b.id, b.name)}
+                        title={t("admin_brands.delete_brand_title_btn")}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
 
-            {filteredBrands.length === 0 && (
+            {!isLoading && filteredBrands.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground text-xs font-semibold bg-muted/10 border rounded-2xl">
-                No brands found matching your search.
+                {t("admin_brands.empty_brands")}
               </div>
             )}
           </div>
@@ -494,60 +370,62 @@ const AdminBrands = () => {
               <Input
                 value={seriesSearch}
                 onChange={(e) => setSeriesSearch(e.target.value)}
-                placeholder="Search series by name or brand..."
+                placeholder={t("admin_brands.search_series")}
                 className="pl-10 rounded-xl bg-background/50 h-10 text-xs focus-visible:ring-1 border-muted-foreground/20"
               />
             </div>
-            {hasPermission("admin") && (
+            {hasPermission("brands") && (
               <Dialog open={seriesDialogOpen} onOpenChange={(v) => { setSeriesDialogOpen(v); if (!v) setEditSeries(null); }}>
                 <DialogTrigger asChild>
                   <Button className="rounded-full gap-2 text-xs font-bold h-10 px-5 shadow-sm hover:shadow transition-shadow">
-                    <Plus className="h-4 w-4" /> Add Series
+                    <Plus className="h-4 w-4" /> {t("admin_brands.add_series")}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="rounded-2xl max-w-md">
                   <DialogHeader>
                     <DialogTitle className="text-lg font-bold">
-                      {editSeries ? "Edit Series Details" : "Add New Series"}
+                      {editSeries ? t("admin_brands.edit_series_title") : t("admin_brands.add_series_title")}
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSaveSeries} className="space-y-5 mt-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="seriesName" className="text-xs font-bold text-foreground/80">Series / Collection Name</Label>
+                      <Label htmlFor="seriesName" className="text-xs font-bold text-foreground/80">{t("admin_brands.label_series_name")}</Label>
                       <Input
                         id="seriesName"
                         name="seriesName"
                         defaultValue={editSeries?.name}
-                        placeholder="e.g. Hue White and Color, Townshend"
+                        placeholder={t("admin_brands.placeholder_series_name")}
                         className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                         required
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-foreground/80">Associated Brand *</Label>
-                      <Select value={selectedSeriesBrand} onValueChange={setSelectedSeriesBrand}>
-                        <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                          <SelectValue placeholder="Associate with a brand" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          {brandsList.map((b) => (
-                            <SelectItem key={b.id} value={b.id} className="text-xs rounded-lg">
-                              {b.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-xs font-bold text-foreground/80">{t("admin_brands.label_associated_brand")}</Label>
+                      {isMounted && (
+                        <Select value={selectedSeriesBrand} onValueChange={setSelectedSeriesBrand}>
+                          <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                            <SelectValue placeholder={t("admin_brands.placeholder_associated_brand")} />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {brandsList.map((b) => (
+                              <SelectItem key={b.id} value={b.id} className="text-xs rounded-lg">
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-foreground/80">Series Banner / Logo (Optional)</Label>
+                      <Label className="text-xs font-bold text-foreground/80">{t("admin_brands.label_series_logo")}</Label>
                       <div className="flex items-center gap-4 mt-1 bg-muted/20 p-3 rounded-xl border border-muted-foreground/10">
                         {seriesLogoPreview ? (
                           <div className="flex h-16 w-16 items-center justify-center rounded-xl border bg-card p-1">
                             <img
-                              src={seriesLogoPreview}
-                              alt="Series Logo Preview"
+                              src={resolveImgUrl(seriesLogoPreview)}
+                              alt={t("admin_brands.alt_series_logo_preview")}
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
@@ -557,23 +435,19 @@ const AdminBrands = () => {
                           </div>
                         )}
                         <div className="flex-1 space-y-1">
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setSeriesLogoPreview(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                            className="cursor-pointer text-xs h-9 file:text-[10px] file:font-bold file:rounded-md file:bg-primary file:text-primary-foreground border-muted-foreground/20 rounded-lg bg-background/50"
-                          />
+                          <Button type="button" variant="outline" className="w-full text-left justify-start" onClick={() => setIsSeriesMediaLibraryOpen(true)}>
+                            {seriesLogoPreview ? t("admin_brands.change_logo") : t("admin_brands.browse_media")}
+                          </Button>
                         </div>
                       </div>
+                      <MediaLibraryDialog
+                        open={isSeriesMediaLibraryOpen}
+                        onOpenChange={setIsSeriesMediaLibraryOpen}
+                        onSelect={(url) => {
+                          setSeriesLogoPreview(normalizeUploadedUrl(url));
+                          setIsSeriesMediaLibraryOpen(false);
+                        }}
+                      />
                     </div>
 
                     <div className="flex gap-2 justify-end pt-2">
@@ -583,10 +457,10 @@ const AdminBrands = () => {
                         onClick={() => { setSeriesDialogOpen(false); setEditSeries(null); }}
                         className="h-9 text-xs rounded-lg font-bold"
                       >
-                        Cancel
+                        {t("admin_brands.cancel")}
                       </Button>
                       <Button type="submit" className="h-9 text-xs rounded-lg font-bold">
-                        {editSeries ? "Save Changes" : "Create Series"}
+                        {editSeries ? t("admin_brands.save_changes") : t("admin_brands.create_series")}
                       </Button>
                     </div>
                   </form>
@@ -596,59 +470,73 @@ const AdminBrands = () => {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {filteredSeries.map((s) => {
-              const brandObj = brandsList.find((b) => b.id === s.brandId);
-              return (
-                <div key={s.id} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300 hover:shadow-md hover:border-muted-foreground/25">
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, idx) => (
+                <div key={idx} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300">
                   <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
-                      {s.logo ? (
-                        <img src={s.logo} alt={s.name} className="max-h-full max-w-full object-contain" />
-                      ) : brandObj?.logo ? (
-                        <img src={brandObj.logo} alt={brandObj.name} className="max-h-full max-w-full object-contain opacity-50 filter grayscale" />
-                      ) : (
-                        <LayoutGrid className="h-8 w-8 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <h3 className="font-bold text-sm tracking-tight text-foreground/90">{s.name}</h3>
-                      <div className="flex flex-col items-center gap-1.5">
-                        <span className="text-[9px] text-primary font-extrabold uppercase tracking-wider bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
-                          {brandObj ? brandObj.name : "Unknown Brand"}
-                        </span>
-                      </div>
+                    <Skeleton className="h-20 w-20 rounded-2xl shrink-0" />
+                    <div className="space-y-1.5 flex flex-col items-center">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-4.5 w-24 rounded-full" />
                     </div>
                   </div>
+                </div>
+              ))
+            ) : (
+              filteredSeries.map((s) => {
+                const brandObj = brandsList.find((b) => b.id === s.brandId);
+                return (
+                  <div key={s.id} className="group relative overflow-hidden rounded-2xl border bg-card/65 backdrop-blur-md p-5 transition-all duration-300 hover:shadow-md hover:border-muted-foreground/25">
+                    <div className="flex flex-col items-center text-center space-y-4">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/40 p-2 border border-border/80 group-hover:scale-105 transition-transform duration-300">
+                        {s.logo ? (
+                          <SafeImage src={s.logo} alt={s.name} className="max-h-full max-w-full object-contain" fallbackType="series" />
+                        ) : brandObj?.logo ? (
+                          <SafeImage src={brandObj.logo} alt={brandObj.name} className="max-h-full max-w-full object-contain opacity-50 filter grayscale" fallbackType="brand" />
+                        ) : (
+                          <LayoutGrid className="h-8 w-8 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <h3 className="font-bold text-sm tracking-tight text-foreground/90">{s.name}</h3>
+                        <div className="flex flex-col items-center gap-1.5">
+                          <span className="text-[9px] text-primary font-extrabold uppercase tracking-wider bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
+                            {brandObj ? brandObj.name : t("admin_brands.unknown_brand")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-                  <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
-                      onClick={() => { setEditSeries(s); setSeriesDialogOpen(true); }}
-                      title="Edit Series"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    {hasPermission("admin") && (
+                    <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
-                        onClick={() => handleDeleteSeries(s.id, s.name)}
-                        title="Delete Series"
+                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border hover:bg-primary hover:text-primary-foreground transition-all"
+                        onClick={() => { setEditSeries(s); setSeriesDialogOpen(true); }}
+                        title={t("admin_brands.edit_series_title_btn")}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                    )}
+                      {hasPermission("brands") && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-full bg-background/90 shadow-sm border border-border text-destructive hover:bg-destructive hover:text-white transition-all"
+                          onClick={() => handleDeleteSeries(s.id, s.name)}
+                          title={t("admin_brands.delete_series_title_btn")}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
 
-            {filteredSeries.length === 0 && (
+            {!isLoading && filteredSeries.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground text-xs font-semibold bg-muted/10 border rounded-2xl">
-                No series collections found. Click "Add Series" to create one.
+                {t("admin_brands.empty_series")}
               </div>
             )}
           </div>

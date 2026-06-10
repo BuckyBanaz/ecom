@@ -1,10 +1,12 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { brandRepository, categoryRepository, attributeRepository, productRepository } from "@/client/apiClient";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, ChevronUp, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, Filter } from "lucide-react";
 import { categories } from "@/data/categories";
 import { products } from "@/data/products";
 import { Brand } from "@/data/brands";
@@ -12,7 +14,12 @@ import { Attribute } from "@/data/attributes";
 import { initialBlogs } from "@/data/blogs";
 import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { BlogCard } from "@/components/shop/BlogCard";
+import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
+import { Skeleton } from "@/components/ui/skeleton";
+import { resolveImgUrl } from "@/utils/image";
+import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
 
 const resolveCategorySlug = (menuItemSlug: string) => {
   const mappings: Record<string, string> = {
@@ -37,6 +44,7 @@ const resolveCategorySlug = (menuItemSlug: string) => {
 };
 
 const Category = () => {
+  const { t } = useTranslation();
   const { slug = "" } = useParams();
   const [searchParams] = useSearchParams();
   const [landingPage, setLandingPage] = useState<any>(null);
@@ -46,7 +54,8 @@ const Category = () => {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [blogsList, setBlogsList] = useState<any[]>([]);
-  const [activeBlog, setActiveBlog] = useState<any | null>(null);
+  const [productsList, setProductsList] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
 
   // Filter values
   const [price, setPrice] = useState<[number, number]>([0, 400]);
@@ -74,115 +83,111 @@ const Category = () => {
     }));
   };
 
-  // Load brands, categories, and attributes on mount
+  // Load brands, categories, attributes, and products in parallel on mount
   useEffect(() => {
-    const loadMetadata = async () => {
-      // 1. Brands
+    const loadAllData = async () => {
+      setProductsLoading(true);
       try {
-        const res = await fetch("/api/v1/brands");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.brands) setBrands(data.brands);
-        } else {
-          throw new Error();
-        }
-      } catch (e) {
-        const saved = localStorage.getItem("brands_data");
-        if (saved) {
-          setBrands(JSON.parse(saved));
-        } else {
-          const { brands: initialBrands } = await import("@/data/brands");
-          setBrands(initialBrands);
-        }
-      }
+        const [prodData, brandData, catData, attrData] = await Promise.all([
+          productRepository.getAll({ limit: 1000 }).catch(() => null),
+          brandRepository.getAll().catch(() => null),
+          categoryRepository.getAll().catch(() => null),
+          attributeRepository.getAll().catch(() => null),
+        ]);
 
-      // 2. Categories
-      let loadedCats = categories;
-      try {
-        const res = await fetch("/api/v1/categories");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.categories) loadedCats = data.categories;
+        // Products
+        if (prodData && prodData.success && prodData.products) {
+          setProductsList(prodData.products);
         } else {
-          throw new Error();
-        }
-      } catch (e) {
-        const saved = localStorage.getItem("categories_data");
-        if (saved) {
-          try {
-            loadedCats = JSON.parse(saved);
-          } catch (err) {
-            loadedCats = categories;
+          const saved = localStorage.getItem("products_data");
+          if (saved) {
+            try { setProductsList(JSON.parse(saved)); } catch { setProductsList(products); }
+          } else {
+            setProductsList(products);
           }
+        }
+
+        // Brands
+        if (brandData && brandData.success && brandData.brands) {
+          setBrands(brandData.brands);
         } else {
-          loadedCats = categories;
-        }
-      }
-
-      const groupMapping: Record<string, string> = {
-        "indoor": "interior-lighting",
-        "outdoor": "outdoor-lighting",
-        "smart": "light-sources",
-        "bulbs": "light-sources",
-        "business": "commercial-lighting",
-        "accessories": "interior-lighting"
-      };
-      let migrated = false;
-      const mappedCats = loadedCats.map((c: any) => {
-        if (groupMapping[c.group]) {
-          migrated = true;
-          return { ...c, group: groupMapping[c.group] };
-        }
-        return c;
-      });
-      if (migrated) {
-        localStorage.setItem("categories_data", JSON.stringify(mappedCats));
-      }
-      setCategoriesList(mappedCats);
-
-      // 3. Attributes
-      try {
-        const res = await fetch("/api/v1/attributes");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.attributes) {
-            const mapped = data.attributes.map((a: any) => ({
-              id: a.id,
-              name: a.name,
-              slug: a.slug,
-              type: a.type,
-              values: a.attributeValues || [],
-              visibility: a.visibility || "both",
-            }));
-            setAttributes(mapped);
+          const saved = localStorage.getItem("brands_data");
+          if (saved) {
+            setBrands(JSON.parse(saved));
+          } else {
+            const { brands: initialBrands } = await import("@/data/brands");
+            setBrands(initialBrands);
           }
-        } else {
-          throw new Error();
         }
-      } catch (e) {
-        const saved = localStorage.getItem("attributes_data");
-        if (saved) {
-          setAttributes(JSON.parse(saved));
-        } else {
-          const { attributes: initialAttributes } = await import("@/data/attributes");
-          setAttributes(initialAttributes);
-        }
-      }
 
-      // 4. Blogs
-      const savedBlogs = localStorage.getItem("blogs_data");
-      if (savedBlogs) {
-        try {
-          setBlogsList(JSON.parse(savedBlogs));
-        } catch (e) {
+        // Categories
+        let loadedCats = categories;
+        if (catData && catData.success && catData.categories) {
+          loadedCats = catData.categories;
+        } else {
+          const saved = localStorage.getItem("categories_data");
+          if (saved) {
+            try { loadedCats = JSON.parse(saved); } catch { loadedCats = categories; }
+          }
+        }
+
+        const groupMapping: Record<string, string> = {
+          "indoor": "interior-lighting",
+          "outdoor": "outdoor-lighting",
+          "smart": "light-sources",
+          "bulbs": "light-sources",
+          "business": "commercial-lighting",
+          "accessories": "interior-lighting"
+        };
+        let migrated = false;
+        const mappedCats = loadedCats.map((c: any) => {
+          if (groupMapping[c.group]) {
+            migrated = true;
+            return { ...c, group: groupMapping[c.group] };
+          }
+          return c;
+        });
+        if (migrated) {
+          localStorage.setItem("categories_data", JSON.stringify(mappedCats));
+        }
+        setCategoriesList(mappedCats);
+
+        // Attributes
+        if (attrData && attrData.success && attrData.attributes) {
+          const mapped = attrData.attributes.map((a: any) => ({
+            id: a.id,
+            name: a.name,
+            slug: a.slug,
+            type: a.type,
+            values: a.attributeValues || [],
+            visibility: a.visibility || "both",
+          }));
+          setAttributes(mapped);
+        } else {
+          const saved = localStorage.getItem("attributes_data");
+          if (saved) {
+            setAttributes(JSON.parse(saved));
+          } else {
+            const { attributes: initialAttributes } = await import("@/data/attributes");
+            setAttributes(initialAttributes);
+          }
+        }
+
+        // Blogs
+        const savedBlogs = localStorage.getItem("blogs_data");
+        if (savedBlogs) {
+          try { setBlogsList(JSON.parse(savedBlogs)); } catch { setBlogsList(initialBlogs); }
+        } else {
           setBlogsList(initialBlogs);
         }
-      } else {
-        setBlogsList(initialBlogs);
+      } catch (err) {
+        console.warn("Failed to fetch Category metadata in parallel:", err);
+      } finally {
+        setProductsLoading(false);
       }
     };
 
-    loadMetadata();
+    loadAllData();
   }, []);
 
   // Sync CMS Landing Pages details
@@ -205,6 +210,16 @@ const Category = () => {
             document.head.appendChild(metaDesc);
           }
           metaDesc.setAttribute('content', pageData.seoDescription || "");
+
+          if (pageData.seoKeywords) {
+            let metaKeywords = document.querySelector('meta[name="keywords"]');
+            if (!metaKeywords) {
+              metaKeywords = document.createElement('meta');
+              metaKeywords.setAttribute('name', 'keywords');
+              document.head.appendChild(metaKeywords);
+            }
+            metaKeywords.setAttribute('content', pageData.seoKeywords);
+          }
         } else {
           setLandingPage(null);
         }
@@ -215,7 +230,7 @@ const Category = () => {
   }, [slug]);
 
   const resolvedSlug = useMemo(() => resolveCategorySlug(slug), [slug]);
-  const cat = categories.find((c) => c.slug === resolvedSlug);
+  const cat = categoriesList.find((c) => c.slug === resolvedSlug) || categories.find((c) => c.slug === resolvedSlug);
 
   // Sync style filter from search queries
   useEffect(() => {
@@ -267,15 +282,14 @@ const Category = () => {
     const targetCategory = landingPage?.categorySlug || resolvedSlug;
     const isDeals = targetCategory === "deals";
 
-    const savedProducts = localStorage.getItem("products_data");
-    let allProductsList = products;
-    if (savedProducts) {
-      try { allProductsList = JSON.parse(savedProducts); } catch (e) {}
-    }
+    let allProductsList = productsList.length > 0 ? productsList : products;
 
     let list = isDeals
       ? allProductsList.filter((p) => p.oldPrice)
-      : allProductsList.filter((p) => p.category === targetCategory);
+      : allProductsList.filter((p) => {
+          const pCatSlug = typeof p.category === "object" ? p.category.slug : p.category;
+          return pCatSlug === targetCategory;
+        });
     
     if (list.length === 0 && !isDeals) list = allProductsList;
 
@@ -353,20 +367,31 @@ const Category = () => {
     const isDeals = targetCategory === "deals";
 
     // Load active products list
-    const savedProducts = localStorage.getItem("products_data");
-    let allProductsList = products;
-    if (savedProducts) {
-      try { allProductsList = JSON.parse(savedProducts); } catch (e) {}
-    }
+    let allProductsList = productsList.length > 0 ? productsList : products;
 
     let list = isDeals
       ? allProductsList.filter((p) => p.oldPrice)
-      : allProductsList.filter((p) => p.category === targetCategory);
+      : allProductsList.filter((p) => {
+          const pCatSlug = typeof p.category === "object" ? p.category.slug : p.category;
+          return pCatSlug === targetCategory;
+        });
     
     if (list.length === 0 && !isDeals) list = allProductsList;
 
     // 1. Price slider
     list = list.filter((p) => p.price >= price[0] && p.price <= price[1]);
+
+    // 1.5 Text Search
+    const sq = searchParams.get("search")?.toLowerCase();
+    if (sq) {
+      list = list.filter(p => 
+        p.name.toLowerCase().includes(sq) || 
+        p.description?.toLowerCase().includes(sq) ||
+        p.shortDescription?.toLowerCase().includes(sq) ||
+        (typeof p.category === 'string' && p.category.toLowerCase().includes(sq)) ||
+        (typeof p.category === 'object' && p.category.name && p.category.name.toLowerCase().includes(sq))
+      );
+    }
 
     // 2. Brands
     if (selectedBrands.length > 0) {
@@ -405,15 +430,88 @@ const Category = () => {
       case "rating": list = [...list].sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
     }
     return list;
-  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort]);
+  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList]);
 
-  const title = landingPage?.title || (slug === "deals" ? "Spring deals" : cat?.name ?? "All products");
+  const title = landingPage?.title || (slug === "deals" ? t("category.spring_deals") : cat?.name ?? t("category.all_products"));
+
+  if (productsLoading) {
+    return <CategorySkeleton />;
+  }
+
+  const filtersSidebar = (
+    <div className="space-y-4">
+      {/* Price Filter Accordion */}
+      <FilterBlock
+        title={t("category.filter_titles.price")}
+        isOpen={openSections["Price"]}
+        onToggle={() => toggleSection("Price")}
+      >
+        <div className="pt-2">
+          <Slider value={price} min={0} max={400} step={5} onValueChange={(v) => setPrice([v[0], v[1]] as [number, number])} />
+          <div className="mt-3 flex justify-between text-xs font-semibold text-muted-foreground">
+            <span>€{price[0]}</span><span>€{price[1]}</span>
+          </div>
+        </div>
+      </FilterBlock>
+
+      {/* Brands Filter Accordion */}
+      {brands.length > 0 && (
+        <CheckBlock
+          title={t("category.filter_titles.brands")}
+          options={brands.map(b => b.name)}
+          selected={selectedBrands}
+          onToggle={(brandName) => {
+            setSelectedBrands(prev =>
+              prev.includes(brandName) ? prev.filter(x => x !== brandName) : [...prev, brandName]
+            );
+          }}
+          getOptionCount={(val) => getOptionCount("brand", "", val)}
+          isOpen={openSections["Brands"]}
+          onToggleSection={() => toggleSection("Brands")}
+        />
+      )}
+
+      {/* Dynamic Category specific EAV attributes */}
+      {visibleAttributes.map((attr) => {
+        const sectionName = attr.name;
+        const isSectionOpen = openSections[sectionName] ?? true;
+        const hasInfoIcon = attr.slug === "dimmable" || attr.slug === "fitting" || attr.slug === "ip-rating";
+
+        return (
+          <CheckBlock
+            key={attr.id}
+            title={attr.name}
+            options={attr.values.map(v => v.value)}
+            selected={selectedFilters[attr.slug] || []}
+            onToggle={(val) => toggleFilter(attr.slug, val)}
+            getOptionCount={(val) => getOptionCount("attribute", attr.slug, val)}
+            getColorHex={attr.slug === "color" || attr.slug === "light-color" || attr.slug === "fitting" ? getColorHex : undefined}
+            hasInfo={hasInfoIcon}
+            isOpen={isSectionOpen}
+            onToggleSection={() => toggleSection(sectionName)}
+          />
+        );
+      })}
+
+      <Button
+        variant="outline"
+        className="w-full mt-2"
+        onClick={() => {
+          setSelectedBrands([]);
+          setSelectedFilters({});
+          setPrice([0, 400]);
+        }}
+      >
+        {t("category.clear_filters")}
+      </Button>
+    </div>
+  );
 
   return (
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-primary transition-colors">Home</Link> /{" "}
-        <Link to="/relief" className="hover:text-primary transition-colors">Relief</Link> /{" "}
+        <Link to="/" className="hover:text-primary transition-colors">{t("breadcrumb.home")}</Link> /{" "}
+        <Link to="/relief" className="hover:text-primary transition-colors">{t("breadcrumb.relief")}</Link> /{" "}
         <span className="text-foreground font-medium">{title}</span>
       </nav>
       <h1 className="text-3xl font-bold md:text-4xl mb-2">{title}</h1>
@@ -425,330 +523,80 @@ const Category = () => {
         />
       )}
       
-      {landingPage?.blocks && landingPage.blocks.length > 0 ? (
-        <div className="mt-8 space-y-12">
-          {landingPage.blocks.map((block: any, idx: number) => {
-            if (block.type === "text") {
-              return (
-                <div key={idx} className="p-8 border rounded-2xl bg-card shadow-xs prose max-w-none dark:prose-invert transition-all hover:shadow-md">
-                  {block.title && <h2 className="text-2xl font-bold text-foreground mb-4">{block.title}</h2>}
-                  {block.description && (
-                    <div dangerouslySetInnerHTML={{ __html: block.description }} className="text-muted-foreground leading-relaxed" />
-                  )}
-                </div>
-              );
-            }
-            if (block.type === "products") {
-              const targetCategory = block.categorySlug;
-              const isDeals = targetCategory === "deals";
-              let list = isDeals ? products.filter((p) => p.oldPrice) : products.filter((p) => p.category === targetCategory);
-              if (list.length === 0 && !isDeals) list = products;
-
-              return (
-                <div key={idx} className="space-y-6">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <h2 className="text-2xl font-bold text-foreground">
-                      {categories.find(c => c.slug === targetCategory)?.name || "Featured Products"}
-                    </h2>
-                    <span className="text-sm text-muted-foreground font-medium">{list.length} products</span>
-                  </div>
-                  {block.description && (
-                    <div 
-                      dangerouslySetInnerHTML={{ __html: block.description }} 
-                      className="text-muted-foreground leading-relaxed prose max-w-none text-sm dark:prose-invert"
-                    />
-                  )}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {list.map((p) => (
-                      <ProductCard key={p.id} product={p} />
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            if (block.type === "component") {
-              const heading = block.title || "";
-              
-              if (block.componentType === "categories") {
-                const catObj = categoriesList.find(c => c.slug === resolvedSlug);
-                const menuSlug = catObj ? catObj.group : "";
-                const selectedCats = (block.selectedItems && block.selectedItems.length > 0)
-                  ? categoriesList.filter(c => block.selectedItems.includes(c.slug))
-                  : categoriesList.filter(c => c.group === menuSlug);
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                      {selectedCats.map((c) => {
-                        const count = products.filter(p => p.category === c.slug).length;
-                        return (
-                          <Link
-                            key={c.slug}
-                            to={`/category/${c.slug}`}
-                            className="group relative flex flex-col overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
-                          >
-                            <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                              {c.image ? (
-                                <img
-                                  src={c.image}
-                                  alt={c.name}
-                                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
-                                  {c.name}
-                                </div>
-                              )}
-                            </div>
-                            <div className="w-full bg-background py-3 px-4 text-center border-t flex flex-col items-center">
-                              <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                                {c.name}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground mt-0.5">{count} products</span>
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              }
-
-              if (block.componentType === "blogs") {
-                const selectedBlogs = (block.selectedItems && block.selectedItems.length > 0)
-                  ? blogsList.filter(b => block.selectedItems.includes(b.slug) && b.published)
-                  : blogsList.filter(b => b.published);
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    {selectedBlogs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground italic">No articles to show.</p>
-                    ) : (
-                      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {selectedBlogs.map((b) => (
-                          <div
-                            key={b.id}
-                            onClick={() => setActiveBlog(b)}
-                            className="group rounded-2xl border bg-card overflow-hidden shadow-xs hover:shadow-md hover:border-primary/20 transition-all duration-300 cursor-pointer flex flex-col justify-between"
-                          >
-                            <div>
-                              <div className="aspect-video w-full overflow-hidden bg-muted relative">
-                                {b.cover ? (
-                                  <img
-                                    src={b.cover}
-                                    alt={b.title}
-                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                  />
-                                ) : (
-                                  <div className="flex h-full items-center justify-center text-muted-foreground text-xs font-semibold">
-                                    No cover image
-                                  </div>
-                                )}
-                              </div>
-                              <div className="p-5 space-y-2">
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                  <span>By {b.author || "Guest"}</span>
-                                  <span>{b.date}</span>
-                                </div>
-                                <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                                  {b.title}
-                                </h3>
-                                <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                                  {b.excerpt}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="p-5 pt-0">
-                              <span className="text-xs font-bold text-primary flex items-center gap-1 group-hover:underline">
-                                Read Article &rarr;
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              if (block.componentType === "faq") {
-                const selectedFaqs = (block.selectedItems && block.selectedItems.length > 0)
-                  ? faqs.filter(f => block.selectedItems.includes(f.q))
-                  : faqs;
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    <Accordion type="single" collapsible className="w-full border rounded-2xl bg-card p-4 shadow-xs">
-                      {selectedFaqs.map((f, i) => (
-                        <AccordionItem key={i} value={`faq-${i}`} className={i === selectedFaqs.length - 1 ? "border-b-0" : ""}>
-                          <AccordionTrigger className="text-left font-semibold text-foreground hover:no-underline hover:text-primary transition-colors py-4">
-                            {f.q}
-                          </AccordionTrigger>
-                          <AccordionContent className="text-muted-foreground leading-relaxed text-sm pb-4">
-                            {f.a}
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </div>
-                );
-              }
-            }
-            return null;
-          })}
+      {landingPage?.content || landingPage?.blocks?.length > 0 ? (
+        <div className="mt-8">
+          <ShortcodeRenderer 
+            content={
+              landingPage.content || 
+              (Array.isArray(landingPage.blocks) 
+                ? landingPage.blocks.map((b: any) => b.description || "").filter(Boolean).join("<br/>") 
+                : "")
+            } 
+            prefetchedData={{ products: productsList, categories: categoriesList, blogs: blogsList }}
+          />
         </div>
       ) : (
         <>
-          <p className="mt-1 text-sm text-muted-foreground">{filtered.length} products</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("category.products_count", { count: filtered.length })}</p>
           <div className="mt-6 grid gap-8 lg:grid-cols-[260px_1fr]">
             
-            {/* SIDEBAR FILTERS */}
-            <aside className="space-y-4">
-              
-              {/* Price Filter Accordion */}
-              <FilterBlock
-                title="Price"
-                isOpen={openSections["Price"]}
-                onToggle={() => toggleSection("Price")}
-              >
-                <div className="pt-2">
-                  <Slider value={price} min={0} max={400} step={5} onValueChange={(v) => setPrice([v[0], v[1]] as [number, number])} />
-                  <div className="mt-3 flex justify-between text-xs font-semibold text-muted-foreground">
-                    <span>€{price[0]}</span><span>€{price[1]}</span>
-                  </div>
-                </div>
-              </FilterBlock>
-
-              {/* Brands Filter Accordion */}
-              {brands.length > 0 && (
-                <CheckBlock
-                  title="Brands"
-                  options={brands.map(b => b.name)}
-                  selected={selectedBrands}
-                  onToggle={(brandName) => {
-                    setSelectedBrands(prev =>
-                      prev.includes(brandName) ? prev.filter(x => x !== brandName) : [...prev, brandName]
-                    );
-                  }}
-                  getOptionCount={(val) => getOptionCount("brand", "", val)}
-                  isOpen={openSections["Brands"]}
-                  onToggleSection={() => toggleSection("Brands")}
-                />
-              )}
-
-              {/* Dynamic Category specific EAV attributes */}
-              {visibleAttributes.map((attr) => {
-                const sectionName = attr.name;
-                const isSectionOpen = openSections[sectionName] ?? true;
-                const hasInfoIcon = attr.slug === "dimmable" || attr.slug === "fitting" || attr.slug === "ip-rating";
-
-                return (
-                  <CheckBlock
-                    key={attr.id}
-                    title={attr.name}
-                    options={attr.values.map(v => v.value)}
-                    selected={selectedFilters[attr.slug] || []}
-                    onToggle={(val) => toggleFilter(attr.slug, val)}
-                    getOptionCount={(val) => getOptionCount("attribute", attr.slug, val)}
-                    getColorHex={attr.slug === "color" || attr.slug === "light-color" || attr.slug === "fitting" ? getColorHex : undefined}
-                    hasInfo={hasInfoIcon}
-                    isOpen={isSectionOpen}
-                    onToggleSection={() => toggleSection(sectionName)}
-                  />
-                );
-              })}
-
-              <Button
-                variant="outline"
-                className="w-full mt-2"
-                onClick={() => {
-                  setSelectedBrands([]);
-                  setSelectedFilters({});
-                  setPrice([0, 400]);
-                }}
-              >
-                Clear filters
-              </Button>
+            {/* SIDEBAR FILTERS - DESKTOP */}
+            <aside className="hidden lg:block">
+              {filtersSidebar}
             </aside>
 
             {/* PRODUCT GRID */}
             <div>
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Showing {filtered.length} results</span>
-                <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm">
-                  <option value="relevance">Sort: Relevance</option>
-                  <option value="price-asc">Price: low to high</option>
-                  <option value="price-desc">Price: high to low</option>
-                  <option value="rating">Top rated</option>
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Sheet>
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className="lg:hidden gap-2">
+                        <Filter className="h-4 w-4" /> {t("category.filters")}
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="left" className="w-[300px] sm:w-[350px] overflow-y-auto">
+                      <SheetHeader className="mb-4 text-left">
+                        <SheetTitle>{t("category.filters")}</SheetTitle>
+                        <SheetDescription className="sr-only">{t("category.filter_products")}</SheetDescription>
+                      </SheetHeader>
+                      {filtersSidebar}
+                    </SheetContent>
+                  </Sheet>
+                  <span className="text-sm text-muted-foreground">{t("category.showing_results", { count: filtered.length })}</span>
+                </div>
+                <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm w-full sm:w-auto">
+                  <option value="relevance">{t("category.sort.relevance")}</option>
+                  <option value="price-asc">{t("category.sort.price_asc")}</option>
+                  <option value="price-desc">{t("category.sort.price_desc")}</option>
+                  <option value="rating">{t("category.sort.top_rated")}</option>
                 </select>
               </div>
-              {filtered.length === 0 ? (
-                <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">No products match your filters.</div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                  {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
-                </div>
-              )}
+               {productsLoading ? (
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 animate-pulse">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
+                        <Skeleton className="aspect-square w-full rounded-lg" />
+                        <Skeleton className="h-3 w-1/3" />
+                        <Skeleton className="h-4 w-full" />
+                        <div className="flex justify-between items-center mt-2">
+                          <Skeleton className="h-5 w-1/4" />
+                          <Skeleton className="h-8 w-8 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">{t("category.no_results")}</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                    {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
+                  </div>
+                )}
             </div>
           </div>
         </>
       )}
-      {/* Blog Details Modal */}
-      <Dialog open={!!activeBlog} onOpenChange={(open) => !open && setActiveBlog(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border p-0 shadow-lg bg-card">
-          {activeBlog && (
-            <div>
-              <div className="aspect-video w-full overflow-hidden bg-muted relative">
-                {activeBlog.cover ? (
-                  <img src={activeBlog.cover} alt={activeBlog.title} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground text-sm font-semibold">No cover image</div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-6 left-6 right-6 text-white">
-                  <span className="bg-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                    Article
-                  </span>
-                  <h2 className="text-xl md:text-3xl font-extrabold mt-3 tracking-tight">
-                    {activeBlog.title}
-                  </h2>
-                </div>
-              </div>
-              <div className="p-6 md:p-8 space-y-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground border-b pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">By {activeBlog.author || "Guest"}</span>
-                  </div>
-                  <span>Published on {activeBlog.date}</span>
-                </div>
-                <div className="prose dark:prose-invert max-w-none">
-                  <p className="text-lg text-foreground/90 font-medium italic border-l-4 border-primary pl-4 py-1 bg-muted/30 rounded-r-md">
-                    {activeBlog.excerpt}
-                  </p>
-                  <div className="text-muted-foreground leading-relaxed whitespace-pre-line mt-6 text-sm md:text-base">
-                    {activeBlog.body}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
@@ -814,6 +662,7 @@ function CheckBlock({
   isOpen?: boolean;
   onToggleSection?: () => void;
 }) {
+  const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
   const visibleOptions = showAll ? options : options.slice(0, 4);
 
@@ -865,11 +714,11 @@ function CheckBlock({
         >
           {showAll ? (
             <>
-              Show less <ChevronUp className="h-3.5 w-3.5" />
+              {t("category.show_less")} <ChevronUp className="h-3.5 w-3.5" />
             </>
           ) : (
             <>
-              Show ({options.length - 4}) more <ChevronDown className="h-3.5 w-3.5" />
+              {t("category.show_more", { count: options.length - 4 })} <ChevronDown className="h-3.5 w-3.5" />
             </>
           )}
         </button>

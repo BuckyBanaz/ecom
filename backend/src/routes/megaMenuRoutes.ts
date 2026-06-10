@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 import {
   getMegaMenus,
   getMegaMenuById,
@@ -70,7 +71,7 @@ router.get("/", getMegaMenus);
  *       200:
  *         description: Sync successful
  */
-router.post("/sync", syncMegaMenus);
+router.post("/sync", authenticateJWT, requireAdmin, syncMegaMenus);
 
 /**
  * @swagger
@@ -130,7 +131,7 @@ router.get("/:id", getMegaMenuById);
  *       201:
  *         description: Mega menu created successfully
  */
-router.post("/", createMegaMenu);
+router.post("/", authenticateJWT, requireAdmin, createMegaMenu);
 
 /**
  * @swagger
@@ -173,7 +174,7 @@ router.post("/", createMegaMenu);
  *       200:
  *         description: Mega menu updated successfully
  */
-router.put("/:id", updateMegaMenu);
+router.put("/:id", authenticateJWT, requireAdmin, updateMegaMenu);
 
 /**
  * @swagger
@@ -191,6 +192,6 @@ router.put("/:id", updateMegaMenu);
  *       200:
  *         description: Mega menu deleted successfully
  */
-router.delete("/:id", deleteMegaMenu);
+router.delete("/:id", authenticateJWT, requireAdmin, deleteMegaMenu);
 
 export default router;

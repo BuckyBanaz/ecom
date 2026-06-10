@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { toast } from "sonner";
 import type { Product } from "@/data/products";
 
 export type CartItem = {
@@ -45,7 +44,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, { id: p.id, product: p, qty }];
     });
-    toast.success("Added to cart", { description: p.name });
     setDrawerOpen(true);
   };
 

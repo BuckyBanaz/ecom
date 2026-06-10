@@ -1,7 +1,24 @@
+import path from "path";
 import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import { Express } from "express";
 import { env } from "./env";
+
+const isProduction = env.NODE_ENV === "production";
+const routesGlob = path.join(__dirname, "..", "routes", isProduction ? "*.js" : "*.ts");
+
+const getApiServerUrl = (): string => {
+  if (!isProduction) {
+    return `http://localhost:${env.PORT}`;
+  }
+  try {
+    const client = new URL(env.CLIENT_URL);
+    const host = client.hostname.replace(/^www\./, "");
+    return `${client.protocol}//api.${host}`;
+  } catch {
+    return env.CLIENT_URL;
+  }
+};
 
 const options: swaggerJSDoc.Options = {
   definition: {
@@ -18,13 +35,13 @@ const options: swaggerJSDoc.Options = {
     },
     servers: [
       {
-        url: `http://localhost:${env.PORT}`,
-        description: "Local Development Server",
+        url: getApiServerUrl(),
+        description: isProduction ? "Production Server" : "Local Development Server",
       },
     ],
     components: {
       securitySchemes: {
-        BearerAuth: {
+        bearerAuth: {
           type: "http",
           scheme: "bearer",
           bearerFormat: "JWT",
@@ -35,12 +52,12 @@ const options: swaggerJSDoc.Options = {
     // Apply JWT globally to swagger controls (can be overridden per path)
     security: [
       {
-        BearerAuth: [],
+        bearerAuth: [],
       },
     ],
   },
-  // Parse routes and controllers for JSDoc documentation decorators
-  apis: ["./src/routes/*.ts"],
+  // In production only dist/ exists; dev uses src/
+  apis: [routesGlob],
 };
 
 const swaggerSpec = swaggerJSDoc(options);

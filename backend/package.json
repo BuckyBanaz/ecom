@@ -10,20 +10,31 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node --project prisma/tsconfig.json --transpile-only prisma/seed.ts",
+    "prisma:seed:product": "ts-node --project prisma/tsconfig.json --transpile-only prisma/seedProduct.ts",
+    "prisma:seed:templates": "ts-node --transpile-only -e \"require('./src/utils/seedTemplates').seedTemplates().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })\"",
+    "prisma:seed:all": "npm run prisma:seed"
   },
   "dependencies": {
+    "@google-analytics/data": "^6.1.0",
     "@prisma/client": "^5.14.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
+    "firebase": "^12.14.0",
+    "firebase-admin": "^13.10.0",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.10",
     "pg": "^8.11.5",
+    "rate-limit-redis": "^5.0.0",
+    "stripe": "^15.8.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "twilio": "^6.0.2",
     "winston": "^3.13.0",
     "zod": "^3.23.8"
   },
@@ -34,6 +45,7 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.12.12",
+    "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.11.6",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
@@ -43,6 +55,6 @@
     "typescript": "^5.4.5"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node --project prisma/tsconfig.json --transpile-only prisma/seed.ts"
   }
 }

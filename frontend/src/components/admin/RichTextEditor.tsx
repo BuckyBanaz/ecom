@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { 
   Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Link, Image, Table, Minus, Undo, Redo, Code, Quote, Eraser, 
-  Palette, Highlighter, Indent, Outdent
+  Link, Image as ImageIcon, Table, Minus, Undo, Redo, Code, Quote, Eraser, 
+  Palette, Highlighter, Indent, Outdent, ArrowUp, ArrowDown, Edit, Trash, Type
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { UIBlocksDialog } from "./UIBlocksDialog";
+import { MediaLibraryDialog } from "./media/MediaLibraryDialog";
+import { LayoutTemplate } from "lucide-react";
+import { normalizeUploadedUrl } from "@/utils/image";
 
 interface RichTextEditorProps {
   value: string;
@@ -15,33 +21,161 @@ interface RichTextEditorProps {
 }
 
 export function RichTextEditor({ value, onChange, label, placeholder }: RichTextEditorProps) {
+  const { t } = useTranslation();
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [htmlSource, setHtmlSource] = useState(value || "");
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [imageMode, setImageMode] = useState<"url" | "upload">("url");
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const [compressedDataUrl, setCompressedDataUrl] = useState("");
+  const [compressedInfo, setCompressedInfo] = useState<{ size: number; type: string; width: number; height: number } | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const [isUIBlocksOpen, setIsUIBlocksOpen] = useState(false);
+  const [savedSelection, setSavedSelection] = useState<Range | null>(null);
 
   // Color picker states
   const textColorInputRef = useRef<HTMLInputElement>(null);
   const bgColorInputRef = useRef<HTMLInputElement>(null);
 
+  const [activeBlockNode, setActiveBlockNode] = useState<HTMLElement | null>(null);
+  const [editingShortcode, setEditingShortcode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (editorRef.current && !editorRef.current.contains(e.target as Node) && !((e.target as HTMLElement).closest('.block-toolbar'))) {
+        setActiveBlockNode(null);
+      }
+    };
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, []);
+
   // Sync prop value to DOM if it changed externally (and not in source mode)
   useEffect(() => {
     if (!isSourceMode) {
-      if (editorRef.current && editorRef.current.innerHTML !== value) {
-        editorRef.current.innerHTML = value || "";
+      let processedValue = value || "";
+      
+      if (editorRef.current && editorRef.current.innerHTML !== processedValue) {
+        editorRef.current.innerHTML = processedValue;
+      }
+      
+      // Clean up and ensure all blocks are properly structured
+      if (editorRef.current) {
+        // Step 1: Unwrap nested .cms-block elements - keep only the outer one
+        const allBlocks = editorRef.current.querySelectorAll('.cms-block');
+        allBlocks.forEach(b => {
+          const nestedBlocks = b.querySelectorAll('.cms-block');
+          nestedBlocks.forEach(nested => {
+            // Extract the shortcode text from nested block and remove the nested wrapper
+            const shortcodeMatch = nested.innerHTML.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+            if (shortcodeMatch) {
+              const textNode = document.createTextNode(shortcodeMatch[0]);
+              nested.replaceWith(textNode);
+            } else {
+              nested.remove();
+            }
+          });
+        });
+        
+        // Step 2: Now process each top-level block - remove old toolbars, keep shortcode, add fresh toolbar
+        const blocks = editorRef.current.querySelectorAll('.cms-block');
+        blocks.forEach(b => {
+          if (!b.textContent?.trim()) {
+            b.remove();
+            return;
+          }
+          b.setAttribute('contenteditable', 'false');
+          (b as HTMLElement).style.userSelect = 'none';
+          
+          // Extract the pure shortcode from the block
+          const shortcodeMatch = b.textContent.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+          if (!shortcodeMatch) return;
+          
+          const shortcode = shortcodeMatch[0];
+          const blockType = shortcodeMatch[1];
+          const friendlyName = blockType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+          
+          // Rebuild the block with single clean toolbar
+          b.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span><button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button><button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button><button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button><button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button><button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button><button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button></span>${shortcode}`;
+        });
+        
+        // Step 3: Auto-wrap any raw shortcodes that aren't yet wrapped (in text nodes)
+        const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_TEXT, null);
+        const textNodesToWrap: Text[] = [];
+        let node;
+        while (node = walker.nextNode()) {
+          if (node.nodeValue && node.nodeValue.includes('[') && !(node.parentElement?.closest('.cms-block'))) {
+            const regex = /\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/;
+            if (regex.test(node.nodeValue)) {
+              textNodesToWrap.push(node as Text);
+            }
+          }
+        }
+        
+        textNodesToWrap.forEach(textNode => {
+          const text = textNode.nodeValue || "";
+          const regex = /\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/g;
+          const fragment = document.createDocumentFragment();
+          let lastIndex = 0;
+          let match;
+          
+          while ((match = regex.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+              fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+            }
+            const shortcodeType = match[1];
+            const fullShortcode = match[0];
+            const friendlyName = shortcodeType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+            
+            const wrapper = document.createElement("div");
+            wrapper.className = "cms-block";
+            wrapper.contentEditable = "false";
+            wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
+            wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span><button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button><button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button><button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button><button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button><button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button><button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button></span>${fullShortcode}`;
+            
+            fragment.appendChild(wrapper);
+            lastIndex = regex.lastIndex;
+          }
+          
+          if (lastIndex < text.length) {
+            fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+          }
+          
+          textNode.parentNode?.replaceChild(fragment, textNode);
+        });
       }
     } else {
       setHtmlSource(value || "");
     }
   }, [value, isSourceMode]);
 
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      setSavedSelection(sel.getRangeAt(0));
+    }
+  };
+
+  const restoreSelection = () => {
+    if (savedSelection) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelection);
+      }
+    } else if (editorRef.current) {
+      editorRef.current.focus();
+    }
+  };
+
   const executeCommand = (command: string, arg: string = "") => {
     if (isSourceMode) return;
     
-    // Focus the editor first to ensure command targets the correct selection
-    if (editorRef.current) {
-      editorRef.current.focus();
-    }
+    restoreSelection();
     
     document.execCommand(command, false, arg);
     handleInput();
@@ -49,9 +183,260 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
 
   const handleInput = () => {
     if (editorRef.current) {
+      // Also enforce during input just in case browsers try to strip it
+      const blocks = editorRef.current.querySelectorAll('.cms-block');
+      let changed = false;
+      blocks.forEach(b => {
+        if (!b.textContent?.trim()) {
+          b.remove();
+          changed = true;
+          return;
+        }
+        if (b.getAttribute('contenteditable') !== 'false') {
+          b.setAttribute('contenteditable', 'false');
+          (b as HTMLElement).style.userSelect = 'none';
+          changed = true;
+        }
+      });
+      
       const currentHTML = editorRef.current.innerHTML;
       onChange(currentHTML);
       setHtmlSource(currentHTML);
+    }
+  };
+
+  const handleEditorClick = (e: React.MouseEvent) => {
+    if (isSourceMode) return;
+    const target = e.target as HTMLElement;
+    
+    // Check if user clicked an image inside the editor to allow resizing
+    if (target.tagName === 'IMG') {
+      e.preventDefault();
+      e.stopPropagation();
+      const currentWidth = (target as HTMLImageElement).style.width || target.getAttribute('width') || '100%';
+      const newWidth = prompt("Resize Image - Enter new width (e.g., 200px, 50%, auto):", currentWidth);
+      if (newWidth !== null) {
+        (target as HTMLImageElement).style.width = newWidth;
+        (target as HTMLImageElement).style.height = 'auto'; // keep aspect ratio
+        handleInput();
+      }
+      return;
+    }
+    
+    // Check direct inline controls clicks
+    if (target.classList.contains('cms-block-above-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block && editorRef.current) {
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        editorRef.current.insertBefore(p, block);
+        handleInput();
+        const range = document.createRange();
+        range.setStart(p, 0);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-below-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block && editorRef.current) {
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        if (block.nextSibling) {
+          editorRef.current.insertBefore(p, block.nextSibling);
+        } else {
+          editorRef.current.appendChild(p);
+        }
+        handleInput();
+        const range = document.createRange();
+        range.setStart(p, 0);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-up-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block && editorRef.current) {
+        const prev = block.previousElementSibling;
+        if (prev) {
+          editorRef.current.insertBefore(block, prev);
+          handleInput();
+        }
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-down-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block && editorRef.current) {
+        const next = block.nextElementSibling;
+        if (next) {
+          if (next.nextSibling) {
+            editorRef.current.insertBefore(block, next.nextSibling);
+          } else {
+            editorRef.current.appendChild(block);
+          }
+          handleInput();
+        }
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-edit-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block) {
+        setActiveBlockNode(block);
+        let shortcode = "";
+        block.childNodes.forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (node.textContent?.trim().startsWith('[')) {
+              shortcode = node.textContent.trim();
+            }
+          }
+        });
+        if (!shortcode) {
+          const match = block.innerHTML.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+          if (match) shortcode = match[0];
+        }
+        if (shortcode) {
+          setEditingShortcode(shortcode);
+          saveSelection();
+          setIsUIBlocksOpen(true);
+        }
+      }
+      return;
+    }
+
+    if (target.classList.contains('cms-block-delete-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = target.closest('.cms-block') as HTMLElement;
+      if (block) {
+        block.remove();
+        setActiveBlockNode(null);
+        handleInput();
+      }
+      return;
+    }
+
+    const block = target.closest('.cms-block') as HTMLElement;
+    if (block && editorRef.current?.contains(block)) {
+      setActiveBlockNode(block);
+    } else {
+      setActiveBlockNode(null);
+    }
+  };
+
+  const handleEditorKeyDown = () => {
+    if (activeBlockNode) setActiveBlockNode(null);
+  };
+
+  const moveBlockUp = () => {
+    if (!activeBlockNode || !editorRef.current) return;
+    const prev = activeBlockNode.previousElementSibling;
+    if (prev) {
+      editorRef.current.insertBefore(activeBlockNode, prev);
+      handleInput();
+      setActiveBlockNode(activeBlockNode); 
+    }
+  };
+
+  const moveBlockDown = () => {
+    if (!activeBlockNode || !editorRef.current) return;
+    const next = activeBlockNode.nextElementSibling;
+    if (next) {
+      if (next.nextSibling) {
+        editorRef.current.insertBefore(activeBlockNode, next.nextSibling);
+      } else {
+        editorRef.current.appendChild(activeBlockNode);
+      }
+      handleInput();
+      setActiveBlockNode(activeBlockNode);
+    }
+  };
+
+  const insertSpaceAbove = () => {
+    if (!activeBlockNode || !editorRef.current) return;
+    const p = document.createElement('p');
+    p.innerHTML = '<br>';
+    editorRef.current.insertBefore(p, activeBlockNode);
+    handleInput();
+    
+    // Move cursor to the new line
+    const range = document.createRange();
+    range.setStart(p, 0);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  const insertSpaceBelow = () => {
+    if (!activeBlockNode || !editorRef.current) return;
+    const p = document.createElement('p');
+    p.innerHTML = '<br>';
+    if (activeBlockNode.nextSibling) {
+      editorRef.current.insertBefore(p, activeBlockNode.nextSibling);
+    } else {
+      editorRef.current.appendChild(p);
+    }
+    handleInput();
+    
+    // Move cursor to the new line
+    const range = document.createRange();
+    range.setStart(p, 0);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  const deleteBlock = () => {
+    if (!activeBlockNode) return;
+    activeBlockNode.remove();
+    setActiveBlockNode(null);
+    handleInput();
+  };
+
+  const handleEditBlockClick = () => {
+    if (!activeBlockNode) return;
+    
+    let shortcode = "";
+    activeBlockNode.childNodes.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node.textContent?.trim().startsWith('[')) {
+          shortcode = node.textContent.trim();
+        }
+      }
+    });
+
+    if (!shortcode) {
+      const match = activeBlockNode.innerHTML.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+      if (match) shortcode = match[0];
+    }
+
+    if (shortcode) {
+      setEditingShortcode(shortcode);
+      saveSelection();
+      setIsUIBlocksOpen(true);
     }
   };
 
@@ -81,11 +466,59 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     }
   };
 
+  const readFileAsDataUrl = (file: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+
+
+
   const handleImageInsert = () => {
-    const url = prompt("Enter image URL:");
-    if (url) {
-      executeCommand("insertImage", url);
+    saveSelection();
+    setImageMode("upload");
+    setImageUrl("");
+    setCompressedDataUrl("");
+    setCompressedInfo(null);
+    setImageError("");
+    setIsImageDialogOpen(true);
+  };
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsCompressing(true); // Keeping state for visual loading indicator
+    setImageError("");
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setCompressedDataUrl(dataUrl);
+      setCompressedInfo({
+        size: file.size,
+        type: file.type,
+        width: 0,
+        height: 0,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Read error";
+      setImageError(`Failed to read image. ${message}`);
+    } finally {
+      setIsCompressing(false);
     }
+  };
+
+  const handleInsertFromDialog = () => {
+    if (imageMode === "url") {
+      if (!imageUrl.trim()) return;
+      setIsImageDialogOpen(false);
+      setTimeout(() => executeCommand("insertImage", imageUrl.trim()), 50);
+      return;
+    }
+
+    if (!compressedDataUrl) return;
+    setIsImageDialogOpen(false);
+    setTimeout(() => executeCommand("insertImage", compressedDataUrl), 50);
   };
 
   const handleTableInsert = () => {
@@ -331,7 +764,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           />
           <ToolbarButton 
             disabled={isSourceMode} 
-            icon={Image} 
+            icon={ImageIcon} 
             label="Insert Image" 
             onClick={handleImageInsert} 
           />
@@ -346,6 +779,15 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
             icon={Minus} 
             label="Insert Horizontal Line" 
             onClick={() => executeCommand("insertHorizontalRule")} 
+          />
+          <ToolbarButton 
+            disabled={isSourceMode} 
+            icon={LayoutTemplate} 
+            label="UI Blocks" 
+            onClick={() => {
+              saveSelection();
+              setIsUIBlocksOpen(true);
+            }} 
           />
 
           <div className="w-[1px] h-6 bg-border mx-1" />
@@ -373,6 +815,8 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
               <div
                 ref={editorRef}
                 contentEditable
+                onClick={handleEditorClick}
+                onKeyDown={handleEditorKeyDown}
                 onInput={handleInput}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
@@ -395,6 +839,122 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           </div>
         </div>
       </div>
+
+      <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Insert Image</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={imageMode === "upload" ? "secondary" : "outline"}
+              onClick={() => setImageMode("upload")}
+            >
+              Upload
+            </Button>
+            <Button
+              type="button"
+              variant={imageMode === "url" ? "secondary" : "outline"}
+              onClick={() => setImageMode("url")}
+            >
+              Insert URL
+            </Button>
+          </div>
+
+          {imageMode === "upload" ? (
+            <div className="space-y-2">
+              <Button type="button" variant="outline" className="w-full" onClick={() => setIsMediaLibraryOpen(true)}>
+                Browse Media Storage
+              </Button>
+              {compressedDataUrl && <div className="text-xs text-green-600">Image selected from storage.</div>}
+              {imageError && <div className="text-xs text-destructive">{imageError}</div>}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsImageDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleInsertFromDialog}
+              disabled={imageMode === "upload" ? !compressedDataUrl || isCompressing : !imageUrl.trim()}
+            >
+              Insert Image
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <MediaLibraryDialog 
+        open={isMediaLibraryOpen}
+        onOpenChange={setIsMediaLibraryOpen}
+        onSelect={(url) => {
+          setCompressedDataUrl(normalizeUploadedUrl(url));
+          setIsMediaLibraryOpen(false);
+        }}
+      />
+
+      <UIBlocksDialog 
+        open={isUIBlocksOpen} 
+        onOpenChange={(open) => {
+          setIsUIBlocksOpen(open);
+          if (!open) setEditingShortcode(null);
+        }} 
+        onInsert={(shortcode, isEdit) => {
+          if (isEdit && activeBlockNode && editorRef.current) {
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = shortcode;
+            const newBlock = tempDiv.firstElementChild;
+            if (newBlock) {
+              activeBlockNode.replaceWith(newBlock);
+              setActiveBlockNode(newBlock as HTMLElement);
+            }
+            setEditingShortcode(null);
+            handleInput();
+          } else if (editorRef.current) {
+            // For new blocks, wrap them properly with toolbar
+            const shortcodeMatch = shortcode.match(/\[([a-zA-Z0-9-]+)([^\]]*)\]\[\/\1\]/);
+            if (shortcodeMatch) {
+              const blockType = shortcodeMatch[1];
+              const friendlyName = blockType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+              
+              const wrapper = document.createElement("div");
+              wrapper.className = "cms-block";
+              wrapper.contentEditable = "false";
+              wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
+              
+              wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span>
+                <button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button>
+                <button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button>
+                <button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button>
+                <button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button>
+                <button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button>
+                <button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button>
+              </span>${shortcode}`;
+              
+              restoreSelection();
+              editorRef.current.appendChild(wrapper);
+              setActiveBlockNode(wrapper);
+              handleInput();
+            }
+          }
+        }} 
+        editingShortcode={editingShortcode}
+      />
     </div>
   );
 }
@@ -422,6 +982,7 @@ function ToolbarButton({
         active ? "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15" : ""
       }`}
       onClick={onClick}
+      onMouseDown={(e) => e.preventDefault()}
       title={label}
     >
       <Icon className="h-4 w-4" />

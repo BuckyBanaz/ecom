@@ -1,95 +1,586 @@
-import { useState } from "react";
-import { Search, Shield, ShieldCheck, ShieldAlert, MoreHorizontal } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Search, Mail, Phone, Calendar, DollarSign,
+  MessageSquare, Plus, Star, X, User, Eye,
+  Loader2, ChevronRight, ShoppingBag, Filter,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAdmin } from "@/context/AdminContext";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ordersRepository, reviewRepository, authRepository } from "@/client/apiClient";
+import { useNavigate } from "react-router-dom";
 
-type DemoUser = { id: string; name: string; email: string; role: string; status: "active" | "suspended"; joinDate: string };
-
-const demoUsers: DemoUser[] = [
-  { id: "u-1", name: "Sophie V.", email: "sophie@example.com", role: "customer", status: "active", joinDate: "2025-01-15" },
-  { id: "u-2", name: "Mark D.", email: "mark@example.com", role: "customer", status: "active", joinDate: "2025-02-03" },
-  { id: "u-3", name: "Anna J.", email: "anna@example.com", role: "customer", status: "active", joinDate: "2025-02-20" },
-  { id: "u-4", name: "Jan K.", email: "jan@example.com", role: "customer", status: "suspended", joinDate: "2025-03-01" },
-  { id: "u-5", name: "Lisa M.", email: "lisa@example.com", role: "customer", status: "active", joinDate: "2025-03-12" },
-  { id: "u-6", name: "Super Admin", email: "super@lamp.com", role: "superadmin", status: "active", joinDate: "2024-12-01" },
-  { id: "u-7", name: "Admin User", email: "admin@lamp.com", role: "admin", status: "active", joinDate: "2025-01-01" },
-  { id: "u-8", name: "Moderator", email: "mod@lamp.com", role: "moderator", status: "active", joinDate: "2025-01-10" },
-];
-
-const roleIcon = (role: string) => {
-  if (role === "superadmin") return <ShieldAlert className="h-4 w-4 text-primary" />;
-  if (role === "admin") return <ShieldCheck className="h-4 w-4 text-blue-600" />;
-  if (role === "moderator") return <Shield className="h-4 w-4 text-green-600" />;
-  return null;
+/* ─── Types ─────────────────────────────────────────────────────────────────── */
+type Customer = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  status: "active" | "suspended";
+  joinDate: string;
+  ordersCount: number;
+  totalSpent: number;
+  orders: any[];
+  reviews: any[];
 };
 
+/* ─── Component ─────────────────────────────────────────────────────────────── */
 const AdminUsers = () => {
-  const { hasPermission } = useAdmin();
-  const [search, setSearch] = useState("");
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [customers,        setCustomers]        = useState<Customer[]>([]);
+  const [loading,          setLoading]          = useState(true);
+  const [search,           setSearch]           = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [openDetails,      setOpenDetails]      = useState(false);
+  const [openAddModal,     setOpenAddModal]      = useState(false);
+  const [isSubmitting,     setIsSubmitting]      = useState(false);
+  const [newCustomer,      setNewCustomer]       = useState({
+    firstName: "", lastName: "", email: "", phone: "", password: "",
+  });
 
-  const filtered = demoUsers.filter((u) =>
-    u.name.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
+  /* ── Data Fetching ──────────────────────────────────────────────────────── */
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [orderRes, reviewRes, usersRes] = await Promise.all([
+        ordersRepository.getAll().catch(() => ({ data: [] })),
+        reviewRepository.getAll().catch(() => ({ success: true, reviews: [] })),
+        authRepository.getAllUsers().catch(() => ({ success: true, data: [] })),
+      ]);
+
+      const fetchedOrders  = orderRes.data || [];
+      const fetchedReviews = reviewRes.success ? (reviewRes.reviews || []) : [];
+      const fetchedUsers   = usersRes.data || [];
+
+      const customerMap = new Map<string, Customer>();
+
+      // 1. Initialize map with real registered users
+      fetchedUsers.forEach((u: any) => {
+        if (u.role === "admin" || u.role === "superadmin" || u.role === "moderator") return;
+        const email = (u.email || "").toLowerCase().trim();
+        if (!email) return;
+
+        customerMap.set(email, {
+          id: `u-${u.id}`,
+          name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Customer",
+          email,
+          phone: u.phone || "N/A",
+          role: u.role || "customer",
+          status: u.status || "active",
+          joinDate: u.createdAt || new Date().toISOString(),
+          ordersCount: 0,
+          totalSpent: 0,
+          orders: [],
+          reviews: [],
+        });
+      });
+
+      // 2. Loop over orders to calculate spent amount, order count, and add guest users
+      fetchedOrders.forEach((o: any) => {
+        if (!o.customerEmail) return;
+        const email = o.customerEmail.toLowerCase().trim();
+
+        let userPhone = o.user?.phone || "N/A";
+        let parsedPhone = "N/A";
+        if (o.shippingAddress) {
+          try {
+            const addr = JSON.parse(o.shippingAddress);
+            if (addr && addr.phone) {
+              parsedPhone = addr.phone;
+            }
+          } catch (e) {}
+        }
+        const finalPhone = userPhone !== "N/A" ? userPhone : (parsedPhone !== "N/A" ? parsedPhone : (o.customerPhone || "N/A"));
+
+        if (customerMap.has(email)) {
+          const c = customerMap.get(email)!;
+          c.ordersCount += 1;
+          c.totalSpent  += o.total || 0;
+          c.orders.push(o);
+          if (new Date(o.createdAt) < new Date(c.joinDate)) c.joinDate = o.createdAt;
+          if ((c.phone === "N/A" || !c.phone) && finalPhone !== "N/A") {
+            c.phone = finalPhone;
+          }
+        } else {
+          // Guest user who placed an order but doesn't have an account
+          customerMap.set(email, {
+            id: `c-${o.id}`,
+            name: o.customerName || "Guest",
+            email,
+            phone: finalPhone,
+            role: "guest",
+            status: "active",
+            joinDate: o.createdAt,
+            ordersCount: 1,
+            totalSpent: o.total || 0,
+            orders: [o],
+            reviews: [],
+          });
+        }
+      });
+
+      // 3. Attach reviews
+      fetchedReviews.forEach((r: any) => {
+        const reviewerName = (r.name || "").toLowerCase().trim();
+        if (!reviewerName) return;
+        for (const [, cust] of customerMap.entries()) {
+          if (cust.name.toLowerCase().trim() === reviewerName) cust.reviews.push(r);
+        }
+      });
+
+      setCustomers(Array.from(customerMap.values()).sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime()));
+    } catch (err) {
+      console.error("Error loading customer data:", err);
+      toast.error(t("admin_users.toast_error"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  /* ── Add Customer ───────────────────────────────────────────────────────── */
+  const handleAddCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomer.firstName || !newCustomer.lastName || !newCustomer.email || !newCustomer.phone) {
+      toast.error(t("admin_users.toast_required"));
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await authRepository.register({
+        firstName: newCustomer.firstName,
+        lastName:  newCustomer.lastName,
+        email:     newCustomer.email,
+        phone:     newCustomer.phone,
+        password:  newCustomer.password || "TempPass123!",
+      });
+      if (res.success) {
+        toast.success(t("admin_users.toast_added"));
+        setOpenAddModal(false);
+        setNewCustomer({ firstName: "", lastName: "", email: "", phone: "", password: "" });
+        await fetchData();
+      } else {
+        toast.error(res.message || t("admin_users.toast_error"));
+      }
+    } catch (err: any) {
+      toast.error(err.message || t("admin_users.toast_error"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filtered = customers.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    c.email.toLowerCase().includes(search.toLowerCase()) ||
+    c.phone.includes(search)
   );
 
+  /* ── Render ─────────────────────────────────────────────────────────────── */
   return (
-    <div>
-      <h1 className="text-3xl font-bold">Users</h1>
-      <p className="text-muted-foreground">{demoUsers.length} users</p>
+    <div className="space-y-5 sm:space-y-6">
 
-      <div className="mt-6 relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="pl-10" />
+      {/* ── Page Header ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+            {t("admin_users.title")}
+          </h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
+            {t("admin_users.subtitle")}
+          </p>
+        </div>
+        <Button
+          onClick={() => setOpenAddModal(true)}
+          className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl gap-2 shadow-sm self-start sm:self-auto shrink-0"
+        >
+          <Plus className="h-4 w-4" /> {t("admin_users.button_add")}
+        </Button>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold">User</th>
-              <th className="px-4 py-3 text-left font-semibold">Role</th>
-              <th className="px-4 py-3 text-left font-semibold">Status</th>
-              <th className="px-4 py-3 text-left font-semibold">Joined</th>
-              <th className="px-4 py-3 text-right font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u) => (
-              <tr key={u.id} className="border-t hover:bg-muted/30">
-                <td className="px-4 py-3">
-                  <p className="font-semibold">{u.name}</p>
-                  <p className="text-xs text-muted-foreground">{u.email}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1.5 capitalize">
-                    {roleIcon(u.role)}{u.role}
+      {/* ── Search Bar ──────────────────────────────────────────────────────── */}
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("admin_users.search_placeholder")}
+          className="pl-10 pr-4 py-5 sm:py-6 rounded-xl border-muted bg-card focus-visible:ring-amber-500"
+        />
+      </div>
+
+      {/* ── Stats Row ───────────────────────────────────────────────────────── */}
+      {!loading && customers.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {[
+            { label: t("admin_users.stats_total"),   value: customers.length,                                                            color: "text-amber-700 bg-amber-50 border-amber-200" },
+            { label: t("admin_users.stats_revenue"),     value: `€${customers.reduce((s,c)=>s+c.totalSpent,0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+            { label: t("admin_users.stats_avg"),       value: customers.length ? (customers.reduce((s,c)=>s+c.ordersCount,0)/customers.length).toFixed(1) : "0", color: "text-blue-700 bg-blue-50 border-blue-200" },
+          ].map(s => (
+            <div key={s.label} className={`rounded-2xl border px-4 py-3 sm:py-4 ${s.color}`}>
+              <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider opacity-70">{s.label}</p>
+              <p className="text-lg sm:text-2xl font-extrabold mt-0.5">{s.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Customer List ────────────────────────────────────────────────────── */}
+      {loading ? (
+        <div className="flex h-56 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-14 bg-muted/20 rounded-2xl border border-dashed border-muted">
+          <User className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm font-semibold text-foreground">{t("admin_users.empty_title")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("admin_users.empty_text")}</p>
+        </div>
+      ) : (
+        <>
+          {/* ── Mobile Card List (< sm) ─────────────────────────────────────── */}
+          <div className="sm:hidden space-y-2">
+            {filtered.map((c) => (
+              <button
+                key={c.email}
+                onClick={() => { setSelectedCustomer(c); setOpenDetails(true); }}
+                className="w-full flex items-center gap-3 p-3.5 rounded-2xl border bg-card hover:bg-muted/30 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center font-bold text-amber-800 text-sm uppercase shrink-0">
+                  {c.name.slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <p className="font-bold text-sm text-foreground truncate">{c.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                      <ShoppingBag className="h-3 w-3" /> {c.ordersCount} orders
+                    </span>
+                    <span className="text-[10px] font-extrabold text-foreground">
+                      €{c.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
                   </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{u.status}</span>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{u.joinDate}</td>
-                <td className="px-4 py-3 text-right">
-                  {hasPermission("superadmin") && (
-                    <Select onValueChange={(v) => toast.success(`Role changed to ${v} (demo)`)}>
-                      <SelectTrigger className="h-8 w-[120px]"><SelectValue placeholder={u.role} /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="customer">Customer</SelectItem>
-                        <SelectItem value="moderator">Moderator</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="superadmin">Superadmin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </td>
-              </tr>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <span className="rounded-full px-2 py-0.5 text-[9px] font-bold bg-green-500/10 text-green-700 border border-green-500/20 uppercase tracking-wider">
+                    {c.status}
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </button>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* ── Desktop Table (≥ sm) ─────────────────────────────────────────── */}
+          <div className="hidden sm:block overflow-x-auto rounded-2xl border bg-card shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 border-b">
+                <tr>
+                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("admin_users.table_customer")}</th>
+                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider hidden md:table-cell">{t("admin_users.table_phone")}</th>
+                  <th className="px-5 py-4 text-center font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("admin_users.table_orders")}</th>
+                  <th className="px-5 py-4 text-right font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("admin_users.table_spent")}</th>
+                  <th className="px-5 py-4 text-left font-bold text-muted-foreground uppercase text-xs tracking-wider hidden lg:table-cell">{t("admin_users.table_joined")}</th>
+                  <th className="px-5 py-4 text-center font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("admin_users.table_status")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-muted/50">
+                {filtered.map((c) => (
+                  <tr
+                    key={c.email}
+                    onClick={() => { setSelectedCustomer(c); setOpenDetails(true); }}
+                    className="hover:bg-muted/30 cursor-pointer transition-colors duration-150 group"
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center font-bold text-amber-700 text-xs uppercase shrink-0 group-hover:bg-amber-500/20 transition-colors">
+                          {c.name.slice(0, 2)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 hidden md:table-cell text-muted-foreground font-medium text-xs">{c.phone}</td>
+                    <td className="px-5 py-4 text-center">
+                      <span className="inline-flex items-center justify-center bg-muted px-2.5 py-1 rounded-lg text-xs font-bold text-foreground">
+                        {c.ordersCount}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right font-extrabold text-foreground text-sm">
+                      €{c.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-5 py-4 text-muted-foreground hidden lg:table-cell font-medium text-xs whitespace-nowrap">
+                      {new Date(c.joinDate).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                    </td>
+                    <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <span className="rounded-full px-2.5 py-1 text-[10px] font-bold bg-green-500/10 text-green-700 border border-green-500/20 uppercase tracking-wider">
+                        {c.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* ── Customer Detail Sheet ─────────────────────────────────────────────── */}
+      <Sheet open={openDetails} onOpenChange={setOpenDetails}>
+        <SheetContent
+          className="w-full sm:max-w-xl overflow-y-auto bg-card border-l p-0"
+          aria-describedby="customer-details-description"
+        >
+          {selectedCustomer && (
+            <div className="flex flex-col h-full">
+
+              {/* Sheet Header */}
+              <SheetHeader className="border-b px-5 py-4 bg-gradient-to-br from-amber-500/10 to-orange-500/5 shrink-0">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-amber-500/20 flex items-center justify-center font-extrabold text-amber-800 text-base sm:text-lg uppercase shrink-0">
+                    {selectedCustomer.name.slice(0, 2)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <SheetTitle className="text-xl sm:text-2xl font-extrabold tracking-tight text-left">
+                      {selectedCustomer.name}
+                    </SheetTitle>
+                    <p id="customer-details-description" className="text-xs sm:text-sm text-muted-foreground truncate">
+                      {selectedCustomer.email}
+                    </p>
+                  </div>
+                  <span className="rounded-full px-2.5 py-1 text-[10px] font-bold bg-green-500/10 text-green-700 border border-green-500/20 uppercase tracking-wider shrink-0">
+                    {selectedCustomer.status === "active" ? t("admin_users.status_active") : t("admin_users.status_suspended")}
+                  </span>
+                </div>
+              </SheetHeader>
+
+              {/* Tabs */}
+              <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4">
+                <Tabs defaultValue="info" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3 bg-muted rounded-xl p-1 mb-5">
+                    <TabsTrigger value="info"    className="rounded-lg font-bold text-[11px] sm:text-xs">{t("admin_users.tab_info")}</TabsTrigger>
+                    <TabsTrigger value="orders"  className="rounded-lg font-bold text-[11px] sm:text-xs">{t("admin_users.tab_orders")} ({selectedCustomer.ordersCount})</TabsTrigger>
+                    <TabsTrigger value="reviews" className="rounded-lg font-bold text-[11px] sm:text-xs">{t("admin_users.tab_reviews")} ({selectedCustomer.reviews.length})</TabsTrigger>
+                  </TabsList>
+
+                  {/* ── Tab 1: Profile Info ─────────────────────────────────── */}
+                  <TabsContent value="info" className="space-y-3 outline-none">
+                    <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2">
+                      {[
+                        { label: t("admin_users.label_email"),   icon: Mail,     value: selectedCustomer.email,    truncate: true  },
+                        { label: t("admin_users.label_phone"),    icon: Phone,    value: selectedCustomer.phone,    truncate: false },
+                        { label: t("admin_users.label_joined"),  icon: Calendar, value: new Date(selectedCustomer.joinDate).toLocaleDateString(undefined, { dateStyle: "long" }), truncate: false },
+                        { label: t("admin_users.label_status"),  icon: User,     value: selectedCustomer.status === "active" ? t("admin_users.status_active") : t("admin_users.status_suspended"),   truncate: false, badge: true },
+                      ].map(item => {
+                        const IIcon = item.icon;
+                        return (
+                          <div key={item.label} className="border rounded-xl p-3 sm:p-4 bg-muted/10 space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">{item.label}</span>
+                            <div className="flex items-center gap-2 text-sm font-semibold text-foreground mt-0.5">
+                              <IIcon className="h-4 w-4 text-amber-600 shrink-0" />
+                              {item.badge
+                                ? <span className="rounded-full px-2.5 py-0.5 text-xs font-bold bg-green-500/10 text-green-700 border border-green-500/20 uppercase">{item.value}</span>
+                                : <span className={item.truncate ? "truncate" : ""}>{item.value}</span>
+                              }
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Revenue Highlight */}
+                    <div className="border rounded-xl p-4 sm:p-5 bg-gradient-to-br from-amber-500/10 to-orange-500/5 flex justify-between items-center mt-2">
+                      <div>
+                        <p className="text-[10px] sm:text-xs font-bold text-amber-800 uppercase tracking-wider">{t("admin_users.label_value")}</p>
+                        <p className="text-2xl sm:text-3xl font-extrabold text-amber-950 mt-1">
+                          €{selectedCustomer.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div className="bg-amber-600 text-white rounded-xl p-3">
+                        <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* ── Tab 2: Orders ───────────────────────────────────────── */}
+                  <TabsContent value="orders" className="outline-none">
+                    {selectedCustomer.orders.length === 0 ? (
+                      <div className="text-center py-10 text-muted-foreground">
+                        <ShoppingBag className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                        <p className="text-xs">{t("admin_users.no_orders")}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {selectedCustomer.orders.map((order) => (
+                          <button
+                            key={order.id}
+                            onClick={() => { setOpenDetails(false); navigate(`/admin/orders/${order.id}`); }}
+                            className="w-full flex items-center justify-between border rounded-xl bg-muted/10 p-3 sm:p-4 hover:bg-muted/30 transition-all cursor-pointer group text-left"
+                          >
+                            <div className="min-w-0 space-y-0.5">
+                              <p className="font-bold text-foreground text-xs sm:text-sm group-hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                                {order.orderNumber}
+                                <Eye className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {new Date(order.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 sm:gap-3 shrink-0 pl-2">
+                              <span className="font-extrabold text-foreground text-xs sm:text-sm">
+                                €{order.total.toFixed(2)}
+                              </span>
+                              <span className={`rounded-full px-2 sm:px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${
+                                order.status === "delivered" ? "bg-green-500/10 text-green-700 border-green-500/20" :
+                                order.status === "shipped"   ? "bg-blue-500/10 text-blue-700 border-blue-500/20" :
+                                order.status === "cancelled" ? "bg-red-500/10 text-red-700 border-red-500/20" :
+                                                               "bg-yellow-500/10 text-yellow-700 border-yellow-500/20"
+                              }`}>{order.status.replace(/_/g, " ")}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* ── Tab 3: Reviews ──────────────────────────────────────── */}
+                  <TabsContent value="reviews" className="outline-none">
+                    {selectedCustomer.reviews.length === 0 ? (
+                      <div className="text-center py-10 text-muted-foreground">
+                        <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                        <p className="text-xs">{t("admin_users.no_reviews")}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedCustomer.reviews.map((r, idx) => (
+                          <div key={idx} className="border rounded-xl p-3 sm:p-4 space-y-2 bg-muted/10">
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-center text-yellow-400">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star key={i} className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${i < r.rating ? "fill-current" : "text-gray-300"}`} />
+                                ))}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                {new Date(r.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="font-bold text-foreground text-xs">{r.title}</p>
+                              <p className="text-muted-foreground text-xs mt-1 leading-relaxed">{r.text}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ── Add Customer Modal ─────────────────────────────────────────────────── */}
+      {openAddModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-card w-full max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-2xl border border-border shadow-2xl sm:max-w-md relative">
+
+            {/* Drag handle on mobile */}
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+            </div>
+
+            {/* Header */}
+            <div className="px-5 sm:px-6 pt-4 pb-3 border-b flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-foreground">
+                  {t("admin_users.modal_title")}
+                </h2>
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  {t("admin_users.modal_desc")}
+                </p>
+              </div>
+              <button
+                onClick={() => setOpenAddModal(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAddCustomer} className="px-5 sm:px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_fname")} *</label>
+                  <Input required value={newCustomer.firstName}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, firstName: e.target.value })}
+                    placeholder="e.g. John"
+                    className="focus-visible:ring-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_lname")} *</label>
+                  <Input required value={newCustomer.lastName}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, lastName: e.target.value })}
+                    placeholder="e.g. Doe"
+                    className="focus-visible:ring-amber-500"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_email")} *</label>
+                <Input required type="email" value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                  placeholder="john.doe@example.com"
+                  className="focus-visible:ring-amber-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_phone")} *</label>
+                <Input required value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                  placeholder="+31 6 12345678"
+                  className="focus-visible:ring-amber-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground">{t("admin_users.form_password")}</label>
+                <Input type="password" value={newCustomer.password}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, password: e.target.value })}
+                  placeholder={t("admin_users.form_password_help")}
+                  className="focus-visible:ring-amber-500"
+                />
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 border-t">
+                <Button type="button" variant="outline"
+                  onClick={() => setOpenAddModal(false)}
+                  className="rounded-xl font-bold w-full sm:w-auto"
+                >
+                  {t("admin_users.button_cancel")}
+                </Button>
+                <Button type="submit" disabled={isSubmitting}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-sm w-full sm:w-auto sm:min-w-[130px]"
+                >
+                  {isSubmitting
+                    ? <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                    : t("admin_users.button_save")
+                  }
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

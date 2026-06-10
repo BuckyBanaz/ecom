@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Search, Sliders, ChevronDown, ChevronUp } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { attributeRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdmin } from "@/context/AdminContext";
@@ -8,9 +10,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { attributes as initialAttributes, Attribute, AttributeType } from "@/data/attributes";
+import type { Attribute, AttributeType } from "@/data/attributes";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const AdminAttributes = () => {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editAttr, setEditAttr] = useState<Attribute | null>(null);
@@ -24,41 +28,36 @@ const AdminAttributes = () => {
   const [newColorCode, setNewColorCode] = useState("#000000");
   const [selectedType, setSelectedType] = useState<AttributeType>("select");
   const [selectedVisibility, setSelectedVisibility] = useState<"admin" | "filter" | "both">("both");
+  
+  // Loading state
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load attributes
   useEffect(() => {
     const fetchAttributes = async () => {
+      setIsLoading(true);
       try {
-        const res = await fetch("/api/v1/attributes");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.attributes) {
-            // Map backend schema to frontend expectation
-            const mapped = data.attributes.map((a: any) => ({
-              id: a.id,
-              name: a.name,
-              slug: a.slug,
-              type: a.type as AttributeType,
-              values: a.attributeValues || [],
-              visibility: a.visibility || "both",
-            }));
-            setAttributesList(mapped);
-            return;
-          }
+        const data = await attributeRepository.getAll();
+        if (data.success && data.attributes) {
+          // Map backend schema to frontend expectation
+          const mapped = data.attributes.map((a: any) => ({
+            id: a.id,
+            name: a.name,
+            slug: a.slug,
+            type: a.type as AttributeType,
+            values: a.attributeValues || [],
+            visibility: a.visibility || "both",
+          }));
+          setAttributesList(mapped);
+        } else {
+          setAttributesList([]);
         }
       } catch (e) {
-        console.warn("Backend API not reachable, falling back to local storage / mock data.");
-      }
-
-      const savedAttrs = localStorage.getItem("attributes_data");
-      if (savedAttrs) {
-        try {
-          setAttributesList(JSON.parse(savedAttrs));
-        } catch (e) {
-          setAttributesList(initialAttributes);
-        }
-      } else {
-        setAttributesList(initialAttributes);
+        console.error("Failed to fetch attributes:", e);
+        toast.error(t("admin_attributes.toast_load_failed"));
+        setAttributesList([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -84,7 +83,7 @@ const AdminAttributes = () => {
     if (!newValueInput.trim()) return;
     const exists = incomingValues.some((v) => v.value.toLowerCase() === newValueInput.trim().toLowerCase());
     if (exists) {
-      toast.error("Value option already exists in this list");
+      toast.error(t("admin_attributes.toast_duplicate_value"));
       return;
     }
     
@@ -112,7 +111,7 @@ const AdminAttributes = () => {
     const visibility = selectedVisibility;
 
     if (!name.trim() || !slug.trim()) {
-      toast.error("All fields are required");
+      toast.error(t("admin_attributes.toast_fields_required"));
       return;
     }
 
@@ -121,119 +120,59 @@ const AdminAttributes = () => {
       ? [{ value: "Yes" }, { value: "No" }] 
       : incomingValues;
 
-    let updatedList: Attribute[] = [];
-
-    // Attempt backend save
     try {
-      const url = editAttr ? `/api/v1/attributes/${editAttr.id}` : "/api/v1/attributes";
-      const method = editAttr ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, slug, type, values: finalValues, visibility }),
-      });
+      const data = editAttr
+        ? await attributeRepository.update(editAttr.id, { name, slug, type, values: finalValues, visibility })
+        : await attributeRepository.create({ name, slug, type, values: finalValues, visibility });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.attribute) {
-          const mappedAttr: Attribute = {
-            id: data.attribute.id,
-            name: data.attribute.name,
-            slug: data.attribute.slug,
-            type: data.attribute.type as AttributeType,
-            values: data.attribute.attributeValues || [],
-            visibility: data.attribute.visibility || "both",
-          };
+      if (data.success && data.attribute) {
+        const mappedAttr: Attribute = {
+          id: data.attribute.id,
+          name: data.attribute.name,
+          slug: data.attribute.slug,
+          type: data.attribute.type as AttributeType,
+          values: data.attribute.attributeValues || [],
+          visibility: data.attribute.visibility || "both",
+        };
 
-          if (editAttr) {
-            updatedList = attributesList.map((a) => (a.id === editAttr.id ? mappedAttr : a));
-            toast.success(`Attribute "${name}" updated`);
-          } else {
-            updatedList = [...attributesList, mappedAttr];
-            toast.success(`Attribute "${name}" created`);
-          }
-
-          setAttributesList(updatedList);
-          localStorage.setItem("attributes_data", JSON.stringify(updatedList));
-          setDialogOpen(false);
-          setEditAttr(null);
-          return;
+        if (editAttr) {
+          setAttributesList(prev => prev.map((a) => (a.id === editAttr.id ? mappedAttr : a)));
+          toast.success(t("admin_attributes.toast_updated", { name }));
+        } else {
+          setAttributesList(prev => [...prev, mappedAttr]);
+          toast.success(t("admin_attributes.toast_created", { name }));
         }
+
+        setDialogOpen(false);
+        setEditAttr(null);
+      } else {
+        toast.error(t("admin_attributes.toast_save_failed"));
       }
     } catch (err) {
-      console.warn("Backend API save failed, using local storage mode.");
+      console.error("Failed to save attribute via API:", err);
+      toast.error(t("admin_attributes.toast_save_error"));
     }
-
-    // Local Storage Mode
-    if (editAttr) {
-      updatedList = attributesList.map((a) =>
-        a.id === editAttr.id
-          ? {
-              ...a,
-              name,
-              slug,
-              type,
-              visibility,
-              values: finalValues.map((v, i) => ({
-                id: `v-${editAttr.id}-${i}-${Date.now()}`,
-                value: v.value,
-                colorCode: v.colorCode,
-              })),
-            }
-          : a
-      );
-      toast.success(`Attribute "${name}" updated (Local Mode)`);
-    } else {
-      const newAttrId = `a-${Date.now()}`;
-      const newAttr: Attribute = {
-        id: newAttrId,
-        name,
-        slug,
-        type,
-        visibility,
-        values: finalValues.map((v, i) => ({
-          id: `v-${newAttrId}-${i}`,
-          value: v.value,
-          colorCode: v.colorCode,
-        })),
-      };
-      updatedList = [...attributesList, newAttr];
-      toast.success(`Attribute "${name}" created (Local Mode)`);
-    }
-
-    setAttributesList(updatedList);
-    localStorage.setItem("attributes_data", JSON.stringify(updatedList));
-    setDialogOpen(false);
-    setEditAttr(null);
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!hasPermission("admin")) {
-      toast.error("Only admins can delete attributes");
+    if (!hasPermission("attributes")) {
+      toast.error(t("admin_attributes.toast_only_admin_delete"));
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete attribute "${name}"? All product mappings will be cleared.`)) {
-      let updatedList = attributesList.filter((a) => a.id !== id);
-
+    if (window.confirm(t("admin_attributes.confirm_delete", { name }))) {
       try {
-        const res = await fetch(`/api/v1/attributes/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            toast.success(`Attribute "${name}" deleted`);
-            setAttributesList(updatedList);
-            localStorage.setItem("attributes_data", JSON.stringify(updatedList));
-            return;
-          }
+        const data = await attributeRepository.delete(id);
+        if (data.success) {
+          toast.success(t("admin_attributes.toast_deleted", { name }));
+          setAttributesList(prev => prev.filter((a) => a.id !== id));
+        } else {
+          toast.error(t("admin_attributes.toast_delete_failed"));
         }
       } catch (err) {
-        console.warn("Backend API delete failed, using local storage mode.");
+        console.error("Failed to delete attribute via API:", err);
+        toast.error(t("admin_attributes.toast_delete_error"));
       }
-
-      toast.success(`Attribute "${name}" deleted (Local Mode)`);
-      setAttributesList(updatedList);
-      localStorage.setItem("attributes_data", JSON.stringify(updatedList));
     }
   };
 
@@ -245,29 +184,26 @@ const AdminAttributes = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Attributes (EAV)</h1>
-          <p className="text-muted-foreground">Manage dynamic catalog attributes, types, and values</p>
-        </div>
-        {hasPermission("admin") && (
+        <span />
+        {hasPermission("attributes") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditAttr(null); }}>
             <DialogTrigger asChild>
               <Button className="rounded-full gap-2">
-                <Plus className="h-4 w-4" /> Add Attribute
+                <Plus className="h-4 w-4" /> {t("admin_attributes.add")}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>{editAttr ? "Edit Attribute" : "Add New Attribute"}</DialogTitle>
+                <DialogTitle>{editAttr ? t("admin_attributes.edit_title") : t("admin_attributes.add_title")}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSave} className="space-y-4 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Attribute Name</Label>
+                  <Label htmlFor="name">{t("admin_attributes.label_name")}</Label>
                   <Input
                     id="name"
                     name="name"
                     defaultValue={editAttr?.name}
-                    placeholder="e.g. Fitting, Finish"
+                    placeholder={t("admin_attributes.placeholder_name")}
                     onChange={(e) => {
                       if (!editAttr) {
                         const slugEl = document.getElementById("slug") as HTMLInputElement;
@@ -284,12 +220,12 @@ const AdminAttributes = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="slug">Slug</Label>
-                  <Input id="slug" name="slug" defaultValue={editAttr?.slug} placeholder="e.g. fitting, finish" required />
+                  <Label htmlFor="slug">{t("admin_attributes.label_slug")}</Label>
+                  <Input id="slug" name="slug" defaultValue={editAttr?.slug} placeholder={t("admin_attributes.placeholder_slug")} required />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="type">Validation Type</Label>
+                  <Label htmlFor="type">{t("admin_attributes.label_type")}</Label>
                   <select
                     id="type"
                     name="type"
@@ -297,17 +233,17 @@ const AdminAttributes = () => {
                     onChange={(e) => setSelectedType(e.target.value as AttributeType)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
-                    <option value="select">Dropdown Select (Single value)</option>
-                    <option value="multi_select">Multi-Select Checkboxes (Multiple values)</option>
-                    <option value="boolean">Boolean Switch (Yes/No)</option>
-                    <option value="range">Range slider</option>
-                    <option value="color">Color Swatches Selection</option>
-                    <option value="dimension">Numeric Dimensions (Length/Width/Height/Diameter)</option>
+                    <option value="select">{t("admin_attributes.type_select")}</option>
+                    <option value="multi_select">{t("admin_attributes.type_multi")}</option>
+                    <option value="boolean">{t("admin_attributes.type_boolean")}</option>
+                    <option value="range">{t("admin_attributes.type_range")}</option>
+                    <option value="color">{t("admin_attributes.type_color")}</option>
+                    <option value="dimension">{t("admin_attributes.type_dimension")}</option>
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Visibility Target</Label>
+                  <Label>{t("admin_attributes.label_visibility")}</Label>
                   <div className="flex gap-4 items-center bg-background/50 border border-muted-foreground/20 rounded-lg p-2.5">
                     <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
                       <input
@@ -318,7 +254,7 @@ const AdminAttributes = () => {
                         onChange={() => setSelectedVisibility("both")}
                         className="accent-primary h-3.5 w-3.5"
                       />
-                      <span>Both</span>
+                      <span>{t("admin_attributes.vis_both")}</span>
                     </label>
                     <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
                       <input
@@ -329,7 +265,7 @@ const AdminAttributes = () => {
                         onChange={() => setSelectedVisibility("admin")}
                         className="accent-primary h-3.5 w-3.5"
                       />
-                      <span>Admin Only</span>
+                      <span>{t("admin_attributes.vis_admin")}</span>
                     </label>
                     <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
                       <input
@@ -340,7 +276,7 @@ const AdminAttributes = () => {
                         onChange={() => setSelectedVisibility("filter")}
                         className="accent-primary h-3.5 w-3.5"
                       />
-                      <span>Filter Only</span>
+                      <span>{t("admin_attributes.vis_filter")}</span>
                     </label>
                   </div>
                 </div>
@@ -348,17 +284,17 @@ const AdminAttributes = () => {
                 {/* Values Builder (Hidden for Boolean Yes/No attributes) */}
                 {selectedType !== "boolean" && (
                   <div className="border rounded-lg p-3 space-y-3">
-                    <Label className="font-semibold text-sm">Value Options</Label>
+                    <Label className="font-semibold text-sm">{t("admin_attributes.value_options")}</Label>
                     
                     {/* Option Add Form */}
                     <div className="flex flex-wrap gap-2 items-end">
                       <div className="flex-1 min-w-[150px]">
-                        <Label htmlFor="optionName" className="text-xs text-muted-foreground">Option Value</Label>
+                        <Label htmlFor="optionName" className="text-xs text-muted-foreground">{t("admin_attributes.label_option")}</Label>
                         <Input
                           id="optionName"
                           value={newValueInput}
                           onChange={(e) => setNewValueInput(e.target.value)}
-                          placeholder="e.g. E27, Brass"
+                          placeholder={t("admin_attributes.placeholder_option")}
                           className="h-8"
                         />
                       </div>
@@ -366,7 +302,7 @@ const AdminAttributes = () => {
                       {/* Color hex picker ONLY visible for color attributes */}
                       {selectedType === "color" && (
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="colorHex" className="text-xs text-muted-foreground">Swatch Color</Label>
+                          <Label htmlFor="colorHex" className="text-xs text-muted-foreground">{t("admin_attributes.label_swatch")}</Label>
                           <div className="flex items-center gap-1.5">
                             <Input
                               id="colorHex"
@@ -381,7 +317,7 @@ const AdminAttributes = () => {
                       )}
 
                       <Button type="button" onClick={handleAddValueItem} size="sm" className="h-8">
-                        Add Option
+                        {t("admin_attributes.add_option")}
                       </Button>
                     </div>
 
@@ -411,7 +347,7 @@ const AdminAttributes = () => {
                         </div>
                       ))}
                       {incomingValues.length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-4">No value options added yet.</p>
+                        <p className="text-xs text-muted-foreground text-center py-4">{t("admin_attributes.no_options")}</p>
                       )}
                     </div>
                   </div>
@@ -419,10 +355,10 @@ const AdminAttributes = () => {
 
                 <div className="flex gap-2 justify-end pt-2">
                   <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditAttr(null); }}>
-                    Cancel
+                    {t("admin_attributes.cancel")}
                   </Button>
                   <Button type="submit">
-                    {editAttr ? "Save Changes" : "Create Attribute"}
+                    {editAttr ? t("admin_attributes.save_changes") : t("admin_attributes.create")}
                   </Button>
                 </div>
               </form>
@@ -436,103 +372,129 @@ const AdminAttributes = () => {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search attributes by name or slug..."
+          placeholder={t("admin_attributes.search_placeholder")}
           className="pl-10 rounded-xl"
         />
       </div>
 
       <div className="space-y-4">
-        {filteredAttrs.map((a) => {
-          const isExpanded = expandedAttr === a.id;
-          return (
-            <div key={a.id} className="rounded-xl border bg-card shadow-sm overflow-hidden transition-all">
-              <div
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/10"
-                onClick={() => setExpandedAttr(isExpanded ? null : a.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Sliders className="h-5 w-5" />
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, idx) => (
+            <div key={idx} className="rounded-xl border bg-card shadow-sm p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-lg shrink-0" />
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3.5 w-16" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-base">{a.name}</h3>
-                      <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">{a.slug}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Type: <span className="capitalize">{a.type.replace("_", " ")}</span> · Target: <span className="capitalize font-semibold text-primary">{a.visibility || "both"}</span> · {a.type === "boolean" ? 2 : a.values.length} option values
-                    </p>
-                  </div>
+                  <Skeleton className="h-3 w-64" />
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+              </div>
+            </div>
+          ))
+        ) : (
+          filteredAttrs.map((a) => {
+            const isExpanded = expandedAttr === a.id;
+            return (
+              <div key={a.id} className="rounded-xl border bg-card shadow-sm overflow-hidden transition-all">
+                <div
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/10"
+                  onClick={() => setExpandedAttr(isExpanded ? null : a.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Sliders className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-base">{a.name}</h3>
+                        <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">{a.slug}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {t("admin_attributes.meta_info", {
+                          type: a.type.replace("_", " "),
+                          visibility: a.visibility || "both",
+                          count: a.type === "boolean" ? 2 : a.values.length
+                        })}
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => { setEditAttr(a); setDialogOpen(true); }}
-                  >
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                  {hasPermission("admin") && (
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDelete(a.id, a.name)}
+                      className="h-8 w-8"
+                      onClick={() => { setEditAttr(a); setDialogOpen(true); }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setExpandedAttr(isExpanded ? null : a.id)}
-                  >
-                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="border-t bg-muted/20 px-6 py-4">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Available Value Options</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {a.type === "boolean" ? (
-                      <>
-                        <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm">Yes</span>
-                        <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm">No</span>
-                      </>
-                    ) : (
-                      a.values.map((val) => (
-                        <span
-                          key={val.id}
-                          className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm"
-                        >
-                          {a.type === "color" && val.colorCode && (
-                            <span
-                              className="h-3.5 w-3.5 rounded-full border border-black/10 shadow-sm"
-                              style={{ backgroundColor: val.colorCode }}
-                            />
-                          )}
-                          {val.value}
-                        </span>
-                      ))
+                    {hasPermission("attributes") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(a.id, a.name)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
-                    {a.type !== "boolean" && a.values.length === 0 && (
-                      <p className="text-xs text-muted-foreground italic">No value options defined for this attribute.</p>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setExpandedAttr(isExpanded ? null : a.id)}
+                    >
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
                   </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
 
-        {filteredAttrs.length === 0 && (
+                {isExpanded && (
+                  <div className="border-t bg-muted/20 px-6 py-4">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("admin_attributes.available_options")}</Label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {a.type === "boolean" ? (
+                        <>
+                          <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm">{t("admin_attributes.yes")}</span>
+                          <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm">{t("admin_attributes.no")}</span>
+                        </>
+                      ) : (
+                        a.values.map((val) => (
+                          <span
+                            key={val.id}
+                            className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm"
+                          >
+                            {a.type === "color" && val.colorCode && (
+                              <span
+                                className="h-3.5 w-3.5 rounded-full border border-black/10 shadow-sm"
+                                style={{ backgroundColor: val.colorCode }}
+                              />
+                            )}
+                            {val.value}
+                          </span>
+                        ))
+                      )}
+                      {a.type !== "boolean" && a.values.length === 0 && (
+                        <p className="text-xs text-muted-foreground italic">{t("admin_attributes.empty_attr_values")}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+
+        {!isLoading && filteredAttrs.length === 0 && (
           <div className="py-12 text-center text-muted-foreground">
-            No attributes found matching your search.
+            {t("admin_attributes.empty_search")}
           </div>
         )}
       </div>

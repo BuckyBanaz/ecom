@@ -1,0 +1,29 @@
+# Jenkins LTS with Docker CLI + Compose plugin for deploying ecom on the VPS host.
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    gnupg \
+    lsb-release \
+  && install -m 0755 -d /etc/apt/keyrings \
+  && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+  && chmod a+r /etc/apt/keyrings/docker.asc \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" \
+    > /etc/apt/sources.list.d/docker.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN usermod -aG docker jenkins 2>/dev/null || true
+
+# Git over SSH from Jenkins needs GitHub in known_hosts (strict checking).
+RUN mkdir -p /etc/ssh \
+  && ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> /etc/ssh/ssh_known_hosts 2>/dev/null \
+  && chmod 644 /etc/ssh/ssh_known_hosts
+
+USER jenkins

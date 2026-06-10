@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Trash2, Eye, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +22,13 @@ const demoPages: CMSPage[] = [
 ];
 
 const AdminCMS = () => {
+  const { t } = useTranslation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editPage, setEditPage] = useState<CMSPage | null>(null);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success(editPage ? "Page updated (demo)" : "Page created (demo)");
+    toast.success(editPage ? t("admin_cms.toast_updated") : t("admin_cms.toast_created"));
     setDialogOpen(false);
     setEditPage(null);
   };
@@ -35,26 +37,26 @@ const AdminCMS = () => {
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">CMS Pages</h1>
-          <p className="text-muted-foreground">Manage your static pages and blog posts</p>
+          <h1 className="text-3xl font-bold">{t("admin_cms.title")}</h1>
+          <p className="text-muted-foreground">{t("admin_cms.subtitle")}</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditPage(null); }}>
           <DialogTrigger asChild>
-            <Button className="rounded-full gap-2"><Plus className="h-4 w-4" /> New Page</Button>
+            <Button className="rounded-full gap-2"><Plus className="h-4 w-4" /> {t("admin_cms.button_new")}</Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>{editPage ? "Edit Page" : "New Page"}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editPage ? t("admin_cms.dialog_title_edit") : t("admin_cms.dialog_title_new")}</DialogTitle></DialogHeader>
             <form onSubmit={handleSave} className="space-y-4 mt-4">
-              <div><Label>Title</Label><Input defaultValue={editPage?.title} className="mt-1" required /></div>
-              <div><Label>Slug</Label><Input defaultValue={editPage?.slug} className="mt-1" required /></div>
-              <div><Label>Content</Label><textarea className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm" rows={8} placeholder="Write your page content here..." /></div>
+              <div><Label>{t("admin_cms.label_title")}</Label><Input defaultValue={editPage?.title} className="mt-1" required /></div>
+              <div><Label>{t("admin_cms.label_slug")}</Label><Input defaultValue={editPage?.slug} className="mt-1" required /></div>
+              <div><Label>{t("admin_cms.label_content")}</Label><textarea className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm" rows={8} placeholder={t("admin_cms.placeholder_content")} /></div>
               <div className="flex items-center gap-2">
                 <Switch defaultChecked={editPage?.status === "published"} />
-                <Label>Published</Label>
+                <Label>{t("admin_cms.label_published")}</Label>
               </div>
               <div className="flex gap-2 justify-end">
-                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditPage(null); }}>Cancel</Button>
-                <Button type="submit">{editPage ? "Update" : "Create"}</Button>
+                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditPage(null); }}>{t("admin_cms.button_cancel")}</Button>
+                <Button type="submit">{editPage ? t("admin_cms.button_update") : t("admin_cms.button_create")}</Button>
               </div>
             </form>
           </DialogContent>
@@ -69,15 +71,15 @@ const AdminCMS = () => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold">{page.title}</p>
-              <p className="text-xs text-muted-foreground">{page.slug} · Updated {page.updatedAt}</p>
+              <p className="text-xs text-muted-foreground">{page.slug} · {t("admin_cms.updated_text", { date: page.updatedAt })}</p>
             </div>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${page.status === "published" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-              {page.status}
+              {page.status === "published" ? t("admin_cms.status_published") : t("admin_cms.status_draft")}
             </span>
             <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" title={t("admin_cms.button_preview")}><Eye className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditPage(page); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => toast.success(`Deleted "${page.title}" (demo)`)}><Trash2 className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => toast.success(t("admin_cms.toast_deleted", { title: page.title }))}><Trash2 className="h-4 w-4" /></Button>
             </div>
           </div>
         ))}

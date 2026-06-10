@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { Prisma } from "@prisma/client";
+import { prisma } from "../config/db";
+import { AppError } from "../middlewares/errorMiddleware";
 
 export const getCategories = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -9,6 +9,9 @@ export const getCategories = async (_req: Request, res: Response, next: NextFunc
       include: {
         parent: true,
         children: true,
+        _count: {
+          select: { products: true }
+        }
       },
       orderBy: { name: "asc" },
     });
@@ -34,6 +37,9 @@ export const getCategoryById = async (req: Request, res: Response, next: NextFun
       include: {
         parent: true,
         children: true,
+        _count: {
+          select: { products: true }
+        }
       },
     });
 
@@ -95,9 +101,68 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
 export const deleteCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    await prisma.category.delete({ where: { id } });
+    const body = (req.body ?? {}) as { reassignToCategoryId?: string };
+    const reassignToCategoryId = body.reassignToCategoryId || (req.query.reassignTo as string | undefined);
+
+    const category = await prisma.category.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { products: true, children: true },
+        },
+      },
+    });
+
+    if (!category) {
+      res.status(404).json({ success: false, message: "Category not found" });
+      return;
+    }
+
+    if (category._count.products > 0) {
+      if (!reassignToCategoryId) {
+        throw new AppError(
+          `Cannot delete "${category.name}" — ${category._count.products} product(s) are assigned. Select another category to move them to.`,
+          409
+        );
+      }
+
+      if (reassignToCategoryId === id) {
+        throw new AppError("Choose a different category to move products to.", 400);
+      }
+
+      const targetCategory = await prisma.category.findUnique({
+        where: { id: reassignToCategoryId },
+      });
+
+      if (!targetCategory) {
+        throw new AppError("Target category not found.", 404);
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (category._count.products > 0 && reassignToCategoryId) {
+        await tx.product.updateMany({
+          where: { categoryId: id },
+          data: { categoryId: reassignToCategoryId },
+        });
+      }
+
+      if (category._count.children > 0) {
+        await tx.category.updateMany({
+          where: { parentId: id },
+          data: { parentId: category.parentId },
+        });
+      }
+
+      await tx.category.delete({ where: { id } });
+    });
+
     res.status(200).json({ success: true, message: "Category deleted successfully" });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      next(new AppError("Cannot delete category because it is still linked to other records.", 409));
+      return;
+    }
     next(error);
   }
 };

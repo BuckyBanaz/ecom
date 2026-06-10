@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 import {
   getBrands,
   getBrandById,
@@ -71,7 +72,7 @@ router.get("/:id", getBrandById);
  *       201:
  *         description: Brand created successfully
  */
-router.post("/", createBrand);
+router.post("/", authenticateJWT, requireAdmin, createBrand);
 
 /**
  * @swagger
@@ -102,7 +103,7 @@ router.post("/", createBrand);
  *       404:
  *         description: Brand not found
  */
-router.put("/:id", updateBrand);
+router.put("/:id", authenticateJWT, requireAdmin, updateBrand);
 
 /**
  * @swagger
@@ -122,6 +123,6 @@ router.put("/:id", updateBrand);
  *       404:
  *         description: Brand not found
  */
-router.delete("/:id", deleteBrand);
+router.delete("/:id", authenticateJWT, requireAdmin, deleteBrand);
 
 export default router;

@@ -2,6 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------
+   Hide stale Google Translate banner / iframe UI globally.
+   Language switching is handled by i18next inside React.
+   --------------------------------------------------------------- */
+.goog-te-banner-frame.skiptranslate,
+.goog-te-banner-frame,
+iframe.goog-te-banner-frame,
+iframe.skiptranslate,
+.goog-te-ftab,
+.goog-te-balloon-frame,
+#goog-gt-tt,
+.goog-tooltip,
+.goog-tooltip:hover,
+.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
+.VIpgJd-ZVi9od-aZ2wEe-OiiCO,
+.VIpgJd-ZVi9od-ORHb-OEVmcd {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+html,
+html.translated-ltr,
+html.translated-rtl,
+body,
+body.translated-ltr,
+body.translated-rtl {
+  top: 0 !important;
+  position: static !important;
+  margin-top: 0 !important;
+}
+
+/* Remove yellow/blue highlight Google adds to translated text */
+.goog-text-highlight {
+  background: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
@@ -17,19 +59,19 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222 30% 12%;
 
-    /* Lampgigant coral pink */
-    --primary: 351 81% 64%;
+    /* Schip & Ster soft light coffee theme */
+    --primary: 30 45% 58%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 351 90% 72%;
+    --primary-glow: 30 50% 68%;
 
-    --secondary: 222 30% 12%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 32 25% 88%;
+    --secondary-foreground: 32 40% 20%;
 
     --muted: 220 20% 96%;
     --muted-foreground: 220 10% 45%;
 
-    --accent: 351 100% 96%;
-    --accent-foreground: 351 81% 40%;
+    --accent: 28 20% 95%;
+    --accent-foreground: 28 30% 35%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -106,16 +148,32 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    overflow-x: clip;
+    width: 100%;
+  }
+
   body {
     @apply bg-background text-foreground;
+    overflow-x: clip;
+    width: 100%;
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body.admin-lock {
+    overflow: hidden;
   }
 }
 
 @layer components {
   .container-page {
-    @apply mx-auto w-full max-w-[1400px] px-4 md:px-6 lg:px-8;
+    @apply mx-auto w-full min-w-0 max-w-[1400px] px-4 md:px-6 lg:px-8;
   }
 }
 
@@ -139,3 +197,33 @@ All colors MUST be HSL.
   margin-top: 0.25rem !important;
   margin-bottom: 0.25rem !important;
 }
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted) / 0.6) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 15s linear infinite;
+}
+

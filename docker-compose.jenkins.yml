@@ -1,0 +1,6 @@
+# DEPRECATED — Jenkins lives in docker-compose.prod.yml now.
+# Run: docker compose -f docker-compose.prod.yml up -d jenkins
+# Or:  bash scripts/restart-jenkins-stack.sh
+
+name: ecom
+services: {}

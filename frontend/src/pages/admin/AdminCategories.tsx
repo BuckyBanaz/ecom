@@ -1,28 +1,34 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { categories as initialCategories, Category } from "@/data/categories";
-import { products } from "@/data/products";
+import { Category } from "@/data/categories";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { megaMenuData } from "@/data/megaMenu";
-import axios from "axios";
-
-const API_URL = "http://localhost:5000/api/v1/megamenus";
+import { categoryRepository, megaMenuRepository } from "@/client/apiClient";
+import { Skeleton } from "@/components/ui/skeleton";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminCategories = () => {
+  const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCat, setEditCat] = useState<Category | null>(null);
-  
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
   const [menus, setMenus] = useState<any[]>([]);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<(Category & { id?: string; _count?: { products?: number } }) | null>(null);
+  const [reassignCategoryId, setReassignCategoryId] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const groupMapping: Record<string, string> = {
@@ -36,9 +42,9 @@ const AdminCategories = () => {
 
     const loadCategories = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/api/v1/categories");
-        if (response.data.success && response.data.categories) {
-          const apiCats = response.data.categories;
+        const data = await categoryRepository.getAll();
+        if (data.success && data.categories) {
+          const apiCats = data.categories;
           const mappedCats = apiCats.map((c: any) => {
             if (groupMapping[c.group]) {
               return { ...c, group: groupMapping[c.group] };
@@ -46,59 +52,37 @@ const AdminCategories = () => {
             return c;
           });
           setCategoriesList(mappedCats);
-          localStorage.setItem("categories_data", JSON.stringify(mappedCats));
         }
       } catch (error) {
-        console.error("Failed to fetch categories from API, loading local backup", error);
-        const savedCats = localStorage.getItem("categories_data");
-        let loadedCats = initialCategories;
-        if (savedCats) {
-          try {
-            loadedCats = JSON.parse(savedCats);
-          } catch (e) {
-            loadedCats = initialCategories;
-          }
-        }
-        const mappedCats = loadedCats.map((c: any) => {
-          if (groupMapping[c.group]) {
-            return { ...c, group: groupMapping[c.group] };
-          }
-          return c;
-        });
-        setCategoriesList(mappedCats);
+        console.error("Failed to fetch categories from API", error);
+        toast.error(t("admin_categories.toast_load_failed"));
+        setCategoriesList([]);
       }
     };
 
-    // Load menus from backend API
     const loadMenus = async () => {
       try {
-        const response = await axios.get(API_URL);
-        if (response.data.success && response.data.menus) {
-          setMenus(response.data.menus);
+        const data = await megaMenuRepository.getAll();
+        if (data.success && data.menus) {
+          setMenus(data.menus);
         } else {
-          loadFromLocalstorage();
+          setMenus([]);
         }
       } catch (error) {
         console.error("Failed to fetch menus from API", error);
-        loadFromLocalstorage();
+        setMenus([]);
       }
     };
 
-    const loadFromLocalstorage = () => {
-      const savedMenus = localStorage.getItem("mega_menu_data");
-      if (savedMenus) {
-        try {
-          setMenus(JSON.parse(savedMenus));
-        } catch (e) {
-          setMenus(megaMenuData);
-        }
-      } else {
-        setMenus(megaMenuData);
+    const init = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([loadCategories(), loadMenus()]);
+      } finally {
+        setIsLoading(false);
       }
     };
-
-    loadCategories();
-    loadMenus();
+    init();
   }, []);
 
   useEffect(() => {
@@ -118,28 +102,26 @@ const AdminCategories = () => {
     const image = imagePreview;
 
     if (!image) {
-      toast.error("Please upload an image first!");
+      toast.error(t("admin_categories.toast_image_required"));
       return;
     }
 
     if (editCat) {
-      // Edit existing
       try {
         const catId = (editCat as any).id;
         const matchedDbCat = categoriesList.find((c) => c.slug === editCat.slug);
         const actualId = catId || (matchedDbCat as any)?.id;
 
-        let response;
+        let data;
         if (actualId) {
-          response = await axios.put(`http://localhost:5000/api/v1/categories/${actualId}`, {
+          data = await categoryRepository.update(actualId, {
             name,
             slug,
             image,
             group,
           });
         } else {
-          // If no DB ID is found, fallback to creating it
-          response = await axios.post("http://localhost:5000/api/v1/categories", {
+          data = await categoryRepository.create({
             name,
             slug,
             image,
@@ -147,44 +129,31 @@ const AdminCategories = () => {
           });
         }
 
-        const updatedCat = response.data.category;
+        const updatedCat = data.category;
         const updated = categoriesList.map((c) =>
           c.slug === editCat.slug ? updatedCat : c
         );
         setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category updated successfully");
+        toast.success(t("admin_categories.toast_updated"));
       } catch (error) {
         console.error("Failed to update category on backend", error);
-        // Fallback to local update
-        const updated = categoriesList.map((c) =>
-          c.slug === editCat.slug ? { ...c, name, slug, image, group } : c
-        );
-        setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category updated locally");
+        toast.error(t("admin_categories.toast_update_failed"));
       }
     } else {
-      // Add new
       try {
-        const response = await axios.post("http://localhost:5000/api/v1/categories", {
+        const data = await categoryRepository.create({
           name,
           slug,
           image,
           group,
         });
-        const newCat = response.data.category;
+        const newCat = data.category;
         const updated = [...categoriesList, newCat];
         setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category added successfully");
+        toast.success(t("admin_categories.toast_added"));
       } catch (error) {
         console.error("Failed to create category on backend", error);
-        // Fallback to local save
-        const updated = [...categoriesList, { name, slug, image, group }];
-        setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category added locally");
+        toast.error(t("admin_categories.toast_add_failed"));
       }
     }
 
@@ -192,47 +161,61 @@ const AdminCategories = () => {
     setEditCat(null);
   };
 
-  const handleDelete = async (slug: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete category "${name}"?`)) {
-      const catToDelete = categoriesList.find((c) => c.slug === slug);
-      const catId = (catToDelete as any)?.id;
+  const openDeleteDialog = (category: Category) => {
+    setDeleteTarget(category as Category & { id?: string; _count?: { products?: number } });
+    const firstOther = categoriesList.find((c) => c.slug !== category.slug);
+    setReassignCategoryId((firstOther as any)?.id || "");
+  };
 
-      try {
-        if (catId) {
-          await axios.delete(`http://localhost:5000/api/v1/categories/${catId}`);
-        }
-        const updated = categoriesList.filter((c) => c.slug !== slug);
-        setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category deleted successfully");
-      } catch (error) {
-        console.error("Failed to delete category from backend", error);
-        // Fallback to local delete
-        const updated = categoriesList.filter((c) => c.slug !== slug);
-        setCategoriesList(updated);
-        localStorage.setItem("categories_data", JSON.stringify(updated));
-        toast.success("Category deleted locally");
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+
+    const catId = (deleteTarget as any)?.id;
+    const productCount = (deleteTarget as any)?._count?.products ?? 0;
+
+    if (productCount > 0 && !reassignCategoryId) {
+      toast.error(t("admin_categories.toast_reassign_required"));
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      if (catId) {
+        await categoryRepository.delete(catId, {
+          reassignToCategoryId: productCount > 0 ? reassignCategoryId : undefined,
+        });
       }
+      const updated = categoriesList.filter((c) => c.slug !== deleteTarget.slug);
+      setCategoriesList(updated);
+      toast.success(t("admin_categories.toast_deleted"));
+      setDeleteTarget(null);
+      setReassignCategoryId("");
+    } catch (error) {
+      console.error("Failed to delete category from backend", error);
+      const message = error instanceof Error ? error.message : t("admin_categories.toast_delete_failed");
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Categories</h1>
-          <p className="text-muted-foreground">{categoriesList.length} categories</p>
-        </div>
-        {hasPermission("admin") && (
+        <p className="text-sm text-muted-foreground">{t("admin_categories.count", { count: categoriesList.length })}</p>
+        {hasPermission("categories") && (
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditCat(null); }}>
             <DialogTrigger asChild>
-              <Button className="rounded-full gap-2"><Plus className="h-4 w-4" /> Add Category</Button>
+              <Button className="rounded-full gap-2"><Plus className="h-4 w-4" /> {t("admin_categories.add")}</Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>{editCat ? "Edit Category" : "Add Category"}</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>{editCat ? t("admin_categories.edit_title") : t("admin_categories.add_title")}</DialogTitle>
+                <DialogDescription>{t("admin_categories.form_description")}</DialogDescription>
+              </DialogHeader>
               <form onSubmit={handleSave} className="space-y-4 mt-4">
                 <div>
-                  <Label>Name</Label>
+                  <Label>{t("admin_categories.label_name")}</Label>
                   <Input
                     name="name"
                     defaultValue={editCat?.name}
@@ -249,43 +232,39 @@ const AdminCategories = () => {
                   />
                 </div>
                 <div>
-                  <Label>Slug</Label>
+                  <Label>{t("admin_categories.label_slug")}</Label>
                   <Input name="slug" defaultValue={editCat?.slug} className="mt-1" required />
                 </div>
                 <div>
-                  <Label>Category Image</Label>
+                  <Label>{t("admin_categories.label_image")}</Label>
                   <div className="mt-1.5 flex items-center gap-4">
                     {imagePreview && (
                       <img
-                        src={imagePreview}
-                        alt="Preview"
+                        src={resolveImgUrl(imagePreview)}
+                        alt={t("admin_categories.alt_preview")}
                         className="h-16 w-16 rounded-lg object-cover border bg-muted"
                       />
                     )}
                     <div className="flex-1">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setImagePreview(reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="cursor-pointer"
-                      />
+                      <Button type="button" variant="outline" className="w-full text-left justify-start" onClick={() => setIsMediaLibraryOpen(true)}>
+                        {imagePreview ? t("admin_categories.change_image") : t("admin_categories.browse_media")}
+                      </Button>
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Choose a local image file.
+                        {t("admin_categories.image_hint")}
                       </p>
                     </div>
                   </div>
+                  <MediaLibraryDialog
+                    open={isMediaLibraryOpen}
+                    onOpenChange={setIsMediaLibraryOpen}
+                    onSelect={(url) => {
+                      setImagePreview(normalizeUploadedUrl(url));
+                      setIsMediaLibraryOpen(false);
+                    }}
+                  />
                 </div>
                 <div>
-                  <Label>Menu</Label>
+                  <Label>{t("admin_categories.label_menu")}</Label>
                   <select
                     name="group"
                     defaultValue={editCat?.group || (menus[0] ? menus[0].slug : "interior-lighting")}
@@ -300,8 +279,8 @@ const AdminCategories = () => {
                   </select>
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditCat(null); }}>Cancel</Button>
-                  <Button type="submit">{editCat ? "Update" : "Create"}</Button>
+                  <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditCat(null); }}>{t("admin_categories.cancel")}</Button>
+                  <Button type="submit">{editCat ? t("admin_categories.update") : t("admin_categories.create")}</Button>
                 </div>
               </form>
             </DialogContent>
@@ -310,36 +289,103 @@ const AdminCategories = () => {
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {categoriesList.map((c) => {
-          const count = products.filter((p) => p.category === c.slug).length;
-          const matchedMenu = menus.find((m) => m.slug === c.group);
-          const menuLabel = matchedMenu ? matchedMenu.menu : c.group;
-
-          return (
-            <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
-              <img src={c.image} alt={c.name} className="h-40 w-full object-cover" />
-              <div className="p-4">
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="overflow-hidden rounded-xl border bg-card shadow-sm space-y-4 pb-4">
+              <Skeleton className="h-40 w-full rounded-t-xl rounded-b-none" />
+              <div className="px-4 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold">{c.name}</h3>
-                    <p className="text-xs text-muted-foreground">{count} products · Menu: {menuLabel}</p>
+                  <div className="space-y-1.5 flex-1 pr-4">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-40" />
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditCat(c); setDialogOpen(true); }}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    {hasPermission("admin") && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(c.slug, c.name)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <div className="flex gap-1 shrink-0">
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                    <Skeleton className="h-8 w-8 rounded-lg" />
                   </div>
                 </div>
               </div>
             </div>
-          );
-        })}
+          ))
+        ) : (
+          categoriesList.map((c) => {
+            const count = (c as any)._count?.products ?? 0;
+            const matchedMenu = menus.find((m) => m.slug === c.group);
+            const menuLabel = matchedMenu ? matchedMenu.menu : c.group;
+
+            return (
+              <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                <SafeImage src={c.image} alt={c.name} className="h-40 w-full object-cover" fallbackType="category" />
+                <div className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold">{c.name}</h3>
+                      <p className="text-xs text-muted-foreground">{t("admin_categories.card_meta", { count, menu: menuLabel })}</p>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditCat(c); setDialogOpen(true); }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      {hasPermission("categories") && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDeleteDialog(c)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setReassignCategoryId(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("admin_categories.delete_title")}</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? ((deleteTarget as any)?._count?.products > 0
+                  ? t("admin_categories.delete_with_products", {
+                      count: (deleteTarget as any)?._count?.products ?? 0,
+                    })
+                  : t("admin_categories.delete_description", { name: deleteTarget.name }))
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteTarget && (deleteTarget as any)?._count?.products > 0 && (
+            <div>
+              <Label>{t("admin_categories.delete_reassign_label")}</Label>
+              <select
+                value={reassignCategoryId}
+                onChange={(e) => setReassignCategoryId(e.target.value)}
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                required
+              >
+                <option value="">{t("admin_categories.delete_reassign_placeholder")}</option>
+                {categoriesList
+                  .filter((c) => c.slug !== deleteTarget.slug && (c as any).id)
+                  .map((c) => (
+                    <option key={c.slug} value={(c as any).id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => { setDeleteTarget(null); setReassignCategoryId(""); }}>
+              {t("admin_categories.cancel")}
+            </Button>
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {t("admin_categories.delete_confirm")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

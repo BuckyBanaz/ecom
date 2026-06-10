@@ -1,34 +1,77 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Heart, Menu, Search, ShoppingCart, User, ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { ChevronDown, Heart, Menu, Search, ShoppingCart, User } from "lucide-react";
+import { FaIcon } from "@/components/ui/FaIcon";
 import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { navGroups } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
+import { useDebounce } from "@/hooks/use-debounce";
+import { productRepository, megaMenuRepository } from "@/client/apiClient";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 export function Header() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
+  const debouncedQ = useDebounce(q, 300);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   const { count, setDrawerOpen } = useCart();
   const { ids } = useWishlist();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [menuList, setMenuList] = useState<any[]>([]);
+  const [topLeft, setTopLeft] = useState<any[]>([]);
+  const [topRight, setTopRight] = useState<any[]>([]);
 
   useEffect(() => {
-    const loadData = () => {
-      const saved = localStorage.getItem("mega_menu_data");
-      if (saved) {
-        try {
-          setMenuList(JSON.parse(saved));
-        } catch (e) {
+    const loadData = async () => {
+      try {
+        const res = await megaMenuRepository.getAll();
+        if (res.success && res.menus && res.menus.length > 0) {
+          setMenuList(res.menus);
+        } else {
+          // Fallback to localStorage or default
+          const saved = localStorage.getItem("mega_menu_data");
+          if (saved) {
+            try { 
+              const parsed = JSON.parse(saved);
+              setMenuList(parsed.length > 0 ? parsed : megaMenuData); 
+            } catch (e) { setMenuList(megaMenuData); }
+          } else {
+            setMenuList(megaMenuData);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load mega menu:", e);
+        const saved = localStorage.getItem("mega_menu_data");
+        if (saved) {
+          try { 
+            const parsed = JSON.parse(saved);
+            setMenuList(parsed.length > 0 ? parsed : megaMenuData); 
+          } catch (e) { setMenuList(megaMenuData); }
+        } else {
           setMenuList(megaMenuData);
         }
-      } else {
-        setMenuList(megaMenuData);
+      }
+
+      const savedHeaderFooter = localStorage.getItem("header_footer_data");
+      if (savedHeaderFooter) {
+        try {
+          const parsed = JSON.parse(savedHeaderFooter);
+          setTopLeft(parsed.topLeft || []);
+          setTopRight(parsed.topRight || []);
+        } catch (e) {
+          setTopLeft([]);
+          setTopRight([]);
+        }
       }
     };
 
@@ -37,21 +80,156 @@ export function Header() {
     return () => window.removeEventListener("megaMenuDataChanged", loadData);
   }, []);
 
+  useEffect(() => {
+    if (!debouncedQ.trim()) {
+      setSuggestions([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const fetchSuggestions = async () => {
+      setIsSearching(true);
+      try {
+        const res = await productRepository.getAll({ search: debouncedQ, limit: 5 });
+        if (res.success) {
+          setSuggestions(res.products || []);
+        } else {
+          setSuggestions([]);
+        }
+      } catch (error) {
+        // Fallback to local filtering if backend fails
+        const savedProducts = localStorage.getItem("products_data");
+        let allProductsList = [];
+        if (savedProducts) {
+          try { allProductsList = JSON.parse(savedProducts); } catch (e) {}
+        } else {
+          const { products } = await import("@/data/products");
+          allProductsList = products;
+        }
+        
+        const sq = debouncedQ.toLowerCase();
+        const filtered = allProductsList.filter((p: any) => 
+          p.name.toLowerCase().includes(sq) || 
+          p.category.toLowerCase().includes(sq)
+        ).slice(0, 5);
+        setSuggestions(filtered);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    fetchSuggestions();
+  }, [debouncedQ]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (q.trim()) navigate(`/search?q=${encodeURIComponent(q)}`);
+    if (q.trim()) {
+      setShowSuggestions(false);
+      navigate(`/category?search=${encodeURIComponent(q)}`);
+    }
+  };
+
+  const renderDropdown = () => {
+    if (!showSuggestions || q.trim().length === 0) return null;
+    return (
+      <div className="absolute left-0 top-[calc(100%+8px)] w-full bg-background rounded-2xl shadow-2xl border overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
+        <div className="p-2">
+          {isSearching ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">{t("common.searching")}</div>
+          ) : suggestions.length > 0 ? (
+            <ul className="flex flex-col">
+              {suggestions.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    to={`/category?search=${encodeURIComponent(p.name)}`}
+                    onClick={() => {
+                      setQ(p.name);
+                      setShowSuggestions(false);
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted rounded-xl transition-colors"
+                  >
+                    <Search size={14} className="text-muted-foreground shrink-0" />
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="text-sm font-semibold truncate text-foreground">{p.name}</span>
+                      <span className="text-xs text-muted-foreground truncate capitalize">{typeof p.category === 'object' ? p.category.name : p.category?.replace(/-/g, ' ')}</span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+              <li className="border-t mt-1 pt-1">
+                <button
+                  type="submit"
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/5 rounded-xl transition-colors flex items-center gap-2"
+                >
+                  <Search size={14} />
+                  {t("common.viewAllResultsFor", { query: q })}
+                </button>
+              </li>
+            </ul>
+          ) : (
+            <div className="p-4 text-center text-sm text-muted-foreground">{t("common.noResults")}</div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-      <div className="container-page flex items-center gap-4 py-3 md:gap-6 md:py-4">
+    <header className="sticky top-0 z-40 w-full min-w-0 border-b bg-background/95 backdrop-blur">
+      {topLeft.length > 0 || topRight.length > 0 ? (
+        <div className="w-full overflow-hidden border-b bg-muted/30">
+          <div className="container-page min-w-0 py-2 text-xs">
+            {/* Desktop Layout */}
+            <div className="hidden md:flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-4">
+                {topLeft.map((item, idx) => (
+                    <span key={`desk-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
+                      {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
+                      {item.text}
+                    </span>
+                  ))}
+              </div>
+              <div className="flex items-center gap-4 text-muted-foreground">
+                {topRight.map((link, idx) => (
+                  <Link key={`desk-r-${link.label}-${idx}`} to={link.href} className="hover:text-primary font-medium">
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Mobile Layout (Marquee) */}
+            <div className="md:hidden w-full min-w-0 overflow-hidden">
+              <div className="flex w-max animate-marquee items-center gap-6 pr-6">
+                {[...topLeft, ...topRight, ...topLeft, ...topRight].map((item: any, idx) => {
+                  const isLink = item.href !== undefined;
+
+                  return isLink ? (
+                    <Link key={`mob-r-${item.label}-${idx}`} to={item.href} className="hover:text-primary font-medium whitespace-nowrap">
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <span key={`mob-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground whitespace-nowrap">
+                      {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
+                      {item.text}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <div className="container-page flex min-w-0 items-center gap-2 py-3 sm:gap-3 md:gap-6 md:py-4">
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 lg:hidden" aria-label={t("header.menu")}>
               <Menu />
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[300px] overflow-y-auto p-0">
+            <SheetTitle className="sr-only">{t("header.menu")}</SheetTitle>
+            <SheetDescription className="sr-only">{t("header.menu")}</SheetDescription>
             <div className="border-b p-4">
               <Logo />
             </div>
@@ -86,29 +264,39 @@ export function Header() {
           </SheetContent>
         </Sheet>
 
-        <Logo />
+        <Logo className="min-w-0 shrink" />
 
-        <form onSubmit={submit} className="relative ml-2 hidden flex-1 md:block">
+        <form onSubmit={submit} className="relative ml-1 hidden min-w-0 flex-1 md:block" onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}>
           <Input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search the entire store"
-            className="h-12 rounded-full border-2 pl-5 pr-14 text-base"
+            onChange={(e) => {
+              setQ(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => {
+              if (q.trim()) setShowSuggestions(true);
+            }}
+            placeholder={t("header.search_placeholder")}
+            className="h-12 rounded-full border-2 pl-5 pr-14 text-base focus-visible:ring-primary/20"
           />
           <button
             type="submit"
-            aria-label="Search"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+            aria-label={t("common.search")}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Search size={18} />
           </button>
+          
+          {/* Autocomplete Dropdown */}
+          {renderDropdown()}
         </form>
 
-        <div className="ml-auto flex items-center gap-1">
-          <Button asChild variant="ghost" size="icon" aria-label="Account">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <LanguageSwitcher compact />
+          <Button asChild variant="ghost" size="icon" className="h-9 w-9" aria-label={t("header.account")}>
             <Link to="/account"><User /></Link>
           </Button>
-          <Button asChild variant="ghost" size="icon" aria-label="Wishlist" className="relative">
+          <Button asChild variant="ghost" size="icon" className="relative h-9 w-9" aria-label={t("header.wishlist")}>
             <Link to="/wishlist">
               <Heart />
               {ids.length > 0 && (
@@ -121,8 +309,8 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Cart"
-            className="relative"
+            aria-label={t("header.cart")}
+            className="relative h-9 w-9"
             onClick={() => setDrawerOpen(true)}
           >
             <ShoppingCart />
@@ -136,25 +324,36 @@ export function Header() {
       </div>
 
       {/* Mobile search */}
-      <form onSubmit={submit} className="container-page relative pb-3 md:hidden">
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search…"
-          className="h-11 rounded-full pl-4 pr-12"
-        />
-        <button
-          type="submit"
-          aria-label="Search"
-          className="absolute right-5 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
-        >
-          <Search size={16} />
-        </button>
-      </form>
+      <div className="container-page pb-3 md:hidden">
+        <form onSubmit={submit} className="relative" onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}>
+          <Input
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => {
+              if (q.trim()) setShowSuggestions(true);
+            }}
+            placeholder={t("common.search") + "\u2026"}
+            className="h-11 rounded-full pl-5 pr-14 focus-visible:ring-primary/20"
+          />
+          <button
+            type="submit"
+            aria-label={t("common.search")}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
+          >
+            <Search size={16} />
+          </button>
+          
+          {/* Autocomplete Dropdown */}
+          {renderDropdown()}
+        </form>
+      </div>
 
       {/* Mega nav (Desktop) */}
-      <nav className="hidden border-t lg:block relative z-50">
-        <div className="container-page flex items-center gap-4 py-0" onMouseLeave={() => setActiveMenu(null)}>
+      <nav className="hidden border-t lg:block relative z-50 bg-background" onMouseLeave={() => setActiveMenu(null)}>
+        <div className="container-page flex items-center gap-4 py-0">
           {menuList.map((menuObj) => (
             <div
               key={menuObj.slug}
@@ -166,12 +365,12 @@ export function Header() {
                 className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
               >
                 {menuObj.menu}
-                <ChevronDown size={14} className="opacity-70 transition-transform group-hover:rotate-180" />
+                <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === menuObj.slug ? 'rotate-180' : ''}`} />
               </Link>
               
               {/* Dropdown panel */}
               {activeMenu === menuObj.slug && (
-                <div className="absolute left-0 top-full w-full bg-background border-b shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute left-0 top-full w-full bg-background border-b shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 z-[60]">
                   <div className="container-page py-8">
                     <div className="grid grid-cols-4 gap-8">
                       {menuObj.sections.map((section) => (
@@ -184,6 +383,7 @@ export function Header() {
                               <li key={item.slug}>
                                 <Link
                                   to={`/category/${item.slug}`}
+                                  onClick={() => setActiveMenu(null)}
                                   className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors hover:underline underline-offset-4"
                                 >
                                   {item.name}

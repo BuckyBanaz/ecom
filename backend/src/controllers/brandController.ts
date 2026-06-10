@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/db";
 
 export const getBrands = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -46,9 +44,9 @@ export const getBrandById = async (req: Request, res: Response, next: NextFuncti
 
 export const createBrand = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, logo } = req.body;
+    const { name } = req.body;
     const brand = await prisma.brand.create({
-      data: { name, logo },
+      data: { name },
     });
     res.status(201).json({ success: true, brand });
   } catch (error) {
@@ -59,10 +57,10 @@ export const createBrand = async (req: Request, res: Response, next: NextFunctio
 export const updateBrand = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, logo } = req.body;
+    const { name } = req.body;
     const brand = await prisma.brand.update({
       where: { id },
-      data: { name, logo },
+      data: { name },
     });
     res.status(200).json({ success: true, brand });
   } catch (error) {

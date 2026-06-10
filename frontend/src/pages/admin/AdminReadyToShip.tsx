@@ -1,0 +1,373 @@
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { Package, Truck, Search, Loader2, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { Order } from "./AdminOrders";
+import { Badge } from "@/components/ui/badge";
+
+import { ordersRepository } from "@/client/apiClient";
+
+export default function AdminReadyToShip() {
+  const { t } = useTranslation();
+  const [isMounted, setIsMounted] = useState(false);
+  const [search, setSearch] = useState("");
+  const [ordersList, setOrdersList] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  // Shipment Dialog states
+  const [selectedOrderForShipment, setSelectedOrderForShipment] = useState<Order | null>(null);
+  const [weight, setWeight] = useState<string>("1.5");
+  const [length, setLength] = useState<string>("10");
+  const [width, setWidth] = useState<string>("10");
+  const [height, setHeight] = useState<string>("10");
+  const [carrier, setCarrier] = useState<string>("");
+  const [creatingShipment, setCreatingShipment] = useState(false);
+  const [shippingMethods, setShippingMethods] = useState<any[]>([]);
+  const [isCarrierOpen, setIsCarrierOpen] = useState(false);
+  const [carrierSearch, setCarrierSearch] = useState<string>("");
+  const [loadingCarriers, setLoadingCarriers] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const res = await ordersRepository.getAll();
+      setOrdersList(res.data || []);
+    } catch (err) {
+      console.error("Failed to load orders", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const handleOpenShipmentModal = async (order: Order) => {
+    setSelectedOrderForShipment(order);
+    const estWeight = (order.items.reduce((sum, i) => sum + i.quantity, 0) * 1.5).toFixed(1);
+    setWeight(estWeight);
+    setLength("10");
+    setWidth("10");
+    setHeight("10");
+    setCarrier("");
+    // Fetch live Sendcloud shipping methods
+    try {
+      setLoadingCarriers(true);
+      const res = await ordersRepository.getShippingMethods();
+      if (res.success && res.data && res.data.shipping_methods) {
+        setShippingMethods(res.data.shipping_methods);
+        if (res.data.shipping_methods.length > 0) {
+          setCarrier(res.data.shipping_methods[0].id.toString());
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch Sendcloud shipping methods", err);
+      toast.error(t("admin_ready_to_ship.toast_load_failed"));
+    } finally {
+      setLoadingCarriers(false);
+    }
+  };
+
+  const handleCreateShipment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrderForShipment) return;
+
+    try {
+      setCreatingShipment(true);
+      if (!carrier || isNaN(Number(carrier))) {
+        toast.error(t("admin_ready_to_ship.toast_select_method"));
+        return;
+      }
+      const res = await ordersRepository.createShipment(
+        selectedOrderForShipment.id,
+        parseFloat(weight),
+        Number(carrier)
+      );
+      if (res.success) {
+        toast.success(t("admin_ready_to_ship.toast_success", { number: selectedOrderForShipment.orderNumber }));
+        setSelectedOrderForShipment(null);
+        await fetchOrders();
+      } else {
+        toast.error(res.message || t("admin_ready_to_ship.toast_failed"));
+      }
+    } catch (err: any) {
+      toast.error(err.message || t("admin_ready_to_ship.toast_failed"));
+    } finally {
+      setCreatingShipment(false);
+    }
+  };
+
+  // Filter ONLY orders with status "paid", "processing", or "ready_to_ship"
+  const readyOrders = ordersList.filter((o) => ["paid", "processing", "ready_to_ship"].includes(o.status));
+
+  const filtered = readyOrders.filter((o) =>
+    o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
+    o.customerName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+          <Package className="h-6 w-6 text-primary" />
+          {t("admin_ready_to_ship.title")}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {t("admin_ready_to_ship.subtitle")}
+        </p>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("admin_ready_to_ship.search_placeholder")}
+          className="pl-10 h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
+        />
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+        <table className="w-full text-sm text-left border-collapse">
+          <thead>
+            <tr className="border-b bg-muted/40 text-muted-foreground font-medium text-xs">
+              <th className="p-4">{t("admin_ready_to_ship.table_order_id")}</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_customer")}</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_country")}</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_weight")}</th>
+              <th className="p-4">{t("admin_ready_to_ship.table_total")}</th>
+              <th className="p-4 text-right">{t("admin_ready_to_ship.table_actions")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y text-xs">
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                  {t("admin_ready_to_ship.empty")}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((o) => {
+                // Determine country naively from string
+                const country = o.shippingAddress.includes("Netherlands") ? "NL" : 
+                                o.shippingAddress.includes("USA") ? "US" : "Other";
+                
+                // Estimate weight (1.5kg per item)
+                const estWeight = (o.items.reduce((sum, i) => sum + i.quantity, 0) * 1.5).toFixed(1);
+
+                return (
+                  <tr key={o.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="p-4 font-mono font-bold text-foreground">{o.orderNumber}</td>
+                    <td className="p-4 font-medium text-foreground">{o.customerName}</td>
+                    <td className="p-4 text-muted-foreground">{country}</td>
+                    <td className="p-4 text-muted-foreground">{estWeight} kg</td>
+                    <td className="p-4 font-semibold text-foreground">€{o.total.toFixed(2)}</td>
+                    <td className="p-4 text-right">
+                      <Button
+                        size="sm"
+                        className="h-8 rounded-full shadow-sm text-xs gap-1"
+                        onClick={() => handleOpenShipmentModal(o)}
+                      >
+                        <Truck className="h-3.5 w-3.5" />
+                        {t("admin_ready_to_ship.button_shipment")}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Enter Weight & Dimensions Dialog */}
+      <Dialog open={!!selectedOrderForShipment} onOpenChange={(open) => !open && setSelectedOrderForShipment(null)}>
+        <DialogContent className="sm:max-w-[500px] rounded-2xl p-6 bg-card border text-foreground shadow-2xl">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Truck className="h-5 w-5 text-primary" /> {t("admin_ready_to_ship.dialog_title")}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {t("admin_ready_to_ship.dialog_subtitle", { number: selectedOrderForShipment?.orderNumber })}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateShipment} className="space-y-4 pt-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="weight" className="text-xs font-semibold">{t("admin_ready_to_ship.label_weight")}</Label>
+                <Input
+                  id="weight"
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  required
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5 relative">
+                <Label htmlFor="carrier" className="text-xs font-semibold">{t("admin_ready_to_ship.label_carrier")}</Label>
+                
+                <div 
+                  className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                  onClick={() => setIsCarrierOpen(!isCarrierOpen)}
+                >
+                  <span className="truncate">
+                    {carrier 
+                      ? shippingMethods.find(m => m.id.toString() === carrier)?.name || t("admin_ready_to_ship.placeholder_carrier")
+                      : t("admin_ready_to_ship.placeholder_carrier")}
+                  </span>
+                  <ArrowRight className="h-3 w-3 opacity-50 rotate-90" />
+                </div>
+
+                {isCarrierOpen && (
+                  <div className="absolute z-50 w-full top-full mt-1 bg-white dark:bg-popover border shadow-md rounded-md overflow-hidden">
+                    <div className="p-2 border-b bg-muted/20">
+                      <Input 
+                        placeholder={t("admin_ready_to_ship.search_carriers")} 
+                        value={carrierSearch}
+                        onChange={(e) => setCarrierSearch(e.target.value)}
+                        className="h-8 text-xs"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-1">
+                      {loadingCarriers ? (
+                        <div className="p-4 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          <span className="text-xs">{t("admin_ready_to_ship.loading_carriers")}</span>
+                        </div>
+                      ) : shippingMethods.filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase())).length === 0 ? (
+                        <div className="p-2 text-xs text-center text-muted-foreground">{t("admin_ready_to_ship.no_carriers")}</div>
+                      ) : (
+                        shippingMethods
+                          .filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase()))
+                          .map(method => {
+                            const w = parseFloat(weight) || 0;
+                            const n = method.name.toLowerCase();
+                            // Suggestion logic
+                            const isSuggested = (w < 2 && n.includes("mailbox")) || 
+                                                (w >= 2 && n.includes("standard")) || 
+                                                n.includes("postnl standard");
+                                                
+                            const isDomestic = n.includes("postnl") || n.includes("dhl for you") || (!n.includes("global") && !n.includes("connect") && !n.includes("international"));
+                            const isInternational = n.includes("global") || n.includes("connect") || n.includes("international") || n.includes("dhl parcel connect");
+
+                            return (
+                              <div 
+                                key={method.id}
+                                onClick={() => { setCarrier(method.id.toString()); setIsCarrierOpen(false); }}
+                                className={`flex items-center justify-between p-2 text-xs rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${carrier === method.id.toString() ? 'bg-accent/50 font-bold' : ''}`}
+                              >
+                                <div className="flex flex-col gap-0.5">
+                                  <span>{method.name}</span>
+                                  <div className="flex items-center gap-1">
+                                    {isDomestic ? (
+                                      <span className="text-[9px] text-blue-600 bg-blue-100 px-1 rounded">{t("admin_ready_to_ship.badge_domestic")}</span>
+                                    ) : isInternational ? (
+                                      <span className="text-[9px] text-orange-600 bg-orange-100 px-1 rounded">{t("admin_ready_to_ship.badge_international")}</span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                {isSuggested && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-green-100 text-green-700 hover:bg-green-100 shrink-0">{t("admin_ready_to_ship.badge_suggested")}</Badge>}
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-muted/50 pt-3">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{t("admin_ready_to_ship.label_dimensions")}</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="length" className="text-[10px] text-muted-foreground">{t("admin_ready_to_ship.label_length")}</Label>
+                  <Input
+                    id="length"
+                    type="number"
+                    min="1"
+                    value={length}
+                    onChange={(e) => setLength(e.target.value)}
+                    required
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="width" className="text-[10px] text-muted-foreground">{t("admin_ready_to_ship.label_width")}</Label>
+                  <Input
+                    id="width"
+                    type="number"
+                    min="1"
+                    value={width}
+                    onChange={(e) => setWidth(e.target.value)}
+                    required
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="height" className="text-[10px] text-muted-foreground">{t("admin_ready_to_ship.label_height")}</Label>
+                  <Input
+                    id="height"
+                    type="number"
+                    min="1"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    required
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4 border-t gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSelectedOrderForShipment(null)}
+                className="rounded-full text-xs h-9"
+              >
+                {t("admin_ready_to_ship.button_cancel")}
+              </Button>
+              <Button
+                type="submit"
+                disabled={creatingShipment}
+                className="rounded-full text-xs h-9 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md gap-1.5"
+              >
+                {creatingShipment ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {t("admin_ready_to_ship.button_creating")}
+                  </>
+                ) : (
+                  <>
+                    <Truck className="h-3.5 w-3.5" />
+                    {t("admin_ready_to_ship.button_create")}
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+

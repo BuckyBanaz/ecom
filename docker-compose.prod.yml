@@ -1,0 +1,113 @@
+name: ecom
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ecom_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ecom_db}
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      PORT: 5000
+      CLIENT_URL: https://${DOMAIN}
+      API_URL: https://api.${DOMAIN}
+      ENABLE_REDIS: "true"
+    volumes:
+      - backend_uploads:/app/public/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://api.${DOMAIN}
+        VITE_APP_URL: https://${DOMAIN}
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    image: ecom-jenkins:lts
+    restart: unless-stopped
+    user: root
+    # Localhost only — public access via https://jenkins.<DOMAIN> through Caddy
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/ecom:/opt/ecom
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+      JENKINS_OPTS: --httpPort=8080
+    env_file:
+      - .env.production
+    group_add:
+      - "${DOCKER_GID:-999}"
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+      - jenkins
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_uploads:
+  jenkins_home:
+  caddy_data:
+  caddy_config:

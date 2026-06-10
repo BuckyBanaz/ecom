@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Brand, Series } from "@/data/brands";
 import { Attribute } from "@/data/attributes";
+import { brandRepository, categoryRepository, attributeRepository, productRepository, seriesRepository } from "@/client/apiClient";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { cn } from "@/lib/utils";
+import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+
 
 export interface SpecItem {
   id: string;
@@ -21,11 +28,20 @@ export interface SpecItem {
 }
 
 const AdminProductForm = () => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { hasPermission } = useAdmin();
 
   const isEdit = id !== undefined && id !== "new";
+
+  // Mount guard for portal-based components
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Loading states
+  const [isMetadataLoading, setIsMetadataLoading] = useState(true);
+  const [isProductLoading, setIsProductLoading] = useState(isEdit);
+  const [mediaDialogTarget, setMediaDialogTarget] = useState<"thumbnail" | "gallery" | null>(null);
 
   // Data states
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -41,6 +57,9 @@ const AdminProductForm = () => {
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [shortDescription, setShortDescription] = useState("");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
+  const [seoKeywords, setSeoKeywords] = useState("");
   const [inStock, setInStock] = useState(true);
   const [isNewArrival, setIsNewArrival] = useState(false);
   const [isBestSelling, setIsBestSelling] = useState(false);
@@ -54,67 +73,69 @@ const AdminProductForm = () => {
   const [specs, setSpecs] = useState<SpecItem[]>([]);
   const [newParamName, setNewParamName] = useState("");
 
-  const thumbnailInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
+  // Set mounted flag on component mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Load brands, categories, attributes, series
   useEffect(() => {
     const loadMetadata = async () => {
-      // 1. Brands
+      setIsMetadataLoading(true);
       try {
-        const res = await fetch("/api/v1/brands");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.brands) setBrands(data.brands);
-        } else {
-          throw new Error();
-        }
-      } catch (e) {
-        const saved = localStorage.getItem("brands_data");
-        if (saved) setBrands(JSON.parse(saved));
-        else {
-          const { brands: initialBrands } = await import("@/data/brands");
-          setBrands(initialBrands);
-        }
-      }
-
-      // 1.5. Series
-      const savedSeries = localStorage.getItem("series_data");
-      if (savedSeries) {
+        // 1. Brands
         try {
-          setSeriesList(JSON.parse(savedSeries));
+          const data = await brandRepository.getAll();
+          if (data.success && data.brands) setBrands(data.brands);
         } catch (e) {
-          const { series: initialSeries } = await import("@/data/brands");
-          setSeriesList(initialSeries);
+          const saved = localStorage.getItem("brands_data");
+          if (saved) setBrands(JSON.parse(saved));
+          else {
+            const { brands: initialBrands } = await import("@/data/brands");
+            setBrands(initialBrands);
+          }
         }
-      } else {
-        const { series: initialSeries } = await import("@/data/brands");
-        setSeriesList(initialSeries);
-      }
 
-      // 2. Categories
-      try {
-        const res = await fetch("/api/v1/categories");
-        if (res.ok) {
-          const data = await res.json();
+        // 1.5. Series
+        try {
+          const data = await seriesRepository.getAll();
+          if (data.success && data.series) {
+            setSeriesList(data.series);
+          } else {
+            throw new Error("Failed to fetch series");
+          }
+        } catch (e) {
+          const savedSeries = localStorage.getItem("series_data");
+          if (savedSeries) {
+            try {
+              setSeriesList(JSON.parse(savedSeries));
+            } catch (err) {
+              const { series: initialSeries } = await import("@/data/brands");
+              setSeriesList(initialSeries);
+            }
+          } else {
+            const { series: initialSeries } = await import("@/data/brands");
+            setSeriesList(initialSeries);
+          }
+        }
+
+
+        // 2. Categories
+        try {
+          const data = await categoryRepository.getAll();
           if (data.success && data.categories) setCategoriesList(data.categories);
-        } else {
-          throw new Error();
+        } catch (e) {
+          const saved = localStorage.getItem("categories_data");
+          if (saved) setCategoriesList(JSON.parse(saved));
+          else {
+            const { categories: initialCategories } = await import("@/data/categories");
+            setCategoriesList(initialCategories);
+          }
         }
-      } catch (e) {
-        const saved = localStorage.getItem("categories_data");
-        if (saved) setCategoriesList(JSON.parse(saved));
-        else {
-          const { categories: initialCategories } = await import("@/data/categories");
-          setCategoriesList(initialCategories);
-        }
-      }
 
-      // 3. Attributes
-      try {
-        const res = await fetch("/api/v1/attributes");
-        if (res.ok) {
-          const data = await res.json();
+        // 3. Attributes
+        try {
+          const data = await attributeRepository.getAll();
           if (data.success && data.attributes) {
             const mapped = data.attributes.map((a: any) => ({
               id: a.id,
@@ -126,16 +147,16 @@ const AdminProductForm = () => {
             }));
             setAttributes(mapped);
           }
-        } else {
-          throw new Error();
+        } catch (e) {
+          const saved = localStorage.getItem("attributes_data");
+          if (saved) setAttributes(JSON.parse(saved));
+          else {
+            const { attributes: initialAttributes } = await import("@/data/attributes");
+            setAttributes(initialAttributes);
+          }
         }
-      } catch (e) {
-        const saved = localStorage.getItem("attributes_data");
-        if (saved) setAttributes(JSON.parse(saved));
-        else {
-          const { attributes: initialAttributes } = await import("@/data/attributes");
-          setAttributes(initialAttributes);
-        }
+      } finally {
+        setIsMetadataLoading(false);
       }
     };
 
@@ -144,8 +165,10 @@ const AdminProductForm = () => {
 
   // Reset series when brand changes
   useEffect(() => {
+    if (brands.length === 0 || seriesList.length === 0) return; // Wait for metadata to load
+
     if (!selectedBrand) {
-      setSelectedSeries("");
+      if (selectedSeries !== "") setSelectedSeries("");
       return;
     }
     const brandId = brands.find((b) => b.name === selectedBrand)?.id;
@@ -157,26 +180,7 @@ const AdminProductForm = () => {
     }
   }, [selectedBrand, brands, seriesList, selectedSeries]);
 
-  const DEFAULT_SPECS_STRUCTURE: SpecItem[] = [
-    { id: "e1", key: "Maximum wattage", value: "7W" },
-    { id: "e2", key: "Connection voltage", value: "220-240V" },
-    { id: "e4", key: "Type of fitting", value: "E27" },
-    { id: "e5", key: "Includes light", value: "No" },
-    { id: "e6", key: "Dimmable", value: "Yes (not included)" },
-    { id: "p1", key: "Length in cm", value: "50" },
-    { id: "p2", key: "Width in cm", value: "50" },
-    { id: "p3", key: "Height in cm", value: "120" },
-    { id: "p4", key: "Base/mounting plate width in cm", value: "12" },
-    { id: "p5", key: "Foot/mounting plate length", value: "12" },
-    { id: "p6", key: "Height of foot/mounting plate", value: "2.5" },
-    { id: "m1", key: "Colour", value: "Black" },
-    { id: "m2", key: "Material", value: "Metal" },
-    { id: "m3", key: "Style", value: "Modern" },
-    { id: "m4", key: "Warranty", value: "2 years" },
-    { id: "l1", key: "Article number", value: "Q10757" },
-    { id: "l2", key: "IP rating", value: "IP20 (dustproof)" },
-    { id: "l3", key: "Installation Manual", value: "Download PDF", link: "" }
-  ];
+  const DEFAULT_SPECS_STRUCTURE: SpecItem[] = [];
 
   const parseSpecs = (specsObj: any): SpecItem[] => {
     if (Array.isArray(specsObj)) {
@@ -217,11 +221,11 @@ const AdminProductForm = () => {
     }
 
     const loadProduct = async () => {
-      // 1. Try backend
+      setIsProductLoading(true);
       try {
-        const res = await fetch(`/api/v1/products/${id}`);
-        if (res.ok) {
-          const data = await res.json();
+        // 1. Try backend
+        try {
+          const data = await productRepository.getByIdOrSlug(id);
           if (data.success && data.product) {
             const p = data.product;
             setName(p.title || p.name || "");
@@ -231,6 +235,9 @@ const AdminProductForm = () => {
             setGalleryImages(p.images || (p.image ? [p.image] : []));
             setDescription(p.description || "");
             setShortDescription(p.shortDescription || "");
+            setSeoTitle(p.seoTitle || "");
+            setSeoDescription(p.seoDescription || "");
+            setSeoKeywords(p.seoKeywords || "");
             setInStock(p.inStock ?? true);
             setIsNewArrival(p.isNewArrival ?? false);
             setIsBestSelling(p.isBestSelling ?? false);
@@ -254,6 +261,78 @@ const AdminProductForm = () => {
             // Parse specs
             let foundNumLights = "";
             let foundSeries = "";
+            if (Array.isArray(p.specs)) {
+              p.specs.forEach((s: any) => {
+                if (s && s.key === "Number of lights") foundNumLights = String(s.value);
+                if (s && s.key === "Series") foundSeries = String(s.value);
+              });
+            } else {
+              Object.entries(p.specs || {}).forEach(([k, val]) => {
+                const cleanKey = k.includes("::") ? k.split("::")[1] : k;
+                if (cleanKey === "Number of lights") {
+                  foundNumLights = String(val);
+                }
+                if (cleanKey === "Series") {
+                  foundSeries = String(val);
+                }
+              });
+            }
+            setNumberOfLights(foundNumLights);
+            setSelectedSeries(foundSeries || "none");
+
+            const parsed = parseSpecs(p.specs || {});
+            setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+            return;
+          }
+        } catch (e) {
+          console.warn("Backend API not reachable for product fetch, using local fallback.");
+        }
+
+        // 2. Try localStorage / static mockup fallback
+        const savedProducts = localStorage.getItem("products_data");
+        let allProducts = [];
+        if (savedProducts) {
+          try { allProducts = JSON.parse(savedProducts); } catch (e) {}
+        } else {
+          const { products: initialProducts } = await import("@/data/products");
+          allProducts = initialProducts;
+        }
+
+        const p = allProducts.find((x: any) => String(x.id) === id);
+        if (p) {
+          setName(p.name || "");
+          setPrice(String(p.price || ""));
+          setOldPrice(p.oldPrice ? String(p.oldPrice) : "");
+          setThumbnail(p.image || null);
+          setGalleryImages(p.images || (p.image ? [p.image] : []));
+          setDescription(p.description || "");
+          setShortDescription(p.shortDescription || "");
+          setSeoTitle(p.seoTitle || "");
+          setSeoDescription(p.seoDescription || "");
+          setSeoKeywords(p.seoKeywords || "");
+          setInStock(p.inStock ?? true);
+          setIsNewArrival(p.isNewArrival ?? false);
+          setIsBestSelling(p.isBestSelling ?? false);
+          setSelectedCategory(p.category || "");
+          setSelectedBrand(p.brand || "");
+
+          // Initialize from local flat fields
+          const initialAttrVals: Record<string, string[]> = {};
+          if (p.color) initialAttrVals["color"] = [p.color];
+          if (p.material) initialAttrVals["material"] = [p.material];
+          if (p.style) initialAttrVals["style"] = [p.style];
+          if (p.fitting) initialAttrVals["fitting"] = [p.fitting];
+          setSelectedAttributeValues(initialAttrVals);
+
+          // Parse specs
+          let foundNumLights = "";
+          let foundSeries = "";
+          if (Array.isArray(p.specs)) {
+            p.specs.forEach((s: any) => {
+              if (s && s.key === "Number of lights") foundNumLights = String(s.value);
+              if (s && s.key === "Series") foundSeries = String(s.value);
+            });
+          } else {
             Object.entries(p.specs || {}).forEach(([k, val]) => {
               const cleanKey = k.includes("::") ? k.split("::")[1] : k;
               if (cleanKey === "Number of lights") {
@@ -263,68 +342,15 @@ const AdminProductForm = () => {
                 foundSeries = String(val);
               }
             });
-            setNumberOfLights(foundNumLights);
-            setSelectedSeries(foundSeries || "none");
-
-            const parsed = parseSpecs(p.specs || {});
-            setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
-            return;
           }
+          setNumberOfLights(foundNumLights);
+          setSelectedSeries(foundSeries || "none");
+
+          const parsed = parseSpecs(p.specs || {});
+          setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
         }
-      } catch (e) {
-        console.warn("Backend API not reachable for product fetch, using local fallback.");
-      }
-
-      // 2. Try localStorage / static mockup fallback
-      const savedProducts = localStorage.getItem("products_data");
-      let allProducts = [];
-      if (savedProducts) {
-        try { allProducts = JSON.parse(savedProducts); } catch (e) {}
-      } else {
-        const { products: initialProducts } = await import("@/data/products");
-        allProducts = initialProducts;
-      }
-
-      const p = allProducts.find((x: any) => String(x.id) === id);
-      if (p) {
-        setName(p.name || "");
-        setPrice(String(p.price || ""));
-        setOldPrice(p.oldPrice ? String(p.oldPrice) : "");
-        setThumbnail(p.image || null);
-        setGalleryImages(p.images || (p.image ? [p.image] : []));
-        setDescription(p.description || "");
-        setShortDescription(p.shortDescription || "");
-        setInStock(p.inStock ?? true);
-        setIsNewArrival(p.isNewArrival ?? false);
-        setIsBestSelling(p.isBestSelling ?? false);
-        setSelectedCategory(p.category || "");
-        setSelectedBrand(p.brand || "");
-
-        // Initialize from local flat fields
-        const initialAttrVals: Record<string, string[]> = {};
-        if (p.color) initialAttrVals["color"] = [p.color];
-        if (p.material) initialAttrVals["material"] = [p.material];
-        if (p.style) initialAttrVals["style"] = [p.style];
-        if (p.fitting) initialAttrVals["fitting"] = [p.fitting];
-        setSelectedAttributeValues(initialAttrVals);
-
-        // Parse specs
-        let foundNumLights = "";
-        let foundSeries = "";
-        Object.entries(p.specs || {}).forEach(([k, val]) => {
-          const cleanKey = k.includes("::") ? k.split("::")[1] : k;
-          if (cleanKey === "Number of lights") {
-            foundNumLights = String(val);
-          }
-          if (cleanKey === "Series") {
-            foundSeries = String(val);
-          }
-        });
-        setNumberOfLights(foundNumLights);
-        setSelectedSeries(foundSeries || "none");
-
-        const parsed = parseSpecs(p.specs || {});
-        setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+      } finally {
+        setIsProductLoading(false);
       }
     };
 
@@ -333,7 +359,7 @@ const AdminProductForm = () => {
 
   const handleAddItem = () => {
     if (!newParamName.trim()) {
-      toast.error("Parameter name cannot be empty");
+      toast.error(t("admin_product_form.toast_param_name_empty"));
       return;
     }
     setSpecs((prev) => [
@@ -346,7 +372,7 @@ const AdminProductForm = () => {
       }
     ]);
     setNewParamName("");
-    toast.success(`Parameter "${newParamName.trim()}" added`);
+    toast.success(t("admin_product_form.toast_param_added", { name: newParamName.trim() }));
   };
 
   const handleUpdateItemKey = (itemId: string, newKey: string) => {
@@ -379,10 +405,122 @@ const AdminProductForm = () => {
     });
   };
 
-  if (!hasPermission("admin")) {
+  if (!hasPermission("products")) {
     return (
       <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
-        <p>You do not have permission to access this page.</p>
+        <p>{t("admin_product_form.no_permission")}</p>
+      </div>
+    );
+  }
+
+  const isLoading = isMetadataLoading || (isEdit && isProductLoading);
+
+  if (isLoading) {
+    return (
+
+      <div className="container-page space-y-8 pb-12">
+
+        {/* Header Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/45 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
+          <div className="flex items-center gap-4 w-full">
+            <Skeleton className="rounded-full shrink-0 h-10 w-10" />
+            <div className="space-y-2 flex-grow">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-80" />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          {/* LEFT COLUMN — Main Forms (2/3 Width) */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Basic Info */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden p-6 space-y-6">
+              <div className="space-y-2 border-b pb-4">
+                <Skeleton className="h-5 w-36" />
+                <Skeleton className="h-3.5 w-64" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-2 space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-12" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
+            </Card>
+
+            {/* Description Card */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden p-6 space-y-4">
+              <div className="space-y-2 border-b pb-4">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-3.5 w-72" />
+              </div>
+              <Skeleton className="h-48 w-full" />
+            </Card>
+
+            {/* Media & Gallery Uploads */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden p-6 space-y-4">
+              <div className="space-y-2 border-b pb-4">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-3.5 w-56" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Skeleton className="aspect-square w-full rounded-2xl" />
+                <div className="md:col-span-2 space-y-4">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-28 w-full rounded-2xl" />
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="space-y-8">
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden p-6 space-y-6">
+              <div className="space-y-2 border-b pb-4">
+                <Skeleton className="h-5 w-44" />
+                <Skeleton className="h-3.5 w-60" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-4 pt-4 border-t">
+                <Skeleton className="h-4 w-32" />
+                <div className="space-y-3">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -398,47 +536,8 @@ const AdminProductForm = () => {
       return activeCatObj.categoryAttributes.some((ca: any) => ca.attribute.slug === attr.slug);
     }
 
-    // Local Storage / Static mockups fallback category-attributes mapping
-    const fallbackCategoryMapping: Record<string, string[]> = {
-      "pendant-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height", "width", "diameter"],
-      "ceiling-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height", "width", "diameter"],
-      "wall-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "ip-rating", "dimmer-type", "length", "height", "width", "diameter"],
-      "outdoor-lamps": ["color", "light-color", "material", "style", "room", "dimmable", "ip-rating", "length", "height", "width", "diameter"],
-      "floor-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height"],
-      "table-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height"],
-      "chandeliers": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "length", "height", "diameter"],
-      "smart-bulbs": ["color", "light-color", "fitting", "dimmable", "dimmer-type"],
-      "led-bulbs": ["color", "light-color", "fitting", "dimmable"],
-      "string-lights": ["color", "light-color", "room", "dimmable", "ip-rating", "length"],
-    };
-
-    const mapping = fallbackCategoryMapping[selectedCategory];
-    if (mapping) {
-      return mapping.includes(attr.slug);
-    }
-
     return true; // Show all if category has no specific mappings defined
   });
-
-  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setThumbnail(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const handleGalleryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setGalleryImages((prev) => [...prev, ev.target?.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = "";
-  };
 
   const removeGalleryImage = (index: number) => {
     setGalleryImages((prev) => prev.filter((_, i) => i !== index));
@@ -446,22 +545,22 @@ const AdminProductForm = () => {
 
   const setAsThumbnail = (src: string) => {
     setThumbnail(src);
-    toast.success("Thumbnail updated");
+    toast.success(t("admin_product_form.toast_thumbnail_updated"));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!name.trim()) {
-      toast.error("Product name is required");
+      toast.error(t("admin_product_form.toast_name_required"));
       return;
     }
     if (!selectedCategory) {
-      toast.error("Category is required");
+      toast.error(t("admin_product_form.toast_category_required"));
       return;
     }
     if (!selectedBrand) {
-      toast.error("Brand is required");
+      toast.error(t("admin_product_form.toast_brand_required"));
       return;
     }
 
@@ -488,6 +587,9 @@ const AdminProductForm = () => {
       isBestSelling,
       description,
       shortDescription,
+      seoTitle,
+      seoDescription,
+      seoKeywords,
       image: thumbnail || "/assets/cat-generic.jpg",
       images: galleryImages,
       attributes: selectedAttributeValues, // EAV dynamic mapping
@@ -496,21 +598,14 @@ const AdminProductForm = () => {
 
     // 1. Try saving to backend API
     try {
-      const url = isEdit ? `/api/v1/products/${id}` : "/api/v1/products";
-      const method = isEdit ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const data = isEdit
+        ? await productRepository.update(id, payload)
+        : await productRepository.create(payload);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          toast.success(isEdit ? `Product "${name}" updated` : `Product "${name}" created`);
-          navigate("/admin/products");
-          return;
-        }
+      if (data.success) {
+        toast.success(isEdit ? t("admin_product_form.toast_product_updated", { name }) : t("admin_product_form.toast_product_created", { name }));
+        navigate("/admin/products");
+        return;
       }
     } catch (err) {
       console.warn("Backend API save failed, syncing to local storage / mock data only.");
@@ -546,12 +641,13 @@ const AdminProductForm = () => {
     }
 
     localStorage.setItem("products_data", JSON.stringify(updatedProducts));
-    toast.success(isEdit ? `Product updated (Local Mode)` : `Product created (Local Mode)`);
+    toast.success(isEdit ? t("admin_product_form.toast_local_updated") : t("admin_product_form.toast_local_created"));
     navigate("/admin/products");
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-12">
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/45 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-4">
@@ -565,12 +661,12 @@ const AdminProductForm = () => {
           </Button>
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
-              {isEdit ? "Edit Product Details" : "Create New Product"}
+              {isEdit ? t("admin_product_form.header_edit_title") : t("admin_product_form.header_create_title")}
             </h1>
             <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 font-medium">
               {isEdit
-                ? "Modify metadata, EAV attributes, and key-value specs."
-                : "Enter basic details, select categories, and configure technical properties."}
+                ? t("admin_product_form.header_edit_subtitle")
+                : t("admin_product_form.header_create_subtitle")}
             </p>
           </div>
         </div>
@@ -585,71 +681,75 @@ const AdminProductForm = () => {
             {/* Basic Info */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">Basic Information</CardTitle>
-                <CardDescription className="text-xs">Provide essential product naming, branding, and pricing details.</CardDescription>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">{t("admin_product_form.basic_title")}</CardTitle>
+                <CardDescription className="text-xs">{t("admin_product_form.basic_subtitle")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="md:col-span-2 space-y-1.5">
-                    <Label htmlFor="name" className="text-xs font-bold text-foreground/80">Product Name *</Label>
+                    <Label htmlFor="name" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_name")}</Label>
                     <Input
                       id="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Nordic Pendant Glass Lamp"
+                      placeholder={t("admin_product_form.placeholder_name")}
                       className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                       required
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="brand" className="text-xs font-bold text-foreground/80">Brand *</Label>
-                    <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-                      <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                        <SelectValue placeholder="Select Brand Partner" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        {brands.map((b) => (
-                          <SelectItem key={b.id} value={b.name} className="text-xs rounded-lg">
-                            {b.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="brand" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_brand")}</Label>
+                    {isMounted && (
+                      <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                        <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                          <SelectValue placeholder={t("admin_product_form.placeholder_brand")} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          {brands.map((b) => (
+                            <SelectItem key={b.id} value={b.name} className="text-xs rounded-lg">
+                              {b.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="series" className="text-xs font-bold text-foreground/80">Series / Collection</Label>
-                    <Select
-                      value={selectedSeries}
-                      onValueChange={setSelectedSeries}
-                      disabled={!selectedBrand}
-                    >
-                      <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                        <SelectValue placeholder={selectedBrand ? "Select Series" : "Select Brand First"} />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        <SelectItem value="none" className="text-xs rounded-lg italic text-muted-foreground">
-                          None / General Catalog
-                        </SelectItem>
-                        {seriesList
-                          .filter((s) => {
-                            const brandId = brands.find((b) => b.name === selectedBrand)?.id;
-                            return s.brandId === brandId;
-                          })
-                          .map((s) => (
-                            <SelectItem key={s.id} value={s.name} className="text-xs rounded-lg">
-                              {s.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="series" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_series")}</Label>
+                    {isMounted && (
+                      <Select
+                        value={selectedSeries}
+                        onValueChange={setSelectedSeries}
+                        disabled={!selectedBrand}
+                      >
+                        <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                          <SelectValue placeholder={selectedBrand ? t("admin_product_form.placeholder_series_select") : t("admin_product_form.placeholder_series_first")} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="none" className="text-xs rounded-lg italic text-muted-foreground">
+                            {t("admin_product_form.series_none")}
+                          </SelectItem>
+                          {seriesList
+                            .filter((s) => {
+                              const brandId = brands.find((b) => b.name === selectedBrand)?.id;
+                              return s.brandId === brandId;
+                            })
+                            .map((s) => (
+                              <SelectItem key={s.id} value={s.name} className="text-xs rounded-lg">
+                                {s.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="price" className="text-xs font-bold text-foreground/80">Price (€) *</Label>
+                    <Label htmlFor="price" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_price")}</Label>
                     <Input
                       id="price"
                       type="number"
@@ -657,13 +757,13 @@ const AdminProductForm = () => {
                       min="0"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
-                      placeholder="0.00"
+                      placeholder={t("admin_product_form.placeholder_price")}
                       className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                       required
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="oldPrice" className="text-xs font-bold text-foreground/80">Compare-At Price (€)</Label>
+                    <Label htmlFor="oldPrice" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_old_price")}</Label>
                     <Input
                       id="oldPrice"
                       type="number"
@@ -671,17 +771,17 @@ const AdminProductForm = () => {
                       min="0"
                       value={oldPrice}
                       onChange={(e) => setOldPrice(e.target.value)}
-                      placeholder="Optional markup"
+                      placeholder={t("admin_product_form.placeholder_old_price")}
                       className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="numberOfLights" className="text-xs font-bold text-foreground/80">Number of Lights</Label>
+                    <Label htmlFor="numberOfLights" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_num_lights")}</Label>
                     <Input
                       id="numberOfLights"
                       value={numberOfLights}
                       onChange={(e) => setNumberOfLights(e.target.value)}
-                      placeholder="e.g. 1, 3, 5, etc."
+                      placeholder={t("admin_product_form.placeholder_num_lights")}
                       list="lights-list"
                       className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                     />
@@ -693,7 +793,7 @@ const AdminProductForm = () => {
                   </div>
                   <div className="space-y-1.5 flex flex-col justify-end">
                     <div className="flex items-center justify-between rounded-lg border border-muted-foreground/20 bg-background/20 px-3.5 h-10">
-                      <Label htmlFor="inStock" className="text-xs font-bold text-foreground/80 cursor-pointer">In Stock Status</Label>
+                      <Label htmlFor="inStock" className="text-xs font-bold text-foreground/80 cursor-pointer">{t("admin_product_form.label_in_stock")}</Label>
                       <Switch id="inStock" checked={inStock} onCheckedChange={setInStock} />
                     </div>
                   </div>
@@ -701,21 +801,63 @@ const AdminProductForm = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                   <div className="flex items-center justify-between rounded-lg border border-muted-foreground/20 bg-background/20 px-3.5 h-10">
-                    <Label htmlFor="isNewArrival" className="text-xs font-bold text-foreground/80 cursor-pointer">New Arrival</Label>
+                    <Label htmlFor="isNewArrival" className="text-xs font-bold text-foreground/80 cursor-pointer">{t("admin_product_form.label_new_arrival")}</Label>
                     <Switch id="isNewArrival" checked={isNewArrival} onCheckedChange={setIsNewArrival} />
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-muted-foreground/20 bg-background/20 px-3.5 h-10">
-                    <Label htmlFor="isBestSelling" className="text-xs font-bold text-foreground/80 cursor-pointer">Best Seller / Featured</Label>
+                    <Label htmlFor="isBestSelling" className="text-xs font-bold text-foreground/80 cursor-pointer">{t("admin_product_form.label_best_seller")}</Label>
                     <Switch id="isBestSelling" checked={isBestSelling} onCheckedChange={setIsBestSelling} />
                   </div>
                 </div>
 
                 <div className="space-y-1.5 pt-2">
-                  <Label htmlFor="shortDescription" className="text-xs font-bold text-foreground/80">Basic Description</Label>
+                  <Label htmlFor="shortDescription" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_short_desc")}</Label>
                   <RichTextEditor
                     value={shortDescription}
                     onChange={setShortDescription}
-                    placeholder="Provide a brief summary of this product for top sections..."
+                    placeholder={t("admin_product_form.placeholder_short_desc")}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* SEO Settings */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
+              <CardHeader className="border-b pb-4 mb-4">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">{t("admin_product_form.seo_title")}</CardTitle>
+                <CardDescription className="text-xs">{t("admin_product_form.seo_subtitle")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="seoTitle" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_seo_title")}</Label>
+                    <Input
+                      id="seoTitle"
+                      value={seoTitle}
+                      onChange={e => setSeoTitle(e.target.value)}
+                      placeholder={t("admin_product_form.placeholder_seo_title")}
+                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="seoKeywords" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_seo_keywords")}</Label>
+                    <Input
+                      id="seoKeywords"
+                      value={seoKeywords}
+                      onChange={e => setSeoKeywords(e.target.value)}
+                      placeholder={t("admin_product_form.placeholder_seo_keywords")}
+                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5 mt-4">
+                  <Label htmlFor="seoDescription" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_seo_desc")}</Label>
+                  <Input
+                    id="seoDescription"
+                    value={seoDescription}
+                    onChange={e => setSeoDescription(e.target.value)}
+                    placeholder={t("admin_product_form.placeholder_seo_desc")}
+                    className="h-16 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                   />
                 </div>
               </CardContent>
@@ -724,14 +866,14 @@ const AdminProductForm = () => {
             {/* Description */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">Product Description</CardTitle>
-                <CardDescription className="text-xs">Describe key aspects, dimensions, styles, and details of this light fixture.</CardDescription>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">{t("admin_product_form.desc_title")}</CardTitle>
+                <CardDescription className="text-xs">{t("admin_product_form.desc_subtitle")}</CardDescription>
               </CardHeader>
               <CardContent className="prose-sm dark:prose-invert">
                 <RichTextEditor
                   value={description}
                   onChange={setDescription}
-                  placeholder="Tell your buyers more about this premium lighting fixture..."
+                  placeholder={t("admin_product_form.desc_placeholder")}
                 />
               </CardContent>
             </Card>
@@ -739,21 +881,24 @@ const AdminProductForm = () => {
             {/* Media & Gallery (Combined Thumbnail & Gallery Images) */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">Media & Gallery</CardTitle>
-                <CardDescription className="text-xs">Manage cover photo and additional slide images side-by-side.</CardDescription>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">{t("admin_product_form.media_title")}</CardTitle>
+                <CardDescription className="text-xs">{t("admin_product_form.media_subtitle")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Thumbnail / Cover Image */}
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-foreground/80">Cover Image</Label>
+                    <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_cover")}</Label>
                     <div
-                      className="relative aspect-square w-full overflow-hidden rounded-2xl border-2 border-dashed border-muted-foreground/30 hover:border-primary bg-muted/40 backdrop-blur-sm flex items-center justify-center cursor-pointer group transition-all duration-300 hover:bg-muted/60"
-                      onClick={() => thumbnailInputRef.current?.click()}
+                      className={cn(
+                        "relative aspect-square w-full overflow-hidden rounded-2xl border-2 border-dashed border-muted-foreground/30 hover:border-primary bg-muted/40 backdrop-blur-sm flex items-center justify-center cursor-pointer group transition-all duration-300 hover:bg-muted/60",
+                        thumbnail && "border-solid border-border bg-muted/50"
+                      )}
+                      onClick={() => setMediaDialogTarget("thumbnail")}
                     >
                       {thumbnail ? (
                         <>
-                          <img src={thumbnail} alt="Thumbnail" className="h-full w-full object-cover rounded-2xl" />
+                          <img src={resolveImgUrl(thumbnail)} alt={t("admin_product_form.alt_thumbnail")} className="h-full w-full object-cover rounded-2xl" />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl">
                             <Upload className="h-5 w-5 text-white animate-bounce" />
                           </div>
@@ -768,59 +913,49 @@ const AdminProductForm = () => {
                       ) : (
                         <div className="text-center text-muted-foreground p-3">
                           <Upload className="h-6 w-6 mx-auto mb-1 text-primary/80 opacity-60" />
-                          <p className="text-[11px] font-semibold text-foreground/80">Upload Cover</p>
-                          <p className="text-[9px] text-muted-foreground mt-0.5">PNG, JPG up to 5MB</p>
+                          <p className="text-[11px] font-semibold text-foreground/80">{t("admin_product_form.upload_cover")}</p>
+                          <p className="text-[9px] text-muted-foreground mt-0.5">{t("admin_product_form.upload_hint")}</p>
                         </div>
                       )}
                     </div>
-                    <input ref={thumbnailInputRef} type="file" accept="image/*" className="hidden" onChange={handleThumbnailChange} />
                   </div>
 
                   {/* Slider Gallery Grid */}
                   <div className="md:col-span-2 space-y-2">
                     <div className="flex justify-between items-center">
-                      <Label className="text-xs font-bold text-foreground/80">Gallery Images</Label>
+                      <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_gallery")}</Label>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="h-6 text-[10px] font-bold text-primary gap-1 px-2 hover:bg-primary/10 transition-colors"
-                        onClick={() => galleryInputRef.current?.click()}
+                        onClick={() => setMediaDialogTarget("gallery")}
                       >
-                        <Plus className="h-3 w-3" /> Add Images
+                        <Plus className="h-3 w-3" /> {t("admin_product_form.add_images")}
                       </Button>
                     </div>
-
-                    <input
-                      ref={galleryInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleGalleryChange}
-                    />
 
                     {galleryImages.length === 0 ? (
                       <div
                         className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-2xl h-[120px] text-muted-foreground cursor-pointer hover:border-primary hover:bg-muted/20 transition-all duration-300"
-                        onClick={() => galleryInputRef.current?.click()}
+                        onClick={() => setMediaDialogTarget("gallery")}
                       >
                         <ImageIcon className="h-6 w-6 mb-1 text-primary/70 opacity-40 animate-pulse" />
-                        <p className="text-[11px] font-semibold text-foreground/80">No images added</p>
-                        <p className="text-[9px] text-muted-foreground">Click to upload gallery pictures</p>
+                        <p className="text-[11px] font-semibold text-foreground/80">{t("admin_product_form.no_images_title")}</p>
+                        <p className="text-[9px] text-muted-foreground">{t("admin_product_form.no_images_hint")}</p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-3 gap-3">
                         {galleryImages.map((src, i) => (
                           <div key={i} className="group relative aspect-square rounded-xl border overflow-hidden bg-muted/50 shadow-sm hover:shadow transition-all duration-300">
-                            <img src={src} alt={`Product ${i + 1}`} className="h-full w-full object-cover" />
+                            <img src={resolveImgUrl(src)} alt={t("admin_product_form.alt_gallery_image", { index: i + 1 })} className="h-full w-full object-cover" />
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1 rounded-xl">
                               <button
                                 type="button"
                                 onClick={() => setAsThumbnail(src)}
                                 className="w-full text-[8px] font-bold text-white bg-primary/90 hover:bg-primary rounded-md py-1 transition-colors"
                               >
-                                Set Cover
+                                {t("admin_product_form.set_cover")}
                               </button>
                               <button
                                 type="button"
@@ -832,7 +967,7 @@ const AdminProductForm = () => {
                             </div>
                             {thumbnail === src && (
                               <div className="absolute bottom-1 left-1 rounded-md text-[8px] font-extrabold bg-primary text-primary-foreground px-1 py-0.2 shadow-sm">
-                                Cover
+                                {t("admin_product_form.cover_badge")}
                               </div>
                             )}
                           </div>
@@ -842,7 +977,7 @@ const AdminProductForm = () => {
                           onClick={() => galleryInputRef.current?.click()}
                         >
                           <Plus className="h-5 w-5 mb-0.5 opacity-45" />
-                          <p className="text-[9px] font-semibold">Add</p>
+                          <p className="text-[9px] font-semibold">{t("admin_product_form.add_short")}</p>
                         </div>
                       </div>
                     )}
@@ -855,28 +990,28 @@ const AdminProductForm = () => {
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b pb-4 mb-4">
                 <div>
-                  <CardTitle className="text-lg font-bold flex items-center gap-2">Technical Specifications</CardTitle>
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">{t("admin_product_form.specs_title")}</CardTitle>
                   <CardDescription className="text-xs">
-                    Manage specification parameters. Add parameters, set values, and optional links.
+                    {t("admin_product_form.specs_subtitle")}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input 
-                    placeholder="New Parameter Name" 
+                    placeholder={t("admin_product_form.specs_new_param_placeholder")} 
                     value={newParamName} 
                     onChange={e => setNewParamName(e.target.value)} 
                     className="h-8 text-xs w-48 bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                     onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAddItem())}
                   />
                   <Button type="button" size="sm" onClick={handleAddItem} className="h-8 px-3 rounded-lg text-xs gap-1 font-bold">
-                    <Plus className="w-3.5 h-3.5" /> Add
+                    <Plus className="w-3.5 h-3.5" /> {t("admin_product_form.specs_add")}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6 pt-2">
                 <div className="space-y-3">
                   {specs.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground/60 italic pl-2 text-center py-4">No parameters added yet. Use the input above to add one.</p>
+                    <p className="text-[11px] text-muted-foreground/60 italic pl-2 text-center py-4">{t("admin_product_form.specs_empty")}</p>
                   ) : (
                     <div className="grid grid-cols-1 gap-2.5">
                       {specs.map((item, index) => (
@@ -888,29 +1023,29 @@ const AdminProductForm = () => {
                           
                           <div className="grid grid-cols-[1fr_1.5fr_1.5fr] gap-3 flex-grow items-center">
                             <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground uppercase px-1">Name</Label>
+                              <Label className="text-[10px] text-muted-foreground uppercase px-1">{t("admin_product_form.specs_label_name")}</Label>
                               <Input
                                 value={item.key}
                                 onChange={(e) => handleUpdateItemKey(item.id, e.target.value)}
-                                placeholder="Param Name"
+                                placeholder={t("admin_product_form.specs_placeholder_name")}
                                 className="h-8 text-xs bg-background focus-visible:ring-1 border-muted-foreground/20 rounded-lg font-bold"
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground uppercase px-1">Value / Text</Label>
+                              <Label className="text-[10px] text-muted-foreground uppercase px-1">{t("admin_product_form.specs_label_value")}</Label>
                               <Input
                                 value={item.value}
                                 onChange={(e) => handleUpdateItemValue(item.id, e.target.value)}
-                                placeholder="Param Value (e.g. Download PDF)"
+                                placeholder={t("admin_product_form.specs_placeholder_value")}
                                 className="h-8 text-xs bg-background focus-visible:ring-1 border-muted-foreground/20 rounded-lg font-medium"
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground uppercase px-1">URL Link (Optional)</Label>
+                              <Label className="text-[10px] text-muted-foreground uppercase px-1">{t("admin_product_form.specs_label_link")}</Label>
                               <Input
                                 value={item.link || ""}
                                 onChange={(e) => handleUpdateItemLink(item.id, e.target.value)}
-                                placeholder="https://..."
+                                placeholder={t("admin_product_form.specs_placeholder_link")}
                                 className="h-8 text-xs bg-background focus-visible:ring-1 border-muted-foreground/20 rounded-lg text-primary"
                               />
                             </div>
@@ -938,28 +1073,30 @@ const AdminProductForm = () => {
             {/* Organisation & Category attributes */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">Category & Attributes</CardTitle>
-                <CardDescription className="text-xs">Select primary category to display related search filters.</CardDescription>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">{t("admin_product_form.category_title")}</CardTitle>
+                <CardDescription className="text-xs">{t("admin_product_form.category_subtitle")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground/80">Category Selection *</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                      <SelectValue placeholder="Assign a category" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {categoriesList.map((c) => (
-                        <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_category")}</Label>
+                  {isMounted && (
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
+                        <SelectValue placeholder={t("admin_product_form.placeholder_category")} />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {categoriesList.map((c) => (
+                          <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-muted-foreground/10 space-y-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Filtering Attributes (EAV)</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t("admin_product_form.attrs_heading")}</h4>
                   {visibleAttributes.length > 0 ? (
                     <div className="space-y-4">
                       {visibleAttributes.map((attr) => {
@@ -988,7 +1125,7 @@ const AdminProductForm = () => {
                                   }}
                                 />
                                 <Label htmlFor={`switch-${attr.slug}`} className="text-xs font-semibold text-foreground/80 cursor-pointer">
-                                  {currentVals[0] === "Yes" ? "Yes" : "No"}
+                                  {currentVals[0] === "Yes" ? t("admin_product_form.attr_boolean_yes") : t("admin_product_form.attr_boolean_no")}
                                 </Label>
                               </div>
                             )}
@@ -1029,7 +1166,7 @@ const AdminProductForm = () => {
                             )}
 
                             {/* Select Dropdown (Single option) */}
-                            {attr.type === "select" && (
+                            {attr.type === "select" && isMounted && (
                               <Select
                                 value={currentVals[0] || ""}
                                 onValueChange={(val) => {
@@ -1040,7 +1177,7 @@ const AdminProductForm = () => {
                                 }}
                               >
                                 <SelectTrigger className="h-9 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                                  <SelectValue placeholder={`Select ${attr.name}`} />
+                                  <SelectValue placeholder={t("admin_product_form.attr_select_placeholder", { name: attr.name })} />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl">
                                   {attr.values.map((v) => (
@@ -1072,7 +1209,7 @@ const AdminProductForm = () => {
                                 }}
                               >
                                 <SelectTrigger className="h-9 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
-                                  <SelectValue placeholder={`Select ${attr.name}`} />
+                                  <SelectValue placeholder={t("admin_product_form.attr_select_placeholder", { name: attr.name })} />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl">
                                   {attr.values.map((v) => (
@@ -1129,7 +1266,7 @@ const AdminProductForm = () => {
                                     [attr.slug]: [e.target.value],
                                   }));
                                 }}
-                                placeholder="e.g. 50cm, 10-100w"
+                                placeholder={t("admin_product_form.attr_range_placeholder")}
                                 className="h-9 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                               />
                             )}
@@ -1139,7 +1276,7 @@ const AdminProductForm = () => {
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground py-2 text-center">
-                      Select a category above to load filtering options.
+                      {t("admin_product_form.attrs_no_category")}
                     </p>
                   )}
                 </div>
@@ -1150,7 +1287,7 @@ const AdminProductForm = () => {
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl p-6 space-y-3">
               <Button type="submit" className="w-full gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300">
                 <Save className="h-4 w-4" />
-                {isEdit ? "Save Changes" : "Create Product"}
+                {isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}
               </Button>
               <Button
                 type="button"
@@ -1158,13 +1295,27 @@ const AdminProductForm = () => {
                 className="w-full h-10 text-xs font-bold rounded-lg border-muted-foreground/25 hover:bg-destructive/10 hover:text-destructive transition-all duration-300"
                 onClick={() => navigate("/admin/products")}
               >
-                Cancel
+                {t("admin_product_form.action_cancel")}
               </Button>
             </Card>
 
           </div>
         </div>
       </form>
+
+      <MediaLibraryDialog
+        open={mediaDialogTarget !== null}
+        onOpenChange={(open) => !open && setMediaDialogTarget(null)}
+        onSelect={(url) => {
+          const formattedUrl = normalizeUploadedUrl(url);
+          if (mediaDialogTarget === "thumbnail") {
+            setThumbnail(formattedUrl);
+          } else if (mediaDialogTarget === "gallery") {
+            setGalleryImages((prev) => [...prev, formattedUrl]);
+          }
+          setMediaDialogTarget(null);
+        }}
+      />
     </div>
   );
 };

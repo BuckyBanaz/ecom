@@ -1,8 +1,10 @@
 import { useSearchParams, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { products } from "@/data/products";
 import { ProductCard } from "@/components/shop/ProductCard";
 
 const Search = () => {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const q = (params.get("q") || "").trim().toLowerCase();
 
@@ -20,13 +22,13 @@ const Search = () => {
   return (
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-primary">Home</Link> / <span className="text-foreground">Search</span>
+        <Link to="/" className="hover:text-primary">{t("breadcrumb.home")}</Link> / <span className="text-foreground">{t("search.breadcrumb_search")}</span>
       </nav>
-      <h1 className="text-3xl font-bold">Search results for "{q}"</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{results.length} products found</p>
+      <h1 className="text-3xl font-bold">{t("search.heading_results", { query: q })}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{t("search.count_results", { count: results.length })}</p>
       {results.length === 0 ? (
         <div className="mt-10 rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">
-          No matches. Try a different search term.
+          {t("search.no_results")}
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">

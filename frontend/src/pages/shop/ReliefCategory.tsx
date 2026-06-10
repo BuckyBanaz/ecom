@@ -1,13 +1,18 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { categories } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
 import { ProductCard } from "@/components/shop/ProductCard";
-import { products } from "@/data/products";
+import { productRepository, categoryRepository, megaMenuRepository } from "@/client/apiClient";
 import { initialBlogs } from "@/data/blogs";
 import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { BlogCard } from "@/components/shop/BlogCard";
+import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
+import { resolveImgUrl } from "@/utils/image";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ReliefCategorySkeleton } from "@/components/ui/SkeletonLoader";
 
 const resolveCategorySlug = (menuItemSlug: string) => {
   const mappings: Record<string, string> = {
@@ -31,11 +36,7 @@ const resolveCategorySlug = (menuItemSlug: string) => {
   return mappings[menuItemSlug] || menuItemSlug;
 };
 
-const getCategoryImage = (itemSlug: string) => {
-  const resolved = resolveCategorySlug(itemSlug);
-  const matched = categories.find(c => c.slug === resolved);
-  return matched ? matched.image : "";
-};
+
 
 const styleDescriptions: Record<string, string> = {
   Industrial: "Are you looking for a cool lamp with a robust shape? Then industrial indoor lighting is definitely for you! Steel, wood, and glass are the most commonly used materials for industrial indoor lighting. The most common colors within this style are black, gray, and rust brown.",
@@ -46,34 +47,24 @@ const styleDescriptions: Record<string, string> = {
 };
 
 export default function ReliefCategory() {
+  const { t } = useTranslation();
   const { slug = "" } = useParams();
   const [menus, setMenus] = useState<any[]>([]);
   const [landingPage, setLandingPage] = useState<any>(null);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [blogsList, setBlogsList] = useState<any[]>([]);
-  const [activeBlog, setActiveBlog] = useState<any | null>(null);
+  const [productsList, setProductsList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const getCategoryImage = (itemSlug: string) => {
+    const resolved = resolveCategorySlug(itemSlug);
+    const matchedDb = categoriesList.find(c => c.slug === resolved);
+    if (matchedDb && matchedDb.image) return matchedDb.image;
+    const matched = categories.find(c => c.slug === resolved);
+    return matched ? matched.image : "";
+  };
 
   useEffect(() => {
-    const savedMenus = localStorage.getItem("mega_menu_data");
-    if (savedMenus) {
-      try {
-        setMenus(JSON.parse(savedMenus));
-      } catch (e) {
-        setMenus(megaMenuData);
-      }
-    } else {
-      setMenus(megaMenuData);
-    }
-
-    const savedCats = localStorage.getItem("categories_data");
-    let loadedCats = categories;
-    if (savedCats) {
-      try {
-        loadedCats = JSON.parse(savedCats);
-      } catch (e) {
-        loadedCats = categories;
-      }
-    }
     const groupMapping: Record<string, string> = {
       "indoor": "interior-lighting",
       "outdoor": "outdoor-lighting",
@@ -82,18 +73,70 @@ export default function ReliefCategory() {
       "business": "commercial-lighting",
       "accessories": "interior-lighting"
     };
-    let migrated = false;
-    const mappedCats = loadedCats.map((c: any) => {
-      if (groupMapping[c.group]) {
-        migrated = true;
-        return { ...c, group: groupMapping[c.group] };
+
+    const loadRealData = async () => {
+      setIsLoading(true);
+      try {
+        const [catRes, prodRes, menuRes] = await Promise.all([
+          categoryRepository.getAll().catch(() => null),
+          productRepository.getAll().catch(() => null),
+          megaMenuRepository.getAll().catch(() => null),
+        ]);
+
+        if (menuRes && menuRes.success && menuRes.megaMenus) {
+          setMenus(menuRes.megaMenus);
+        } else {
+          const savedMenus = localStorage.getItem("mega_menu_data");
+          if (savedMenus) {
+            try {
+              setMenus(JSON.parse(savedMenus));
+            } catch (e) {
+              setMenus(megaMenuData);
+            }
+          } else {
+            setMenus(megaMenuData);
+          }
+        }
+
+        if (catRes && catRes.success && catRes.categories) {
+          const apiCats = catRes.categories;
+          const mappedCats = apiCats.map((c: any) => {
+            if (groupMapping[c.group]) {
+              return { ...c, group: groupMapping[c.group] };
+            }
+            return c;
+          });
+          setCategoriesList(mappedCats);
+        } else {
+          // Fallback to static
+          const savedCats = localStorage.getItem("categories_data");
+          let loadedCats = categories;
+          if (savedCats) {
+            try { loadedCats = JSON.parse(savedCats); } catch { loadedCats = categories; }
+          }
+          const mappedCats = loadedCats.map((c: any) => {
+            if (groupMapping[c.group]) {
+              return { ...c, group: groupMapping[c.group] };
+            }
+            return c;
+          });
+          setCategoriesList(mappedCats);
+        }
+
+        if (prodRes && prodRes.success && prodRes.products) {
+          setProductsList(prodRes.products.map((p: any) => ({
+            ...p,
+            brand: p.brand && typeof p.brand === "object" ? p.brand.name : p.brand,
+            category: p.category && typeof p.category === "object" ? p.category.slug : p.category,
+          })));
+        }
+      } catch (e) {
+        console.error("Failed to load ReliefCategory api data", e);
+      } finally {
+        setIsLoading(false);
       }
-      return c;
-    });
-    if (migrated) {
-      localStorage.setItem("categories_data", JSON.stringify(mappedCats));
-    }
-    setCategoriesList(mappedCats);
+    };
+    loadRealData();
 
     const savedBlogs = localStorage.getItem("blogs_data");
     if (savedBlogs) {
@@ -143,15 +186,19 @@ export default function ReliefCategory() {
     }
   }, [slug]);
 
+  if (isLoading) {
+    return <ReliefCategorySkeleton />;
+  }
+
   const matchedMenuObj = menus.find((m) => m.slug === slug);
 
   if (!matchedMenuObj) {
     return (
       <div className="container-page py-8 text-center">
-        <h1 className="text-2xl font-bold">Category not found</h1>
-        <p className="mt-2 text-muted-foreground">The requested category could not be found.</p>
+        <h1 className="text-2xl font-bold">{t("relief_category.not_found_title")}</h1>
+        <p className="mt-2 text-muted-foreground">{t("relief_category.not_found_desc")}</p>
         <Link to="/relief" className="mt-4 inline-block text-primary hover:underline">
-          Back to Relief
+          {t("relief_category.back_to_relief")}
         </Link>
       </div>
     );
@@ -169,195 +216,20 @@ export default function ReliefCategory() {
     <div className="container-page py-8 animate-fade-in">
       {/* Breadcrumbs */}
       <nav className="mb-6 text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-primary transition-colors">Home</Link> /{" "}
-        <Link to="/relief" className="hover:text-primary transition-colors">Relief</Link> /{" "}
+        <Link to="/" className="hover:text-primary transition-colors">{t("breadcrumb.home")}</Link> /{" "}
+        <Link to="/relief" className="hover:text-primary transition-colors">{t("breadcrumb.relief")}</Link> /{" "}
         <span className="text-foreground font-medium">{matchedMenuObj.menu}</span>
       </nav>
 
       {landingPage ? (
-        <div className="space-y-12">
-          {landingPage.blocks.map((block: any, idx: number) => {
-            if (block.type === "text") {
-              return (
-                <div key={idx} className="prose max-w-none dark:prose-invert">
-                  {block.title && <h2 className="text-2xl font-bold mb-4">{block.title}</h2>}
-                  <div dangerouslySetInnerHTML={{ __html: block.description }} className="text-muted-foreground leading-relaxed" />
-                </div>
-              );
-            }
-            if (block.type === "products") {
-              const targetCategory = block.categorySlug;
-              const isDeals = targetCategory === "deals";
-              let list = isDeals ? products.filter((p) => p.oldPrice) : products.filter((p) => p.category === targetCategory);
-              if (list.length === 0 && !isDeals) list = products;
-
-              return (
-                <div key={idx} className="space-y-6">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <h2 className="text-2xl font-bold text-foreground">
-                      {categories.find(c => c.slug === targetCategory)?.name || "Featured Products"}
-                    </h2>
-                    <span className="text-sm text-muted-foreground font-medium">{list.length} products</span>
-                  </div>
-                  {block.description && (
-                    <div 
-                      dangerouslySetInnerHTML={{ __html: block.description }} 
-                      className="text-muted-foreground leading-relaxed prose max-w-none text-sm dark:prose-invert"
-                    />
-                  )}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {list.map((p) => (
-                      <ProductCard key={p.id} product={p} />
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            if (block.type === "component") {
-              const heading = block.title || "";
-              
-              if (block.componentType === "categories") {
-                const menuSlug = matchedMenuObj.slug;
-                const selectedCats = (block.selectedItems && block.selectedItems.length > 0)
-                  ? categoriesList.filter(c => block.selectedItems.includes(c.slug))
-                  : categoriesList.filter(c => c.group === menuSlug);
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                      {selectedCats.map((c) => {
-                        const count = products.filter(p => p.category === c.slug).length;
-                        return (
-                          <Link
-                            key={c.slug}
-                            to={`/category/${c.slug}`}
-                            className="group relative flex flex-col overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
-                          >
-                            <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                              {c.image ? (
-                                <img
-                                  src={c.image}
-                                  alt={c.name}
-                                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
-                                  {c.name}
-                                </div>
-                              )}
-                            </div>
-                            <div className="w-full bg-background py-3 px-4 text-center border-t flex flex-col items-center">
-                              <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                                {c.name}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground mt-0.5">{count} products</span>
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              }
-
-              if (block.componentType === "blogs") {
-                const selectedBlogs = (block.selectedItems && block.selectedItems.length > 0)
-                  ? blogsList.filter(b => block.selectedItems.includes(b.slug) && b.published)
-                  : blogsList.filter(b => b.published);
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    {selectedBlogs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground italic">No articles to show.</p>
-                    ) : (
-                      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {selectedBlogs.map((b) => (
-                          <div
-                            key={b.id}
-                            onClick={() => setActiveBlog(b)}
-                            className="group rounded-2xl border bg-card overflow-hidden shadow-xs hover:shadow-md hover:border-primary/20 transition-all duration-300 cursor-pointer flex flex-col justify-between"
-                          >
-                            <div>
-                              <div className="aspect-video w-full overflow-hidden bg-muted relative">
-                                {b.cover ? (
-                                  <img
-                                    src={b.cover}
-                                    alt={b.title}
-                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                  />
-                                ) : (
-                                  <div className="flex h-full items-center justify-center text-muted-foreground text-xs font-semibold">
-                                    No cover image
-                                  </div>
-                                )}
-                              </div>
-                              <div className="p-5 space-y-2">
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                  <span>By {b.author || "Guest"}</span>
-                                  <span>{b.date}</span>
-                                </div>
-                                <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                                  {b.title}
-                                </h3>
-                                <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                                  {b.excerpt}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="p-5 pt-0">
-                              <span className="text-xs font-bold text-primary flex items-center gap-1 group-hover:underline">
-                                Read Article &rarr;
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              if (block.componentType === "faq") {
-                const selectedFaqs = (block.selectedItems && block.selectedItems.length > 0)
-                  ? faqs.filter(f => block.selectedItems.includes(f.q))
-                  : faqs;
-
-                return (
-                  <div key={idx} className="space-y-6">
-                    {heading && (
-                      <div className="border-b pb-3">
-                        <h2 className="text-2xl font-bold text-foreground">{heading}</h2>
-                      </div>
-                    )}
-                    <Accordion type="single" collapsible className="w-full border rounded-2xl bg-card p-4 shadow-xs">
-                      {selectedFaqs.map((f, i) => (
-                        <AccordionItem key={i} value={`faq-${i}`} className={i === selectedFaqs.length - 1 ? "border-b-0" : ""}>
-                          <AccordionTrigger className="text-left font-semibold text-foreground hover:no-underline hover:text-primary transition-colors py-4">
-                            {f.q}
-                          </AccordionTrigger>
-                          <AccordionContent className="text-muted-foreground leading-relaxed text-sm pb-4">
-                            {f.a}
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </div>
-                );
-              }
-            }
-            return null;
-          })}
-        </div>
+        <ShortcodeRenderer 
+          content={
+            landingPage.content || 
+            (Array.isArray(landingPage.blocks) 
+              ? landingPage.blocks.map((b: any) => b.description || "").filter(Boolean).join("<br/>") 
+              : "")
+          } 
+        />
       ) : (
         <>
           {/* Hero Section */}
@@ -367,12 +239,10 @@ export default function ReliefCategory() {
                 {matchedMenuObj.menu}
               </h1>
               <p className="text-xl font-bold text-foreground/90 mb-4">
-                Looking to buy {matchedMenuObj.menu.toLowerCase()}? Choose a category below:
+                {t("relief_category.hero_intro", { name: matchedMenuObj.menu.toLowerCase() })}
               </p>
               <p className="text-muted-foreground leading-relaxed">
-                With {matchedMenuObj.menu.toLowerCase()}, the possibilities are endless. There are various styles and categories. 
-                It is important to choose the right lighting because it creates atmosphere in your home. In our large assortment, 
-                you will find virtually every type of lamp. Select the category you are looking for below.
+                {t("relief_category.hero_desc", { name: matchedMenuObj.menu.toLowerCase() })}
               </p>
             </div>
             <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-primary/10 to-transparent pointer-events-none" />
@@ -380,53 +250,64 @@ export default function ReliefCategory() {
 
           {/* Subcategories Grid */}
           <div className="mb-16">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-              {subCategories.map((item: any) => {
-                const imgUrl = getCategoryImage(item.slug);
-                const resolved = resolveCategorySlug(item.slug);
-                return (
-                  <Link
-                    key={item.slug}
-                    to={`/category/${resolved}`}
-                    className="group relative flex flex-col items-center overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
-                  >
-                    <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                      {imgUrl ? (
-                        <img
-                          src={imgUrl}
-                          alt={item.name}
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
+            {isLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6 animate-pulse">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+                    <Skeleton className="aspect-[4/3] w-full rounded-lg" />
+                    <Skeleton className="h-4 w-3/4 mx-auto mt-2" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                {subCategories.map((item: any) => {
+                  const imgUrl = getCategoryImage(item.slug);
+                  const resolved = resolveCategorySlug(item.slug);
+                  return (
+                    <Link
+                      key={item.slug}
+                      to={`/category/${resolved}`}
+                      className="group relative flex flex-col items-center overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
+                    >
+                      <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+                        {imgUrl ? (
+                          <img
+                            src={resolveImgUrl(imgUrl)}
+                            alt={item.name}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
+                            {item.name}
+                          </div>
+                        )}
+                      </div>
+                      <div className="w-full bg-background py-3 px-4 text-center border-t">
+                        <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
                           {item.name}
-                        </div>
-                      )}
-                    </div>
-                    <div className="w-full bg-background py-3 px-4 text-center border-t">
-                      <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                        {item.name}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Styles Sections */}
           <div className="space-y-16">
             <div className="border-b pb-4">
               <h2 className="text-3xl font-bold tracking-tight text-foreground">
-                Popular styles of {matchedMenuObj.menu.toLowerCase()}
+                {t("relief_category.section_styles_title", { name: matchedMenuObj.menu.toLowerCase() })}
               </h2>
               <p className="mt-2 text-muted-foreground">
-                Curious about the different styles of {matchedMenuObj.menu.toLowerCase()}? Below, we have listed a selection of the most popular styles for you. Click on any subcategory under a style to view our curated selection.
+                {t("relief_category.section_styles_desc", { name: matchedMenuObj.menu.toLowerCase() })}
               </p>
             </div>
 
             {availableStyles.map((styleName: string) => {
-              const styleDesc = styleDescriptions[styleName] || `Explore our beautiful selection of ${styleName.toLowerCase()} styled lighting options, crafted to enhance your home's aesthetic.`;
+              const styleDesc = styleDescriptions[styleName] || t("relief_category.style_fallback_desc", { style: styleName.toLowerCase() });
               return (
                 <div key={styleName} className="space-y-6">
                   <div>
@@ -452,7 +333,7 @@ export default function ReliefCategory() {
                           <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
                             {imgUrl ? (
                               <img
-                                src={imgUrl}
+                                src={resolveImgUrl(imgUrl)}
                                 alt={`${styleName} ${item.name}`}
                                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                               />
@@ -475,47 +356,6 @@ export default function ReliefCategory() {
           </div>
         </>
       )}
-      {/* Blog Details Modal */}
-      <Dialog open={!!activeBlog} onOpenChange={(open) => !open && setActiveBlog(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border p-0 shadow-lg bg-card">
-          {activeBlog && (
-            <div>
-              <div className="aspect-video w-full overflow-hidden bg-muted relative">
-                {activeBlog.cover ? (
-                  <img src={activeBlog.cover} alt={activeBlog.title} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground text-sm font-semibold">No cover image</div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-6 left-6 right-6 text-white">
-                  <span className="bg-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                    Article
-                  </span>
-                  <h2 className="text-xl md:text-3xl font-extrabold mt-3 tracking-tight">
-                    {activeBlog.title}
-                  </h2>
-                </div>
-              </div>
-              <div className="p-6 md:p-8 space-y-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground border-b pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">By {activeBlog.author || "Guest"}</span>
-                  </div>
-                  <span>Published on {activeBlog.date}</span>
-                </div>
-                <div className="prose dark:prose-invert max-w-none">
-                  <p className="text-lg text-foreground/90 font-medium italic border-l-4 border-primary pl-4 py-1 bg-muted/30 rounded-r-md">
-                    {activeBlog.excerpt}
-                  </p>
-                  <div className="text-muted-foreground leading-relaxed whitespace-pre-line mt-6 text-sm md:text-base">
-                    {activeBlog.body}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
