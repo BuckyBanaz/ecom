@@ -23,8 +23,8 @@ export function TopBar() {
   if (hasCmsTopBar) return null;
 
   return (
-    <div className="hidden border-b bg-topbar text-xs text-foreground md:block">
-      <div className="container-page flex h-9 items-center justify-between">
+    <div className="hidden w-full min-w-0 border-b bg-topbar text-xs text-foreground md:block">
+      <div className="container-page flex h-9 min-w-0 items-center justify-between gap-4">
         <div className="flex items-center gap-6">
           <Link to="/help" className="flex items-center gap-1.5 hover:text-primary">
             <Star size={14} className="fill-primary text-primary" />

@@ -144,7 +144,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
   }, [content]);
 
   return (
-    <div className="flex flex-col">
+    <div className="flex w-full min-w-0 flex-col overflow-x-clip">
       {parts.map((part, index) => {
         if (part.type === 'html') {
           // Clean up empty paragraphs that create huge gaps
@@ -156,7 +156,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
           return (
             <div 
               key={index} 
-              className="container-page prose prose-slate max-w-none dark:prose-invert" 
+              className="container-page prose prose-slate max-w-none overflow-x-hidden break-words dark:prose-invert [&_img]:max-w-full [&_img]:h-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_pre]:overflow-x-auto" 
               dangerouslySetInnerHTML={{ __html: html }} 
             />
           );
@@ -246,7 +246,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                     </Link>
                   </div>
                 )}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-6 lg:gap-6">
                   {subCategories.map((item: any) => {
                     const imgUrl = getCategoryImage(item.slug);
                     const resolved = resolveCategorySlug(item.slug);
@@ -296,25 +296,25 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
               });
             }
             return (
-              <section key={index} className="container-page pt-6">
+              <section key={index} className="container-page min-w-0 pt-4 pb-2 md:pt-6">
                 <Carousel 
                   opts={{ loop: true }} 
-                  className="w-full"
+                  className="w-full overflow-hidden"
                 >
-                  <CarouselContent>
+                  <CarouselContent className="-ml-2 md:-ml-4">
                     {slides.map((slide, sIndex) => (
-                      <CarouselItem key={sIndex}>
+                      <CarouselItem key={sIndex} className="pl-2 md:pl-4">
                         <div className="relative h-full overflow-hidden rounded-xl">
-                          <SafeImage src={slide.bgImage} alt="Hero" className="h-[280px] w-full object-cover md:h-[440px]" fallbackType="category" />
+                          <SafeImage src={slide.bgImage} alt="Hero" className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]" fallbackType="category" />
                           <div className="absolute inset-0 bg-black/40" />
-                          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white">
+                          <div className="absolute inset-0 flex flex-col items-center justify-center px-4 py-6 text-center text-white sm:px-6">
                             {slide.title && (
-                              <h1 className="text-5xl font-black text-primary drop-shadow-sm md:text-7xl" style={{ fontFamily: "Inter" }}>
+                              <h1 className="max-w-full break-words text-3xl font-black text-primary drop-shadow-sm sm:text-4xl md:text-6xl lg:text-7xl" style={{ fontFamily: "Inter" }}>
                                 {slide.title}
                               </h1>
                             )}
                             {slide.subtitle && (
-                              <p className="mt-2 text-lg font-medium text-white md:text-2xl">{slide.subtitle}</p>
+                              <p className="mt-2 max-w-full break-words text-base font-medium text-white sm:text-lg md:text-2xl">{slide.subtitle}</p>
                             )}
                             {slide.btnText && slide.btnLink && (
                               <Button asChild size="lg" className="mt-6 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
@@ -340,10 +340,10 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
           case "category-block": {
             const categoriesToRender = dbCategories.length > 0 ? dbCategories.slice(0, 12) : categories.slice(0, 12);
             return (
-              <section key={index} className="container-page">
-                {attributes.title && <h2 className="mb-6 text-2xl font-bold md:text-3xl">{attributes.title}</h2>}
+              <section key={index} className="container-page min-w-0 py-6 md:py-8">
+                {attributes.title && <h2 className="mb-4 text-xl font-bold sm:mb-6 sm:text-2xl md:text-3xl">{attributes.title}</h2>}
                 {loading ? (
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6 animate-pulse">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6 animate-pulse">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
                         <Skeleton className="aspect-square w-full rounded-lg" />
@@ -352,7 +352,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
                     {categoriesToRender.map((c) => (
                       <Link key={c.slug} to={`/category/${c.slug}`} className="group relative overflow-hidden rounded-xl bg-muted aspect-square">
                         <div className="absolute inset-0">
@@ -381,10 +381,10 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
               productsToRender = attributes.type === "deals" ? dealProducts : featuredProducts.slice(0, 8);
             }
             return (
-              <section key={index} className="container-page">
-                <div className="mb-6 flex items-end justify-between">
-                  {attributes.title && <h2 className="text-2xl font-bold md:text-3xl">{attributes.title}</h2>}
-                  <Link to={`/category/${attributes.type || "all"}`} className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+              <section key={index} className="container-page min-w-0 py-6 md:py-8">
+                <div className="mb-4 flex min-w-0 items-end justify-between gap-3 sm:mb-6">
+                  {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{attributes.title}</h2>}
+                  <Link to={`/category/${attributes.type || "all"}`} className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:text-sm">
                     View all <ArrowRight size={16} />
                   </Link>
                 </div>
@@ -403,7 +403,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
                     {productsToRender.map((p) => <ProductCard key={p.id} product={p} />)}
                   </div>
                 )}

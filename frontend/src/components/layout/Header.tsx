@@ -175,10 +175,10 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+    <header className="sticky top-0 z-40 w-full min-w-0 border-b bg-background/95 backdrop-blur">
       {topLeft.length > 0 || topRight.length > 0 ? (
-        <div className="border-b bg-muted/30 overflow-hidden">
-          <div className="container-page py-2 text-xs">
+        <div className="w-full overflow-hidden border-b bg-muted/30">
+          <div className="container-page min-w-0 py-2 text-xs">
             {/* Desktop Layout */}
             <div className="hidden md:flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-4">
@@ -199,8 +199,8 @@ export function Header() {
             </div>
 
             {/* Mobile Layout (Marquee) */}
-            <div className="md:hidden flex">
-              <div className="flex w-max animate-marquee items-center gap-6">
+            <div className="md:hidden w-full min-w-0 overflow-hidden">
+              <div className="flex w-max animate-marquee items-center gap-6 pr-6">
                 {[...topLeft, ...topRight, ...topLeft, ...topRight].map((item: any, idx) => {
                   const isLink = item.href !== undefined;
 
@@ -220,10 +220,10 @@ export function Header() {
           </div>
         </div>
       ) : null}
-      <div className="container-page flex items-center gap-4 py-3 md:gap-6 md:py-4">
+      <div className="container-page flex min-w-0 items-center gap-2 py-3 sm:gap-3 md:gap-6 md:py-4">
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t("header.menu")}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 lg:hidden" aria-label={t("header.menu")}>
               <Menu />
             </Button>
           </SheetTrigger>
@@ -264,9 +264,9 @@ export function Header() {
           </SheetContent>
         </Sheet>
 
-        <Logo />
+        <Logo className="min-w-0 shrink" />
 
-        <form onSubmit={submit} className="relative ml-2 hidden flex-1 md:block" onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}>
+        <form onSubmit={submit} className="relative ml-1 hidden min-w-0 flex-1 md:block" onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}>
           <Input
             value={q}
             onChange={(e) => {
@@ -291,12 +291,12 @@ export function Header() {
           {renderDropdown()}
         </form>
 
-        <div className="ml-auto flex items-center gap-1">
-          <LanguageSwitcher />
-          <Button asChild variant="ghost" size="icon" aria-label={t("header.account")}>
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <LanguageSwitcher compact />
+          <Button asChild variant="ghost" size="icon" className="h-9 w-9" aria-label={t("header.account")}>
             <Link to="/account"><User /></Link>
           </Button>
-          <Button asChild variant="ghost" size="icon" aria-label={t("header.wishlist")} className="relative">
+          <Button asChild variant="ghost" size="icon" className="relative h-9 w-9" aria-label={t("header.wishlist")}>
             <Link to="/wishlist">
               <Heart />
               {ids.length > 0 && (
@@ -310,7 +310,7 @@ export function Header() {
             variant="ghost"
             size="icon"
             aria-label={t("header.cart")}
-            className="relative"
+            className="relative h-9 w-9"
             onClick={() => setDrawerOpen(true)}
           >
             <ShoppingCart />

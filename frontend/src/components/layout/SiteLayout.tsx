@@ -6,7 +6,7 @@ import { MiniCart } from "./MiniCart";
 
 export function SiteLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen w-full min-w-0 flex-col overflow-x-clip bg-background">
       <TopBar />
       <Header />
       <main className="flex-1">

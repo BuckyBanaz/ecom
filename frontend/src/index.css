@@ -148,10 +148,22 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    overflow-x: clip;
+    width: 100%;
+  }
+
   body {
     @apply bg-background text-foreground;
+    overflow-x: clip;
+    width: 100%;
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100%;
   }
 
   body.admin-lock {
@@ -161,7 +173,7 @@ All colors MUST be HSL.
 
 @layer components {
   .container-page {
-    @apply mx-auto w-full max-w-[1400px] px-4 md:px-6 lg:px-8;
+    @apply mx-auto w-full min-w-0 max-w-[1400px] px-4 md:px-6 lg:px-8;
   }
 }
 
