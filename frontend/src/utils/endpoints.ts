@@ -39,6 +39,7 @@ export const ENDPOINTS = {
   get PUBLIC_MAINTENANCE_STATUS() { return api("/cms/maintenance-status"); },
   get CONFIG_APP() { return api("/config/app"); },
   get ADMIN_LOGS() { return api("/admin/logs"); },
+  get ADMIN_BACKUPS() { return api("/admin/backups"); },
 };
 
 /** @deprecated use getBaseUrl() */

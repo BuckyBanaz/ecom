@@ -1,61 +1,14 @@
 import { Request, Response, NextFunction } from "express";
-import fs from "fs";
-import path from "path";
 import { getGA4Data } from "../services/analyticsService";
 import { AppError } from "../middlewares/errorMiddleware";
+import {
+  saveSettings,
+  getRobotsTxtContent,
+  saveRobotsTxtContent,
+  saveSitemapXmlContent,
+} from "../services/settingsStore";
 
 import { prisma } from "../config/db";
-
-// Helper function to read, parse, update and save .env file
-const updateEnvFile = (updates: Record<string, string>) => {
-  const envPath = path.resolve(process.cwd(), ".env");
-  
-  let envContent = "";
-  if (fs.existsSync(envPath)) {
-    envContent = fs.readFileSync(envPath, "utf-8");
-  }
-
-  const lines = envContent.split("\n");
-  const envMap: Record<string, string> = {};
-
-  // Parse existing
-  lines.forEach((line, index) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) return;
-    
-    const splitIndex = trimmed.indexOf("=");
-    if (splitIndex !== -1) {
-      const key = trimmed.substring(0, splitIndex).trim();
-      envMap[key] = line; // Store the whole line to replace it later
-    }
-  });
-
-  // Apply updates
-  let updatedContent = envContent;
-  
-  for (const [key, value] of Object.entries(updates)) {
-    // Update process.env so it's instantly available without restart
-    process.env[key] = value;
-
-    const newLine = `${key}="${value}"`;
-
-    if (envMap[key] !== undefined) {
-      // Replace existing line
-      updatedContent = updatedContent.replace(envMap[key], newLine);
-      envMap[key] = newLine; // Update map so we don't append it
-    } else {
-      // Append if it doesn't exist
-      updatedContent += `\n${newLine}`;
-    }
-  }
-
-  // Ensure file ends with newline
-  if (!updatedContent.endsWith("\n")) {
-    updatedContent += "\n";
-  }
-
-  fs.writeFileSync(envPath, updatedContent, "utf-8");
-};
 
 // ----------------------------------------------------
 // 1. GET SMTP SETTINGS
@@ -110,8 +63,7 @@ export const updateSmtpSettings = async (
     if (fromEmail !== undefined) updates.SMTP_FROM_EMAIL = fromEmail;
     if (enabled !== undefined) updates.SMTP_ENABLE = enabled ? "true" : "false";
 
-    // Write to .env file and process.env
-    updateEnvFile(updates);
+    await saveSettings(updates);
 
     res.status(200).json({ success: true, message: "SMTP Settings updated successfully" });
   } catch (error: any) {
@@ -123,7 +75,6 @@ export const updateSmtpSettings = async (
 // 3. SEND TEST EMAIL
 // ----------------------------------------------------
 import { emailService } from "../services/emailService";
-import { prisma } from "../config/db";
 
 export const testSmtpSettings = async (
   req: Request,
@@ -210,8 +161,7 @@ export const updatePaymentSettings = async (
       updates.STRIPE_SECRET_KEY = stripeSecretKey;
     }
 
-    // Write to .env file and process.env
-    updateEnvFile(updates);
+    await saveSettings(updates);
 
     res.status(200).json({ success: true, message: "Payment Settings updated successfully" });
   } catch (error: any) {
@@ -267,7 +217,7 @@ export const updateAuthSettings = async (
       updates.TWILIO_AUTH_TOKEN = twilioAuthToken;
     }
 
-    updateEnvFile(updates);
+    await saveSettings(updates);
 
     res.status(200).json({ success: true, message: "Auth Settings updated successfully" });
   } catch (error: any) {
@@ -318,7 +268,7 @@ export const updateGeneralSettings = async (
     if (maintenanceMode !== undefined) updates.MAINTENANCE_MODE = maintenanceMode ? "true" : "false";
     if (maintenanceMessage !== undefined) updates.MAINTENANCE_MESSAGE = maintenanceMessage;
 
-    updateEnvFile(updates);
+    await saveSettings(updates);
 
     res.status(200).json({ success: true, message: "General Settings updated successfully" });
   } catch (error: any) {
@@ -447,7 +397,7 @@ export const updateSeoConfig = async (
       updates.GA4_PRIVATE_KEY = ga4PrivateKey;
     }
 
-    updateEnvFile(updates);
+    await saveSettings(updates);
 
     res.status(200).json({ success: true, message: "SEO configuration updated successfully" });
   } catch (error: any) {
@@ -480,13 +430,8 @@ export const getRobotsTxt = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const robotsPath = path.resolve(process.cwd(), "../frontend/public/robots.txt");
-    if (fs.existsSync(robotsPath)) {
-      const content = fs.readFileSync(robotsPath, "utf-8");
-      res.status(200).json({ success: true, robots: content });
-    } else {
-      res.status(200).json({ success: true, robots: "User-agent: *\nAllow: /\n" });
-    }
+    const content = await getRobotsTxtContent();
+    res.status(200).json({ success: true, robots: content });
   } catch (error: any) {
     next(error);
   }
@@ -502,8 +447,7 @@ export const updateRobotsTxt = async (
 ): Promise<void> => {
   try {
     const { robots } = req.body;
-    const robotsPath = path.resolve(process.cwd(), "../frontend/public/robots.txt");
-    fs.writeFileSync(robotsPath, robots || "", "utf-8");
+    await saveRobotsTxtContent(robots || "");
     res.status(200).json({ success: true, message: "robots.txt updated successfully" });
   } catch (error: any) {
     next(error);
@@ -519,8 +463,7 @@ export const generateSitemap = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const baseUrl = process.env.CLIENT_URL || "http://localhost:8080";
-    const sitemapPath = path.resolve(process.cwd(), "../frontend/public/sitemap.xml");
+    const baseUrl = process.env.CLIENT_URL || process.env.STORE_URL || "http://localhost:8080";
 
     // Fetch dynamic content
     const products = await prisma.product.findMany({
@@ -568,7 +511,7 @@ export const generateSitemap = async (
 
     xml += `</urlset>`;
 
-    fs.writeFileSync(sitemapPath, xml, "utf-8");
+    await saveSitemapXmlContent(xml);
 
     res.status(200).json({ success: true, message: "sitemap.xml generated successfully" });
   } catch (error: any) {

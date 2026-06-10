@@ -8,6 +8,7 @@ import { useWishlist } from "@/context/WishlistContext";
 import type { Product } from "@/data/products";
 import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { getProductBrandName } from "@/utils/formatters";
 
 export function ProductCard({ product }: { product: Product }) {
   const { t } = useTranslation();
@@ -49,9 +50,11 @@ export function ProductCard({ product }: { product: Product }) {
         />
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          {typeof product.brand === "object" ? product.brand.name : product.brand}
-        </div>
+        {getProductBrandName(product.brand) ? (
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+            {getProductBrandName(product.brand)}
+          </div>
+        ) : null}
         <Link to={`/product/${product.slug}`} className="line-clamp-2 text-sm font-medium hover:text-primary">
           {product.name}
         </Link>

@@ -5,7 +5,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/ecom}"
 BRANCH="${BRANCH:-v1.4}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
-SERVICES="${SERVICES:-backend frontend}"
+SERVICES="${SERVICES:-backend frontend caddy}"
 
 cd "$APP_DIR"
 
@@ -27,10 +27,10 @@ COMMIT="$(git rev-parse --short HEAD)"
 echo "==> Deploying commit: ${COMMIT}"
 
 echo "==> Building images: ${SERVICES}"
-docker compose -f "${COMPOSE_FILE}" build ${SERVICES}
+docker compose -f "${COMPOSE_FILE}" build --no-cache ${SERVICES}
 
 echo "==> Starting containers..."
-docker compose -f "${COMPOSE_FILE}" up -d ${SERVICES}
+docker compose -f "${COMPOSE_FILE}" up -d --force-recreate ${SERVICES}
 
 echo "==> Waiting for containers to settle..."
 sleep 8
@@ -42,6 +42,13 @@ docker compose -f "${COMPOSE_FILE}" logs --tail=30 backend || true
 
 if [[ "${SKIP_HEALTH_CHECK:-false}" != "true" ]]; then
   bash "${APP_DIR}/scripts/health-check.sh"
+fi
+
+if [[ -f ".env.production" ]]; then
+  ENV_KEY_COUNT="$(grep -cE '^[A-Z_][A-Z0-9_]*=' .env.production 2>/dev/null || echo 0)"
+  echo "==> .env.production preserved on host (${ENV_KEY_COUNT} keys — survives restarts/deploys)"
+else
+  echo "WARNING: .env.production missing after deploy!"
 fi
 
 echo "==> Deploy complete — commit ${COMMIT}"

@@ -64,26 +64,8 @@ async function main() {
     },
   });
 
-  const customerNames = ["Sophie V.", "Mark D.", "Anna J.", "Jan K.", "Lisa M.", "Tom B."];
+  // Dummy @example.com customers removed — use real signups in production.
   const customers: any[] = [];
-
-  for (let i = 0; i < customerNames.length; i++) {
-    const name = customerNames[i];
-    const email = `${name.split(" ")[0].toLowerCase()}@example.com`;
-    const customerHash = await bcrypt.hash("customer123", 10);
-
-    const u = await prisma.user.create({
-      data: {
-        id: `user-${i}`,
-        name,
-        email,
-        passwordHash: customerHash,
-        role: "customer",
-        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${name}`,
-      },
-    });
-    customers.push(u);
-  }
 
   // 3. Create Groups
   console.log("📂 Creating groups...");
@@ -542,9 +524,9 @@ async function main() {
       data: {
         id: `ord-${i}`,
         orderNumber: `LG-${10000 + i}`,
-        userId: `user-${i % 3}`,
+        userId: null,
         customerName: namesList[i % namesList.length],
-        customerEmail: `${namesList[i % namesList.length].split(" ")[0].toLowerCase()}@example.com`,
+        customerEmail: `demo-order-${i}@seed.local`,
         subtotal: +subtotal.toFixed(2),
         shipping,
         total: +total.toFixed(2),

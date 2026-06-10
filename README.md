@@ -1,28 +1,44 @@
 # E-Commerce Lighting Platform Architecture
 
-## 🎯 Overall Project Status & Progress (v0.1)
+## Overall Project Status (v0.0)
 
-### ✅ Completed Features
-- [x] **Admin Panel & Architecture:** Full setup of the E-commerce backend using Node.js, Express, Prisma, PostgreSQL.
-- [x] **Dynamic Pages (CMS):** A flexible CMS with UI Blocks (Hero banners, Sliders, Category carousels).
-- [x] **Rich Text Editor Fixes:** Solved focus and selection loss issues when adding shortcodes to dynamic pages.
-- [x] **Category Multi-Select:** Built API-driven category multi-select dropdown for CMS blocks (with search and "All Categories" toggle).
-- [x] **Shortcode Rendering Engine:** Added mixed-content rendering capability so dynamic pages can cleanly interleave HTML content with block shortcodes.
-- [x] **Storage / Media Library:** Built a professional Google Drive-style file manager within the Admin Panel. Features include folder navigation, file uploads, rename, bulk delete to trash, URL copying, and a visual grid/list layout.
-- [x] **Swagger Documentation:** API documentation integration available at `/api-docs`.
+**Live:** [schipenster.com](https://schipenster.com) · **API:** [api.schipenster.com](https://api.schipenster.com) · **Deploy path:** `/opt/ecom`
 
-### 🚧 Pending Features
-- [ ] **Frontend Shop Implementation:** Integrating the actual user-facing E-commerce storefront with the database.
-- [ ] **Product Management:** Full CRUD for Products, Variants, and EAV Attributes in the admin panel.
-- [ ] **Cart & Checkout Flow:** User cart state management and payment gateway integration.
-- [ ] **Order Management:** Tracking and updating order statuses from the admin panel.
-- [ ] **User Authentication:** Robust login/registration and role-based access for customers and admins.
+### Completed
+
+- [x] **Admin Panel & Architecture** — Node.js, Express, Prisma, PostgreSQL, Redis
+- [x] **Dynamic Pages (CMS)** — UI blocks, hero banners, sliders, category carousels
+- [x] **Rich Text Editor** — Shortcodes in dynamic pages without focus loss
+- [x] **Category Multi-Select** — API-driven CMS category picker with search
+- [x] **Shortcode Rendering Engine** — Mixed HTML + block shortcodes on storefront
+- [x] **Storage / Media Library** — Folders, upload, rename, trash, grid/list view
+- [x] **Swagger Documentation** — `/api-docs`
+- [x] **Frontend Shop** — Customer storefront connected to live database
+- [x] **Product Management** — Products, variants, brands, categories, EAV attributes
+- [x] **Cart & Checkout** — Cart, wishlist, Stripe payments, order confirmation
+- [x] **Order Management** — Admin orders, ready-to-ship, in-transit, delivered, returns
+- [x] **User Authentication** — Customer + admin login, OTP, roles & permissions
+- [x] **Mobile Responsive** — Storefront layout optimised for phones
+- [x] **CI/CD (Jenkins)** — Deploy via `code-deploy` branch on VPS
+- [x] **Admin Backups** — Database & uploads download from admin panel
+- [x] **i18n** — Dutch / English storefront
+
+### Pending
+
+- [ ] **Sendcloud (live labels)** — Integration code exists; carrier labels blocked until Sendcloud billing, carrier contracts, and sender address are fully activated. See `docs/sendcloud_integration.md`.
+
+### Docs
+
+| Topic | File |
+|-------|------|
+| Production deploy | `docs/production_deployment_checklist.md` |
+| Backup & restore | `docs/backup_restore_guide.md` |
+| Sendcloud setup | `docs/sendcloud_integration.md` |
+| Jenkins / CI-CD | `docs/v1.4-cicd-jenkins-plan.md` |
 
 ---
 
-This document provides a visual and structured walkthrough of the platform's routing flow and database schema relationships.
-
-![E-Commerce Catalog Architecture](file:///C:/Users/Parikshit/.gemini/antigravity-ide/brain/44536a3f-c458-4e66-a52f-24c9733d9503/ecom_architecture_diagram_1779272280064.png)
+This document provides a visual walkthrough of the platform's catalog routing flow and database schema relationships.
 
 ---
 
@@ -178,6 +194,3 @@ erDiagram
    - `AttributeValue` holds the allowed values (like *Rattan*, *IP44*).
    - `ProductAttributeValue` links a specific `Product` to its selected `Attribute` and `AttributeValue`.
 3. **Static Specifications**: Mapped as a JSON object `specs` on the `Product` model for flat, non-filterable details like *Warranty* and *Product Dimensions*.
-
-3. **Static Specifications**: Mapped as a JSON object `specs` on the `Product` model for flat, non-filterable details like *Warranty* and *Product Dimensions*.
-📲 [DEMO SMS] OTP for 9876543210 is: 123456

@@ -17,6 +17,7 @@ import {
   SUPPORTED_LANGUAGES,
   type SupportedLanguage,
 } from "@/i18n";
+import { clearApiCache } from "@/lib/apiCache";
 
 interface LanguageSwitcherProps {
   /** Compact mode: icon-only trigger (for header). */
@@ -45,8 +46,11 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
   const changeLanguage = (code: SupportedLanguage) => {
     if (code === current) return;
     clearGoogleTranslateCookie();
+    clearApiCache();
     setCurrent(code);
-    void i18n.changeLanguage(code);
+    void i18n.changeLanguage(code).then(() => {
+      window.location.reload();
+    });
   };
 
   const active =

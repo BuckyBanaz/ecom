@@ -1,6 +1,7 @@
 import app from "./app";
 import { env } from "./config/env";
 import { addLog } from "./services/logStore";
+import { loadPersistedSettings } from "./services/settingsStore";
 import { execSync } from "child_process";
 import path from "path";
 
@@ -30,23 +31,31 @@ try {
   console.error("⚠️ Programmatic startup operations failed:", err.message);
 }
 
-const server = app.listen(env.PORT, () => {
-  const bootMessage = `Server booted on port ${env.PORT} in ${env.NODE_ENV} mode`;
-  addLog({ level: "info", type: "system", message: bootMessage });
-  console.log(`🚀 ${bootMessage}`);
-});
+async function startServer() {
+  await loadPersistedSettings();
 
-// Centralized handlers for unhandled errors
-process.on("unhandledRejection", (reason: Error) => {
-  console.error("🚨 UNHANDLED REJECTION! Shutting down gracefully...");
-  console.error(reason.stack || reason.message);
-  server.close(() => {
+  const server = app.listen(env.PORT, () => {
+    const bootMessage = `Server booted on port ${env.PORT} in ${env.NODE_ENV} mode`;
+    addLog({ level: "info", type: "system", message: bootMessage });
+    console.log(`🚀 ${bootMessage}`);
+  });
+
+  process.on("unhandledRejection", (reason: Error) => {
+    console.error("🚨 UNHANDLED REJECTION! Shutting down gracefully...");
+    console.error(reason.stack || reason.message);
+    server.close(() => {
+      process.exit(1);
+    });
+  });
+
+  process.on("uncaughtException", (error: Error) => {
+    console.error("🚨 UNCAUGHT EXCEPTION! Shutting down immediately...");
+    console.error(error.stack || error.message);
     process.exit(1);
   });
-});
+}
 
-process.on("uncaughtException", (error: Error) => {
-  console.error("🚨 UNCAUGHT EXCEPTION! Shutting down immediately...");
-  console.error(error.stack || error.message);
+startServer().catch((err) => {
+  console.error("🚨 Failed to start server:", err);
   process.exit(1);
 });

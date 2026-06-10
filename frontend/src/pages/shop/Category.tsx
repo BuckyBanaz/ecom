@@ -19,6 +19,8 @@ import { BlogCard } from "@/components/shop/BlogCard";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { resolveImgUrl } from "@/utils/image";
+import { getProductBrandName, getProductCategorySlug } from "@/utils/formatters";
+import { countProductsWithFilterValue, productMatchesAttributeFilter } from "@/utils/productFilters";
 import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
 
 const resolveCategorySlug = (menuItemSlug: string) => {
@@ -278,43 +280,28 @@ const Category = () => {
   }, [resolvedSlug, categoriesList, attributes]);
 
   // Faceted item counts calculator relative to the current category listing
-  const getOptionCount = (type: "brand" | "attribute", slugName: string, value: string) => {
+  const getOptionCount = (type: "brand" | "attribute", slugName: string, value: string, attributeName?: string) => {
     const targetCategory = landingPage?.categorySlug || resolvedSlug;
     const isDeals = targetCategory === "deals";
+    const isBestsellers = targetCategory === "bestsellers";
 
     let allProductsList = productsList.length > 0 ? productsList : products;
 
     let list = isDeals
       ? allProductsList.filter((p) => p.oldPrice)
-      : allProductsList.filter((p) => {
-          const pCatSlug = typeof p.category === "object" ? p.category.slug : p.category;
-          return pCatSlug === targetCategory;
-        });
+      : isBestsellers
+        ? allProductsList.filter((p) => p.isBestSelling)
+        : targetCategory
+          ? allProductsList.filter((p) => getProductCategorySlug(p.category) === targetCategory)
+          : allProductsList;
     
-    if (list.length === 0 && !isDeals) list = allProductsList;
-
-    if (type === "brand") {
-      return list.filter((p) => p.brand === value).length;
-    } else {
-      return list.filter((p) => {
-        if (p.attributes && p.attributes[slugName]) {
-          const productAttrVal = p.attributes[slugName];
-          if (Array.isArray(productAttrVal)) {
-            return productAttrVal.some(v => v.toLowerCase() === value.toLowerCase());
-          }
-          return String(productAttrVal).toLowerCase() === value.toLowerCase();
-        }
-        // Fallback checks
-        const flatVal = (p as any)[slugName];
-        if (flatVal) {
-          if (Array.isArray(flatVal)) {
-            return flatVal.some(v => v.toLowerCase() === value.toLowerCase());
-          }
-          return String(flatVal).toLowerCase() === value.toLowerCase();
-        }
-        return false;
-      }).length;
+    if (isBestsellers && list.length === 0) {
+      list = [...allProductsList].sort((a, b) => (b.rating || 0) - (a.rating || 0));
     }
+
+    if (list.length === 0 && !isDeals && !isBestsellers && targetCategory) list = allProductsList;
+
+    return countProductsWithFilterValue(list, type, slugName, value, attributeName);
   };
 
   // Color hex code helper for circular swatches
@@ -365,18 +352,24 @@ const Category = () => {
   const filtered = useMemo(() => {
     const targetCategory = landingPage?.categorySlug || resolvedSlug;
     const isDeals = targetCategory === "deals";
+    const isBestsellers = targetCategory === "bestsellers";
 
     // Load active products list
     let allProductsList = productsList.length > 0 ? productsList : products;
 
     let list = isDeals
       ? allProductsList.filter((p) => p.oldPrice)
-      : allProductsList.filter((p) => {
-          const pCatSlug = typeof p.category === "object" ? p.category.slug : p.category;
-          return pCatSlug === targetCategory;
-        });
+      : isBestsellers
+        ? allProductsList.filter((p) => p.isBestSelling)
+        : targetCategory
+          ? allProductsList.filter((p) => getProductCategorySlug(p.category) === targetCategory)
+          : allProductsList;
     
-    if (list.length === 0 && !isDeals) list = allProductsList;
+    if (isBestsellers && list.length === 0) {
+      list = [...allProductsList].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    }
+
+    if (list.length === 0 && !isDeals && !isBestsellers && targetCategory) list = allProductsList;
 
     // 1. Price slider
     list = list.filter((p) => p.price >= price[0] && p.price <= price[1]);
@@ -389,37 +382,22 @@ const Category = () => {
         p.description?.toLowerCase().includes(sq) ||
         p.shortDescription?.toLowerCase().includes(sq) ||
         (typeof p.category === 'string' && p.category.toLowerCase().includes(sq)) ||
-        (typeof p.category === 'object' && p.category.name && p.category.name.toLowerCase().includes(sq))
+        (typeof p.category === 'object' && p.category?.name && p.category.name.toLowerCase().includes(sq))
       );
     }
 
     // 2. Brands
     if (selectedBrands.length > 0) {
-      list = list.filter((p) => selectedBrands.includes(p.brand));
+      list = list.filter((p) => selectedBrands.includes(getProductBrandName(p.brand)));
     }
 
-    // 3. EAV Attributes mapping
+    // 3. Attributes + specs + EAV (productAttributeValues)
     for (const [attrSlug, selectedVals] of Object.entries(selectedFilters)) {
       if (selectedVals.length > 0) {
-        list = list.filter((p) => {
-          // Check EAV relational attributes structure if present
-          if (p.attributes && p.attributes[attrSlug]) {
-            const productAttrVal = p.attributes[attrSlug];
-            if (Array.isArray(productAttrVal)) {
-              return productAttrVal.some(v => selectedVals.includes(v));
-            }
-            return selectedVals.includes(productAttrVal);
-          }
-          // Fallback check on flat properties
-          const flatProp = (p as any)[attrSlug];
-          if (flatProp) {
-            if (Array.isArray(flatProp)) {
-              return flatProp.some(v => selectedVals.includes(v));
-            }
-            return selectedVals.includes(flatProp);
-          }
-          return false;
-        });
+        const attrMeta = attributes.find((a) => a.slug === attrSlug);
+        list = list.filter((p) =>
+          productMatchesAttributeFilter(p, attrSlug, selectedVals, attrMeta?.name)
+        );
       }
     }
 
@@ -430,9 +408,9 @@ const Category = () => {
       case "rating": list = [...list].sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
     }
     return list;
-  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList]);
+  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes]);
 
-  const title = landingPage?.title || (slug === "deals" ? t("category.spring_deals") : cat?.name ?? t("category.all_products"));
+  const title = landingPage?.title || (slug === "deals" ? t("category.spring_deals") : slug === "bestsellers" ? t("category.bestsellers", { defaultValue: "Bestsellers" }) : cat?.name ?? t("category.all_products"));
 
   if (productsLoading) {
     return <CategorySkeleton />;
@@ -484,7 +462,7 @@ const Category = () => {
             options={attr.values.map(v => v.value)}
             selected={selectedFilters[attr.slug] || []}
             onToggle={(val) => toggleFilter(attr.slug, val)}
-            getOptionCount={(val) => getOptionCount("attribute", attr.slug, val)}
+            getOptionCount={(val) => getOptionCount("attribute", attr.slug, val, attr.name)}
             getColorHex={attr.slug === "color" || attr.slug === "light-color" || attr.slug === "fitting" ? getColorHex : undefined}
             hasInfo={hasInfoIcon}
             isOpen={isSectionOpen}
@@ -590,7 +568,7 @@ const Category = () => {
                   <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">{t("category.no_results")}</div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                    {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
+                    {filtered.filter((p) => p?.id && p?.name).map((p) => <ProductCard key={p.id} product={p} />)}
                   </div>
                 )}
             </div>

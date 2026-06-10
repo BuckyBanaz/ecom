@@ -126,7 +126,7 @@ export default function ReliefCategory() {
         if (prodRes && prodRes.success && prodRes.products) {
           setProductsList(prodRes.products.map((p: any) => ({
             ...p,
-            brand: p.brand && typeof p.brand === "object" ? p.brand.name : p.brand,
+            brand: typeof p.brand === "object" && p.brand != null ? (p.brand.name ?? "") : (p.brand ?? ""),
             category: p.category && typeof p.category === "object" ? p.category.slug : p.category,
           })));
         }

@@ -14,6 +14,9 @@ seedTemplates();
 
 const app = express();
 
+// Behind Caddy reverse proxy in production (fixes express-rate-limit X-Forwarded-For warning)
+app.set("trust proxy", 1);
+
 // Register HTTP request logger middleware
 app.use(requestLogger);
 
@@ -121,6 +124,30 @@ import webhookRoutes from "./routes/webhookRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import configRoutes from "./routes/configRoutes";
 import logsRoutes from "./routes/logsRoutes";
+import backupRoutes from "./routes/backupRoutes";
+import { getRobotsTxtContent, getSitemapXmlContent } from "./services/settingsStore";
+
+app.get("/robots.txt", async (_req, res, next) => {
+  try {
+    const content = await getRobotsTxtContent();
+    res.type("text/plain").send(content);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/sitemap.xml", async (_req, res, next) => {
+  try {
+    const content = await getSitemapXmlContent();
+    if (!content) {
+      res.status(404).type("text/plain").send("Sitemap not generated yet. Generate it from Admin → CMS → SEO.");
+      return;
+    }
+    res.type("application/xml").send(content);
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -139,6 +166,7 @@ app.use("/api/v1/media", mediaRoutes);
 app.use("/api/v1/config", configRoutes);
 app.use("/api/v1/admin/settings", adminSettingsRoutes);
 app.use("/api/v1/admin/logs", logsRoutes);
+app.use("/api/v1/admin/backups", backupRoutes);
 app.use("/api/v1/admin/email-templates", emailTemplateRoutes);
 app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/charges", chargeRoutes);

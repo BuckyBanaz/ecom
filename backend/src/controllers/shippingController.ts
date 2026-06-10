@@ -1,54 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import fs from "fs";
-import path from "path";
 import { PrismaClient } from "@prisma/client";
 import { AppError } from "../middlewares/errorMiddleware";
+import { saveSettings } from "../services/settingsStore";
 
 const prisma = new PrismaClient();
-
-// Helper function to read, parse, update and save .env file
-const updateEnvFile = (updates: Record<string, string>) => {
-  const envPath = path.resolve(process.cwd(), ".env");
-  
-  let envContent = "";
-  if (fs.existsSync(envPath)) {
-    envContent = fs.readFileSync(envPath, "utf-8");
-  }
-
-  const lines = envContent.split("\n");
-  const envMap: Record<string, string> = {};
-
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) return;
-    
-    const splitIndex = trimmed.indexOf("=");
-    if (splitIndex !== -1) {
-      const key = trimmed.substring(0, splitIndex).trim();
-      envMap[key] = line;
-    }
-  });
-
-  let updatedContent = envContent;
-  
-  for (const [key, value] of Object.entries(updates)) {
-    process.env[key] = value;
-    const newLine = `${key}="${value}"`;
-
-    if (envMap[key] !== undefined) {
-      updatedContent = updatedContent.replace(envMap[key], newLine);
-      envMap[key] = newLine;
-    } else {
-      updatedContent += `\n${newLine}`;
-    }
-  }
-
-  if (!updatedContent.endsWith("\n")) {
-    updatedContent += "\n";
-  }
-
-  fs.writeFileSync(envPath, updatedContent, "utf-8");
-};
 
 // ----------------------------------------------------
 // 1. GET PUBLIC SHIPPING SETTINGS
@@ -151,7 +106,7 @@ export const updateShippingConfig = async (
       create: { key: "shipping_config", value: publicData },
     });
 
-    // 2. Save secured settings in .env
+    // 2. Save secured settings in .env.production
     const envUpdates: Record<string, string> = {};
     if (sendcloudEnabled !== undefined) envUpdates.SENDCLOUD_ENABLED = sendcloudEnabled.toString();
     if (sendcloudPublicKey !== undefined) envUpdates.SENDCLOUD_PUBLIC_KEY = sendcloudPublicKey;
@@ -160,7 +115,7 @@ export const updateShippingConfig = async (
     }
 
     if (Object.keys(envUpdates).length > 0) {
-      updateEnvFile(envUpdates);
+      await saveSettings(envUpdates);
     }
 
     res.status(200).json({ success: true, message: "Shipping settings updated successfully" });

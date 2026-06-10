@@ -4,11 +4,11 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Prisma engine needs OpenSSL on Alpine
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat postgresql16-client
 
 # Copy package files
 COPY package*.json ./
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.build.json ./
 
 # Install all dependencies (including dev)
 RUN npm ci
@@ -22,8 +22,10 @@ RUN npx prisma generate
 # Copy source code
 COPY src ./src
 
-# Build TypeScript
-RUN npm run build || echo "Build failed, continuing..."
+# Fresh compile every image build (tsc may warn on types but must emit dist)
+RUN rm -rf dist && (npm run build || true) \
+    && test -f dist/services/settingsStore.js \
+    && test -f dist/controllers/adminSettingsController.js
 
 # Production stage
 FROM node:20-alpine
@@ -31,7 +33,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Prisma migrate/generate requires OpenSSL on Alpine
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat postgresql16-client
 
 # Copy package files
 COPY package*.json ./
@@ -48,11 +50,11 @@ RUN npx prisma generate
 # Copy built dist from builder
 COPY --from=builder /app/dist ./dist
 
-# Utility scripts (e.g. clear_orders.js)
-COPY clear_orders.js ./
+# Utility scripts (e.g. clear_orders.js, clear_dummy_users.js)
+COPY clear_orders.js clear_dummy_users.js ./
 
-# Create uploads directory
-RUN mkdir -p public/uploads
+# Create uploads + SEO files directories
+RUN mkdir -p public/uploads backups seo
 
 # Expose port
 EXPOSE 5000
