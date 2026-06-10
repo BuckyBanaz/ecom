@@ -4,14 +4,16 @@ import {
   Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Link, Image as ImageIcon, Table, Minus, Undo, Redo, Code, Quote, Eraser, 
-  Palette, Highlighter, Indent, Outdent, ArrowUp, ArrowDown, Edit, Trash, Type
+  Palette, Highlighter, Indent, Outdent, ArrowUp, ArrowDown, Edit, Trash, Trash2, Type
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { UIBlocksDialog } from "./UIBlocksDialog";
 import { MediaLibraryDialog } from "./media/MediaLibraryDialog";
 import { LayoutTemplate } from "lucide-react";
-import { normalizeUploadedUrl } from "@/utils/image";
+import { normalizeUploadedUrl, getApiBaseUrl, resolveImgUrl } from "@/utils/image";
 
 interface RichTextEditorProps {
   value: string;
@@ -43,6 +45,28 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
 
   const [activeBlockNode, setActiveBlockNode] = useState<HTMLElement | null>(null);
   const [editingShortcode, setEditingShortcode] = useState<string | null>(null);
+  const editingBlockNodeRef = useRef<HTMLElement | null>(null);
+
+  const [isImgPropertiesOpen, setIsImgPropertiesOpen] = useState(false);
+  const [selectedImageNode, setSelectedImageNode] = useState<HTMLImageElement | null>(null);
+  const [imgWidth, setImgWidth] = useState("");
+  const [imgHeight, setImgHeight] = useState("auto");
+  const [imgAlign, setImgAlign] = useState<"left" | "center" | "right" | "none">("none");
+
+  const resolveRelativeUrlsInHtml = (html: string): string => {
+    if (!html) return "";
+    const baseUrl = getApiBaseUrl();
+    return html.replace(/src="\/uploads\//g, `src="${baseUrl}/uploads/`);
+  };
+
+  const normalizeUrlsInHtml = (html: string): string => {
+    if (!html) return "";
+    const baseUrl = getApiBaseUrl();
+    const escapedBaseUrl = baseUrl.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(`src="${escapedBaseUrl}/uploads/`, 'g');
+    const localRegex = /src="https?:\/\/[^/]+\/uploads\//g;
+    return html.replace(regex, 'src="/uploads/').replace(localRegex, 'src="/uploads/');
+  };
 
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
@@ -58,6 +82,9 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   useEffect(() => {
     if (!isSourceMode) {
       let processedValue = value || "";
+      
+      // Resolve relative URLs so they render in the visual editor
+      processedValue = resolveRelativeUrlsInHtml(processedValue);
       
       if (editorRef.current && editorRef.current.innerHTML !== processedValue) {
         editorRef.current.innerHTML = processedValue;
@@ -200,8 +227,9 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
       });
       
       const currentHTML = editorRef.current.innerHTML;
-      onChange(currentHTML);
-      setHtmlSource(currentHTML);
+      const normalizedHTML = normalizeUrlsInHtml(currentHTML);
+      onChange(normalizedHTML);
+      setHtmlSource(normalizedHTML);
     }
   };
 
@@ -213,13 +241,21 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     if (target.tagName === 'IMG') {
       e.preventDefault();
       e.stopPropagation();
-      const currentWidth = (target as HTMLImageElement).style.width || target.getAttribute('width') || '100%';
-      const newWidth = prompt("Resize Image - Enter new width (e.g., 200px, 50%, auto):", currentWidth);
-      if (newWidth !== null) {
-        (target as HTMLImageElement).style.width = newWidth;
-        (target as HTMLImageElement).style.height = 'auto'; // keep aspect ratio
-        handleInput();
+      const img = target as HTMLImageElement;
+      setSelectedImageNode(img);
+      setImgWidth(img.style.width || img.getAttribute('width') || '100%');
+      setImgHeight(img.style.height || img.getAttribute('height') || 'auto');
+      
+      let alignment: "left" | "center" | "right" | "none" = "none";
+      if (img.style.float === 'left') {
+        alignment = "left";
+      } else if (img.style.float === 'right') {
+        alignment = "right";
+      } else if (img.style.display === 'block' && (img.style.margin === 'auto' || img.style.marginLeft === 'auto')) {
+        alignment = "center";
       }
+      setImgAlign(alignment);
+      setIsImgPropertiesOpen(true);
       return;
     }
     
@@ -304,6 +340,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
       const block = target.closest('.cms-block') as HTMLElement;
       if (block) {
         setActiveBlockNode(block);
+        editingBlockNodeRef.current = block;
         let shortcode = "";
         block.childNodes.forEach(node => {
           if (node.nodeType === Node.TEXT_NODE) {
@@ -419,6 +456,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const handleEditBlockClick = () => {
     if (!activeBlockNode) return;
     
+    editingBlockNodeRef.current = activeBlockNode;
     let shortcode = "";
     activeBlockNode.childNodes.forEach(node => {
       if (node.nodeType === Node.TEXT_NODE) {
@@ -438,6 +476,51 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
       saveSelection();
       setIsUIBlocksOpen(true);
     }
+  };
+
+  const handleApplyImageProperties = () => {
+    if (!selectedImageNode) return;
+    
+    selectedImageNode.style.width = imgWidth || "100%";
+    selectedImageNode.style.height = imgHeight || "auto";
+    
+    // Clear old float/display/margin styles
+    selectedImageNode.style.float = "";
+    selectedImageNode.style.display = "";
+    selectedImageNode.style.margin = "";
+    selectedImageNode.style.marginLeft = "";
+    selectedImageNode.style.marginRight = "";
+    
+    // Apply alignment styles
+    if (imgAlign === "left") {
+      selectedImageNode.style.float = "left";
+      selectedImageNode.style.margin = "4px 12px 4px 0";
+      selectedImageNode.style.display = "inline-block";
+    } else if (imgAlign === "right") {
+      selectedImageNode.style.float = "right";
+      selectedImageNode.style.margin = "4px 0 4px 12px";
+      selectedImageNode.style.display = "inline-block";
+    } else if (imgAlign === "center") {
+      selectedImageNode.style.display = "block";
+      selectedImageNode.style.margin = "12px auto";
+      selectedImageNode.style.float = "none";
+    } else {
+      selectedImageNode.style.display = "inline-block";
+      selectedImageNode.style.margin = "4px";
+      selectedImageNode.style.float = "none";
+    }
+    
+    setIsImgPropertiesOpen(false);
+    setSelectedImageNode(null);
+    handleInput();
+  };
+
+  const handleDeleteImage = () => {
+    if (!selectedImageNode) return;
+    selectedImageNode.remove();
+    setIsImgPropertiesOpen(false);
+    setSelectedImageNode(null);
+    handleInput();
   };
 
   const handleSourceChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -508,17 +591,64 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     }
   };
 
+  const insertImageAtSelection = (url: string) => {
+    if (isSourceMode) return;
+    restoreSelection();
+    
+    // Resolve the url to absolute backend url for display in editor
+    const absoluteUrl = resolveImgUrl(url);
+    
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      try {
+        const range = sel.getRangeAt(0);
+        // Ensure we are inserting inside the editor
+        if (editorRef.current && (editorRef.current.contains(range.startContainer) || editorRef.current === range.startContainer)) {
+          range.deleteContents();
+          const img = document.createElement("img");
+          img.src = absoluteUrl;
+          img.style.maxWidth = "100%";
+          img.style.height = "auto";
+          img.style.display = "inline-block";
+          img.style.margin = "4px";
+          
+          range.insertNode(img);
+          range.setStartAfter(img);
+          range.setEndAfter(img);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          handleInput();
+          return;
+        }
+      } catch (e) {
+        console.warn("Failed to insert at range, falling back to append", e);
+      }
+    }
+    
+    // Fallback: append image to the end of editor
+    if (editorRef.current) {
+      const img = document.createElement("img");
+      img.src = absoluteUrl;
+      img.style.maxWidth = "100%";
+      img.style.height = "auto";
+      img.style.display = "inline-block";
+      img.style.margin = "4px";
+      editorRef.current.appendChild(img);
+      handleInput();
+    }
+  };
+
   const handleInsertFromDialog = () => {
     if (imageMode === "url") {
       if (!imageUrl.trim()) return;
       setIsImageDialogOpen(false);
-      setTimeout(() => executeCommand("insertImage", imageUrl.trim()), 50);
+      setTimeout(() => insertImageAtSelection(imageUrl.trim()), 50);
       return;
     }
 
     if (!compressedDataUrl) return;
     setIsImageDialogOpen(false);
-    setTimeout(() => executeCommand("insertImage", compressedDataUrl), 50);
+    setTimeout(() => insertImageAtSelection(compressedDataUrl), 50);
   };
 
   const handleTableInsert = () => {
@@ -911,50 +1041,183 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
         open={isUIBlocksOpen} 
         onOpenChange={(open) => {
           setIsUIBlocksOpen(open);
-          if (!open) setEditingShortcode(null);
+          if (!open) {
+            setEditingShortcode(null);
+            editingBlockNodeRef.current = null;
+          }
         }} 
         onInsert={(shortcode, isEdit) => {
-          if (isEdit && activeBlockNode && editorRef.current) {
-            const tempDiv = document.createElement("div");
-            tempDiv.innerHTML = shortcode;
-            const newBlock = tempDiv.firstElementChild;
-            if (newBlock) {
-              activeBlockNode.replaceWith(newBlock);
-              setActiveBlockNode(newBlock as HTMLElement);
-            }
-            setEditingShortcode(null);
-            handleInput();
-          } else if (editorRef.current) {
-            // For new blocks, wrap them properly with toolbar
-            const shortcodeMatch = shortcode.match(/\[([a-zA-Z0-9-]+)([^\]]*)\]\[\/\1\]/);
-            if (shortcodeMatch) {
-              const blockType = shortcodeMatch[1];
-              const friendlyName = blockType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-              
-              const wrapper = document.createElement("div");
-              wrapper.className = "cms-block";
-              wrapper.contentEditable = "false";
-              wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
-              
-              wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span>
-                <button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button>
-                <button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button>
-                <button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button>
-                <button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button>
-                <button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button>
-                <button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button>
-              </span>${shortcode}`;
-              
+          if (!editorRef.current) return;
+
+          const shortcodeMatch = shortcode.match(/\[([a-zA-Z0-9-]+)([^\]]*)\]\[\/\1\]/);
+          if (shortcodeMatch) {
+            const blockType = shortcodeMatch[1];
+            const fullShortcode = shortcodeMatch[0];
+            const friendlyName = blockType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+            
+            const wrapper = document.createElement("div");
+            wrapper.className = "cms-block";
+            wrapper.contentEditable = "false";
+            wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
+            
+            wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span>
+              <button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button>
+              <button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button>
+              <button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button>
+              <button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button>
+              <button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button>
+              <button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button>
+            </span>${fullShortcode}`;
+
+            const nodeToReplace = activeBlockNode || editingBlockNodeRef.current;
+            if (isEdit && nodeToReplace) {
+              nodeToReplace.replaceWith(wrapper);
+              setActiveBlockNode(wrapper);
+              editingBlockNodeRef.current = null;
+              setEditingShortcode(null);
+            } else {
               restoreSelection();
               editorRef.current.appendChild(wrapper);
+              
+              // Append a new paragraph below the inserted block so user can continue writing text easily
+              const p = document.createElement('p');
+              p.innerHTML = '<br>';
+              editorRef.current.appendChild(p);
+              
               setActiveBlockNode(wrapper);
-              handleInput();
+              
+              const range = document.createRange();
+              range.setStart(p, 0);
+              range.collapse(true);
+              const sel = window.getSelection();
+              sel?.removeAllRanges();
+              sel?.addRange(range);
             }
+            handleInput();
           }
         }} 
         editingShortcode={editingShortcode}
       />
+
+      <Dialog open={isImgPropertiesOpen} onOpenChange={setIsImgPropertiesOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <ImageIcon className="h-5 w-5 text-primary" />
+              Edit Image Properties
+            </DialogTitle>
+            <DialogDescription>
+              Adjust size, alignment, and display options for this image.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-6 py-4">
+            {/* Alignment Options */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Alignment</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { value: "none", label: "Inline", icon: AlignLeft },
+                  { value: "left", label: "Left", icon: AlignLeft },
+                  { value: "center", label: "Center", icon: AlignCenter },
+                  { value: "right", label: "Right", icon: AlignRight },
+                ].map((option) => {
+                  const Icon = option.icon;
+                  const isSelected = imgAlign === option.value;
+                  return (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      className={`h-16 flex flex-col justify-center items-center gap-1 transition-all duration-200 border ${
+                        isSelected 
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs" 
+                          : "hover:bg-muted/50 border-input"
+                      }`}
+                      onClick={() => setImgAlign(option.value as any)}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">{option.label}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Size Options */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Width</Label>
+                <Input
+                  value={imgWidth}
+                  onChange={(e) => setImgWidth(e.target.value)}
+                  placeholder="e.g. 100%, 300px"
+                  className="bg-muted/20"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Height</Label>
+                <Input
+                  value={imgHeight}
+                  onChange={(e) => setImgHeight(e.target.value)}
+                  placeholder="e.g. auto, 250px"
+                  className="bg-muted/20"
+                />
+              </div>
+            </div>
+
+            {/* Preset Width Quick Buttons */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Quick Width Presets</Label>
+              <div className="flex flex-wrap gap-2">
+                {["25%", "50%", "75%", "100%", "auto"].map((w) => (
+                  <Button
+                    key={w}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setImgWidth(w === "auto" ? "auto" : w);
+                      if (w === "auto") setImgHeight("auto");
+                    }}
+                    className="text-xs h-7 px-2.5 hover:bg-muted/50"
+                  >
+                    {w}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex sm:justify-between items-center gap-2 pt-4 border-t mt-2">
+            <Button
+              type="button"
+              variant="destructive"
+              className="gap-2 shrink-0"
+              onClick={handleDeleteImage}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Image
+            </Button>
+            <div className="flex gap-2 w-full justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsImgPropertiesOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleApplyImageProperties}
+              >
+                Apply Changes
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

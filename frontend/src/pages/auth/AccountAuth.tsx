@@ -9,6 +9,7 @@ import { Eye, EyeOff, Mail, Phone, ArrowRight, ShieldCheck, Loader2 } from "luci
 import { cn } from "@/lib/utils";
 import { authRepository } from "@/client/apiClient";
 import { toast } from "sonner";
+import { cleanAndValidatePhone } from "@/utils/phoneValidation";
 
 const AccountAuth = () => {
   const { t } = useTranslation();
@@ -100,14 +101,17 @@ const AccountAuth = () => {
 
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || phone.length < 10) {
+    const { isValid, cleanedNumber, fullPhone } = cleanAndValidatePhone(phoneCode, phone);
+    if (!isValid) {
       toast.error(t("auth_pages.login.toast_invalid_phone"));
       return;
     }
     
+    // Clean state on the fly
+    setPhone(cleanedNumber);
+    
     try {
       setLoading(true);
-      const fullPhone = `${phoneCode}${phone}`;
       const res = await authRepository.sendOTP(fullPhone);
       if (res.success) {
         toast.success(res.message || t("auth_pages.login.toast_otp_sent"));
@@ -152,10 +156,18 @@ const AccountAuth = () => {
     const needsPhone = authConfig.registerMethod === "both" || authConfig.registerMethod === "phone_only";
     
     if (needsPhone && !regOtpSent) {
+      const { isValid, cleanedNumber, fullPhone } = cleanAndValidatePhone(regPhoneCode, regPhone);
+      if (!isValid) {
+        toast.error(t("auth_pages.login.toast_invalid_phone"));
+        return;
+      }
+      
+      // Clean state on the fly
+      setRegPhone(cleanedNumber);
+      
       // Send OTP first
       try {
         setLoading(true);
-        const fullPhone = `${regPhoneCode}${regPhone}`;
         const res = await authRepository.sendOTP(fullPhone, "register");
         if (res.success) {
           toast.success(res.message || t("auth_pages.login.toast_otp_sent"));
@@ -185,7 +197,8 @@ const AccountAuth = () => {
         payload.email = regEmail;
       }
       if (needsPhone) {
-        payload.phone = `${regPhoneCode}${regPhone}`;
+        const { fullPhone } = cleanAndValidatePhone(regPhoneCode, regPhone);
+        payload.phone = fullPhone;
         payload.otp = regOtpValue;
       }
 
@@ -326,8 +339,6 @@ const AccountAuth = () => {
                               <SelectContent>
                                 <SelectItem value="+31">🇳🇱 +31</SelectItem>
                                 <SelectItem value="+91">🇮🇳 +91</SelectItem>
-                                <SelectItem value="+1">🇺🇸 +1</SelectItem>
-                                <SelectItem value="+44">🇬🇧 +44</SelectItem>
                               </SelectContent>
                             </Select>
                           )}
@@ -448,8 +459,6 @@ const AccountAuth = () => {
                             <SelectContent>
                               <SelectItem value="+31">🇳🇱 +31</SelectItem>
                               <SelectItem value="+91">🇮🇳 +91</SelectItem>
-                              <SelectItem value="+1">🇺🇸 +1</SelectItem>
-                              <SelectItem value="+44">🇬🇧 +44</SelectItem>
                             </SelectContent>
                           </Select>
                         )}

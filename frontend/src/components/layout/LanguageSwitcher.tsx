@@ -47,10 +47,10 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
     if (code === current) return;
     clearGoogleTranslateCookie();
     clearApiCache();
-    setCurrent(code);
-    void i18n.changeLanguage(code).then(() => {
-      window.location.reload();
-    });
+    localStorage.setItem("i18nextLng", code);
+    // Force immediate navigation to reset scroll position to top,
+    // avoiding layout shifts and parallel translation freezes.
+    window.location.replace(window.location.pathname + window.location.search);
   };
 
   const active =
@@ -97,7 +97,11 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
           return (
             <DropdownMenuItem
               key={lang.code}
-              onClick={() => changeLanguage(lang.code)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                changeLanguage(lang.code);
+              }}
               className={cn(
                 "flex items-center justify-between gap-3 cursor-pointer rounded-lg px-2.5 py-2 text-sm",
                 isActive && "bg-primary/5 text-primary font-medium",

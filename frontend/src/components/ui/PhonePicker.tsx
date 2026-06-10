@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { cleanAndValidatePhone } from "@/utils/phoneValidation";
 
 interface PhonePickerProps {
   value: string;
@@ -24,8 +25,6 @@ export function PhonePicker({ value, onChange, required, id, className, disabled
     if (value) {
       if (value.startsWith("+31")) { setCode("+31"); setNumber(value.slice(3)); }
       else if (value.startsWith("+91")) { setCode("+91"); setNumber(value.slice(3)); }
-      // else if (value.startsWith("+44")) { setCode("+44"); setNumber(value.slice(3)); }
-      // else if (value.startsWith("+1")) { setCode("+1"); setNumber(value.slice(2)); }
       else {
         // Default, no matched code
         setNumber(value);
@@ -36,15 +35,16 @@ export function PhonePicker({ value, onChange, required, id, className, disabled
   }, [value]);
 
   const handleNumberChange = (newNum: string) => {
-    // Only digits
-    const cleaned = newNum.replace(/\D/g, '');
-    setNumber(cleaned);
-    onChange(`${code}${cleaned}`);
+    const { cleanedNumber, fullPhone } = cleanAndValidatePhone(code, newNum);
+    setNumber(cleanedNumber);
+    onChange(fullPhone);
   };
 
   const handleCodeChange = (newCode: string) => {
     setCode(newCode);
-    onChange(`${newCode}${number}`);
+    const { cleanedNumber, fullPhone } = cleanAndValidatePhone(newCode, number);
+    setNumber(cleanedNumber);
+    onChange(fullPhone);
   };
 
   return (

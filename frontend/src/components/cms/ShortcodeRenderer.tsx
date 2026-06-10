@@ -97,6 +97,24 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
     // 1. Clean the HTML by removing .cms-block wrappers but keeping the shortcode text
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
+
+    // Resolve relative /uploads/ image and document paths to absolute backend URLs
+    const images = doc.querySelectorAll('img');
+    images.forEach(img => {
+      const src = img.getAttribute('src');
+      if (src && src.startsWith('/uploads/')) {
+        img.setAttribute('src', resolveImgUrl(src));
+      }
+    });
+
+    const links = doc.querySelectorAll('a');
+    links.forEach(a => {
+      const href = a.getAttribute('href');
+      if (href && href.startsWith('/uploads/')) {
+        a.setAttribute('href', resolveImgUrl(href));
+      }
+    });
+
     const blocks = doc.querySelectorAll('.cms-block');
     
     blocks.forEach(block => {

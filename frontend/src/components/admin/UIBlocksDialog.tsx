@@ -50,6 +50,10 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
   // Products Specific
   const [productType, setProductType] = useState("bestsellers");
 
+  // Menu Category Specific
+  const [menuSlug, setMenuSlug] = useState("");
+  const [showLabel, setShowLabel] = useState(true);
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -61,11 +65,14 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
 
   const resetForm = () => {
     setTitle("");
+    setSubtitle("");
     setDescription("");
     setHeroSlides([{ title: "", subtitle: "", bgImage: "", btnText: "", btnLink: "", imageMode: "url" }]);
     setCategories("");
     setProductType("bestsellers");
     setFeatures([{ icon: "truck-fast", title: "Fast delivery", description: "Order before 22:00, delivered next day" }]);
+    setMenuSlug("");
+    setShowLabel(true);
   };
 
   const handleSelectBlock = (type: BlockType) => {
@@ -89,6 +96,7 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
         }
 
         setTitle(attributes.title || "");
+        setSubtitle(attributes.subtitle || "");
         setDescription(attributes.description || "");
 
         if (type === "hero-banner") {
@@ -120,6 +128,9 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
              });
            }
            setFeatures(feats.length > 0 ? feats : [{ icon: "truck-fast", title: "Fast delivery", description: "Order before 22:00, delivered next day" }]);
+        } else if (type === "menu-category") {
+           setMenuSlug(attributes.menu_slug || "");
+           setShowLabel(attributes.show_label !== "false");
         }
       }
     } else if (open && !editingShortcode) {
@@ -317,6 +328,10 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
               <TextHeroBlockForm 
                 onInsert={handleExternalInsert} 
                 onCancel={() => setSelectedBlock(null)} 
+                initialTitle={title}
+                initialSubtitle={subtitle}
+                initialDescription={description}
+                isEditing={!!editingShortcode}
               />
             )}
 
@@ -324,6 +339,9 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
               <MenuCategoryBlockForm 
                 onInsert={handleExternalInsert} 
                 onCancel={() => setSelectedBlock(null)} 
+                initialMenuSlug={menuSlug}
+                initialShowLabel={showLabel}
+                isEditing={!!editingShortcode}
               />
             )}
 
@@ -342,7 +360,9 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
         {selectedBlock && selectedBlock !== "text-hero" && selectedBlock !== "menu-category" && selectedBlock !== "category-block" && (
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setSelectedBlock(null)}>Back to blocks</Button>
-            <Button onClick={handleInsert}>Insert into Editor</Button>
+            <Button onClick={handleInsert}>
+              {editingShortcode ? "Update Block" : "Insert into Editor"}
+            </Button>
           </DialogFooter>
         )}
       </DialogContent>

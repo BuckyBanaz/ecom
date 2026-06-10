@@ -19,6 +19,7 @@ import { parseOrderMetadata } from "@/utils/formatters";
 import { ReviewModal } from "@/components/shop/ReviewModal";
 import { useFcmToken } from "@/hooks/useFcmToken";
 import { PhonePicker } from "@/components/ui/PhonePicker";
+import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
 
 interface Address {
   id: string | number;
@@ -622,6 +623,7 @@ function AddressesTab() {
     label: "Home", firstName: "", lastName: "", phone: "", street: "", houseNumber: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false
   });
   const [addressError, setAddressError] = useState<string>("");
+  const [phoneError, setPhoneError] = useState<string>("");
 
   const handleOpenForm = (address?: Address) => {
     if (address) {
@@ -632,6 +634,7 @@ function AddressesTab() {
       setFormData({ label: "Home", firstName: "", lastName: "", phone: "", street: "", houseNumber: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false });
     }
     setAddressError("");
+    setPhoneError("");
     setIsFormOpen(true);
   };
 
@@ -648,6 +651,13 @@ function AddressesTab() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    const validation = parseAndValidateFullPhone(formData.phone || "");
+    if (!validation.isValid) {
+      setPhoneError(t("auth_pages.login.toast_invalid_phone"));
+      return;
+    }
+    setPhoneError("");
+    
     // Explicit manual validation
     if (formData.houseNumber && !/^[0-9]+[a-zA-Z0-9\s-]*$/.test(formData.houseNumber)) {
       setAddressError(t("dashboard.addresses.house_number_error"));
@@ -655,13 +665,15 @@ function AddressesTab() {
     }
     setAddressError("");
 
+    const cleanedData = { ...formData, phone: validation.cleanedFullPhone };
+
     setLoading(true);
     try {
       if (editingId) {
-        await addressRepository.update(editingId.toString(), formData);
+        await addressRepository.update(editingId.toString(), cleanedData);
         toast.success(t("dashboard.addresses.toast_updated"));
       } else {
-        await addressRepository.create(formData);
+        await addressRepository.create(cleanedData);
         toast.success(t("dashboard.addresses.toast_added"));
       }
       setIsFormOpen(false);
@@ -706,7 +718,11 @@ function AddressesTab() {
             <div><Label>{t("dashboard.addresses.form.last_name")}</Label><Input value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} required className="mt-1" /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>{t("dashboard.addresses.form.phone")}</Label><PhonePicker value={formData.phone} onChange={val => setFormData({...formData, phone: val})} required className="mt-1" /></div>
+            <div>
+              <Label>{t("dashboard.addresses.form.phone")}</Label>
+              <PhonePicker value={formData.phone || ""} onChange={val => { setFormData({...formData, phone: val}); setPhoneError(""); }} required className={`mt-1 ${phoneError ? "border-red-500" : ""}`} />
+              {phoneError && <p className="text-red-500 text-xs mt-1.5">{phoneError}</p>}
+            </div>
             <div>
               <Label>{t("dashboard.addresses.form.address_label")}</Label>
               <select 

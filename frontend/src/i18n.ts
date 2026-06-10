@@ -16,17 +16,6 @@ export const DEFAULT_LANGUAGE: SupportedLanguage = "nl";
 export const FALLBACK_LANGUAGE: SupportedLanguage = "en";
 export const LANGUAGE_STORAGE_KEY = "i18nextLng";
 
-function disableNativeDomTranslation() {
-  if (typeof document === "undefined") return;
-
-  document.documentElement.classList.add("notranslate");
-  document.documentElement.setAttribute("translate", "no");
-  document.body?.classList.add("notranslate");
-  document.body?.setAttribute("translate", "no");
-  document.getElementById("root")?.classList.add("notranslate");
-  document.getElementById("root")?.setAttribute("translate", "no");
-}
-
 function removeGoogleTranslateArtifacts() {
   if (typeof document === "undefined") return;
 
@@ -64,10 +53,8 @@ export function clearGoogleTranslateCookie() {
   document.documentElement.classList.remove("translated-ltr", "translated-rtl");
   document.body?.classList.remove("translated-ltr", "translated-rtl");
   removeGoogleTranslateArtifacts();
-  disableNativeDomTranslation();
 }
 
-disableNativeDomTranslation();
 clearGoogleTranslateCookie();
 
 i18n
@@ -97,7 +84,6 @@ i18n
 const syncHtmlLang = (lng: string) => {
   if (typeof document !== "undefined") {
     document.documentElement.lang = lng;
-    disableNativeDomTranslation();
   }
 };
 

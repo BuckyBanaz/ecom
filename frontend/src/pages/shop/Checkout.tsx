@@ -16,6 +16,7 @@ import { addressRepository, shippingRepository, couponRepository, chargeReposito
 import { toast } from "sonner";
 import { MapSelector } from "@/components/shop/MapSelector";
 import { PhonePicker } from "@/components/ui/PhonePicker";
+import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const steps = ["Contact", "Shipping", "Payment"] as const;
@@ -222,6 +223,7 @@ const Checkout = () => {
   const [addingAddress, setAddingAddress] = useState(false);
   const [addrForm, setAddrForm] = useState(emptyAddressForm);
   const [addressError, setAddressError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [showMap, setShowMap] = useState(false);
 
   const fetchAddresses = async () => {
@@ -250,6 +252,13 @@ const Checkout = () => {
 
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validation = parseAndValidateFullPhone(addrForm.phone);
+    if (!validation.isValid) {
+      setPhoneError(t("auth_pages.login.toast_invalid_phone"));
+      return;
+    }
+    setPhoneError("");
+
     if (addrForm.houseNumber && !/^[0-9]+[a-zA-Z0-9\s-]*$/.test(addrForm.houseNumber)) {
       setAddressError(t("checkout.address_error_house_number"));
       return;
@@ -258,7 +267,11 @@ const Checkout = () => {
 
     try {
       setAddingAddress(true);
-      const res = await addressRepository.create({ ...addrForm, isDefault: addresses.length === 0 });
+      const res = await addressRepository.create({ 
+        ...addrForm, 
+        phone: validation.cleanedFullPhone,
+        isDefault: addresses.length === 0 
+      });
       if (res.success || res.data) {
         toast.success(t("checkout.toast_address_added"));
         setShowAddDialog(false);
@@ -291,6 +304,14 @@ const Checkout = () => {
 
   const next = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (step === 0) {
+      const validation = parseAndValidateFullPhone(contact.phone);
+      if (!validation.isValid) {
+        toast.error(t("auth_pages.login.toast_invalid_phone"));
+        return;
+      }
+      setContact(prev => ({ ...prev, phone: validation.cleanedFullPhone }));
+    }
     if (step === 1 && !selectedAddressId) {
       toast.error(t("checkout.toast_select_address"));
       return;
@@ -701,7 +722,7 @@ const Checkout = () => {
                 <Field label={t("checkout.field_first_name")} value={addrForm.firstName} onChange={v => setAddrForm({ ...addrForm, firstName: v })} required />
                 <Field label={t("checkout.field_last_name")} value={addrForm.lastName} onChange={v => setAddrForm({ ...addrForm, lastName: v })} required />
               </div>
-              <Field label={t("checkout.field_phone")} type="tel" value={addrForm.phone} onChange={v => setAddrForm({ ...addrForm, phone: v })} required />
+              <Field label={t("checkout.field_phone")} type="tel" value={addrForm.phone} onChange={v => { setAddrForm({ ...addrForm, phone: v }); setPhoneError(""); }} required error={phoneError} />
 
               {/* Map picker */}
               <div>
