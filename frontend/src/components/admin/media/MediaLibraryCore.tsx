@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { resolveImgUrl } from "@/utils/image";
+import { prepareImageForUpload } from "@/utils/imageCompress";
 
 export type MediaItem = {
   name: string;
@@ -25,7 +26,7 @@ export type MediaItem = {
   path: string;
 };
 
-type UploadTaskStatus = "uploading" | "stopped" | "completed" | "error";
+type UploadTaskStatus = "compressing" | "uploading" | "stopped" | "completed" | "error";
 
 type UploadTask = {
   id: string;
@@ -238,12 +239,26 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
       file,
       preview: URL.createObjectURL(file),
       progress: 0,
-      status: "uploading" as UploadTaskStatus,
+      status: "compressing" as UploadTaskStatus,
       abortFn: null,
     }));
     setUploadTasks((prev) => [...prev, ...newTasks]);
     setWidgetCollapsed(false);
-    newTasks.forEach((task) => startUpload(task));
+
+    newTasks.forEach(async (task) => {
+      try {
+        const compressed = await prepareImageForUpload(task.file);
+        const readyTask: UploadTask = { ...task, file: compressed, status: "uploading", progress: 0 };
+        setUploadTasks((prev) => prev.map((t) => (t.id === task.id ? readyTask : t)));
+        startUpload(readyTask);
+      } catch {
+        setUploadTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id ? { ...t, status: "error", error: "Image compression failed" } : t,
+          ),
+        );
+      }
+    });
   }, [startUpload]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -391,7 +406,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
   const showWidget = uploadTasks.length > 0;
   const imgSrc = (url: string) => resolveImgUrl(url);
   const statusColor = (s: UploadTaskStatus) =>
-    s === "completed" ? "bg-green-500" : s === "stopped" ? "bg-orange-400" : s === "error" ? "bg-red-500" : "bg-blue-500";
+    s === "completed" ? "bg-green-500" : s === "stopped" ? "bg-orange-400" : s === "error" ? "bg-red-500" : s === "compressing" ? "bg-violet-500" : "bg-blue-500";
 
   return (
     <div className={cn("flex flex-col bg-white", isDialog ? "h-[65vh]" : "h-[calc(100vh-80px)] md:-m-6")}>
@@ -722,9 +737,11 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
             <div className="flex items-center gap-2">
               <Upload className="h-4 w-4 text-blue-400" />
               <span className="text-sm font-semibold">
-                {uploadTasks.filter((t) => t.status === "uploading").length > 0
-                  ? `Uploading ${uploadTasks.filter((t) => t.status === "uploading").length} file(s)…`
-                  : `${uploadTasks.length} file(s) done`}
+                {uploadTasks.some((t) => t.status === "compressing")
+                  ? `Compressing ${uploadTasks.filter((t) => t.status === "compressing").length} file(s)…`
+                  : uploadTasks.filter((t) => t.status === "uploading").length > 0
+                    ? `Uploading ${uploadTasks.filter((t) => t.status === "uploading").length} file(s)…`
+                    : `${uploadTasks.length} file(s) done`}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -744,11 +761,15 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-gray-800 truncate mb-1" title={task.file.name}>{task.file.name}</p>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={cn("h-full rounded-full transition-all duration-300", statusColor(task.status))} style={{ width: `${task.progress}%` }} />
+                      <div
+                        className={cn("h-full rounded-full transition-all duration-300", statusColor(task.status))}
+                        style={{ width: task.status === "compressing" ? "35%" : `${task.progress}%` }}
+                      />
                     </div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-[10px] text-gray-400">
                         {task.status === "completed" && "✓ Done"}
+                        {task.status === "compressing" && "Compressing…"}
                         {task.status === "uploading" && `${task.progress}%`}
                         {task.status === "stopped" && "Stopped"}
                         {task.status === "error" && (task.error ?? "Error")}
