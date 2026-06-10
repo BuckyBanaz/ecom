@@ -43,9 +43,11 @@ services:
       CLIENT_URL: https://${DOMAIN}
       API_URL: https://api.${DOMAIN}
       ENABLE_REDIS: "true"
+      SETTINGS_ENV_FILE: /app/.env.production
     volumes:
       - backend_uploads:/app/public/uploads
       - backups_data:/app/backups
+      - ./.env.production:/app/.env.production
     depends_on:
       postgres:
         condition: service_healthy
