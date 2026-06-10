@@ -234,3 +234,48 @@ All colors MUST be HSL.
   animation: marquee 15s linear infinite;
 }
 
+/* Invoice print — only the document, no site/admin chrome */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body.print-invoice * {
+    visibility: hidden;
+  }
+
+  body.print-invoice .invoice-print-area,
+  body.print-invoice .invoice-print-area * {
+    visibility: visible;
+  }
+
+  body.print-invoice .invoice-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 16mm !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+  }
+}
+

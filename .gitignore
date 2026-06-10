@@ -46,3 +46,5 @@ logs/
 .DS_Store
 Thumbs.db
 backend/serviceAccountKey.json
+
+local-scripts/

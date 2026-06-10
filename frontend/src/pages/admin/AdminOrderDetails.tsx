@@ -13,6 +13,9 @@ import { Logo } from "@/components/layout/Logo";
 import { ordersRepository } from "@/client/apiClient";
 import { ENDPOINTS } from "@/utils/endpoints";
 import { parseOrderMetadata } from "@/utils/formatters";
+import { formatPrice } from "@/context/CartContext";
+import { printInvoice } from "@/utils/printInvoice";
+import { getInvoiceNumber } from "@/utils/invoice";
 
 const formatOrderWithShipment = (orderData: any) => {
   if (!orderData) return orderData;
@@ -239,16 +242,7 @@ export default function AdminOrderDetails() {
 
   const handleGenerateInvoice = () => {
     if (!order) return;
-    const updated = {
-      ...order,
-      invoiceNumber: order.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      invoiceUrl: order.invoiceUrl || `/invoices/${order.orderNumber}.pdf`,
-      status: order.status === "pending" || order.status === "payment_pending" ? "paid" : order.status,
-      updatedAt: new Date().toISOString(),
-    };
-    setOrder(updated);
     setShowInvoiceMock(true);
-    toast.success(t("admin_order_details.toast_invoice_generated"));
   };
 
   const handleCreateShipment = async (e: React.FormEvent) => {
@@ -341,7 +335,7 @@ export default function AdminOrderDetails() {
             onClick={handleGenerateInvoice}
             className="rounded-full text-xs font-bold gap-2 h-9"
           >
-            <FileText className="h-4 w-4" /> {order.invoiceNumber ? t("admin_order_details.button_invoice") : t("admin_order_details.button_generate_invoice")}
+            <FileText className="h-4 w-4" /> {t("admin_order_details.button_invoice")}
           </Button>
           
           {/* Status Select */}
@@ -574,14 +568,14 @@ export default function AdminOrderDetails() {
       {/* Invoice PDF Mockup Dialog */}
       {showInvoiceMock && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white text-black rounded-2xl max-w-2xl w-full p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans">
+          <div className="invoice-print-area bg-white text-black rounded-2xl max-w-2xl w-full p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans print:max-h-none print:overflow-visible print:shadow-none print:rounded-none">
             <div className="flex justify-between items-start border-b pb-6">
               <div>
                 <Logo forceLight className="mb-1 pointer-events-none" />
                 <p className="text-xs text-stone-500 mt-1">{t("admin_order_details.invoice_title")}</p>
               </div>
               <div className="text-right text-xs space-y-0.5">
-                <p className="font-bold">{t("admin_order_details.invoice_number")} {order.invoiceNumber}</p>
+                <p className="font-bold">{t("admin_order_details.invoice_number")} {getInvoiceNumber(order)}</p>
                 <p>{t("admin_order_details.invoice_date")} {new Date().toLocaleDateString()}</p>
                 <p>{t("admin_order_details.invoice_reference")} {order.orderNumber}</p>
               </div>
@@ -621,8 +615,8 @@ export default function AdminOrderDetails() {
                     <tr key={i}>
                       <td className="p-3 font-semibold">{item.productName} {item.variant && `(${item.variant})`}</td>
                       <td className="p-3 text-center">{item.quantity}</td>
-                      <td className="p-3 text-right">€{item.price.toFixed(2)}</td>
-                      <td className="p-3 text-right">€{(item.price * item.quantity).toFixed(2)}</td>
+                      <td className="p-3 text-right">{formatPrice(item.price)}</td>
+                      <td className="p-3 text-right">{formatPrice(item.price * item.quantity)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -633,25 +627,26 @@ export default function AdminOrderDetails() {
               <div className="w-64 space-y-2 border-t pt-3">
                 {/* Summary */}
                 <div className="mt-6 border-t pt-4 space-y-2 text-sm text-foreground">
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_subtotal")}</span><span>€{order.subtotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_shipping")}</span><span>{order.shipping === 0 ? t("admin_order_details.shipping_free") : `€${order.shipping.toFixed(2)}`}</span></div>
-                  {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_tax")}</span><span>€{tax.toFixed(2)}</span></div>}
-                  {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_discount")}</span><span className="text-green-600">-€{discount.toFixed(2)}</span></div>}
-                  <div className="flex justify-between font-bold text-base border-t pt-2"><span>{t("admin_order_details.label_total")}</span><span>€{order.total.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_subtotal")}</span><span>{formatPrice(order.subtotal)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_shipping")}</span><span>{order.shipping === 0 ? t("admin_order_details.shipping_free") : formatPrice(order.shipping)}</span></div>
+                  {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_tax")}</span><span>{formatPrice(tax)}</span></div>}
+                  {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("admin_order_details.label_discount")}</span><span className="text-green-600">-{formatPrice(discount)}</span></div>}
+                  <div className="flex justify-between font-bold text-base border-t pt-2"><span>{t("admin_order_details.label_total")}</span><span>{formatPrice(order.total)}</span></div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-between items-center border-t pt-6">
-              <span className="text-[10px] text-stone-400">{t("admin_order_details.invoice_thank")}</span>
-              <div className="flex gap-2">
-                <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full">
-                  <Printer className="h-3.5 w-3.5" /> {t("admin_order_details.button_print")}
-                </Button>
-                <Button onClick={() => setShowInvoiceMock(false)} size="sm" className="text-xs bg-amber-900 hover:bg-amber-950 text-white rounded-full">
-                  {t("admin_order_details.button_done")}
-                </Button>
-              </div>
+            <div className="text-center border-t border-stone-200 pt-6">
+              <p className="text-[10px] text-stone-400">{t("admin_order_details.invoice_thank")}</p>
+            </div>
+
+            <div className="flex justify-end gap-2 no-print">
+              <Button onClick={printInvoice} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full">
+                <Printer className="h-3.5 w-3.5" /> {t("admin_order_details.button_print")}
+              </Button>
+              <Button onClick={() => setShowInvoiceMock(false)} size="sm" className="text-xs bg-amber-900 hover:bg-amber-950 text-white rounded-full">
+                {t("admin_order_details.button_done")}
+              </Button>
             </div>
           </div>
         </div>
