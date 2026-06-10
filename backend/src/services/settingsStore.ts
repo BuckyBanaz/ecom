@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 
+/** Production always writes to the host-mounted .env.production — never ephemeral /app/.env */
 function getEnvFilePath(): string {
   if (process.env.SETTINGS_ENV_FILE) {
     return path.resolve(process.env.SETTINGS_ENV_FILE);
@@ -18,6 +19,15 @@ function getEnvFilePath(): string {
   const localEnv = path.resolve(process.cwd(), ".env");
   if (fs.existsSync(localEnv)) return localEnv;
   return path.resolve(process.cwd(), ".env");
+}
+
+function assertProductionSaveTarget(filePath: string): void {
+  if (process.env.NODE_ENV !== "production") return;
+  if (!filePath.endsWith(".env.production")) {
+    throw new Error(
+      `Refusing to save admin settings to ${filePath}. Use host-mounted .env.production.`
+    );
+  }
 }
 
 function ensureEnvFileDir(filePath: string): void {
@@ -47,8 +57,15 @@ function readEnvFile(filePath: string): Record<string, string> {
   return dotenv.parse(content);
 }
 
+function backupEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+  fs.copyFileSync(filePath, `${filePath}.bak`);
+}
+
 function writeEnvUpdates(filePath: string, updates: Record<string, string>): void {
+  assertProductionSaveTarget(filePath);
   ensureEnvFileDir(filePath);
+  backupEnvFile(filePath);
 
   const lines: string[] = fs.existsSync(filePath)
     ? fs.readFileSync(filePath, "utf-8").split(/\r?\n/)
@@ -76,7 +93,10 @@ function writeEnvUpdates(filePath: string, updates: Record<string, string>): voi
   }
 
   const body = output.join("\n");
-  fs.writeFileSync(filePath, body.endsWith("\n") ? body : `${body}\n`, "utf-8");
+  const content = body.endsWith("\n") ? body : `${body}\n`;
+  const tmpPath = `${filePath}.tmp`;
+  fs.writeFileSync(tmpPath, content, "utf-8");
+  fs.renameSync(tmpPath, filePath);
 }
 
 export async function loadPersistedSettings(): Promise<void> {
@@ -84,8 +104,12 @@ export async function loadPersistedSettings(): Promise<void> {
     const filePath = getEnvFilePath();
     const settings = readEnvFile(filePath);
     applyToProcessEnv(settings);
-    if (Object.keys(settings).length > 0) {
-      console.log(`Loaded settings from ${filePath}`);
+    const keyCount = Object.keys(settings).length;
+    if (keyCount > 0) {
+      console.log(`✅ Loaded ${keyCount} persisted settings from ${filePath}`);
+    }
+    if (process.env.NODE_ENV === "production" && !fs.existsSync(filePath)) {
+      console.warn(`⚠️ Persisted settings file missing: ${filePath}`);
     }
   } catch (error: any) {
     console.error("Failed to load persisted settings:", error?.message || error);
@@ -98,6 +122,9 @@ export async function saveSettings(updates: Record<string, string>): Promise<voi
   const filePath = getEnvFilePath();
   writeEnvUpdates(filePath, updates);
   applyToProcessEnv(updates);
+  console.log(
+    `✅ Saved ${Object.keys(updates).length} setting(s) to ${filePath} (persists across restarts)`
+  );
 }
 
 export function getSettingsEnvFilePath(): string {

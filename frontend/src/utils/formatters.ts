@@ -69,3 +69,21 @@ export function parseOrderMetadata(shippingAddressRaw: string) {
   };
 }
 
+/** Safe brand label — API may return brand: null (typeof null === "object" in JS). */
+export function getProductBrandName(brand: unknown): string {
+  if (brand == null) return "";
+  if (typeof brand === "object" && "name" in brand) {
+    const name = (brand as { name?: string }).name;
+    return name ?? "";
+  }
+  return String(brand);
+}
+
+export function getProductCategorySlug(category: unknown): string {
+  if (category == null) return "";
+  if (typeof category === "object" && "slug" in category) {
+    return String((category as { slug?: string }).slug ?? "");
+  }
+  return String(category);
+}
+

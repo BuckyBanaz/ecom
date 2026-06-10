@@ -44,4 +44,11 @@ if [[ "${SKIP_HEALTH_CHECK:-false}" != "true" ]]; then
   bash "${APP_DIR}/scripts/health-check.sh"
 fi
 
+if [[ -f ".env.production" ]]; then
+  ENV_KEY_COUNT="$(grep -cE '^[A-Z_][A-Z0-9_]*=' .env.production 2>/dev/null || echo 0)"
+  echo "==> .env.production preserved on host (${ENV_KEY_COUNT} keys — survives restarts/deploys)"
+else
+  echo "WARNING: .env.production missing after deploy!"
+fi
+
 echo "==> Deploy complete — commit ${COMMIT}"

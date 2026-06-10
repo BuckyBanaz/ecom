@@ -1,8 +1,23 @@
+import fs from "fs";
+import path from "path";
 import dotenv from "dotenv";
 import { z } from "zod";
 
-// Load active environment variables
-dotenv.config();
+// Production: load host-mounted .env.production (not ephemeral /app/.env)
+function loadEnvFile(): void {
+  if (process.env.NODE_ENV === "production") {
+    const prodPath = process.env.SETTINGS_ENV_FILE
+      ? path.resolve(process.env.SETTINGS_ENV_FILE)
+      : path.resolve(process.cwd(), ".env.production");
+    if (fs.existsSync(prodPath)) {
+      dotenv.config({ path: prodPath });
+      return;
+    }
+  }
+  dotenv.config();
+}
+
+loadEnvFile();
 
 const deriveApiUrl = (clientUrl: string): string => {
   try {

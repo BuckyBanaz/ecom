@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice, useCart } from "@/context/CartContext";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { getProductBrandName } from "@/utils/formatters";
 
 const Cart = () => {
   const { t } = useTranslation();
@@ -32,7 +33,7 @@ const Cart = () => {
               <div className="flex flex-1 flex-col">
                 <Link to={`/product/${i.product.slug}`} className="font-semibold hover:text-primary">{i.product.name}</Link>
                 <span className="text-xs text-muted-foreground">
-                  {typeof i.product.brand === "object" ? i.product.brand.name : i.product.brand} · {i.product.color}
+                  {getProductBrandName(i.product.brand) || "—"} · {i.product.color}
                 </span>
                 <div className="mt-auto flex items-center justify-between">
                   <div className="flex items-center rounded-full border">

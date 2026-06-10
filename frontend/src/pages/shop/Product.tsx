@@ -20,6 +20,7 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReviewModal } from "@/components/shop/ReviewModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { getProductBrandName } from "@/utils/formatters";
 
 const ProductPage = () => {
   const { t } = useTranslation();
@@ -301,7 +302,7 @@ const ProductPage = () => {
             {/* Row 1: Brand & Series */}
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <div>
-                {t("product.label_brand")} <span className="text-foreground underline underline-offset-4 hover:text-primary cursor-pointer">{typeof product.brand === "object" ? product.brand.name : product.brand}</span>
+                {t("product.label_brand")} <span className="text-foreground underline underline-offset-4 hover:text-primary cursor-pointer">{getProductBrandName(product.brand) || "—"}</span>
               </div>
               {(() => {
                 let series = null;

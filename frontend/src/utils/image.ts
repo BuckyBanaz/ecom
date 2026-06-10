@@ -14,12 +14,21 @@ export const getApiBaseUrl = (): string => {
   return "http://localhost:5000";
 };
 
+const LEGACY_ASSET_ALIASES: Record<string, string> = {
+  "/assets/cat-chandeliers.jpg": "/assets/cat-chandelier.jpg",
+  "/assets/cat-office-lighting.jpg": "/assets/cat-office.jpg",
+};
+
 /** Resolve an image path for display in img src attributes */
 export const resolveImgUrl = (src?: string | null): string => {
   if (!src) return "";
 
   if (src.startsWith("data:") || src.startsWith("blob:")) {
     return src;
+  }
+
+  if (LEGACY_ASSET_ALIASES[src]) {
+    return LEGACY_ASSET_ALIASES[src];
   }
 
   const baseUrl = getApiBaseUrl();
