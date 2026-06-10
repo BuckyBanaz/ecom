@@ -8,7 +8,10 @@ ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_APP_URL=$VITE_APP_URL
 
 COPY package*.json ./
-RUN npm ci
+# npm ci on Alpine often skips Rollup's musl optional binary (lockfile from another OS).
+RUN npm ci \
+    && ROLLUP_VER="$(node -p "require('rollup/package.json').version")" \
+    && npm install --no-save "@rollup/rollup-linux-x64-musl@${ROLLUP_VER}"
 
 COPY . .
 RUN npm run build
