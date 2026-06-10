@@ -541,6 +541,13 @@ export const mediaRepository = {
     return { promise, abort: () => xhr.abort() };
   },
 
+  optimize: async (options: { paths?: string[]; folder?: string; recursive?: boolean }) => {
+    return request<any>(`${ENDPOINTS.MEDIA}/optimize`, {
+      method: "POST",
+      body: JSON.stringify(options),
+    });
+  },
+
   move: async (paths: string[], destination: string) => {
     return request<any>(`${ENDPOINTS.MEDIA}/move`, {
       method: "PUT",

@@ -410,9 +410,11 @@ const AccountAuth = () => {
                           onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
                           required 
                         />
-                        <p className="text-xs text-zinc-500 mt-2 text-center">
-                          <Trans i18nKey="auth_pages.login.demo_otp_hint" components={{ 1: <b /> }} />
-                        </p>
+                        {import.meta.env.DEV && (
+                          <p className="text-xs text-zinc-500 mt-2 text-center">
+                            <Trans i18nKey="auth_pages.login.demo_otp_hint" components={{ 1: <b /> }} />
+                          </p>
+                        )}
                       </div>
                       <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6">
                          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t("auth_pages.login.verify_login")}

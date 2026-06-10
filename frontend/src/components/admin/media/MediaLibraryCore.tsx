@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   Folder, Image as ImageIcon, Upload, Plus, Trash2, ArrowLeft, ChevronRight, Copy, Check,
   RefreshCw, Filter, LayoutGrid, List, PanelRightClose, PanelRightOpen, Search, Edit2,
-  X, RotateCcw, StopCircle, ChevronDown, ChevronUp, Scissors, ClipboardPaste, FolderInput,
+  X, RotateCcw, StopCircle, ChevronDown, ChevronUp, Scissors, ClipboardPaste, FolderInput, Minimize2,
 } from "lucide-react";
 import { mediaRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
@@ -160,6 +160,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
 
   // Upload tasks
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
+  const [optimizing, setOptimizing] = useState(false);
   const [widgetCollapsed, setWidgetCollapsed] = useState(false);
   const currentPathRef = useRef(currentPath);
   useEffect(() => { currentPathRef.current = currentPath; }, [currentPath]);
@@ -356,6 +357,48 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
     } catch (err: any) { toast.error(err.message || "Failed to create folder"); }
   };
 
+  const runOptimize = async (options: { paths?: string[]; folder?: string; recursive?: boolean }, label: string) => {
+    try {
+      setOptimizing(true);
+      toast.loading(label);
+      const res = await mediaRepository.optimize(options);
+      toast.dismiss();
+      if (res.success) {
+        const { optimized, total, savedMb } = res.summary || {};
+        toast.success(`Optimized ${optimized ?? 0} of ${total ?? 0} image(s) — saved ${savedMb ?? 0} MB`);
+        loadMedia(currentPath);
+      } else {
+        toast.error(res.message || "Optimization failed");
+      }
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.message || "Optimization failed");
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const handleOptimizeSelected = () => {
+    const imagePaths = Array.from(selectedItems).filter((p) => {
+      const item = items.find((i) => i.path === p);
+      return item && !item.isFolder && /\.(jpe?g|png|webp)$/i.test(item.name);
+    });
+    if (imagePaths.length === 0) {
+      toast.error("Select at least one image (JPG, PNG, or WebP)");
+      return;
+    }
+    runOptimize({ paths: imagePaths }, `Compressing ${imagePaths.length} image(s)…`);
+  };
+
+  const handleOptimizeFolder = () => {
+    runOptimize({ folder: currentPath, recursive: true }, "Compressing images in this folder…");
+  };
+
+  const handleOptimizeAll = () => {
+    if (!confirm("Compress ALL images in the media library? Original filenames and URLs stay the same.")) return;
+    runOptimize({ folder: "", recursive: true }, "Compressing entire media library…");
+  };
+
   const handleBulkDelete = async () => {
     if (selectedItems.size === 0) return;
     if (!confirm(`Delete ${selectedItems.size} item(s)?`)) return;
@@ -490,6 +533,16 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
                     const item = items.find((i) => i.path === Array.from(selectedItems)[0]);
                     if (item && !item.isFolder) copyUrlToClipboard(item.url);
                   }}><Copy className="mr-2 h-4 w-4" /> Copy URL</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={optimizing || selectedItems.size === 0} onSelect={(e) => { e.preventDefault(); handleOptimizeSelected(); }}>
+                    <Minimize2 className="mr-2 h-4 w-4" /> Compress selected
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={optimizing} onSelect={(e) => { e.preventDefault(); handleOptimizeFolder(); }}>
+                    <Minimize2 className="mr-2 h-4 w-4" /> Compress this folder
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={optimizing} onSelect={(e) => { e.preventDefault(); handleOptimizeAll(); }}>
+                    <Minimize2 className="mr-2 h-4 w-4" /> Compress entire library
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem disabled={selectedItems.size === 0} onSelect={(e) => { e.preventDefault(); handleCopyToClipboard("copy"); }}>
                     <Copy className="mr-2 h-4 w-4" /> Copy (Ctrl+C)

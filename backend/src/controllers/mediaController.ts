@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import multer from "multer";
 import { toPublicMediaUrl } from "../utils/mediaUrl";
+import { optimizeImagesInUploads } from "../utils/imageOptimize";
 
 const UPLOADS_DIR = path.join(__dirname, "../../public/uploads");
 
@@ -269,3 +270,42 @@ export const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 }).single("file");
+
+export const optimizeMedia = async (req: Request, res: Response) => {
+  try {
+    const { paths, folder = "", recursive = true } = req.body as {
+      paths?: string[];
+      folder?: string;
+      recursive?: boolean;
+    };
+
+    if (paths && !Array.isArray(paths)) {
+      return res.status(400).json({ success: false, message: "paths must be an array" });
+    }
+
+    const results = await optimizeImagesInUploads(
+      UPLOADS_DIR,
+      { paths, folder, recursive },
+      getSafePath,
+    );
+
+    const optimized = results.filter((r) => r.optimized);
+    const savedBytes = optimized.reduce((sum, r) => sum + (r.beforeBytes - r.afterBytes), 0);
+
+    res.status(200).json({
+      success: true,
+      message: `Optimized ${optimized.length} of ${results.length} image(s)`,
+      summary: {
+        total: results.length,
+        optimized: optimized.length,
+        skipped: results.length - optimized.length,
+        savedBytes,
+        savedMb: Number((savedBytes / (1024 * 1024)).toFixed(2)),
+      },
+      results,
+    });
+  } catch (error: any) {
+    console.error("Error optimizing media:", error);
+    res.status(500).json({ success: false, message: error?.message || "Server error" });
+  }
+};
