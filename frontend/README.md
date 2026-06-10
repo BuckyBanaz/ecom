@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Schip & Ster — Frontend
 
-TODO: Document your project here
+Vite + React storefront and admin dashboard for the Schip & Ster e-commerce platform.
