@@ -14,6 +14,9 @@ seedTemplates();
 
 const app = express();
 
+// Behind Caddy reverse proxy in production (fixes express-rate-limit X-Forwarded-For warning)
+app.set("trust proxy", 1);
+
 // Register HTTP request logger middleware
 app.use(requestLogger);
 

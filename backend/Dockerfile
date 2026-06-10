@@ -22,8 +22,10 @@ RUN npx prisma generate
 # Copy source code
 COPY src ./src
 
-# Build TypeScript
-RUN npm run build || echo "Build failed, continuing..."
+# Fresh compile every image build (tsc may warn on types but must emit dist)
+RUN rm -rf dist && (npm run build || true) \
+    && test -f dist/services/settingsStore.js \
+    && test -f dist/controllers/adminSettingsController.js
 
 # Production stage
 FROM node:20-alpine
