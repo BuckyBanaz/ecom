@@ -68,6 +68,7 @@ services:
       - backend
 
   jenkins:
+    container_name: ecom-jenkins
     build:
       context: ./jenkins
       dockerfile: Dockerfile

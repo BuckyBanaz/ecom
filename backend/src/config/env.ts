@@ -62,4 +62,21 @@ export const env = {
   API_URL: config.API_URL ?? deriveApiUrl(config.CLIENT_URL, config.PORT),
 };
 
+const RUNTIME_ENV_KEYS = [
+  "STRIPE_PUBLISHABLE_KEY",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+] as const;
+
+/** Sync admin-saved .env.production values into the cached env object. */
+export function refreshEnvFromProcess(): void {
+  const mutable = env as Record<string, string | number | undefined>;
+  for (const key of RUNTIME_ENV_KEYS) {
+    const value = process.env[key];
+    if (value !== undefined) {
+      mutable[key] = value;
+    }
+  }
+}
+
 export type EnvType = typeof env;

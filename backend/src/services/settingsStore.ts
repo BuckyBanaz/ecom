@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
+import { refreshEnvFromProcess } from "../config/env";
+import { resetStripeClient } from "../utils/stripeClient";
 
 /** Production always writes to the host-mounted .env.production — never ephemeral /app/.env */
 function getEnvFilePath(): string {
@@ -144,6 +146,8 @@ export async function loadPersistedSettings(): Promise<void> {
     const filePath = getEnvFilePath();
     const settings = readEnvFile(filePath);
     applyToProcessEnv(settings);
+    refreshEnvFromProcess();
+    resetStripeClient();
     const keyCount = Object.keys(settings).length;
     if (keyCount > 0) {
       console.log(`✅ Loaded ${keyCount} persisted settings from ${filePath}`);
@@ -162,6 +166,8 @@ export async function saveSettings(updates: Record<string, string>): Promise<voi
   const filePath = getEnvFilePath();
   writeEnvUpdates(filePath, updates);
   applyToProcessEnv(updates);
+  refreshEnvFromProcess();
+  resetStripeClient();
   console.log(
     `✅ Saved ${Object.keys(updates).length} setting(s) to ${filePath} (persists across restarts)`
   );
