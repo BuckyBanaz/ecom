@@ -4,7 +4,15 @@
 
 {$DOMAIN}, www.{$DOMAIN} {
   encode gzip zstd
-  reverse_proxy frontend:80
+  handle /robots.txt {
+    reverse_proxy backend:5000
+  }
+  handle /sitemap.xml {
+    reverse_proxy backend:5000
+  }
+  handle {
+    reverse_proxy frontend:80
+  }
 }
 
 api.{$DOMAIN} {

@@ -48,11 +48,11 @@ RUN npx prisma generate
 # Copy built dist from builder
 COPY --from=builder /app/dist ./dist
 
-# Utility scripts (e.g. clear_orders.js)
-COPY clear_orders.js ./
+# Utility scripts (e.g. clear_orders.js, clear_dummy_users.js)
+COPY clear_orders.js clear_dummy_users.js ./
 
-# Create uploads directory
-RUN mkdir -p public/uploads backups
+# Create uploads + SEO files directories
+RUN mkdir -p public/uploads backups seo
 
 # Expose port
 EXPOSE 5000

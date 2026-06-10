@@ -104,20 +104,30 @@ export function getSettingsEnvFilePath(): string {
   return getEnvFilePath();
 }
 
-function resolvePublicFile(name: string): string {
-  const inBackend = path.resolve(process.cwd(), "public", name);
-  const inFrontend = path.resolve(process.cwd(), "../frontend/public", name);
-  if (fs.existsSync(path.dirname(inBackend)) || process.env.NODE_ENV === "production") {
-    return inBackend;
+/** Stable SEO files dir — never use process.cwd() (can be "/" in Docker). */
+function getSeoFilesDir(): string {
+  if (process.env.SEO_FILES_DIR) {
+    return path.resolve(process.env.SEO_FILES_DIR);
   }
-  if (fs.existsSync(path.dirname(inFrontend))) return inFrontend;
-  return inBackend;
+  return path.resolve(__dirname, "../../seo");
+}
+
+function ensureSeoFilesDir(): string {
+  const dir = getSeoFilesDir();
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+function seoFilePath(name: string): string {
+  return path.join(ensureSeoFilesDir(), name);
 }
 
 const DEFAULT_ROBOTS = "User-agent: *\nAllow: /\n";
 
 export async function getRobotsTxtContent(): Promise<string> {
-  const robotsPath = resolvePublicFile("robots.txt");
+  const robotsPath = seoFilePath("robots.txt");
   if (fs.existsSync(robotsPath)) {
     return fs.readFileSync(robotsPath, "utf-8");
   }
@@ -125,13 +135,17 @@ export async function getRobotsTxtContent(): Promise<string> {
 }
 
 export async function saveRobotsTxtContent(content: string): Promise<void> {
-  const robotsPath = resolvePublicFile("robots.txt");
-  ensureEnvFileDir(robotsPath);
+  const robotsPath = seoFilePath("robots.txt");
   fs.writeFileSync(robotsPath, content || "", "utf-8");
 }
 
+export async function getSitemapXmlContent(): Promise<string | null> {
+  const sitemapPath = seoFilePath("sitemap.xml");
+  if (!fs.existsSync(sitemapPath)) return null;
+  return fs.readFileSync(sitemapPath, "utf-8");
+}
+
 export async function saveSitemapXmlContent(content: string): Promise<void> {
-  const sitemapPath = resolvePublicFile("sitemap.xml");
-  ensureEnvFileDir(sitemapPath);
+  const sitemapPath = seoFilePath("sitemap.xml");
   fs.writeFileSync(sitemapPath, content, "utf-8");
 }
