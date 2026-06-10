@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -8,10 +8,8 @@ ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_APP_URL=$VITE_APP_URL
 
 COPY package*.json ./
-# npm ci on Alpine often skips Rollup's musl optional binary (lockfile from another OS).
-RUN npm ci \
-    && ROLLUP_VER="$(node -p "require('rollup/package.json').version")" \
-    && npm install --no-save "@rollup/rollup-linux-x64-musl@${ROLLUP_VER}"
+# npm ci skips OS-specific optional deps when lockfile was generated elsewhere — npm install fixes that.
+RUN npm ci && npm install --prefer-offline --no-audit
 
 COPY . .
 RUN npm run build
