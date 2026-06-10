@@ -18,41 +18,37 @@ export const getApiBaseUrl = (): string => {
   return "http://localhost:5000";
 };
 
-const PLACEHOLDER = "/placeholder.svg";
-
-const LEGACY_ASSET_ALIASES: Record<string, string> = {
-  "/assets/cat-chandeliers.jpg": PLACEHOLDER,
-  "/assets/cat-office-lighting.jpg": PLACEHOLDER,
-  "/assets/cat-chandelier.jpg": PLACEHOLDER,
-  "/assets/cat-office.jpg": PLACEHOLDER,
-  "/assets/cat-generic.jpg": PLACEHOLDER,
-};
+/** Paths that should render SafeImage fallback (folder icon), not a broken/text placeholder. */
+export function isMissingImage(src?: string | null): boolean {
+  if (!src || !src.trim()) return true;
+  const clean = src.trim();
+  if (clean === "/placeholder.svg") return true;
+  if (clean.startsWith("/assets/cat-")) return true;
+  if (clean === "/assets/cat-generic.jpg") return true;
+  return false;
+}
 
 /** Resolve an image path for display in img src attributes */
 export const resolveImgUrl = (src?: string | null): string => {
-  if (!src) return "";
+  if (isMissingImage(src)) return "";
 
-  if (src.startsWith("data:") || src.startsWith("blob:")) {
-    return src;
-  }
-
-  if (LEGACY_ASSET_ALIASES[src]) {
-    return LEGACY_ASSET_ALIASES[src];
+  if (src!.startsWith("data:") || src!.startsWith("blob:")) {
+    return src!;
   }
 
   const baseUrl = getApiBaseUrl();
 
   // Always normalize /uploads/ paths to the current API host (fixes prod URLs on localhost).
-  const uploadsIdx = src.indexOf("/uploads/");
+  const uploadsIdx = src!.indexOf("/uploads/");
   if (uploadsIdx !== -1) {
-    return `${baseUrl}${src.slice(uploadsIdx)}`;
+    return `${baseUrl}${src!.slice(uploadsIdx)}`;
   }
 
-  if (src.startsWith("http://") || src.startsWith("https://")) {
-    return src;
+  if (src!.startsWith("http://") || src!.startsWith("https://")) {
+    return src!;
   }
 
-  return src;
+  return src!;
 };
 
 /** Store relative /uploads paths instead of localhost URLs */

@@ -6,22 +6,20 @@ export type Category = {
   group: string;
 };
 
-/** Fallback category thumbnails — real images come from API/CMS. */
-const PLACEHOLDER = "/placeholder.svg";
-
+/** Fallback categories — no bundled images; API/CMS provides real thumbnails. */
 export const categories: Category[] = [
-  { slug: "pendant-lamps", name: "Pendant lamps", image: PLACEHOLDER, group: "interior-lighting" },
-  { slug: "string-lights", name: "String lights", image: PLACEHOLDER, group: "outdoor-lighting" },
-  { slug: "ceiling-lamps", name: "Ceiling lamps", image: PLACEHOLDER, group: "interior-lighting" },
-  { slug: "wall-lamps", name: "Wall lamps", image: PLACEHOLDER, group: "interior-lighting" },
-  { slug: "outdoor-lamps", name: "Outdoor lamps", image: PLACEHOLDER, group: "outdoor-lighting" },
-  { slug: "floor-lamps", name: "Floor lamps", image: PLACEHOLDER, group: "interior-lighting" },
-  { slug: "smart-bulbs", name: "Smart bulbs", image: PLACEHOLDER, group: "light-sources" },
-  { slug: "lampshades", name: "Lampshades", image: PLACEHOLDER, group: "interior-lighting" },
-  { slug: "table-lamps", name: "Table lamps", image: PLACEHOLDER, group: "interior-lighting" },
-  { slug: "chandeliers", name: "Chandeliers", image: PLACEHOLDER, group: "interior-lighting" },
-  { slug: "led-bulbs", name: "LED bulbs", image: PLACEHOLDER, group: "light-sources" },
-  { slug: "office-lighting", name: "Office lighting", image: PLACEHOLDER, group: "commercial-lighting" },
+  { slug: "pendant-lamps", name: "Pendant lamps", image: "", group: "interior-lighting" },
+  { slug: "string-lights", name: "String lights", image: "", group: "outdoor-lighting" },
+  { slug: "ceiling-lamps", name: "Ceiling lamps", image: "", group: "interior-lighting" },
+  { slug: "wall-lamps", name: "Wall lamps", image: "", group: "interior-lighting" },
+  { slug: "outdoor-lamps", name: "Outdoor lamps", image: "", group: "outdoor-lighting" },
+  { slug: "floor-lamps", name: "Floor lamps", image: "", group: "interior-lighting" },
+  { slug: "smart-bulbs", name: "Smart bulbs", image: "", group: "light-sources" },
+  { slug: "lampshades", name: "Lampshades", image: "", group: "interior-lighting" },
+  { slug: "table-lamps", name: "Table lamps", image: "", group: "interior-lighting" },
+  { slug: "chandeliers", name: "Chandeliers", image: "", group: "interior-lighting" },
+  { slug: "led-bulbs", name: "LED bulbs", image: "", group: "light-sources" },
+  { slug: "office-lighting", name: "Office lighting", image: "", group: "commercial-lighting" },
 ];
 
 export const navGroups = [

@@ -11,7 +11,7 @@ import { StarRating } from "@/components/shop/StarRating";
 import { FaIcon } from "@/components/ui/FaIcon";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { megaMenuData } from "@/data/megaMenu";
-import { resolveImgUrl } from "@/utils/image";
+import { isMissingImage, resolveImgUrl } from "@/utils/image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { productRepository, categoryRepository, blogRepository, brandRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -242,11 +242,10 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
 
             const getCategoryImage = (itemSlug: string) => {
               const resolved = resolveCategorySlug(itemSlug);
-              // Prefer DB categories over dummy categories
               const matchedDb = dbCategories.find(c => c.slug === resolved);
-              if (matchedDb && matchedDb.image) return matchedDb.image;
+              if (matchedDb?.image && !isMissingImage(matchedDb.image)) return matchedDb.image;
               const matched = categories.find(c => c.slug === resolved);
-              return matched ? matched.image : "";
+              return matched?.image && !isMissingImage(matched.image) ? matched.image : "";
             };
 
             const showLabel = attributes.show_label !== "false";

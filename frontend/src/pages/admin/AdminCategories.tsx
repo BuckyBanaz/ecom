@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { categoryRepository, megaMenuRepository } from "@/client/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
-import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { isMissingImage, normalizeUploadedUrl } from "@/utils/image";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 const AdminCategories = () => {
@@ -87,7 +87,7 @@ const AdminCategories = () => {
 
   useEffect(() => {
     if (editCat) {
-      setImagePreview(editCat.image);
+      setImagePreview(isMissingImage(editCat.image) ? "" : editCat.image);
     } else {
       setImagePreview("");
     }
@@ -101,7 +101,7 @@ const AdminCategories = () => {
     const group = formData.get("group") as string;
     const image = imagePreview;
 
-    if (!image) {
+    if (!image || isMissingImage(image)) {
       toast.error(t("admin_categories.toast_image_required"));
       return;
     }
@@ -238,16 +238,15 @@ const AdminCategories = () => {
                 <div>
                   <Label>{t("admin_categories.label_image")}</Label>
                   <div className="mt-1.5 flex items-center gap-4">
-                    {imagePreview && (
-                      <img
-                        src={resolveImgUrl(imagePreview)}
-                        alt={t("admin_categories.alt_preview")}
-                        className="h-16 w-16 rounded-lg object-cover border bg-muted"
-                      />
-                    )}
+                    <SafeImage
+                      src={imagePreview}
+                      alt={t("admin_categories.alt_preview")}
+                      className="h-16 w-16 shrink-0 rounded-lg object-cover border"
+                      fallbackType="category"
+                    />
                     <div className="flex-1">
                       <Button type="button" variant="outline" className="w-full text-left justify-start" onClick={() => setIsMediaLibraryOpen(true)}>
-                        {imagePreview ? t("admin_categories.change_image") : t("admin_categories.browse_media")}
+                        {imagePreview && !isMissingImage(imagePreview) ? t("admin_categories.change_image") : t("admin_categories.browse_media")}
                       </Button>
                       <p className="text-[10px] text-muted-foreground mt-1">
                         {t("admin_categories.image_hint")}
