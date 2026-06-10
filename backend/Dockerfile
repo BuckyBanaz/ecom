@@ -8,7 +8,7 @@ RUN apk add --no-cache openssl libc6-compat postgresql16-client
 
 # Copy package files
 COPY package*.json ./
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.build.json ./
 
 # Install all dependencies (including dev)
 RUN npm ci
