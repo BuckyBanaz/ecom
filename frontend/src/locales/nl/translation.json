@@ -1978,6 +1978,8 @@
       "phone_placeholder": "612345678",
       "password_label": "Wachtwoord",
       "password_placeholder": "Maak een sterk wachtwoord",
+      "password_hint": "Wachtwoord moet minimaal 6 tekens bevatten",
+      "toast_password_short": "Wachtwoord moet minimaal 6 tekens bevatten",
       "send_otp": "OTP verzenden",
       "create_account": "Account aanmaken",
       "otp_sent_to": "OTP verzonden naar {{phone}}",

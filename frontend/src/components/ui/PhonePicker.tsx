@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { cleanAndValidatePhone } from "@/utils/phoneValidation";
+import { cleanAndValidatePhone, getMaxPhoneDigits } from "@/utils/phoneValidation";
 
 interface PhonePickerProps {
   value: string;
@@ -10,9 +10,10 @@ interface PhonePickerProps {
   id?: string;
   className?: string;
   disabled?: boolean;
+  error?: string;
 }
 
-export function PhonePicker({ value, onChange, required, id, className, disabled }: PhonePickerProps) {
+export function PhonePicker({ value, onChange, required, id, className, disabled, error }: PhonePickerProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [code, setCode] = useState("+31");
   const [number, setNumber] = useState("");
@@ -34,21 +35,30 @@ export function PhonePicker({ value, onChange, required, id, className, disabled
     }
   }, [value]);
 
+  const sanitizeNumber = (raw: string, countryCode: string) => {
+    let digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("0")) digits = digits.slice(1);
+    return digits.slice(0, getMaxPhoneDigits(countryCode));
+  };
+
   const handleNumberChange = (newNum: string) => {
-    const { cleanedNumber, fullPhone } = cleanAndValidatePhone(code, newNum);
+    const cleanedNumber = sanitizeNumber(newNum, code);
+    const { fullPhone } = cleanAndValidatePhone(code, cleanedNumber);
     setNumber(cleanedNumber);
     onChange(fullPhone);
   };
 
   const handleCodeChange = (newCode: string) => {
     setCode(newCode);
-    const { cleanedNumber, fullPhone } = cleanAndValidatePhone(newCode, number);
+    const cleanedNumber = sanitizeNumber(number, newCode);
+    const { fullPhone } = cleanAndValidatePhone(newCode, cleanedNumber);
     setNumber(cleanedNumber);
     onChange(fullPhone);
   };
 
   return (
-    <div className={`flex bg-zinc-50 border border-zinc-200 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden transition-all ${disabled ? "opacity-50 pointer-events-none" : ""} ${className || ""}`}>
+    <div>
+    <div className={`flex bg-zinc-50 border rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden transition-all ${error ? "border-red-500" : "border-zinc-200"} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className || ""}`}>
       {isMounted && (
         <Select value={code} onValueChange={handleCodeChange} disabled={disabled}>
           <SelectTrigger className="w-[95px] border-0 focus:ring-0 rounded-none bg-transparent h-10 text-zinc-600 font-medium shadow-none">
@@ -66,13 +76,17 @@ export function PhonePicker({ value, onChange, required, id, className, disabled
       <Input 
         id={id}
         type="tel" 
+        inputMode="numeric"
         value={number}
         onChange={(e) => handleNumberChange(e.target.value)}
-        placeholder="1234567890" 
+        placeholder={code === "+91" ? "9876543210" : "612345678"}
+        maxLength={getMaxPhoneDigits(code) + 1}
         className="flex-1 h-10 border-0 focus-visible:ring-0 rounded-none bg-transparent shadow-none" 
         required={required}
         disabled={disabled}
       />
+    </div>
+    {error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
     </div>
   );
 }

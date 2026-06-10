@@ -19,13 +19,16 @@ function loadEnvFile(): void {
 
 loadEnvFile();
 
-const deriveApiUrl = (clientUrl: string): string => {
+const deriveApiUrl = (clientUrl: string, port: number): string => {
   try {
     const client = new URL(clientUrl);
     const host = client.hostname.replace(/^www\./, "");
+    if (host === "localhost" || host === "127.0.0.1") {
+      return `http://localhost:${port}`;
+    }
     return `${client.protocol}//api.${host}`;
   } catch {
-    return "http://localhost:5000";
+    return `http://localhost:${port}`;
   }
 };
 
@@ -56,7 +59,7 @@ const config = parsed.data;
 
 export const env = {
   ...config,
-  API_URL: config.API_URL ?? deriveApiUrl(config.CLIENT_URL),
+  API_URL: config.API_URL ?? deriveApiUrl(config.CLIENT_URL, config.PORT),
 };
 
 export type EnvType = typeof env;

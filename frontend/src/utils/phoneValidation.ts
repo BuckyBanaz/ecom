@@ -1,3 +1,9 @@
+export function getMaxPhoneDigits(code: string): number {
+  if (code === "+91") return 10;
+  if (code === "+31") return 9;
+  return 15;
+}
+
 export function cleanAndValidatePhone(code: string, number: string): { isValid: boolean; cleanedNumber: string; fullPhone: string } {
   // Strip all non-digit characters
   let cleaned = number.replace(/\D/g, '');

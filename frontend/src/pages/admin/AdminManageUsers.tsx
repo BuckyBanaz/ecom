@@ -7,7 +7,7 @@ import {
   Coins, MessageSquare, HardDrive, Settings,
   Globe, Star, Mail, Calendar, Trash, Edit
 } from "lucide-react";
-import { SectionLoader } from "@/components/ui/LottieLoader";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";

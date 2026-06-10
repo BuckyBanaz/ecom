@@ -1978,6 +1978,8 @@
       "phone_placeholder": "612345678",
       "password_label": "Password",
       "password_placeholder": "Create a strong password",
+      "password_hint": "Password must be at least 6 characters",
+      "toast_password_short": "Password must be at least 6 characters",
       "send_otp": "Send OTP",
       "create_account": "Create Account",
       "otp_sent_to": "OTP sent to {{phone}}",

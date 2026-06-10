@@ -28,6 +28,7 @@ interface LanguageSwitcherProps {
 
 export function LanguageSwitcher({ compact = false, className }: LanguageSwitcherProps) {
   const { i18n, t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<SupportedLanguage>(
     (i18n.language?.split("-")[0] as SupportedLanguage) || DEFAULT_LANGUAGE,
   );
@@ -43,8 +44,20 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
     };
   }, [i18n]);
 
+  // Close dropdown when user scrolls — prevents Radix modal trap leaving page unclickable.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    return () => window.removeEventListener("scroll", close, true);
+  }, [open]);
+
   const changeLanguage = (code: SupportedLanguage) => {
-    if (code === current) return;
+    if (code === current) {
+      setOpen(false);
+      return;
+    }
+    setOpen(false);
     clearGoogleTranslateCookie();
     clearApiCache();
     localStorage.setItem("i18nextLng", code);
@@ -57,7 +70,7 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
     SUPPORTED_LANGUAGES.find((l) => l.code === current) ?? SUPPORTED_LANGUAGES[0];
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
@@ -85,7 +98,8 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="min-w-[12rem] notranslate p-1.5 rounded-xl shadow-lg"
+        collisionPadding={16}
+        className="z-[200] min-w-[12rem] notranslate p-1.5 rounded-xl shadow-lg"
         translate="no"
       >
         <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5">

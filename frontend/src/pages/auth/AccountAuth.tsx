@@ -9,7 +9,7 @@ import { Eye, EyeOff, Mail, Phone, ArrowRight, ShieldCheck, Loader2 } from "luci
 import { cn } from "@/lib/utils";
 import { authRepository } from "@/client/apiClient";
 import { toast } from "sonner";
-import { cleanAndValidatePhone } from "@/utils/phoneValidation";
+import { cleanAndValidatePhone, getMaxPhoneDigits } from "@/utils/phoneValidation";
 
 const AccountAuth = () => {
   const { t } = useTranslation();
@@ -78,6 +78,9 @@ const AccountAuth = () => {
   const [regPassword, setRegPassword] = useState("");
   const [regOtpSent, setRegOtpSent] = useState(false);
   const [regOtpValue, setRegOtpValue] = useState("");
+  const [loginPhoneError, setLoginPhoneError] = useState("");
+  const [regPhoneError, setRegPhoneError] = useState("");
+  const [regPasswordError, setRegPasswordError] = useState("");
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,9 +106,11 @@ const AccountAuth = () => {
     e.preventDefault();
     const { isValid, cleanedNumber, fullPhone } = cleanAndValidatePhone(phoneCode, phone);
     if (!isValid) {
+      setLoginPhoneError(t("auth_pages.login.toast_invalid_phone"));
       toast.error(t("auth_pages.login.toast_invalid_phone"));
       return;
     }
+    setLoginPhoneError("");
     
     // Clean state on the fly
     setPhone(cleanedNumber);
@@ -154,13 +159,22 @@ const AccountAuth = () => {
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const needsPhone = authConfig.registerMethod === "both" || authConfig.registerMethod === "phone_only";
+
+    if (regPassword.length < 6) {
+      setRegPasswordError(t("auth_pages.register.toast_password_short"));
+      toast.error(t("auth_pages.register.toast_password_short"));
+      return;
+    }
+    setRegPasswordError("");
     
     if (needsPhone && !regOtpSent) {
       const { isValid, cleanedNumber, fullPhone } = cleanAndValidatePhone(regPhoneCode, regPhone);
       if (!isValid) {
+        setRegPhoneError(t("auth_pages.login.toast_invalid_phone"));
         toast.error(t("auth_pages.login.toast_invalid_phone"));
         return;
       }
+      setRegPhoneError("");
       
       // Clean state on the fly
       setRegPhone(cleanedNumber);
@@ -197,7 +211,12 @@ const AccountAuth = () => {
         payload.email = regEmail;
       }
       if (needsPhone) {
-        const { fullPhone } = cleanAndValidatePhone(regPhoneCode, regPhone);
+        const { isValid, fullPhone } = cleanAndValidatePhone(regPhoneCode, regPhone);
+        if (!isValid) {
+          setRegPhoneError(t("auth_pages.login.toast_invalid_phone"));
+          toast.error(t("auth_pages.login.toast_invalid_phone"));
+          return;
+        }
         payload.phone = fullPhone;
         payload.otp = regOtpValue;
       }
@@ -345,14 +364,22 @@ const AccountAuth = () => {
                           <div className="w-[1px] h-6 bg-zinc-200 self-center"></div>
                           <Input 
                             id="login-phone" 
-                            type="tel" 
+                            type="tel"
+                            inputMode="numeric"
                             value={phone}
-                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                            placeholder={t("auth_pages.login.phone_placeholder")} 
+                            onChange={(e) => {
+                              let digits = e.target.value.replace(/\D/g, "");
+                              if (digits.startsWith("0")) digits = digits.slice(1);
+                              setPhone(digits.slice(0, getMaxPhoneDigits(phoneCode)));
+                              setLoginPhoneError("");
+                            }}
+                            placeholder={phoneCode === "+91" ? "9876543210" : "612345678"}
+                            maxLength={getMaxPhoneDigits(phoneCode) + 1}
                             className="flex-1 h-11 border-0 focus-visible:ring-0 rounded-none bg-transparent shadow-none" 
                             required 
                           />
                         </div>
+                        {loginPhoneError && <p className="text-red-500 text-xs mt-1.5">{loginPhoneError}</p>}
                       </div>
                       <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6 group">
                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
@@ -465,14 +492,22 @@ const AccountAuth = () => {
                         <div className="w-[1px] h-6 bg-zinc-200 self-center"></div>
                         <Input 
                           id="reg-phone" 
-                          type="tel" 
+                          type="tel"
+                          inputMode="numeric"
                           value={regPhone}
-                          onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, ''))}
-                          placeholder={t("auth_pages.register.phone_placeholder")} 
+                          onChange={(e) => {
+                            let digits = e.target.value.replace(/\D/g, "");
+                            if (digits.startsWith("0")) digits = digits.slice(1);
+                            setRegPhone(digits.slice(0, getMaxPhoneDigits(regPhoneCode)));
+                            setRegPhoneError("");
+                          }}
+                          placeholder={regPhoneCode === "+91" ? "9876543210" : "612345678"}
+                          maxLength={getMaxPhoneDigits(regPhoneCode) + 1}
                           className="flex-1 h-11 border-0 focus-visible:ring-0 rounded-none bg-transparent shadow-none" 
                           required 
                         />
                       </div>
+                      {regPhoneError && <p className="text-red-500 text-xs mt-1.5">{regPhoneError}</p>}
                     </div>
                   )}
                   
@@ -483,9 +518,16 @@ const AccountAuth = () => {
                         id="reg-password" 
                         type={showPassword ? "text" : "password"} 
                         value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
+                        onChange={(e) => {
+                          setRegPassword(e.target.value);
+                          setRegPasswordError("");
+                        }}
                         placeholder={t("auth_pages.register.password_placeholder")} 
-                        className="h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all pr-12"
+                        minLength={6}
+                        className={cn(
+                          "h-11 bg-zinc-50 border-zinc-200 focus:bg-white focus:border-primary transition-all pr-12",
+                          regPasswordError && "border-red-500"
+                        )}
                         required 
                       />
                       <button 
@@ -496,6 +538,8 @@ const AccountAuth = () => {
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
+                    {regPasswordError && <p className="text-red-500 text-xs mt-1.5">{regPasswordError}</p>}
+                    <p className="text-xs text-zinc-500 mt-1">{t("auth_pages.register.password_hint")}</p>
                   </div>
                   
                   <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-bold rounded-xl mt-6 group">

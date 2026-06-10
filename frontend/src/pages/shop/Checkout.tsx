@@ -225,6 +225,7 @@ const Checkout = () => {
   const [addrForm, setAddrForm] = useState(emptyAddressForm);
   const [addressError, setAddressError] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [contactPhoneError, setContactPhoneError] = useState("");
   const [showMap, setShowMap] = useState(false);
 
   const fetchAddresses = async () => {
@@ -308,9 +309,11 @@ const Checkout = () => {
     if (step === 0) {
       const validation = parseAndValidateFullPhone(contact.phone);
       if (!validation.isValid) {
+        setContactPhoneError(t("auth_pages.login.toast_invalid_phone"));
         toast.error(t("auth_pages.login.toast_invalid_phone"));
         return;
       }
+      setContactPhoneError("");
       setContact(prev => ({ ...prev, phone: validation.cleanedFullPhone }));
     }
     if (step === 1 && !selectedAddressId) {
@@ -441,7 +444,7 @@ const Checkout = () => {
                 <Field label={t("checkout.field_first_name")} value={contact.firstName} onChange={v => setContact({ ...contact, firstName: v })} required />
                 <Field label={t("checkout.field_last_name")} value={contact.lastName} onChange={v => setContact({ ...contact, lastName: v })} required />
                 <Field label={t("checkout.field_email")} type="email" value={contact.email} onChange={v => setContact({ ...contact, email: v })} required />
-                <Field label={t("checkout.field_phone")} type="tel" value={contact.phone} onChange={v => setContact({ ...contact, phone: v })} required />
+                <Field label={t("checkout.field_phone")} type="tel" value={contact.phone} onChange={v => { setContact({ ...contact, phone: v }); setContactPhoneError(""); }} required error={contactPhoneError} />
               </div>
             </div>
           )}
@@ -802,12 +805,12 @@ function Field({
     <div>
       <Label className="mb-1.5 block text-sm">{label}</Label>
       {type === "tel" ? (
-        <PhonePicker value={value} onChange={onChange} required={required} className={error ? "border-red-500" : ""} />
+        <PhonePicker value={value} onChange={onChange} required={required} error={error} />
       ) : (
         <Input type={type} value={value} onChange={e => onChange(e.target.value)}
           required={required} pattern={pattern} title={title} className={cn("h-10", error ? "border-red-500" : "")} />
       )}
-      {error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
+      {type !== "tel" && error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
     </div>
   );
 }

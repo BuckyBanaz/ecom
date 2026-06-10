@@ -720,8 +720,7 @@ function AddressesTab() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{t("dashboard.addresses.form.phone")}</Label>
-              <PhonePicker value={formData.phone || ""} onChange={val => { setFormData({...formData, phone: val}); setPhoneError(""); }} required className={`mt-1 ${phoneError ? "border-red-500" : ""}`} />
-              {phoneError && <p className="text-red-500 text-xs mt-1.5">{phoneError}</p>}
+              <PhonePicker value={formData.phone || ""} onChange={val => { setFormData({...formData, phone: val}); setPhoneError(""); }} required error={phoneError} className="mt-1" />
             </div>
             <div>
               <Label>{t("dashboard.addresses.form.address_label")}</Label>
