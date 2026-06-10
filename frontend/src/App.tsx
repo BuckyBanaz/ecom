@@ -124,6 +124,7 @@ function App() {
                             <Route path="/blogs" element={<Blogs />} />
                             <Route path="/blogs/:slug" element={<BlogDetail />} />
                             <Route path="/wishlist" element={<Wishlist />} />
+                            <Route path="/404" element={<NotFound />} />
                             <Route path="/:slug" element={<DynamicPage />} />
                             <Route path="*" element={<NotFound />} />
                           </Route>

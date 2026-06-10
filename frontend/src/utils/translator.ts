@@ -204,6 +204,9 @@ export async function translateJsonObject(obj: any, targetLang: string): Promise
           "menu",
           "customerName",
           "productName",
+          "text",
+          "label",
+          "brandText",
         ].includes(key)
       ) {
         // Check if it's HTML/Shortcode content
