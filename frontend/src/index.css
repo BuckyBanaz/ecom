@@ -166,8 +166,15 @@ All colors MUST be HSL.
     min-height: 100%;
   }
 
+  /* Scroll lock is handled by AdminLayout (h-screen overflow-hidden).
+     Do not set overflow:hidden on body — it clips fixed Sonner toasts. */
   body.admin-lock {
-    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  [data-sonner-toaster] {
+    z-index: 9999 !important;
+    pointer-events: auto;
   }
 }
 
