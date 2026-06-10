@@ -59,7 +59,47 @@ function readEnvFile(filePath: string): Record<string, string> {
 
 function backupEnvFile(filePath: string): void {
   if (!fs.existsSync(filePath)) return;
-  fs.copyFileSync(filePath, `${filePath}.bak`);
+  try {
+    fs.copyFileSync(filePath, `${filePath}.bak`);
+  } catch (err: any) {
+    // Non-fatal on Windows/Docker bind mounts (EBUSY/EPERM).
+    console.warn(`Could not backup ${filePath}:`, err?.message || err);
+  }
+}
+
+function sleepSync(ms: number): void {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    /* busy-wait for short retry delays */
+  }
+}
+
+function isRetryableFsError(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  return code === "EBUSY" || code === "EPERM" || code === "EACCES" || code === "EXDEV";
+}
+
+/** Commit env file — retries rename; falls back to direct write on Docker/Windows mounts. */
+function commitEnvFile(filePath: string, tmpPath: string, content: string): void {
+  const maxAttempts = 8;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      fs.renameSync(tmpPath, filePath);
+      return;
+    } catch (err) {
+      if (!isRetryableFsError(err) || attempt === maxAttempts - 1) break;
+      sleepSync(25 * (attempt + 1));
+    }
+  }
+
+  // Bind-mounted .env.production on Windows/Docker often rejects rename (EBUSY).
+  fs.writeFileSync(filePath, content, "utf-8");
+  try {
+    if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+  } catch {
+    /* ignore cleanup errors */
+  }
 }
 
 function writeEnvUpdates(filePath: string, updates: Record<string, string>): void {
@@ -96,7 +136,7 @@ function writeEnvUpdates(filePath: string, updates: Record<string, string>): voi
   const content = body.endsWith("\n") ? body : `${body}\n`;
   const tmpPath = `${filePath}.tmp`;
   fs.writeFileSync(tmpPath, content, "utf-8");
-  fs.renameSync(tmpPath, filePath);
+  commitEnvFile(filePath, tmpPath, content);
 }
 
 export async function loadPersistedSettings(): Promise<void> {
