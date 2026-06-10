@@ -798,7 +798,38 @@ export const ordersRepository = {
   }
 };
 
-// 27. Admin Logs Repository
+// 27. Admin Backups Repository
+export const backupsRepository = {
+  list: async () => request<any>(ENDPOINTS.ADMIN_BACKUPS, { method: "GET" }),
+  create: async (type: "database" | "uploads" | "full") =>
+    request<any>(ENDPOINTS.ADMIN_BACKUPS, {
+      method: "POST",
+      body: JSON.stringify({ type }),
+    }),
+  remove: async (id: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  download: async (id: string, filename: string) => {
+    const token = localStorage.getItem("admin_token") || localStorage.getItem("customer_token");
+    const response = await fetch(`${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.message || `Download failed (${response.status})`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
+};
+
+// 28. Admin Logs Repository
 export const logsRepository = {
   list: async (params: Record<string, string | number> = {}) => {
     const query = new URLSearchParams();

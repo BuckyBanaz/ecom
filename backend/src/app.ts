@@ -121,6 +121,7 @@ import webhookRoutes from "./routes/webhookRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import configRoutes from "./routes/configRoutes";
 import logsRoutes from "./routes/logsRoutes";
+import backupRoutes from "./routes/backupRoutes";
 
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
@@ -139,6 +140,7 @@ app.use("/api/v1/media", mediaRoutes);
 app.use("/api/v1/config", configRoutes);
 app.use("/api/v1/admin/settings", adminSettingsRoutes);
 app.use("/api/v1/admin/logs", logsRoutes);
+app.use("/api/v1/admin/backups", backupRoutes);
 app.use("/api/v1/admin/email-templates", emailTemplateRoutes);
 app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/charges", chargeRoutes);

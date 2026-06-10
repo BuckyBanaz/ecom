@@ -4,7 +4,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Prisma engine needs OpenSSL on Alpine
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat postgresql16-client
 
 # Copy package files
 COPY package*.json ./
@@ -31,7 +31,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Prisma migrate/generate requires OpenSSL on Alpine
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat postgresql16-client
 
 # Copy package files
 COPY package*.json ./
@@ -52,7 +52,7 @@ COPY --from=builder /app/dist ./dist
 COPY clear_orders.js ./
 
 # Create uploads directory
-RUN mkdir -p public/uploads
+RUN mkdir -p public/uploads backups
 
 # Expose port
 EXPOSE 5000

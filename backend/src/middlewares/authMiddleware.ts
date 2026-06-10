@@ -98,6 +98,7 @@ const BASE_URL_PERMISSIONS: Record<string, string> = {
   "/api/v1/cms": "cms",
   "/api/v1/media": "storage",
   "/api/v1/admin/settings": "settings",
+  "/api/v1/admin/backups": "settings",
   "/api/v1/admin/email-templates": "email_templates",
   "/api/v1/megamenus": "cms",
   "/api/v1/shipping": "settings",
