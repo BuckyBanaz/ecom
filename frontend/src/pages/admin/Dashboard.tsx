@@ -205,7 +205,7 @@ const Dashboard = () => {
       {/* Row 2: Charts (Monthly Revenue Line Chart & Monthly Order Volume Bar Chart) */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left Chart: Monthly Revenue Trend */}
-        <div className="bg-card border rounded-2xl p-6 shadow-sm">
+        <div className="bg-card border rounded-2xl p-6 shadow-sm min-w-0">
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-lg font-bold text-foreground">{t("admin_dashboard.revenue_chart_title")}</h2>
@@ -226,7 +226,7 @@ const Dashboard = () => {
         </div>
 
         {/* Right Chart: Monthly Order Volume */}
-        <div className="bg-card border rounded-2xl p-6 shadow-sm">
+        <div className="bg-card border rounded-2xl p-6 shadow-sm min-w-0">
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-lg font-bold text-foreground">{t("admin_dashboard.orders_chart_title")}</h2>
@@ -248,7 +248,7 @@ const Dashboard = () => {
       </div>
 
       {/* Row 3: Product Performance */}
-      <div className="bg-card border rounded-2xl p-6 shadow-sm">
+      <div className="bg-card border rounded-2xl p-6 shadow-sm min-w-0 overflow-x-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-lg font-bold text-foreground">{t("admin_dashboard.products_chart_title")}</h2>
@@ -271,19 +271,19 @@ const Dashboard = () => {
       {/* Row 4: Recent Orders & Store Insights */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent orders */}
-        <div className="rounded-2xl border bg-card p-6 shadow-sm lg:col-span-2">
+        <div className="rounded-2xl border bg-card p-6 shadow-sm lg:col-span-2 min-w-0 overflow-x-auto">
           <div className="flex justify-between items-center mb-4 border-b pb-3">
             <h2 className="text-base font-bold">{t("admin_dashboard.recent_orders_title")}</h2>
             <span className="text-xs text-muted-foreground font-semibold">{t("admin_dashboard.recent_orders_subtitle")}</span>
           </div>
           <div className="space-y-3">
             {yearOrders.slice(0, 5).map((o) => (
-              <div key={o.id} className="flex items-center justify-between rounded-xl bg-muted/30 px-4 py-3 text-xs hover:bg-muted/50 transition border border-muted/20">
-                <div className="min-w-0 flex-1 pr-4">
-                  <p className="font-bold text-foreground text-sm">{o.orderNumber}</p>
+              <div key={o.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl bg-muted/30 px-4 py-3 text-xs hover:bg-muted/50 transition border border-muted/20">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-foreground text-sm break-all">{o.orderNumber}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{o.customerName} ({o.customerEmail})</p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between sm:justify-end gap-4 mt-1 sm:mt-0">
                   <span className="font-extrabold text-foreground text-sm">€{o.total.toFixed(2)}</span>
                   <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${
                     o.status === "delivered" ? "bg-green-500/10 text-green-700 border-green-500/20" :
