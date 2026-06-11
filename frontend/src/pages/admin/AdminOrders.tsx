@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 export interface OrderItem {
   productId: string;
@@ -270,7 +271,7 @@ export default function AdminOrders() {
   return (
     <div className="space-y-6">
       {loading ? (
-        <p className="text-sm text-muted-foreground">{t("admin_orders.loading")}</p>
+        <SectionLoader />
       ) : (
         <p className="text-sm text-muted-foreground">{t("admin_orders.total", { count: filtered.length })}</p>
       )}

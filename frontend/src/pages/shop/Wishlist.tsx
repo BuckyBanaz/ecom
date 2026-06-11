@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useWishlist } from "@/context/WishlistContext";
 import { ProductCard } from "@/components/shop/ProductCard";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 const Wishlist = () => {
   const { t } = useTranslation();
@@ -13,11 +13,7 @@ const Wishlist = () => {
     return (
       <div className="container-page py-6">
         <h1 className="text-3xl font-bold">{t("wishlist.page_title")}</h1>
-        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-[280px] w-full rounded-xl" />
-          ))}
-        </div>
+        <SectionLoader />
       </div>
     );
   }

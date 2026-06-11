@@ -17,6 +17,7 @@ import { addressRepository, authRepository, ordersRepository } from "@/client/ap
 import { Loader2, FileText, CreditCard, Truck, Check, X } from "lucide-react";
 import { parseOrderMetadata } from "@/utils/formatters";
 import { ReviewModal } from "@/components/shop/ReviewModal";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { useFcmToken } from "@/hooks/useFcmToken";
 import { PhonePicker } from "@/components/ui/PhonePicker";
 import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
@@ -285,7 +286,7 @@ function OrdersTab() {
     }
   };
 
-  if (loading) return <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+  if (loading) return <SectionLoader />;
 
   if (selectedOrder) {
     const isPending = ["pending", "payment_pending", "payment_failed"].includes(selectedOrder.status);

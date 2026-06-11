@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { db } from "@/config/firebase";
-import { collection, query, orderBy, onSnapshot, limit, updateDoc, doc, startAfter } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, limit, updateDoc, doc } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Bell, ShoppingCart } from "lucide-react";
@@ -71,7 +72,7 @@ export default function AdminNotificationsPage() {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-64 text-muted-foreground">{t("admin_notifications.loading")}</div>;
+    return <SectionLoader />;
   }
 
   return (

@@ -128,7 +128,21 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
       block.replaceWith(textNode);
     });
     
-    const cleanContent = doc.body.innerHTML;
+    // Unwrap shortcodes from enclosing <p> tags before extracting html
+    const paragraphs = Array.from(doc.querySelectorAll('p'));
+    paragraphs.forEach(p => {
+      // Check if paragraph contains only shortcodes, whitespace, br, or nbsp
+      const html = p.innerHTML.trim();
+      // Remove known shortcodes to see if anything else is left
+      const withoutShortcodes = html.replace(/\[[a-zA-Z0-9-]+[^\]]*\]\[\/[a-zA-Z0-9-]+\]/g, '').trim();
+      // If nothing is left except spacing/br, unwrap it
+      if (withoutShortcodes.replace(/^(?:<br\s*\/?>|&nbsp;|\s)+$/, '') === '') {
+        const textNode = doc.createTextNode(p.textContent || "");
+        p.replaceWith(textNode);
+      }
+    });
+    
+    let cleanContent = doc.body.innerHTML;
 
     // 2. Split the clean content by shortcode regex
     const regex = /\[([a-zA-Z0-9-]+)([^\]]*)\]\[\/\1\]/g;
@@ -169,9 +183,14 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
         if (part.type === 'html') {
           // Clean up empty paragraphs that create huge gaps
           let html = part.content.trim();
-          html = html.replace(/^(<p><br\/><\/p>|<p>\s*<\/p>|<br\s*\/?>)+/, '').replace(/(<p><br\/><\/p>|<p>\s*<\/p>|<br\s*\/?>)+$/, '').trim();
           
-          if (!html) return null;
+          // Remove stray trailing/leading p tags or breaks that might have been left
+          html = html.replace(/^(?:<p>\s*<\/p>|<br\s*\/?>|&nbsp;|\s)+/, '')
+                     .replace(/(?:<p>\s*<\/p>|<br\s*\/?>|&nbsp;|\s)+$/, '')
+                     .trim();
+          
+          // If the only thing left is a single empty paragraph or similar, ignore
+          if (!html || html === '<p></p>' || html === '<p><br></p>') return null;
 
           return (
             <div 

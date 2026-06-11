@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { categoryRepository } from "@/client/apiClient";
 import { categories as fallbackCategories } from "@/data/categories";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 export default function AllCategories() {
   const { t } = useTranslation();
@@ -42,11 +43,7 @@ export default function AllCategories() {
       <h1 className="text-3xl font-bold md:text-4xl mb-8">{t("category.all_categories", { defaultValue: "All Categories" })}</h1>
       
       {loading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 animate-pulse">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="aspect-square rounded-xl bg-muted" />
-          ))}
-        </div>
+        <SectionLoader />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
           {categoriesList.map((c) => (

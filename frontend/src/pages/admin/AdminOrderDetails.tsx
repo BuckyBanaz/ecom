@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AdminTrackingDialog } from "@/components/admin/AdminTrackingDialog";
 import { toast } from "sonner";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { Order, statusLabels, MANUAL_STATUSES, AUTO_STATUSES } from "./AdminOrders";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/layout/Logo";
@@ -280,9 +282,7 @@ export default function AdminOrderDetails() {
 
   if (loading) {
     return (
-      <div className="p-8 text-center space-y-4">
-        <p className="text-muted-foreground">{t("admin_order_details.loading")}</p>
-      </div>
+      <SectionLoader />
     );
   }
 

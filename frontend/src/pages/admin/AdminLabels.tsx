@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Search, Eye, Printer, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { toast } from "sonner";
 import { Order } from "./AdminOrders";
 import { parseOrderMetadata } from "@/utils/formatters";
@@ -41,9 +43,9 @@ export default function AdminLabels() {
   return (
     <div className="space-y-6">
       {loading ? (
-        <p className="text-sm text-muted-foreground">{t("admin_shipping_labels.loading")}</p>
+        <SectionLoader />
       ) : (
-        <p className="text-sm text-muted-foreground">{t("admin_shipping_labels.total_text", { count: labels.length })}</p>
+        <p className="text-sm text-muted-foreground">{t("admin_shipping_labels.total_text", { count: filtered.length })}</p>
       )}
 
       <div className="relative max-w-md">

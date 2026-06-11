@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { ordersRepository } from "@/client/apiClient";
 import { Printer, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ export default function InvoicePage() {
   }, [token, t, searchParams]);
 
   if (loading) {
-    return <div className="p-12 text-center text-muted-foreground">{t("invoice.loading")}</div>;
+    return <SectionLoader />;
   }
 
   if (error || !order) {

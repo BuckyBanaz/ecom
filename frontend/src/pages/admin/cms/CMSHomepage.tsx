@@ -12,6 +12,7 @@ import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog"
 import { Badge } from "@/components/ui/badge";
 import { cmsHomepageRepository } from "@/client/apiClient";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 type ImgState = string | null;
 
@@ -106,7 +107,7 @@ const CMSHomepage = () => {
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
+    return <SectionLoader />;
   }
 
   return (

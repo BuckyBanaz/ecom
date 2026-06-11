@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { cmsPagesRepository } from "@/client/apiClient";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 export default function DynamicPage() {
   const { t } = useTranslation();
@@ -62,7 +63,7 @@ export default function DynamicPage() {
   }, [page]);
 
   if (isLoading) {
-    return <div className="container-page py-10 md:py-20 text-center text-muted-foreground animate-pulse">{t("dynamic_page.loading")}</div>;
+    return <SectionLoader />;
   }
 
   if (error || !page) {

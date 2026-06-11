@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { BlogCard } from "@/components/shop/BlogCard";
 import { blogRepository } from "@/client/apiClient";
 import { initialBlogs } from "@/data/blogs";
-import { LottieLoader } from "@/components/ui/PageLoader";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 const Blogs = () => {
   const { t } = useTranslation();
@@ -69,9 +69,7 @@ const Blogs = () => {
         </div>
 
         {loading ? (
-          <div className="flex h-44 items-center justify-center">
-            <LottieLoader className="w-20 h-20" />
-          </div>
+          <SectionLoader />
         ) : published.length === 0 ? (
           <div className="rounded-2xl border bg-muted/20 p-10 text-center text-muted-foreground">
             {t("blogs.no_posts")}
