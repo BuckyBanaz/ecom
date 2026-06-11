@@ -147,9 +147,10 @@ export const registerCustomer = async (
     const token = signToken(newUser.id, newUser.email, newUser.role);
 
     // Send Welcome Email
+    const clientUrl = process.env.STORE_URL || env.CLIENT_URL;
     await emailService.sendTemplateEmail(newUser.email, "welcome_mail", {
       name: newUser.firstName,
-      login_url: `${env.CLIENT_URL}/account`
+      login_url: `${clientUrl}/account`
     });
 
     res.status(201).json({

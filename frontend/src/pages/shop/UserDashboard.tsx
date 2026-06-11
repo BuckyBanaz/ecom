@@ -550,20 +550,20 @@ function OrdersTab() {
       ) : (
         <div className="space-y-3">
           {ordersList.map((o: any) => (
-            <button key={o.id} onClick={() => handleSelectOrder(o.orderNumber)} className="w-full flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm hover:bg-muted/30 transition text-left">
-              <SafeImage src={o.items[0].productImage} alt="" className="h-14 w-14 rounded-lg object-cover" fallbackType="product" />
+            <button key={o.id} onClick={() => handleSelectOrder(o.orderNumber)} className="w-full flex items-start sm:items-center gap-3 sm:gap-4 rounded-xl border bg-card p-3 sm:p-4 shadow-sm hover:bg-muted/30 transition text-left">
+              <SafeImage src={o.items[0].productImage} alt="" className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-lg object-cover mt-1 sm:mt-0" fallbackType="product" />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{o.orderNumber}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(o.status)}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <span className="font-semibold truncate text-sm sm:text-base">{o.orderNumber}</span>
+                  <span className={`w-fit rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-medium ${getStatusBadgeClass(o.status)}`}>
                     {getFriendlyStatus(o.status, t)}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">{t("dashboard.orders.items_count", { count: o.items.length })} · {new Date(o.createdAt).toLocaleDateString()}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t("dashboard.orders.items_count", { count: o.items.length })} · {new Date(o.createdAt).toLocaleDateString()}</p>
               </div>
-              <div className="text-right">
-                <p className="font-semibold">€{o.total.toFixed(2)}</p>
-                <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto mt-1" />
+              <div className="text-right shrink-0 flex flex-col items-end">
+                <p className="font-semibold text-sm sm:text-base">€{o.total.toFixed(2)}</p>
+                <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />
               </div>
             </button>
           ))}

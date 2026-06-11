@@ -17,6 +17,7 @@ import { PageLoader } from "./components/ui/PageLoader.tsx";
 const Index = lazy(() => import("./pages/Index.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const Category = lazy(() => import("./pages/shop/Category.tsx"));
+const AllCategories = lazy(() => import("./pages/shop/AllCategories.tsx"));
 const ProductPage = lazy(() => import("./pages/shop/Product.tsx"));
 const Cart = lazy(() => import("./pages/shop/Cart.tsx"));
 const Checkout = lazy(() => import("./pages/shop/Checkout.tsx"));
@@ -106,6 +107,7 @@ function App() {
                             <Route path="/relief" element={<Relief />} />
                             <Route path="/relief/category/:slug" element={<Category />} />
                             <Route path="/relief/:slug" element={<ReliefCategory />} />
+                            <Route path="/categories" element={<AllCategories />} />
                             <Route path="/category" element={<Category />} />
                             <Route path="/category/:slug" element={<Category />} />
                             <Route path="/deals" element={<Navigate to="/category/deals" replace />} />

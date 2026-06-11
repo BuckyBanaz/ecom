@@ -473,7 +473,6 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
             </div>
             <Button variant="default" className="bg-[#1a56db] hover:bg-[#1e4ebd] text-white px-3" onClick={() => setIsFolderDialogOpen(true)} title="New Folder"><Plus className="h-4 w-4" /></Button>
             <Button variant="default" className="bg-[#1a56db] hover:bg-[#1e4ebd] text-white px-3" onClick={() => loadMedia(currentPath)} title="Refresh"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /></Button>
-            {!isDialog && <Button variant="default" className="bg-[#1a56db] hover:bg-[#1e4ebd] text-white gap-2"><Filter className="h-4 w-4" /> (Everything)</Button>}
 
             {/* Paste button — shows when clipboard has items */}
             {clipboard && (
@@ -511,13 +510,12 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
         <div className="flex-1 flex flex-col overflow-hidden">
 
           {/* Sub header */}
-          <div className="px-6 py-3 border-b flex items-center justify-between bg-white">
+          <div className="px-3 sm:px-6 py-3 border-b flex flex-wrap items-center justify-between bg-white gap-3">
             <div className="flex items-center gap-2 text-primary font-medium text-sm">
-              <Folder className="h-4 w-4" />
-              <span>{currentPath ? currentPath.split("/").pop() : "All media"}</span>
+              <Folder className="h-4 w-4 shrink-0" />
+              <span className="truncate max-w-[150px] sm:max-w-xs">{currentPath ? currentPath.split("/").pop() : "All media"}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="text-muted-foreground h-8">A-Z Sort <ChevronRight className="h-3 w-3 ml-2 rotate-90" /></Button>
+            <div className="flex flex-wrap items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="text-primary border-primary/20 hover:bg-primary/5 h-8 gap-2">Actions <ChevronRight className="h-3 w-3 rotate-90" /></Button>

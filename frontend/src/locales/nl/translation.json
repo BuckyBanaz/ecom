@@ -236,6 +236,14 @@
     "button_save_address": "Adres opslaan",
     "button_saving": "Opslaan..."
   },
+  "relief": {
+    "title": "Verlichting",
+    "subtitle": "Verlichting kopen? Kies een categorie",
+    "desc1": "We brengen steeds meer tijd thuis door. Veel mensen werken ook nog steeds thuis, dus je wilt dat je huis comfortabel aanvoelt. Een prettige leefomgeving inspireert, geeft energie en biedt rust! Besteed daarom meer aandacht aan verlichting. Maak het interieur nog gezelliger door nieuwe lampen in huis te halen. Niet alleen een grote lamp boven de eettafel en één boven de zithoek, maar ook een bureaulamp op de kast, een vloerlamp naast de bank en een paar kaarsen op de salontafel.",
+    "desc2": "Met binnenverlichting zijn de mogelijkheden eindeloos. Er zijn diverse stijlen en categorieën. Het is belangrijk om de juiste verlichting te kiezen, want die bepaalt de sfeer in huis.",
+    "desc3": "Verlicht je tuin, terras of oprit met onze hoogwaardige buitenverlichtingsopties, ontworpen om alle weersomstandigheden te weerstaan.",
+    "desc4": "Vind de perfecte lamp met de juiste fitting, temperatuur en helderheid voor jouw huisverlichting."
+  },
   "relief_category": {
     "not_found_title": "Categorie niet gevonden",
     "not_found_desc": "De gevraagde categorie kon niet worden gevonden.",
@@ -415,6 +423,8 @@
   },
   "category": {
     "all_products": "Alle producten",
+    "all_categories": "Alle categorieën",
+    "categories": "Categorieën",
     "spring_deals": "Voorjaarsaanbiedingen",
     "products_count": "{{count}} producten",
     "showing_results": "{{count}} resultaten worden weergegeven",

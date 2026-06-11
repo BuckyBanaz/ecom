@@ -245,7 +245,7 @@ const ProductPage = () => {
 
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
         <div className="space-y-3">
-          <div className="overflow-hidden rounded-xl border border-border/50 bg-muted">
+          <div className="overflow-hidden rounded-xl border border-border/50 bg-muted aspect-square sm:aspect-[4/3] lg:aspect-auto lg:h-[400px]">
             {/* Build a gallery array that always starts with the cover image */}
             {(() => {
               const galleryImages = [product.image, ...(product.images ?? [])];
@@ -254,7 +254,7 @@ const ProductPage = () => {
                   src={galleryImages[selectedImageIndex]}
                   alt={product.name}
                   fallbackType="product"
-                  className="aspect-[4/3] w-full object-cover lg:aspect-auto lg:h-[380px]"
+                  className="h-full w-full object-cover"
                 />
               );
             })()}

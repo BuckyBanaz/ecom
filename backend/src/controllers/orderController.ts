@@ -358,10 +358,8 @@ export const getMyOrderById = async (req: Request, res: Response, next: NextFunc
     if (!order) return next(new AppError("Order not found", 404));
 
     // Generate a short-lived token for invoice access (1 hour)
-    import("jsonwebtoken").then((jwt) => {
-      const invoiceToken = jwt.default.sign({ orderId: order.id }, env.JWT_SECRET, { expiresIn: '1h' });
-      res.status(200).json({ success: true, data: order, invoiceToken });
-    });
+    const invoiceToken = jwt.sign({ orderId: order.id }, env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(200).json({ success: true, data: order, invoiceToken });
   } catch (error) {
     next(error);
   }
@@ -436,13 +434,12 @@ export const getInvoiceByToken = async (req: Request, res: Response, next: NextF
   try {
     const { token } = req.params;
     
-    import("jsonwebtoken").then(async (jwt) => {
-      let decoded: any;
-      try {
-        decoded = jwt.default.verify(token, env.JWT_SECRET);
-      } catch (err) {
-        return next(new AppError("Invalid or expired invoice token", 401));
-      }
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, env.JWT_SECRET);
+    } catch (err) {
+      return next(new AppError("Invalid or expired invoice token", 401));
+    }
 
       const orderId = decoded.orderId;
       const order = await prisma.order.findUnique({
@@ -452,8 +449,7 @@ export const getInvoiceByToken = async (req: Request, res: Response, next: NextF
 
       if (!order) return next(new AppError("Order not found", 404));
 
-      res.status(200).json({ success: true, data: order });
-    });
+    res.status(200).json({ success: true, data: order });
   } catch (error) {
     next(error);
   }

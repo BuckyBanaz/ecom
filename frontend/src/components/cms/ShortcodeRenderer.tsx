@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shop/ProductCard";
@@ -27,6 +28,7 @@ interface ShortcodeRendererProps {
 }
 
 export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRendererProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(!prefetchedData);
   const [dbProducts, setDbProducts] = useState<any[]>(prefetchedData?.products || []);
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
@@ -358,7 +360,12 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             const categoriesToRender = dbCategories.length > 0 ? dbCategories.slice(0, 12) : categories.slice(0, 12);
             return (
               <section key={index} className="container-page min-w-0 py-6 md:py-8">
-                {attributes.title && <h2 className="mb-4 text-xl font-bold sm:mb-6 sm:text-2xl md:text-3xl">{attributes.title}</h2>}
+                <div className="mb-4 flex min-w-0 items-end justify-between gap-3 sm:mb-6">
+                  {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{attributes.title}</h2>}
+                  <Link to="/categories" className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:text-sm">
+                    {t("common.viewAll")} <ArrowRight size={16} />
+                  </Link>
+                </div>
                 {loading ? (
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6 animate-pulse">
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -402,7 +409,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                 <div className="mb-4 flex min-w-0 items-end justify-between gap-3 sm:mb-6">
                   {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{attributes.title}</h2>}
                   <Link to={`/category/${attributes.type || "all"}`} className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:text-sm">
-                    View all <ArrowRight size={16} />
+                    {t("common.viewAll")} <ArrowRight size={16} />
                   </Link>
                 </div>
                 {loading ? (

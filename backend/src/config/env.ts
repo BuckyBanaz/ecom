@@ -6,12 +6,23 @@ import { z } from "zod";
 // Production: load host-mounted .env.production (not ephemeral /app/.env)
 function loadEnvFile(): void {
   if (process.env.NODE_ENV === "production") {
-    const prodPath = process.env.SETTINGS_ENV_FILE
-      ? path.resolve(process.env.SETTINGS_ENV_FILE)
-      : path.resolve(process.cwd(), ".env.production");
-    if (fs.existsSync(prodPath)) {
-      dotenv.config({ path: prodPath });
-      return;
+    if (process.env.SETTINGS_ENV_FILE) {
+      const prodPath = path.resolve(process.env.SETTINGS_ENV_FILE);
+      if (fs.existsSync(prodPath)) {
+        dotenv.config({ path: prodPath });
+        return;
+      }
+    } else {
+      const inApp = path.resolve(process.cwd(), ".env.production");
+      const atRepoRoot = path.resolve(process.cwd(), "../.env.production");
+      
+      if (fs.existsSync(inApp)) {
+        dotenv.config({ path: inApp });
+        return;
+      } else if (fs.existsSync(atRepoRoot)) {
+        dotenv.config({ path: atRepoRoot });
+        return;
+      }
     }
   }
   dotenv.config();

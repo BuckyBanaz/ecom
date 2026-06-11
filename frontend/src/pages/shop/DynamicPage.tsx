@@ -62,7 +62,7 @@ export default function DynamicPage() {
   }, [page]);
 
   if (isLoading) {
-    return <div className="container-page py-20 text-center text-muted-foreground animate-pulse">{t("dynamic_page.loading")}</div>;
+    return <div className="container-page py-10 md:py-20 text-center text-muted-foreground animate-pulse">{t("dynamic_page.loading")}</div>;
   }
 
   if (error || !page) {
@@ -73,11 +73,13 @@ export default function DynamicPage() {
 
   return (
     <>
-      <div className="container-page py-12 animate-fade-in">
+      <div className="animate-fade-in">
         {page.body ? (
-          <ShortcodeRenderer content={page.body} />
+          <div className="py-2 md:py-6">
+            <ShortcodeRenderer content={page.body} />
+          </div>
         ) : (
-          <div className="prose max-w-none dark:prose-invert">
+          <div className="container-page py-6 md:py-12 prose max-w-none dark:prose-invert">
             <h1>{page.title}</h1>
             <p className="text-muted-foreground">{t("dynamic_page.no_content")}</p>
           </div>

@@ -415,6 +415,8 @@
   },
   "category": {
     "all_products": "All products",
+    "all_categories": "All Categories",
+    "categories": "Categories",
     "spring_deals": "Spring deals",
     "products_count": "{{count}} products",
     "showing_results": "Showing {{count}} results",

@@ -16,6 +16,7 @@ import { parseOrderMetadata } from "@/utils/formatters";
 import { formatPrice } from "@/context/CartContext";
 import { printInvoice } from "@/utils/printInvoice";
 import { getInvoiceNumber } from "@/utils/invoice";
+import { resolveImgUrl } from "@/utils/image";
 
 const formatOrderWithShipment = (orderData: any) => {
   if (!orderData) return orderData;
@@ -409,7 +410,7 @@ export default function AdminOrderDetails() {
               {(order.items || []).map((item, idx) => (
                 <div key={idx} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
                   <img
-                    src={item.productImage}
+                    src={resolveImgUrl(item.productImage)}
                     alt={item.productName}
                     className="h-12 w-12 rounded-xl object-cover border border-border"
                   />
