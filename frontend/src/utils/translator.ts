@@ -1,4 +1,6 @@
 import { lookupStaticPhrase } from "./cmsPhrases";
+import type { TFunction } from "i18next";
+import { labelT } from "./i18nLabel";
 
 /** CMS endpoints store rich HTML — never Google-translate the response. */
 export function shouldMachineTranslateApiUrl(url: string): boolean {
@@ -78,6 +80,65 @@ export async function translateText(text: string, targetLang: string): Promise<s
     return translation;
   } catch (error) {
     console.warn("Translation failed for text:", text, error);
+    return text;
+  }
+}
+
+function replaceTrimmedPreservingEdges(raw: string, trimmed: string, translated: string): string {
+  const start = raw.indexOf(trimmed);
+  if (start === -1) return translated;
+  return raw.slice(0, start) + translated + raw.slice(start + trimmed.length);
+}
+
+/**
+ * Translate one CMS text fragment for storefront TAAL (EN/NL).
+ * NL → stored Dutch as-is. EN → cmsPhrases + i18n, then Google nl→en (cached).
+ * Never mutates HTML — call only on plain text nodes / attribute values.
+ */
+export async function translateCmsText(
+  text: string,
+  targetLang: string,
+  t?: TFunction,
+): Promise<string> {
+  if (!text?.trim()) return text;
+
+  const lang = targetLang.split("-")[0].toLowerCase();
+  const trimmed = text.trim();
+
+  if (lang === "nl") return text;
+
+  if (t) {
+    const fromApp = labelT(t, trimmed, "en");
+    if (fromApp && fromApp !== trimmed) {
+      return replaceTrimmedPreservingEdges(text, trimmed, fromApp);
+    }
+  }
+
+  const phrase = lookupStaticPhrase(trimmed, "en");
+  if (phrase) return replaceTrimmedPreservingEdges(text, trimmed, phrase);
+
+  const cacheKey = `en-nl:${trimmed}`;
+  if (cache[cacheKey]) return replaceTrimmedPreservingEdges(text, trimmed, cache[cacheKey]);
+
+  const localCached = localStorage.getItem(`tr:${cacheKey}`);
+  if (localCached) {
+    cache[cacheKey] = localCached;
+    return replaceTrimmedPreservingEdges(text, trimmed, localCached);
+  }
+
+  try {
+    const response = await fetch(
+      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=nl&tl=en&dt=t&q=${encodeURIComponent(trimmed)}`,
+    );
+    if (!response.ok) throw new Error("CMS text translation failed");
+    const data = await response.json();
+    const translation = data[0].map((item: [string]) => item[0]).join("");
+
+    cache[cacheKey] = translation;
+    localStorage.setItem(`tr:${cacheKey}`, translation);
+    return replaceTrimmedPreservingEdges(text, trimmed, translation);
+  } catch (error) {
+    console.warn("CMS text translation failed:", trimmed.slice(0, 48), error);
     return text;
   }
 }

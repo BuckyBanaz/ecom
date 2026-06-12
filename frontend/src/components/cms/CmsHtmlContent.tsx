@@ -1,4 +1,5 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { resolveImgUrl } from "@/utils/image";
 import {
   getCmsHtmlWrapperClass,
@@ -7,15 +8,18 @@ import {
   parseCmsHtml,
   repairCmsHtmlTranslateDamage,
 } from "@/utils/cmsHtml";
+import { translateCmsHtmlForLocale } from "@/utils/cmsHtmlLocale";
 
 type CmsHtmlContentProps = {
   html: string;
   className?: string;
 };
 
-/** Renders CMS HTML — layout must NOT depend on UI language (EN/NL). */
+/** Renders CMS HTML — layout stays intact; text translates per TAAL (EN/NL). */
 export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
+  const { t, i18n } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
+  const [localizedHtml, setLocalizedHtml] = useState("");
 
   const prepared = useMemo(() => {
     const parsed = parseCmsHtml(normalizeCmsHtmlForStorage(html));
@@ -34,7 +38,20 @@ export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
     };
   }, [html]);
 
-  // Inject styles + HTML atomically (same as editor source mode). Never tied to i18n.language.
+  // Translate text nodes only (never the raw HTML string / CSS).
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      const next = await translateCmsHtmlForLocale(prepared.html, i18n.language, t);
+      if (active) setLocalizedHtml(next);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [prepared.html, i18n.language, t]);
+
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -44,11 +61,10 @@ export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
         ? `<style data-cms-page-styles="${prepared.styleKey}">${prepared.styles.join("\n")}</style>`
         : "";
 
-    el.innerHTML = styleBlock + prepared.html;
+    el.innerHTML = styleBlock + localizedHtml;
     repairCmsHtmlTranslateDamage(el);
-  }, [prepared.html, prepared.styles, prepared.styleKey]);
+  }, [localizedHtml, prepared.styles, prepared.styleKey]);
 
-  // Undo Chrome Google Translate DOM rewrites that break custom grid/flex layouts.
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -59,7 +75,7 @@ export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
     const observer = new MutationObserver(repair);
     observer.observe(el, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
-  }, [prepared.html, prepared.styleKey]);
+  }, [localizedHtml, prepared.styleKey]);
 
   if (!prepared.html && !prepared.styles.length) return null;
 

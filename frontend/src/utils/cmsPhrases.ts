@@ -117,6 +117,20 @@ Object.assign(NL_TO_EN, {
   Binnenverlichting: "Interior lighting",
   Buitenverlichting: "Outdoor lighting",
   Lichtbronnen: "Light sources",
+  Groothandel: "Wholesale",
+  Samenwerkingen: "Partnerships",
+  "Zakelijke verlichting voor grotere inkoopvolumes":
+    "Business lighting for larger purchase volumes",
+  "Voor retailers, aannemers, architecten, interieurprofessionals en projectinkopers die zoeken naar scherpe prijzen, betrouwbare levering en persoonlijke ondersteuning.":
+    "For retailers, contractors, architects, interior professionals and project buyers looking for competitive prices, reliable delivery and personal support.",
+  "Vraag een offerte aan": "Request a quote",
+  "Bekijk de voordelen": "View the benefits",
+  Bulk: "Bulk",
+  Zakelijk: "Business",
+  Project: "Project",
+  "Ondersteuning bij grotere bestellingen": "Support for larger orders",
+  "Scherpe prijzen voor professionals": "Competitive prices for professionals",
+  "Passend advies voor zakelijke inkoop": "Tailored advice for business purchasing",
 });
 
 PHRASES.en = NL_TO_EN;
