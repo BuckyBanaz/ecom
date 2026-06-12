@@ -1,29 +1,22 @@
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Star, Truck, Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
+import { cmsHeaderFooterRepository } from "@/client/apiClient";
+import { useCmsData } from "@/hooks/useCmsData";
 
+/** Fallback announcement bar — hidden when CMS header/footer provides topLeft/topRight. */
 export function TopBar() {
   const { t } = useTranslation();
-  const [hasCmsTopBar, setHasCmsTopBar] = useState(false);
+  const { data: headerFooterData } = useCmsData("header_footer_data", () =>
+    cmsHeaderFooterRepository.get(),
+  );
 
-  useEffect(() => {
-    const saved = localStorage.getItem("header_footer_data");
-    if (!saved) return;
-    try {
-      const parsed = JSON.parse(saved);
-      const hasLeft = Array.isArray(parsed.topLeft) && parsed.topLeft.length > 0;
-      const hasRight = Array.isArray(parsed.topRight) && parsed.topRight.length > 0;
-      setHasCmsTopBar(hasLeft || hasRight);
-    } catch {
-      setHasCmsTopBar(false);
-    }
-  }, []);
-
-  if (hasCmsTopBar) return null;
+  const topLeft = headerFooterData?.topLeft || [];
+  const topRight = headerFooterData?.topRight || [];
+  if (topLeft.length > 0 || topRight.length > 0) return null;
 
   return (
-    <div className="hidden w-full min-w-0 border-b bg-topbar text-xs text-foreground md:block">
+    <div className="hidden w-full min-w-0 border-b bg-topbar text-xs text-foreground notranslate md:block" translate="no">
       <div className="container-page flex h-9 min-w-0 items-center justify-between gap-4">
         <div className="flex items-center gap-6">
           <Link to="/help" className="flex items-center gap-1.5 hover:text-primary">

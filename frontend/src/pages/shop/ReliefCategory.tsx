@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { categories } from "@/data/categories";
-import { megaMenuData } from "@/data/megaMenu";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { productRepository, categoryRepository, megaMenuRepository } from "@/client/apiClient";
+import { extractMegaMenus, readMegaMenusFromStorage } from "@/utils/megaMenu";
 import { initialBlogs } from "@/data/blogs";
 import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -84,10 +84,10 @@ export default function ReliefCategory() {
           megaMenuRepository.getAll().catch(() => null),
         ]);
 
-        if (menuRes && menuRes.success && menuRes.megaMenus) {
-          setMenus(menuRes.megaMenus);
+        if (menuRes?.success && menuRes.menus) {
+          setMenus(menuRes.menus);
         } else {
-          setMenus([]);
+          setMenus(readMegaMenusFromStorage());
         }
 
         if (catRes && catRes.success && catRes.categories) {

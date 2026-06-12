@@ -10,27 +10,16 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from 
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { navGroups } from "@/data/categories";
-import { megaMenuData } from "@/data/megaMenu";
 import { useDebounce } from "@/hooks/use-debounce";
 import { productRepository, megaMenuRepository, cmsHeaderFooterRepository } from "@/client/apiClient";
 import { useCmsData } from "@/hooks/useCmsData";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { labelT } from "@/utils/i18nLabel";
-
-const defaultTopLeft = [
-  { icon: "star", text: "15,000+ reviews" },
-  { icon: "truck", text: "Ordered before 22:00, delivered next day" },
-  { icon: "calendar", text: "30-day returns" },
-];
-
-const defaultTopRight = [
-  { label: "Business", href: "/help" },
-  { label: "Customer service", href: "/help" },
-];
+import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
 
 export function Header() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 300);
@@ -42,12 +31,12 @@ export function Header() {
   const { ids } = useWishlist();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
-  const { data: rawMegaMenu } = useCmsData("mega_menu_data", () => megaMenuRepository.getAll());
+  const { data: rawMegaMenu } = useCmsData("mega_menu_data", fetchMegaMenusCmsPayload);
   const { data: headerFooterData } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
 
-  const menuList = (rawMegaMenu as any)?.menus || megaMenuData;
-  const topLeft = headerFooterData ? headerFooterData.topLeft || [] : defaultTopLeft;
-  const topRight = headerFooterData ? headerFooterData.topRight || [] : defaultTopRight;
+  const menuList = extractMegaMenus(rawMegaMenu);
+  const topLeft = headerFooterData?.topLeft || [];
+  const topRight = headerFooterData?.topRight || [];
 
   useEffect(() => {
     if (!debouncedQ.trim()) {
@@ -144,7 +133,7 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full min-w-0 border-b bg-background/95 backdrop-blur">
+    <header className="sticky top-0 z-40 w-full min-w-0 border-b bg-background/95 backdrop-blur notranslate" translate="no">
       {topLeft.length > 0 || topRight.length > 0 ? (
         <div className="w-full overflow-hidden border-b bg-muted/30">
           <div className="container-page min-w-0 py-2 text-xs">
@@ -154,14 +143,14 @@ export function Header() {
                 {topLeft.map((item, idx) => (
                     <span key={`desk-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
                       {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
-                      {labelT(t, item.text)}
+                      {labelT(t, item.text, i18n.language)}
                     </span>
                   ))}
               </div>
               <div className="flex items-center gap-4 text-muted-foreground">
                 {topRight.map((link, idx) => (
                   <Link key={`desk-r-${link.label}-${idx}`} to={link.href} className="hover:text-primary font-medium">
-                    {labelT(t, link.label)}
+                    {labelT(t, link.label, i18n.language)}
                   </Link>
                 ))}
               </div>
@@ -175,12 +164,12 @@ export function Header() {
 
                   return isLink ? (
                     <Link key={`mob-r-${item.label}-${idx}`} to={item.href} className="hover:text-primary font-medium whitespace-nowrap">
-                      {labelT(t, item.label)}
+                      {labelT(t, item.label, i18n.language)}
                     </Link>
                   ) : (
                     <span key={`mob-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground whitespace-nowrap">
                       {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
-                      {labelT(t, item.text)}
+                      {labelT(t, item.text, i18n.language)}
                     </span>
                   );
                 })}
@@ -206,12 +195,12 @@ export function Header() {
               {menuList.map((menuObj) => (
                 <details key={menuObj.menu} className="border-b py-2">
                   <summary className="cursor-pointer px-2 py-2 font-semibold flex items-center justify-between">
-                    {labelT(t, menuObj.menu)}
+                    {labelT(t, menuObj.menu, i18n.language)}
                   </summary>
                   <ul className="pl-4 pb-2">
                     {menuObj.sections.map((section) => (
                       <li key={section.title} className="mt-2">
-                        <div className="font-medium text-sm mb-1 text-primary">{labelT(t, section.title)}</div>
+                        <div className="font-medium text-sm mb-1 text-primary">{labelT(t, section.title, i18n.language)}</div>
                         <ul className="space-y-1">
                           {section.items.map((item) => (
                             <li key={item.slug}>
@@ -220,7 +209,7 @@ export function Header() {
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className="block py-1 text-sm hover:text-primary"
                               >
-                                {labelT(t, item.name)}
+                                {labelT(t, item.name, i18n.language)}
                               </Link>
                             </li>
                           ))}
@@ -334,7 +323,7 @@ export function Header() {
                 to={`/relief/${menuObj.slug}`}
                 className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
               >
-                {labelT(t, menuObj.menu)}
+                {labelT(t, menuObj.menu, i18n.language)}
                 <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === menuObj.slug ? 'rotate-180' : ''}`} />
               </Link>
               
@@ -346,7 +335,7 @@ export function Header() {
                       {menuObj.sections.map((section) => (
                         <div key={section.title}>
                           <h3 className="mb-4 text-base font-bold text-foreground">
-                            {labelT(t, section.title)}
+                            {labelT(t, section.title, i18n.language)}
                           </h3>
                           <ul className="space-y-3">
                             {section.items.map((item) => (
@@ -356,7 +345,7 @@ export function Header() {
                                   onClick={() => setActiveMenu(null)}
                                   className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors hover:underline underline-offset-4"
                                 >
-                                  {labelT(t, item.name)}
+                                  {labelT(t, item.name, i18n.language)}
                                 </Link>
                               </li>
                             ))}
@@ -374,7 +363,7 @@ export function Header() {
             className="rounded-full px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/10 ml-auto"
             onMouseEnter={() => setActiveMenu(null)}
           >
-            {labelT(t, "Deals")}
+            {labelT(t, "Deals", i18n.language)}
           </Link>
         </div>
       </nav>

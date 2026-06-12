@@ -98,11 +98,33 @@ const PHRASES: Record<string, Record<string, string>> = {
   },
 };
 
+// CMS often stores Dutch copy — map back to English when TAAL is EN.
+const NL_TO_EN: Record<string, string> = {};
+for (const [english, dutch] of Object.entries(PHRASES.nl)) {
+  NL_TO_EN[dutch] = english;
+  NL_TO_EN[english] = english;
+}
+// Common Dutch header variants (CMS / topbar)
+Object.assign(NL_TO_EN, {
+  "15.000+ reviews": "15,000+ reviews",
+  "15,000+ beoordelingen": "15,000+ reviews",
+  "15.000+ beoordelingen": "15,000+ reviews",
+  "30 dagen retourrecht": "30-day returns",
+  "Voor 22:00 besteld, morgen in huis": "Ordered before 22:00, delivered next day",
+  Zakelijke: "Business",
+  Klantenservice: "Customer service",
+  Aanbiedingen: "Deals",
+  Binnenverlichting: "Interior lighting",
+  Buitenverlichting: "Outdoor lighting",
+  Lichtbronnen: "Light sources",
+});
+
+PHRASES.en = NL_TO_EN;
+
 /** Look up a curated translation; case-insensitive fallback. */
 export function lookupStaticPhrase(text: string, targetLang: string): string | null {
   if (!text?.trim()) return null;
   const lang = targetLang.split("-")[0].toLowerCase();
-  if (lang === "en") return null;
 
   const table = PHRASES[lang];
   if (!table) return null;

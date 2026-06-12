@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, FileText, ArrowLeft, Save, Eye, Image as ImageIcon, CheckCircle2, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { normalizeCmsHtmlForStorage } from "@/utils/cmsHtml";
 import { Switch } from "@/components/ui/switch";
 import { cmsPagesRepository } from "@/client/apiClient";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
@@ -150,7 +151,16 @@ const CMSPages = () => {
       return;
     }
     
-    const pageData = { title, slug, body, published, seoTitle, seoDesc, seoKeywords, seoImage };
+    const pageData = {
+      title,
+      slug,
+      body: normalizeCmsHtmlForStorage(body),
+      published,
+      seoTitle,
+      seoDesc,
+      seoKeywords,
+      seoImage,
+    };
 
     try {
       if (editId) {

@@ -82,15 +82,9 @@ export function clearApiCache(prefix?: string) {
     .forEach((k) => localStorage.removeItem(k));
 }
 
-/** CMS keys stored in localStorage by useCmsData — clear on language switch. */
+/** Runtime phrase cache only — CMS structure (header/menu/homepage) is language-neutral. */
 export function clearCmsLocalCache() {
   if (typeof localStorage === "undefined") return;
-  [
-    "mega_menu_data",
-    "header_footer_data",
-    "homepage_data",
-    "relief_page_data",
-  ].forEach((key) => localStorage.removeItem(key));
   Object.keys(localStorage)
     .filter((k) => k.startsWith("tr:"))
     .forEach((k) => localStorage.removeItem(k));

@@ -11,12 +11,14 @@ import { initialBlogs } from "@/data/blogs";
 import { StarRating } from "@/components/shop/StarRating";
 import { FaIcon } from "@/components/ui/FaIcon";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { megaMenuData } from "@/data/megaMenu";
 import { isMissingImage, resolveImgUrl } from "@/utils/image";
 import { Skeleton } from "@/components/ui/skeleton";
-import { productRepository, categoryRepository, blogRepository, brandRepository, cmsTestimonialsRepository } from "@/client/apiClient";
+import { productRepository, categoryRepository, blogRepository, brandRepository, cmsTestimonialsRepository, megaMenuRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { labelT } from "@/utils/i18nLabel";
+import { CmsHtmlContent } from "@/components/cms/CmsHtmlContent";
+import { extractMegaMenus, readMegaMenusFromStorage } from "@/utils/megaMenu";
+import type { MegaMenu } from "@/data/megaMenu";
 
 interface ShortcodeRendererProps {
   content: string;
@@ -25,6 +27,7 @@ interface ShortcodeRendererProps {
     categories?: any[];
     blogs?: any[];
     brands?: any[];
+    megaMenus?: MegaMenu[];
   };
 }
 
@@ -36,6 +39,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
   const [dbBlogs, setDbBlogs] = useState<any[]>(prefetchedData?.blogs || []);
   const [dbBrands, setDbBrands] = useState<any[]>(prefetchedData?.brands || []);
+  const [dbMegaMenus, setDbMegaMenus] = useState<MegaMenu[]>(prefetchedData?.megaMenus || readMegaMenusFromStorage());
   const [dbTestimonials, setDbTestimonials] = useState<any[]>([]);
 
   // Load testimonials from backend
@@ -77,6 +81,16 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
           if (active && res.success && res.brands) setDbBrands(res.brands);
         }).catch(err => console.warn("Failed to fetch brands", err));
       }
+
+      if (prefetchedData.megaMenus) {
+        setDbMegaMenus(prefetchedData.megaMenus);
+      } else {
+        megaMenuRepository.getAll().then(res => {
+          if (active && res.success && res.menus) setDbMegaMenus(res.menus);
+        }).catch(() => {
+          if (active) setDbMegaMenus(readMegaMenusFromStorage());
+        });
+      }
       
       setLoading(false);
       return () => { active = false; };
@@ -84,17 +98,23 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
 
     const fetchRealData = async () => {
       try {
-        const [prodRes, catRes, blogRes, brandRes] = await Promise.all([
+        const [prodRes, catRes, blogRes, brandRes, menuRes] = await Promise.all([
           productRepository.getAll({ limit: 40 }),
           categoryRepository.getAll(),
           blogRepository.getAll({ published: true }).catch(() => ({ success: false })),
           brandRepository.getAll().catch(() => ({ success: false })),
+          megaMenuRepository.getAll().catch(() => ({ success: false })),
         ]);
         if (!active) return;
         if (prodRes.success && prodRes.products) setDbProducts(prodRes.products);
         if (catRes.success && catRes.categories) setDbCategories(catRes.categories);
         if (blogRes.success && blogRes.blogs) setDbBlogs(blogRes.blogs);
         if (brandRes.success && brandRes.brands) setDbBrands(brandRes.brands);
+        if (menuRes.success && menuRes.menus) {
+          setDbMegaMenus(menuRes.menus);
+        } else {
+          setDbMegaMenus(readMegaMenusFromStorage());
+        }
       } catch (err) {
         console.warn("Failed to load real data for Shortcodes:", err);
       } finally {
@@ -204,13 +224,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
           // If the only thing left is a single empty paragraph or similar, ignore
           if (!html || html === '<p></p>' || html === '<p><br></p>') return null;
 
-          return (
-            <div 
-              key={index} 
-              className="container-page prose prose-slate max-w-none overflow-x-hidden break-words dark:prose-invert [&_img]:max-w-full [&_img]:h-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_pre]:overflow-x-auto" 
-              dangerouslySetInnerHTML={{ __html: html }} 
-            />
-          );
+          return <CmsHtmlContent key={index} html={html} />;
         }
         
         const { blockType, attributes } = part;
@@ -245,7 +259,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
 
           case "menu-category": {
             const menuSlug = attributes.menu_slug;
-            const menuObj = megaMenuData.find(m => m.slug === menuSlug);
+            const menuObj = dbMegaMenus.find((m) => m.slug === menuSlug);
             if (!menuObj) return null;
 
             const firstSection = menuObj.sections[0];

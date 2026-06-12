@@ -14,6 +14,8 @@ import { UIBlocksDialog } from "./UIBlocksDialog";
 import { MediaLibraryDialog } from "./media/MediaLibraryDialog";
 import { LayoutTemplate } from "lucide-react";
 import { normalizeUploadedUrl, getApiBaseUrl, resolveImgUrl } from "@/utils/image";
+import { normalizeCmsHtmlForStorage } from "@/utils/cmsHtml";
+import { CmsHtmlContent } from "@/components/cms/CmsHtmlContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface RichTextEditorProps {
@@ -239,7 +241,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
         }
       });
       
-      const currentHTML = editorRef.current.innerHTML;
+      const currentHTML = normalizeCmsHtmlForStorage(editorRef.current.innerHTML);
       const normalizedHTML = normalizeUrlsInHtml(currentHTML);
       
       // Only trigger updates if content actually changed
@@ -549,15 +551,15 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
 
   const toggleSourceMode = () => {
     if (isSourceMode) {
-      // Transitioning from Source (HTML text) back to Editor
       setIsSourceMode(false);
-    } else {
-      // Transitioning from Editor to Source HTML
-      if (editorRef.current) {
-        setHtmlSource(editorRef.current.innerHTML);
-      }
-      setIsSourceMode(true);
+      return;
     }
+    if (editorRef.current) {
+      const clean = normalizeCmsHtmlForStorage(editorRef.current.innerHTML);
+      setHtmlSource(clean);
+      onChange(normalizeUrlsInHtml(clean));
+    }
+    setIsSourceMode(true);
   };
 
   const handleLinkInsert = () => {
@@ -984,11 +986,23 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
         
         {/* Footer info showing current mode */}
         <div className="flex justify-between items-center bg-muted/20 px-3 py-1 border-t text-[10px] text-muted-foreground">
-          <div>Features: HTML Editor, Font attributes, Link & Media inserts</div>
+          <div>Features: HTML Source mode, custom CSS/layout, UI Blocks</div>
           <div className="font-semibold text-primary/80">
             {isSourceMode ? "HTML SOURCE MODE" : "VISUAL EDITOR"}
           </div>
         </div>
+
+        {/* Storefront preview — matches live page rendering */}
+        {(htmlSource || value)?.trim() && (
+          <div className="border-t bg-muted/10">
+            <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-b bg-muted/20">
+              Live page preview
+            </div>
+            <div className="max-h-[420px] overflow-auto bg-background">
+              <CmsHtmlContent html={normalizeUrlsInHtml(normalizeCmsHtmlForStorage(htmlSource || value || ""))} />
+            </div>
+          </div>
+        )}
       </div>
 
       <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>

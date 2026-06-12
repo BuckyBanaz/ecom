@@ -205,6 +205,112 @@ All colors MUST be HSL.
   margin-bottom: 0.25rem !important;
 }
 
+/* Custom CMS pages from RichTextEditor — no Tailwind prose (breaks layouts) */
+.cms-rich-html {
+  line-height: 1.6;
+  color: inherit;
+}
+
+.cms-rich-html h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0 0 0.75rem;
+}
+
+.cms-rich-html h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.cms-rich-html h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.cms-rich-html p {
+  margin: 0 0 0.75rem;
+}
+
+.cms-rich-html ul,
+.cms-rich-html ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.5rem;
+}
+
+.cms-rich-html ul { list-style: disc; }
+.cms-rich-html ol { list-style: decimal; }
+
+.cms-rich-html img {
+  height: auto;
+}
+
+.cms-rich-html img:not([style*="width"]):not([width]) {
+  max-width: 100%;
+}
+
+.cms-rich-html img[style*="float: left"],
+.cms-rich-html img[style*="float:left"] {
+  float: left;
+  margin: 0.25rem 1.25rem 1rem 0;
+  max-width: 50%;
+}
+
+.cms-rich-html img[style*="float: right"],
+.cms-rich-html img[style*="float:right"] {
+  float: right;
+  margin: 0.25rem 0 1rem 1.25rem;
+  max-width: 50%;
+}
+
+.cms-rich-html table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cms-rich-html td,
+.cms-rich-html th {
+  vertical-align: top;
+  padding: 0.5rem;
+}
+
+.cms-rich-html .cms-auto-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: center;
+  margin: 1.5rem 0;
+}
+
+.cms-rich-html .cms-auto-grid-media img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0.75rem;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .cms-rich-html .cms-auto-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cms-rich-html img[style*="float"] {
+    float: none !important;
+    max-width: 100% !important;
+    margin: 0 0 1rem !important;
+    display: block;
+  }
+}
+
+.cms-rich-html a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
