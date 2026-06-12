@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import NotFound from "@/pages/NotFound";
 import { productRepository, reviewRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReviewModal } from "@/components/shop/ReviewModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -161,39 +162,7 @@ const ProductPage = () => {
   }, [liveProduct]);
 
   if (loading) {
-    return (
-      <div className="container-page py-6">
-        <Skeleton className="h-4 w-1/3 mb-4" />
-        <div className="grid gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
-          <div className="space-y-3">
-            <Skeleton className="aspect-[4/3] w-full lg:aspect-auto lg:h-[380px] rounded-xl" />
-            <div className="grid grid-cols-4 gap-3">
-              {[...Array(4)].map((_, i) => (
-                <Skeleton key={i} className="aspect-[4/3] w-full rounded-lg" />
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="flex gap-3 mb-3">
-              <Skeleton className="h-5 w-20 rounded-full" />
-              <Skeleton className="h-5 w-24 rounded-full" />
-            </div>
-            <Skeleton className="h-10 w-3/4 mb-4" />
-            <div className="space-y-3 mb-6">
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-4 w-1/3" />
-            </div>
-            <Skeleton className="h-24 w-full mb-6" />
-            <Skeleton className="h-10 w-32 mb-6" />
-            <div className="flex gap-3">
-              <Skeleton className="h-10 w-24 rounded-full" />
-              <Skeleton className="h-10 flex-1 rounded-full" />
-              <Skeleton className="h-10 w-10 rounded-full" />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <SectionLoader />;
   }
 
   const product = liveProduct || findProduct(slug);
@@ -245,7 +214,7 @@ const ProductPage = () => {
 
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
         <div className="space-y-3">
-          <div className="overflow-hidden rounded-xl border border-border/50 bg-muted">
+          <div className="overflow-hidden rounded-xl border border-border/50 bg-muted aspect-square sm:aspect-[4/3] lg:aspect-auto lg:h-[400px]">
             {/* Build a gallery array that always starts with the cover image */}
             {(() => {
               const galleryImages = [product.image, ...(product.images ?? [])];
@@ -254,7 +223,7 @@ const ProductPage = () => {
                   src={galleryImages[selectedImageIndex]}
                   alt={product.name}
                   fallbackType="product"
-                  className="aspect-[4/3] w-full object-cover lg:aspect-auto lg:h-[380px]"
+                  className="h-full w-full object-cover"
                 />
               );
             })()}

@@ -17,8 +17,10 @@ import { addressRepository, authRepository, ordersRepository } from "@/client/ap
 import { Loader2, FileText, CreditCard, Truck, Check, X } from "lucide-react";
 import { parseOrderMetadata } from "@/utils/formatters";
 import { ReviewModal } from "@/components/shop/ReviewModal";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { useFcmToken } from "@/hooks/useFcmToken";
 import { PhonePicker } from "@/components/ui/PhonePicker";
+import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
 
 interface Address {
   id: string | number;
@@ -284,7 +286,7 @@ function OrdersTab() {
     }
   };
 
-  if (loading) return <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+  if (loading) return <SectionLoader />;
 
   if (selectedOrder) {
     const isPending = ["pending", "payment_pending", "payment_failed"].includes(selectedOrder.status);
@@ -549,20 +551,20 @@ function OrdersTab() {
       ) : (
         <div className="space-y-3">
           {ordersList.map((o: any) => (
-            <button key={o.id} onClick={() => handleSelectOrder(o.orderNumber)} className="w-full flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm hover:bg-muted/30 transition text-left">
-              <SafeImage src={o.items[0].productImage} alt="" className="h-14 w-14 rounded-lg object-cover" fallbackType="product" />
+            <button key={o.id} onClick={() => handleSelectOrder(o.orderNumber)} className="w-full flex items-start sm:items-center gap-3 sm:gap-4 rounded-xl border bg-card p-3 sm:p-4 shadow-sm hover:bg-muted/30 transition text-left">
+              <SafeImage src={o.items[0].productImage} alt="" className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-lg object-cover mt-1 sm:mt-0" fallbackType="product" />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{o.orderNumber}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(o.status)}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <span className="font-semibold truncate text-sm sm:text-base">{o.orderNumber}</span>
+                  <span className={`w-fit rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-medium ${getStatusBadgeClass(o.status)}`}>
                     {getFriendlyStatus(o.status, t)}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">{t("dashboard.orders.items_count", { count: o.items.length })} · {new Date(o.createdAt).toLocaleDateString()}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t("dashboard.orders.items_count", { count: o.items.length })} · {new Date(o.createdAt).toLocaleDateString()}</p>
               </div>
-              <div className="text-right">
-                <p className="font-semibold">€{o.total.toFixed(2)}</p>
-                <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto mt-1" />
+              <div className="text-right shrink-0 flex flex-col items-end">
+                <p className="font-semibold text-sm sm:text-base">€{o.total.toFixed(2)}</p>
+                <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />
               </div>
             </button>
           ))}
@@ -622,6 +624,7 @@ function AddressesTab() {
     label: "Home", firstName: "", lastName: "", phone: "", street: "", houseNumber: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false
   });
   const [addressError, setAddressError] = useState<string>("");
+  const [phoneError, setPhoneError] = useState<string>("");
 
   const handleOpenForm = (address?: Address) => {
     if (address) {
@@ -632,6 +635,7 @@ function AddressesTab() {
       setFormData({ label: "Home", firstName: "", lastName: "", phone: "", street: "", houseNumber: "", city: "", state: "", pincode: "", country: "", lat: "", lng: "", isDefault: false });
     }
     setAddressError("");
+    setPhoneError("");
     setIsFormOpen(true);
   };
 
@@ -648,6 +652,13 @@ function AddressesTab() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    const validation = parseAndValidateFullPhone(formData.phone || "");
+    if (!validation.isValid) {
+      setPhoneError(t("auth_pages.login.toast_invalid_phone"));
+      return;
+    }
+    setPhoneError("");
+    
     // Explicit manual validation
     if (formData.houseNumber && !/^[0-9]+[a-zA-Z0-9\s-]*$/.test(formData.houseNumber)) {
       setAddressError(t("dashboard.addresses.house_number_error"));
@@ -655,13 +666,15 @@ function AddressesTab() {
     }
     setAddressError("");
 
+    const cleanedData = { ...formData, phone: validation.cleanedFullPhone };
+
     setLoading(true);
     try {
       if (editingId) {
-        await addressRepository.update(editingId.toString(), formData);
+        await addressRepository.update(editingId.toString(), cleanedData);
         toast.success(t("dashboard.addresses.toast_updated"));
       } else {
-        await addressRepository.create(formData);
+        await addressRepository.create(cleanedData);
         toast.success(t("dashboard.addresses.toast_added"));
       }
       setIsFormOpen(false);
@@ -706,7 +719,10 @@ function AddressesTab() {
             <div><Label>{t("dashboard.addresses.form.last_name")}</Label><Input value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} required className="mt-1" /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>{t("dashboard.addresses.form.phone")}</Label><PhonePicker value={formData.phone} onChange={val => setFormData({...formData, phone: val})} required className="mt-1" /></div>
+            <div>
+              <Label>{t("dashboard.addresses.form.phone")}</Label>
+              <PhonePicker value={formData.phone || ""} onChange={val => { setFormData({...formData, phone: val}); setPhoneError(""); }} required error={phoneError} className="mt-1" />
+            </div>
             <div>
               <Label>{t("dashboard.addresses.form.address_label")}</Label>
               <select 

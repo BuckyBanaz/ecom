@@ -10,7 +10,8 @@ import { faqs } from "@/data/faqs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BlogCard } from "@/components/shop/BlogCard";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
-import { resolveImgUrl } from "@/utils/image";
+import { isMissingImage } from "@/utils/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReliefCategorySkeleton } from "@/components/ui/SkeletonLoader";
 
@@ -59,9 +60,9 @@ export default function ReliefCategory() {
   const getCategoryImage = (itemSlug: string) => {
     const resolved = resolveCategorySlug(itemSlug);
     const matchedDb = categoriesList.find(c => c.slug === resolved);
-    if (matchedDb && matchedDb.image) return matchedDb.image;
+    if (matchedDb?.image && !isMissingImage(matchedDb.image)) return matchedDb.image;
     const matched = categories.find(c => c.slug === resolved);
-    return matched ? matched.image : "";
+    return matched?.image && !isMissingImage(matched.image) ? matched.image : "";
   };
 
   useEffect(() => {
@@ -271,11 +272,12 @@ export default function ReliefCategory() {
                       className="group relative flex flex-col items-center overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
                     >
                       <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                        {imgUrl ? (
-                          <img
-                            src={resolveImgUrl(imgUrl)}
+                        {!isMissingImage(imgUrl) ? (
+                          <SafeImage
+                            src={imgUrl}
                             alt={item.name}
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            fallbackType="category"
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
@@ -331,11 +333,12 @@ export default function ReliefCategory() {
                           className="group relative flex flex-col overflow-hidden rounded-2xl bg-card border shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/30"
                         >
                           <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                            {imgUrl ? (
-                              <img
-                                src={resolveImgUrl(imgUrl)}
+                            {!isMissingImage(imgUrl) ? (
+                              <SafeImage
+                                src={imgUrl}
                                 alt={`${styleName} ${item.name}`}
                                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                fallbackType="category"
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-muted-foreground bg-muted" />

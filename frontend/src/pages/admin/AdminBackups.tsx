@@ -5,6 +5,7 @@ import { Database, Download, FolderArchive, HardDrive, RefreshCw, Trash2 } from 
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { backupsRepository } from "@/client/apiClient";
 
 type BackupType = "database" | "uploads" | "full";

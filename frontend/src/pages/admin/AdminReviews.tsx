@@ -5,6 +5,7 @@ import { ArrowLeft, Trash2, Star, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveImgUrl } from "@/utils/image";
 import { toast } from "sonner";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { reviewRepository, productRepository } from "@/client/apiClient";
 
@@ -95,7 +96,7 @@ const AdminReviews = () => {
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    {t("admin_reviews.loading")}
+                    <SectionLoader />
                   </td>
                 </tr>
               ) : reviews.length === 0 ? (

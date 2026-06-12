@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { cmsReliefRepository } from "@/client/apiClient";
 import { getClientBaseUrl } from "@/utils/siteUrl";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 interface ReliefPageData {
   title?: string;
@@ -78,7 +79,7 @@ export default function CMSRelief() {
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
+    return <SectionLoader />;
   }
 
   return (

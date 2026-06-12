@@ -16,7 +16,9 @@ import { addressRepository, shippingRepository, couponRepository, chargeReposito
 import { toast } from "sonner";
 import { MapSelector } from "@/components/shop/MapSelector";
 import { PhonePicker } from "@/components/ui/PhonePicker";
+import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LottieLoader } from "@/components/ui/PageLoader";
 
 const steps = ["Contact", "Shipping", "Payment"] as const;
 
@@ -222,6 +224,8 @@ const Checkout = () => {
   const [addingAddress, setAddingAddress] = useState(false);
   const [addrForm, setAddrForm] = useState(emptyAddressForm);
   const [addressError, setAddressError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [contactPhoneError, setContactPhoneError] = useState("");
   const [showMap, setShowMap] = useState(false);
 
   const fetchAddresses = async () => {
@@ -250,6 +254,13 @@ const Checkout = () => {
 
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validation = parseAndValidateFullPhone(addrForm.phone);
+    if (!validation.isValid) {
+      setPhoneError(t("auth_pages.login.toast_invalid_phone"));
+      return;
+    }
+    setPhoneError("");
+
     if (addrForm.houseNumber && !/^[0-9]+[a-zA-Z0-9\s-]*$/.test(addrForm.houseNumber)) {
       setAddressError(t("checkout.address_error_house_number"));
       return;
@@ -258,7 +269,11 @@ const Checkout = () => {
 
     try {
       setAddingAddress(true);
-      const res = await addressRepository.create({ ...addrForm, isDefault: addresses.length === 0 });
+      const res = await addressRepository.create({ 
+        ...addrForm, 
+        phone: validation.cleanedFullPhone,
+        isDefault: addresses.length === 0 
+      });
       if (res.success || res.data) {
         toast.success(t("checkout.toast_address_added"));
         setShowAddDialog(false);
@@ -291,6 +306,16 @@ const Checkout = () => {
 
   const next = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (step === 0) {
+      const validation = parseAndValidateFullPhone(contact.phone);
+      if (!validation.isValid) {
+        setContactPhoneError(t("auth_pages.login.toast_invalid_phone"));
+        toast.error(t("auth_pages.login.toast_invalid_phone"));
+        return;
+      }
+      setContactPhoneError("");
+      setContact(prev => ({ ...prev, phone: validation.cleanedFullPhone }));
+    }
     if (step === 1 && !selectedAddressId) {
       toast.error(t("checkout.toast_select_address"));
       return;
@@ -368,7 +393,7 @@ const Checkout = () => {
   if (verifyingSession) {
     return (
       <div className="container-page py-32 text-center flex flex-col items-center">
-        <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+        <LottieLoader className="w-24 h-24 mb-4" />
         <h1 className="text-2xl font-bold">{t("checkout.verifying_title")}</h1>
         <p className="text-muted-foreground mt-2">{t("checkout.verifying_desc")}</p>
       </div>
@@ -419,7 +444,7 @@ const Checkout = () => {
                 <Field label={t("checkout.field_first_name")} value={contact.firstName} onChange={v => setContact({ ...contact, firstName: v })} required />
                 <Field label={t("checkout.field_last_name")} value={contact.lastName} onChange={v => setContact({ ...contact, lastName: v })} required />
                 <Field label={t("checkout.field_email")} type="email" value={contact.email} onChange={v => setContact({ ...contact, email: v })} required />
-                <Field label={t("checkout.field_phone")} type="tel" value={contact.phone} onChange={v => setContact({ ...contact, phone: v })} required />
+                <Field label={t("checkout.field_phone")} type="tel" value={contact.phone} onChange={v => { setContact({ ...contact, phone: v }); setContactPhoneError(""); }} required error={contactPhoneError} />
               </div>
             </div>
           )}
@@ -701,7 +726,7 @@ const Checkout = () => {
                 <Field label={t("checkout.field_first_name")} value={addrForm.firstName} onChange={v => setAddrForm({ ...addrForm, firstName: v })} required />
                 <Field label={t("checkout.field_last_name")} value={addrForm.lastName} onChange={v => setAddrForm({ ...addrForm, lastName: v })} required />
               </div>
-              <Field label={t("checkout.field_phone")} type="tel" value={addrForm.phone} onChange={v => setAddrForm({ ...addrForm, phone: v })} required />
+              <Field label={t("checkout.field_phone")} type="tel" value={addrForm.phone} onChange={v => { setAddrForm({ ...addrForm, phone: v }); setPhoneError(""); }} required error={phoneError} />
 
               {/* Map picker */}
               <div>
@@ -780,12 +805,12 @@ function Field({
     <div>
       <Label className="mb-1.5 block text-sm">{label}</Label>
       {type === "tel" ? (
-        <PhonePicker value={value} onChange={onChange} required={required} className={error ? "border-red-500" : ""} />
+        <PhonePicker value={value} onChange={onChange} required={required} error={error} />
       ) : (
         <Input type={type} value={value} onChange={e => onChange(e.target.value)}
           required={required} pattern={pattern} title={title} className={cn("h-10", error ? "border-red-500" : "")} />
       )}
-      {error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
+      {type !== "tel" && error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
     </div>
   );
 }

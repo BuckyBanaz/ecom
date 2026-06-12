@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { logsRepository } from "@/client/apiClient";
 import { useAdmin } from "@/context/AdminContext";
 
@@ -192,7 +193,7 @@ export default function AdminLogs() {
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-muted-foreground">{t("admin_logs.loading")}</div>
+          <SectionLoader />
         ) : logs.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">{t("admin_logs.empty")}</div>
         ) : (

@@ -7,6 +7,9 @@ import { toast } from "sonner";
 import { Order } from "./AdminOrders";
 import { Logo } from "@/components/layout/Logo";
 import { parseOrderMetadata } from "@/utils/formatters";
+import { formatPrice } from "@/context/CartContext";
+import { printInvoice } from "@/utils/printInvoice";
+import { getInvoiceNumber, isInvoiceEligible } from "@/utils/invoice";
 
 export default function AdminInvoices() {
   const { t } = useTranslation();
@@ -21,13 +24,17 @@ export default function AdminInvoices() {
     }
   }, []);
 
-  // Filter orders that have generated invoices
-  const invoices = ordersList.filter((o) => o.invoiceNumber !== null && o.invoiceNumber !== undefined);
+  const invoices = ordersList.filter(isInvoiceEligible);
 
-  const filtered = invoices.filter((o) =>
-    o.invoiceNumber!.toLowerCase().includes(search.toLowerCase()) ||
-    o.customerName.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = invoices.filter((o) => {
+    const invoiceNo = getInvoiceNumber(o).toLowerCase();
+    const query = search.toLowerCase();
+    return (
+      invoiceNo.includes(query) ||
+      o.orderNumber.toLowerCase().includes(query) ||
+      o.customerName.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -65,7 +72,7 @@ export default function AdminInvoices() {
             ) : (
               filtered.map((o) => (
                 <tr key={o.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="p-4 font-mono font-bold text-foreground">{o.invoiceNumber}</td>
+                  <td className="p-4 font-mono font-bold text-foreground">{getInvoiceNumber(o)}</td>
                   <td className="p-4 font-semibold text-primary">{o.orderNumber}</td>
                   <td className="p-4 font-medium text-foreground">{o.customerName}</td>
                   <td className="p-4 font-semibold text-foreground">€{o.total.toFixed(2)}</td>
@@ -99,14 +106,14 @@ export default function AdminInvoices() {
         const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);
         return (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white text-black rounded-2xl max-w-2xl w-full p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans">
+            <div className="invoice-print-area bg-white text-black rounded-2xl max-w-2xl w-full p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans print:max-h-none print:overflow-visible print:shadow-none print:rounded-none">
               <div className="flex justify-between items-start border-b pb-6">
                 <div>
                   <Logo forceLight className="mb-1 pointer-events-none" />
                   <p className="text-xs text-stone-500 mt-1">{t("admin_invoices.dialog_title")}</p>
                 </div>
                 <div className="text-right text-xs space-y-0.5">
-                  <p className="font-bold">Invoice: {selectedOrder.invoiceNumber}</p>
+                  <p className="font-bold">Invoice: {getInvoiceNumber(selectedOrder)}</p>
                   <p>Date: {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
                   <p>Order Reference: {selectedOrder.orderNumber}</p>
                 </div>
@@ -145,8 +152,8 @@ export default function AdminInvoices() {
                       <tr key={i}>
                         <td className="p-3 font-semibold">{item.productName} {item.variant && `(${item.variant})`}</td>
                         <td className="p-3 text-center">{item.quantity}</td>
-                        <td className="p-3 text-right">€{item.price.toFixed(2)}</td>
-                        <td className="p-3 text-right">€{(item.price * item.quantity).toFixed(2)}</td>
+                        <td className="p-3 text-right">{formatPrice(item.price)}</td>
+                        <td className="p-3 text-right">{formatPrice(item.price * item.quantity)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -155,24 +162,25 @@ export default function AdminInvoices() {
 
               <div className="flex justify-end text-xs">
                 <div className="w-64 space-y-2 border-t pt-3">
-                  <div className="flex justify-between text-stone-500"><span>{t("admin_invoices.subtotal")}</span><span>€{selectedOrder.subtotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between text-stone-500"><span>{t("admin_invoices.shipping")}</span><span>{selectedOrder.shipping === 0 ? t("admin_invoices.shipping_free") : `€${selectedOrder.shipping.toFixed(2)}`}</span></div>
-                  {tax > 0 && <div className="flex justify-between text-stone-500"><span>{t("admin_invoices.tax")}</span><span>€{tax.toFixed(2)}</span></div>}
-                  {discount > 0 && <div className="flex justify-between text-green-600"><span>{t("admin_invoices.discount")}</span><span>-€{discount.toFixed(2)}</span></div>}
-                  <div className="flex justify-between font-bold text-stone-900 border-t pt-2 text-sm"><span>{t("admin_invoices.grand_total")}</span><span>€{selectedOrder.total.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-stone-500"><span>{t("admin_invoices.subtotal")}</span><span>{formatPrice(selectedOrder.subtotal)}</span></div>
+                  <div className="flex justify-between text-stone-500"><span>{t("admin_invoices.shipping")}</span><span>{selectedOrder.shipping === 0 ? t("admin_invoices.shipping_free") : formatPrice(selectedOrder.shipping)}</span></div>
+                  {tax > 0 && <div className="flex justify-between text-stone-500"><span>{t("admin_invoices.tax")}</span><span>{formatPrice(tax)}</span></div>}
+                  {discount > 0 && <div className="flex justify-between text-green-600"><span>{t("admin_invoices.discount")}</span><span>-{formatPrice(discount)}</span></div>}
+                  <div className="flex justify-between font-bold text-stone-900 border-t pt-2 text-sm"><span>{t("admin_invoices.grand_total")}</span><span>{formatPrice(selectedOrder.total)}</span></div>
                 </div>
               </div>
 
-              <div className="flex justify-between items-center border-t pt-6">
-                <span className="text-[10px] text-stone-400">{t("admin_invoices.footer_text")}</span>
-                <div className="flex gap-2">
-                  <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full">
-                    <Printer className="h-3.5 w-3.5" /> {t("admin_invoices.button_print")}
-                  </Button>
-                  <Button onClick={() => setSelectedOrder(null)} size="sm" className="text-xs bg-amber-900 hover:bg-amber-950 text-white rounded-full">
-                    {t("admin_invoices.button_close")}
-                  </Button>
-                </div>
+              <div className="text-center border-t border-stone-200 pt-6">
+                <p className="text-[10px] text-stone-400">{t("admin_invoices.footer_text")}</p>
+              </div>
+
+              <div className="flex justify-end gap-2 no-print">
+                <Button onClick={printInvoice} variant="outline" size="sm" className="gap-1.5 text-xs rounded-full">
+                  <Printer className="h-3.5 w-3.5" /> {t("admin_invoices.button_print")}
+                </Button>
+                <Button onClick={() => setSelectedOrder(null)} size="sm" className="text-xs bg-amber-900 hover:bg-amber-950 text-white rounded-full">
+                  {t("admin_invoices.button_close")}
+                </Button>
               </div>
             </div>
           </div>

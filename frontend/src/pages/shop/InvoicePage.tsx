@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { ordersRepository } from "@/client/apiClient";
 import { Printer, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatPrice } from "@/context/CartContext";
 import { parseOrderMetadata } from "@/utils/formatters";
+import { printInvoice } from "@/utils/printInvoice";
+import { getInvoiceNumber } from "@/utils/invoice";
 import { Logo } from "@/components/layout/Logo";
 
 export default function InvoicePage() {
@@ -41,10 +45,10 @@ export default function InvoicePage() {
       .finally(() => {
         setLoading(false);
       });
-  }, [token]);
+  }, [token, t, searchParams]);
 
   if (loading) {
-    return <div className="p-12 text-center text-muted-foreground">{t("invoice.loading")}</div>;
+    return <SectionLoader />;
   }
 
   if (error || !order) {
@@ -54,27 +58,25 @@ export default function InvoicePage() {
   const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, city, state, pincode, country } = parseOrderMetadata(order.shippingAddress);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-8 font-sans">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-8 font-sans print:bg-white print:p-0">
       <div className="max-w-4xl mx-auto">
-        {/* Controls (Hidden when printing) */}
-        <div className="mb-6 flex justify-end gap-3 print:hidden">
-          <Button onClick={() => window.print()} className="gap-2 shadow-sm rounded-full bg-primary text-primary-foreground font-semibold">
+        <div className="mb-6 flex justify-end gap-3 no-print">
+          <Button onClick={printInvoice} className="gap-2 shadow-sm rounded-full bg-primary text-primary-foreground font-semibold">
             <Printer className="h-4 w-4" /> {t("invoice.button_print")}
           </Button>
-          <Button onClick={() => window.print()} variant="outline" className="gap-2 shadow-sm rounded-full font-semibold">
+          <Button onClick={printInvoice} variant="outline" className="gap-2 shadow-sm rounded-full font-semibold">
             <Download className="h-4 w-4" /> {t("invoice.button_save_pdf")}
           </Button>
         </div>
 
-        {/* Invoice Document */}
-        <div className="bg-white text-black p-10 sm:p-16 rounded-2xl shadow-xl space-y-6 max-w-2xl mx-auto font-sans print:shadow-none print:rounded-none print:p-0">
+        <div className="invoice-print-area bg-white text-black p-10 sm:p-16 rounded-2xl shadow-xl space-y-6 max-w-2xl mx-auto font-sans">
           <div className="flex justify-between items-start border-b pb-6">
             <div>
               <Logo forceLight className="mb-1 pointer-events-none" />
               <p className="text-xs text-stone-500 mt-1">{t("invoice.statement")}</p>
             </div>
             <div className="text-right text-xs space-y-0.5">
-              <p className="font-bold">{t("invoice.label_invoice")} {order.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`}</p>
+              <p className="font-bold">{t("invoice.label_invoice")} {getInvoiceNumber(order)}</p>
               <p>{t("invoice.label_date")} {new Date(order.createdAt).toLocaleDateString()}</p>
               <p>{t("invoice.label_order_ref")} {order.orderNumber}</p>
             </div>
@@ -113,8 +115,8 @@ export default function InvoicePage() {
                   <tr key={i}>
                     <td className="p-3 font-semibold">{item.productName} {item.variant && `(${item.variant})`}</td>
                     <td className="p-3 text-center">{item.quantity}</td>
-                    <td className="p-3 text-right">€{item.price.toFixed(2)}</td>
-                    <td className="p-3 text-right">€{(item.price * item.quantity).toFixed(2)}</td>
+                    <td className="p-3 text-right">{formatPrice(item.price)}</td>
+                    <td className="p-3 text-right">{formatPrice(item.price * item.quantity)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -122,14 +124,13 @@ export default function InvoicePage() {
           </div>
 
           <div className="flex justify-end text-xs">
-            <div className="w-64 space-y-2 border-t pt-3">
-              {/* Summary */}
-              <div className="mt-6 border-t pt-4 space-y-2 text-sm text-foreground">
-                <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_subtotal")}</span><span>\u20ac{order.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_shipping")}</span><span>{order.shipping === 0 ? t("invoice.summary_free") : `\u20ac${order.shipping.toFixed(2)}`}</span></div>
-                {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_tax")}</span><span>\u20ac{tax.toFixed(2)}</span></div>}
-                {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_discount")}</span><span className="text-green-600">-\u20ac{discount.toFixed(2)}</span></div>}
-                <div className="flex justify-between font-bold text-base border-t pt-2"><span>{t("invoice.summary_total")}</span><span>\u20ac{order.total.toFixed(2)}</span></div>
+            <div className="w-64 space-y-2 pt-3">
+              <div className="border-t pt-4 space-y-2 text-sm text-foreground">
+                <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_subtotal")}</span><span>{formatPrice(order.subtotal)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_shipping")}</span><span>{order.shipping === 0 ? t("invoice.summary_free") : formatPrice(order.shipping)}</span></div>
+                {tax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_tax")}</span><span>{formatPrice(tax)}</span></div>}
+                {discount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("invoice.summary_discount")}</span><span className="text-green-600">-{formatPrice(discount)}</span></div>}
+                <div className="flex justify-between font-bold text-base border-t pt-2"><span>{t("invoice.summary_total")}</span><span>{formatPrice(order.total)}</span></div>
               </div>
             </div>
           </div>

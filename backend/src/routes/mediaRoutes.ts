@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { toPublicMediaUrl } from "../utils/mediaUrl";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
-import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia } from "../controllers/mediaController";
+import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia, optimizeMedia } from "../controllers/mediaController";
 
 const router = Router();
 
@@ -160,6 +160,8 @@ router.post("/copy", copyMedia);
  *       400:
  *         description: Bad request
  */
+router.post("/optimize", optimizeMedia);
+
 router.post("/upload", upload, (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "No file uploaded" });

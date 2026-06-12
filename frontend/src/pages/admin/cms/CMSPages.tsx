@@ -12,8 +12,9 @@ import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Switch } from "@/components/ui/switch";
 import { cmsPagesRepository } from "@/client/apiClient";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
-import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { resolveImgUrl, normalizeUploadedUrl } from "@/utils/image";
 import { getClientBaseUrl } from "@/utils/siteUrl";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 type ImgState = string | null;
 
@@ -188,7 +189,7 @@ const CMSPages = () => {
   };
 
   if (isLoading && view === "list") {
-    return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
+    return <SectionLoader />;
   }
 
   if (view === "editor") {

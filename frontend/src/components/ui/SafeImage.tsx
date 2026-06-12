@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Image as ImageIcon, Package, Folder, Building2, Layers } from "lucide-react";
-import { resolveImgUrl } from "@/utils/image";
+import { isMissingImage, resolveImgUrl } from "@/utils/image";
 
 interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fallbackType?: "product" | "category" | "brand" | "series";
@@ -8,12 +8,13 @@ interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 
 export function SafeImage({ src, alt, className, fallbackType, ...props }: SafeImageProps) {
   const [hasError, setHasError] = useState(false);
+  const resolvedSrc = resolveImgUrl(src);
 
   useEffect(() => {
-    setHasError(!src);
-  }, [src]);
+    setHasError(isMissingImage(src) || !resolvedSrc);
+  }, [src, resolvedSrc]);
 
-  if (hasError || !src) {
+  if (hasError || isMissingImage(src) || !resolvedSrc) {
     // Custom icon sizes based on expected layouts
     let iconSize = "h-5 w-5";
     if (fallbackType === "category") iconSize = "h-8 w-8";
@@ -36,7 +37,7 @@ export function SafeImage({ src, alt, className, fallbackType, ...props }: SafeI
 
   return (
     <img
-      src={resolveImgUrl(src)}
+      src={resolvedSrc}
       alt={alt}
       className={className}
       onError={() => setHasError(true)}

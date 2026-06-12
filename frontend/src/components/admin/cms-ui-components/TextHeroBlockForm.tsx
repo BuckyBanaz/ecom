@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,13 +7,36 @@ import { Label } from "@/components/ui/label";
 interface TextHeroBlockFormProps {
   onInsert: (shortcode: string) => void;
   onCancel: () => void;
+  initialTitle?: string;
+  initialSubtitle?: string;
+  initialDescription?: string;
+  isEditing?: boolean;
 }
 
-export function TextHeroBlockForm({ onInsert, onCancel }: TextHeroBlockFormProps) {
+export function TextHeroBlockForm({
+  onInsert,
+  onCancel,
+  initialTitle = "",
+  initialSubtitle = "",
+  initialDescription = "",
+  isEditing = false,
+}: TextHeroBlockFormProps) {
   const { t } = useTranslation();
-  const [title, setTitle] = useState("");
-  const [subtitle, setSubtitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState(initialTitle);
+  const [subtitle, setSubtitle] = useState(initialSubtitle);
+  const [description, setDescription] = useState(initialDescription);
+
+  useEffect(() => {
+    setTitle(initialTitle);
+  }, [initialTitle]);
+
+  useEffect(() => {
+    setSubtitle(initialSubtitle);
+  }, [initialSubtitle]);
+
+  useEffect(() => {
+    setDescription(initialDescription);
+  }, [initialDescription]);
 
   const handleInsert = () => {
     let shortcode = `[text-hero title="${title.replace(/"/g, '&quot;')}"`;
@@ -54,7 +77,9 @@ export function TextHeroBlockForm({ onInsert, onCancel }: TextHeroBlockFormProps
 
       <div className="flex justify-end gap-2 pt-4">
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button onClick={handleInsert} disabled={!title}>Insert Block</Button>
+        <Button onClick={handleInsert} disabled={!title}>
+          {isEditing ? "Update Block" : "Insert Block"}
+        </Button>
       </div>
     </div>
   );

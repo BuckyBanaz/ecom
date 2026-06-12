@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/db";
 import { AppError } from "../middlewares/errorMiddleware";
 import { env } from "../config/env";
-import Stripe from "stripe";
+import { getStripeClient, isStripeConfigured } from "../utils/stripeClient";
 import { redisService } from "../services/redisService";
 import jwt from "jsonwebtoken";
 import { sendcloudApi } from "../services/sendcloud/api";
@@ -10,10 +10,6 @@ import { notificationTriggerService } from "../services/notificationTriggerServi
 import { db } from "../config/firebase";
 import { collection, addDoc, getDocs, query, orderBy, where } from "firebase/firestore";
 import { messaging } from "../config/firebaseAdmin";
-
-const stripe = new Stripe(env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-04-10"
-});
 
 // Initiate Checkout Session
 export const initiateCheckout = async (req: Request, res: Response, next: NextFunction) => {
@@ -24,9 +20,10 @@ export const initiateCheckout = async (req: Request, res: Response, next: NextFu
       return next(new AppError("Cart is empty", 400));
     }
 
-    if (!env.STRIPE_SECRET_KEY) {
+    if (!isStripeConfigured()) {
       return next(new AppError("Stripe is not configured on this server.", 500));
     }
+    const stripe = getStripeClient();
 
     let userId = null;
     const authHeader = req.headers.authorization;
@@ -139,9 +136,10 @@ export const verifyCheckoutSession = async (req: Request, res: Response, next: N
   try {
     const { sessionId } = req.params;
 
-    if (!env.STRIPE_SECRET_KEY) {
+    if (!isStripeConfigured()) {
       return next(new AppError("Stripe not configured", 500));
     }
+    const stripe = getStripeClient();
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     
@@ -360,10 +358,8 @@ export const getMyOrderById = async (req: Request, res: Response, next: NextFunc
     if (!order) return next(new AppError("Order not found", 404));
 
     // Generate a short-lived token for invoice access (1 hour)
-    import("jsonwebtoken").then((jwt) => {
-      const invoiceToken = jwt.default.sign({ orderId: order.id }, env.JWT_SECRET, { expiresIn: '1h' });
-      res.status(200).json({ success: true, data: order, invoiceToken });
-    });
+    const invoiceToken = jwt.sign({ orderId: order.id }, env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(200).json({ success: true, data: order, invoiceToken });
   } catch (error) {
     next(error);
   }
@@ -394,6 +390,11 @@ export const retryPayment = async (req: Request, res: Response, next: NextFuncti
     if (process.env.PAYMENT_ENABLE_KLARNA === "true") paymentMethods.push("klarna");
     if (process.env.PAYMENT_ENABLE_BANCONTACT === "true") paymentMethods.push("bancontact");
     if (paymentMethods.length === 0) paymentMethods.push("card"); // Fallback
+
+    if (!isStripeConfigured()) {
+      return next(new AppError("Stripe is not configured on this server.", 500));
+    }
+    const stripe = getStripeClient();
 
     // Create a new Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
@@ -433,13 +434,12 @@ export const getInvoiceByToken = async (req: Request, res: Response, next: NextF
   try {
     const { token } = req.params;
     
-    import("jsonwebtoken").then(async (jwt) => {
-      let decoded: any;
-      try {
-        decoded = jwt.default.verify(token, env.JWT_SECRET);
-      } catch (err) {
-        return next(new AppError("Invalid or expired invoice token", 401));
-      }
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, env.JWT_SECRET);
+    } catch (err) {
+      return next(new AppError("Invalid or expired invoice token", 401));
+    }
 
       const orderId = decoded.orderId;
       const order = await prisma.order.findUnique({
@@ -449,8 +449,7 @@ export const getInvoiceByToken = async (req: Request, res: Response, next: NextF
 
       if (!order) return next(new AppError("Order not found", 404));
 
-      res.status(200).json({ success: true, data: order });
-    });
+    res.status(200).json({ success: true, data: order });
   } catch (error) {
     next(error);
   }

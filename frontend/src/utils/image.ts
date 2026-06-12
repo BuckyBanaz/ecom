@@ -6,46 +6,49 @@ export const getApiBaseUrl = (): string => {
 
   if (typeof window !== "undefined") {
     const host = window.location.hostname.replace(/^www\./, "");
-    if (host && !host.startsWith("api.") && !host.includes("localhost")) {
+    if (host && !host.startsWith("api.") && !host.includes("localhost") && !host.includes("127.0.0.1")) {
       return `${window.location.protocol}//api.${host}`;
+    }
+    // Local dev: route uploads/API through the Vite proxy on the same origin.
+    if (import.meta.env.DEV) {
+      return "";
     }
   }
 
   return "http://localhost:5000";
 };
 
-const LEGACY_ASSET_ALIASES: Record<string, string> = {
-  "/assets/cat-chandeliers.jpg": "/assets/cat-chandelier.jpg",
-  "/assets/cat-office-lighting.jpg": "/assets/cat-office.jpg",
-};
+/** Paths that should render SafeImage fallback (folder icon), not a broken/text placeholder. */
+export function isMissingImage(src?: string | null): boolean {
+  if (!src || !src.trim()) return true;
+  const clean = src.trim();
+  if (clean === "/placeholder.svg") return true;
+  if (clean.startsWith("/assets/cat-")) return true;
+  if (clean === "/assets/cat-generic.jpg") return true;
+  return false;
+}
 
 /** Resolve an image path for display in img src attributes */
 export const resolveImgUrl = (src?: string | null): string => {
-  if (!src) return "";
+  if (isMissingImage(src)) return "";
 
-  if (src.startsWith("data:") || src.startsWith("blob:")) {
-    return src;
-  }
-
-  if (LEGACY_ASSET_ALIASES[src]) {
-    return LEGACY_ASSET_ALIASES[src];
+  if (src!.startsWith("data:") || src!.startsWith("blob:")) {
+    return src!;
   }
 
   const baseUrl = getApiBaseUrl();
 
-  if (src.startsWith("http://") || src.startsWith("https://")) {
-    if (src.includes("localhost:5000/uploads")) {
-      const path = src.replace(/^https?:\/\/[^/]+/, "");
-      return `${baseUrl}${path}`;
-    }
-    return src;
+  // Always normalize /uploads/ paths to the current API host (fixes prod URLs on localhost).
+  const uploadsIdx = src!.indexOf("/uploads/");
+  if (uploadsIdx !== -1) {
+    return `${baseUrl}${src!.slice(uploadsIdx)}`;
   }
 
-  if (src.startsWith("/uploads")) {
-    return `${baseUrl}${src}`;
+  if (src!.startsWith("http://") || src!.startsWith("https://")) {
+    return src!;
   }
 
-  return src;
+  return src!;
 };
 
 /** Store relative /uploads paths instead of localhost URLs */

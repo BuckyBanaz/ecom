@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   Folder, Image as ImageIcon, Upload, Plus, Trash2, ArrowLeft, ChevronRight, Copy, Check,
   RefreshCw, Filter, LayoutGrid, List, PanelRightClose, PanelRightOpen, Search, Edit2,
-  X, RotateCcw, StopCircle, ChevronDown, ChevronUp, Scissors, ClipboardPaste, FolderInput,
+  X, RotateCcw, StopCircle, ChevronDown, ChevronUp, Scissors, ClipboardPaste, FolderInput, Minimize2,
 } from "lucide-react";
 import { mediaRepository } from "@/client/apiClient";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { resolveImgUrl } from "@/utils/image";
+import { prepareImageForUpload } from "@/utils/imageCompress";
 
 export type MediaItem = {
   name: string;
@@ -25,7 +26,7 @@ export type MediaItem = {
   path: string;
 };
 
-type UploadTaskStatus = "uploading" | "stopped" | "completed" | "error";
+type UploadTaskStatus = "compressing" | "uploading" | "stopped" | "completed" | "error";
 
 type UploadTask = {
   id: string;
@@ -159,6 +160,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
 
   // Upload tasks
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
+  const [optimizing, setOptimizing] = useState(false);
   const [widgetCollapsed, setWidgetCollapsed] = useState(false);
   const currentPathRef = useRef(currentPath);
   useEffect(() => { currentPathRef.current = currentPath; }, [currentPath]);
@@ -238,12 +240,26 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
       file,
       preview: URL.createObjectURL(file),
       progress: 0,
-      status: "uploading" as UploadTaskStatus,
+      status: "compressing" as UploadTaskStatus,
       abortFn: null,
     }));
     setUploadTasks((prev) => [...prev, ...newTasks]);
     setWidgetCollapsed(false);
-    newTasks.forEach((task) => startUpload(task));
+
+    newTasks.forEach(async (task) => {
+      try {
+        const compressed = await prepareImageForUpload(task.file);
+        const readyTask: UploadTask = { ...task, file: compressed, status: "uploading", progress: 0 };
+        setUploadTasks((prev) => prev.map((t) => (t.id === task.id ? readyTask : t)));
+        startUpload(readyTask);
+      } catch {
+        setUploadTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id ? { ...t, status: "error", error: "Image compression failed" } : t,
+          ),
+        );
+      }
+    });
   }, [startUpload]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -341,6 +357,48 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
     } catch (err: any) { toast.error(err.message || "Failed to create folder"); }
   };
 
+  const runOptimize = async (options: { paths?: string[]; folder?: string; recursive?: boolean }, label: string) => {
+    try {
+      setOptimizing(true);
+      toast.loading(label);
+      const res = await mediaRepository.optimize(options);
+      toast.dismiss();
+      if (res.success) {
+        const { optimized, total, savedMb } = res.summary || {};
+        toast.success(`Optimized ${optimized ?? 0} of ${total ?? 0} image(s) — saved ${savedMb ?? 0} MB`);
+        loadMedia(currentPath);
+      } else {
+        toast.error(res.message || "Optimization failed");
+      }
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.message || "Optimization failed");
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const handleOptimizeSelected = () => {
+    const imagePaths = Array.from(selectedItems).filter((p) => {
+      const item = items.find((i) => i.path === p);
+      return item && !item.isFolder && /\.(jpe?g|png|webp)$/i.test(item.name);
+    });
+    if (imagePaths.length === 0) {
+      toast.error("Select at least one image (JPG, PNG, or WebP)");
+      return;
+    }
+    runOptimize({ paths: imagePaths }, `Compressing ${imagePaths.length} image(s)…`);
+  };
+
+  const handleOptimizeFolder = () => {
+    runOptimize({ folder: currentPath, recursive: true }, "Compressing images in this folder…");
+  };
+
+  const handleOptimizeAll = () => {
+    if (!confirm("Compress ALL images in the media library? Original filenames and URLs stay the same.")) return;
+    runOptimize({ folder: "", recursive: true }, "Compressing entire media library…");
+  };
+
   const handleBulkDelete = async () => {
     if (selectedItems.size === 0) return;
     if (!confirm(`Delete ${selectedItems.size} item(s)?`)) return;
@@ -391,7 +449,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
   const showWidget = uploadTasks.length > 0;
   const imgSrc = (url: string) => resolveImgUrl(url);
   const statusColor = (s: UploadTaskStatus) =>
-    s === "completed" ? "bg-green-500" : s === "stopped" ? "bg-orange-400" : s === "error" ? "bg-red-500" : "bg-blue-500";
+    s === "completed" ? "bg-green-500" : s === "stopped" ? "bg-orange-400" : s === "error" ? "bg-red-500" : s === "compressing" ? "bg-violet-500" : "bg-blue-500";
 
   return (
     <div className={cn("flex flex-col bg-white", isDialog ? "h-[65vh]" : "h-[calc(100vh-80px)] md:-m-6")}>
@@ -415,7 +473,6 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
             </div>
             <Button variant="default" className="bg-[#1a56db] hover:bg-[#1e4ebd] text-white px-3" onClick={() => setIsFolderDialogOpen(true)} title="New Folder"><Plus className="h-4 w-4" /></Button>
             <Button variant="default" className="bg-[#1a56db] hover:bg-[#1e4ebd] text-white px-3" onClick={() => loadMedia(currentPath)} title="Refresh"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /></Button>
-            {!isDialog && <Button variant="default" className="bg-[#1a56db] hover:bg-[#1e4ebd] text-white gap-2"><Filter className="h-4 w-4" /> (Everything)</Button>}
 
             {/* Paste button — shows when clipboard has items */}
             {clipboard && (
@@ -453,13 +510,12 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
         <div className="flex-1 flex flex-col overflow-hidden">
 
           {/* Sub header */}
-          <div className="px-6 py-3 border-b flex items-center justify-between bg-white">
+          <div className="px-3 sm:px-6 py-3 border-b flex flex-wrap items-center justify-between bg-white gap-3">
             <div className="flex items-center gap-2 text-primary font-medium text-sm">
-              <Folder className="h-4 w-4" />
-              <span>{currentPath ? currentPath.split("/").pop() : "All media"}</span>
+              <Folder className="h-4 w-4 shrink-0" />
+              <span className="truncate max-w-[150px] sm:max-w-xs">{currentPath ? currentPath.split("/").pop() : "All media"}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="text-muted-foreground h-8">A-Z Sort <ChevronRight className="h-3 w-3 ml-2 rotate-90" /></Button>
+            <div className="flex flex-wrap items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="text-primary border-primary/20 hover:bg-primary/5 h-8 gap-2">Actions <ChevronRight className="h-3 w-3 rotate-90" /></Button>
@@ -475,6 +531,16 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
                     const item = items.find((i) => i.path === Array.from(selectedItems)[0]);
                     if (item && !item.isFolder) copyUrlToClipboard(item.url);
                   }}><Copy className="mr-2 h-4 w-4" /> Copy URL</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={optimizing || selectedItems.size === 0} onSelect={(e) => { e.preventDefault(); handleOptimizeSelected(); }}>
+                    <Minimize2 className="mr-2 h-4 w-4" /> Compress selected
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={optimizing} onSelect={(e) => { e.preventDefault(); handleOptimizeFolder(); }}>
+                    <Minimize2 className="mr-2 h-4 w-4" /> Compress this folder
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={optimizing} onSelect={(e) => { e.preventDefault(); handleOptimizeAll(); }}>
+                    <Minimize2 className="mr-2 h-4 w-4" /> Compress entire library
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem disabled={selectedItems.size === 0} onSelect={(e) => { e.preventDefault(); handleCopyToClipboard("copy"); }}>
                     <Copy className="mr-2 h-4 w-4" /> Copy (Ctrl+C)
@@ -722,9 +788,11 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
             <div className="flex items-center gap-2">
               <Upload className="h-4 w-4 text-blue-400" />
               <span className="text-sm font-semibold">
-                {uploadTasks.filter((t) => t.status === "uploading").length > 0
-                  ? `Uploading ${uploadTasks.filter((t) => t.status === "uploading").length} file(s)…`
-                  : `${uploadTasks.length} file(s) done`}
+                {uploadTasks.some((t) => t.status === "compressing")
+                  ? `Compressing ${uploadTasks.filter((t) => t.status === "compressing").length} file(s)…`
+                  : uploadTasks.filter((t) => t.status === "uploading").length > 0
+                    ? `Uploading ${uploadTasks.filter((t) => t.status === "uploading").length} file(s)…`
+                    : `${uploadTasks.length} file(s) done`}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -744,11 +812,15 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-gray-800 truncate mb-1" title={task.file.name}>{task.file.name}</p>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={cn("h-full rounded-full transition-all duration-300", statusColor(task.status))} style={{ width: `${task.progress}%` }} />
+                      <div
+                        className={cn("h-full rounded-full transition-all duration-300", statusColor(task.status))}
+                        style={{ width: task.status === "compressing" ? "35%" : `${task.progress}%` }}
+                      />
                     </div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-[10px] text-gray-400">
                         {task.status === "completed" && "✓ Done"}
+                        {task.status === "compressing" && "Compressing…"}
                         {task.status === "uploading" && `${task.progress}%`}
                         {task.status === "stopped" && "Stopped"}
                         {task.status === "error" && (task.error ?? "Error")}

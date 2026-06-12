@@ -28,6 +28,7 @@ interface LanguageSwitcherProps {
 
 export function LanguageSwitcher({ compact = false, className }: LanguageSwitcherProps) {
   const { i18n, t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<SupportedLanguage>(
     (i18n.language?.split("-")[0] as SupportedLanguage) || DEFAULT_LANGUAGE,
   );
@@ -43,21 +44,33 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
     };
   }, [i18n]);
 
+  // Close dropdown when user scrolls — prevents Radix modal trap leaving page unclickable.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    return () => window.removeEventListener("scroll", close, true);
+  }, [open]);
+
   const changeLanguage = (code: SupportedLanguage) => {
-    if (code === current) return;
+    if (code === current) {
+      setOpen(false);
+      return;
+    }
+    setOpen(false);
     clearGoogleTranslateCookie();
     clearApiCache();
-    setCurrent(code);
-    void i18n.changeLanguage(code).then(() => {
-      window.location.reload();
-    });
+    localStorage.setItem("i18nextLng", code);
+    // Force immediate navigation to reset scroll position to top,
+    // avoiding layout shifts and parallel translation freezes.
+    window.location.replace(window.location.pathname + window.location.search);
   };
 
   const active =
     SUPPORTED_LANGUAGES.find((l) => l.code === current) ?? SUPPORTED_LANGUAGES[0];
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
@@ -85,7 +98,8 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="min-w-[12rem] notranslate p-1.5 rounded-xl shadow-lg"
+        collisionPadding={16}
+        className="z-[200] min-w-[12rem] notranslate p-1.5 rounded-xl shadow-lg"
         translate="no"
       >
         <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5">
@@ -97,7 +111,11 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
           return (
             <DropdownMenuItem
               key={lang.code}
-              onClick={() => changeLanguage(lang.code)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                changeLanguage(lang.code);
+              }}
               className={cn(
                 "flex items-center justify-between gap-3 cursor-pointer rounded-lg px-2.5 py-2 text-sm",
                 isActive && "bg-primary/5 text-primary font-medium",

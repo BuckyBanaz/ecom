@@ -212,7 +212,7 @@ export const notificationTriggerService = {
       }
 
       // Format template variables
-      const clientUrl = process.env.CLIENT_URL || "http://localhost:8080";
+      const clientUrl = process.env.STORE_URL || process.env.CLIENT_URL || "http://localhost:8080";
       const invoiceToken = jwt.sign(
         { orderId: order.id },
         process.env.JWT_SECRET || "fallback_secret",

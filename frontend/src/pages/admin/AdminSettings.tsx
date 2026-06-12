@@ -286,9 +286,9 @@ const AdminSettings = () => {
     try {
       const res = await cmsFeaturesRepository.update(featureItems);
       if (res.success) {
-        toast.success(t("admin_settings.smtp_toast_success"));
+        toast.success("Features saved successfully");
       } else {
-        toast.error(t("admin_settings.features_button_save"));
+        toast.error("Failed to save features");
       }
     } catch (error) {
       toast.error("An error occurred while saving features");

@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { brandRepository, categoryRepository, attributeRepository, productRepository } from "@/client/apiClient";
 import { ProductCard } from "@/components/shop/ProductCard";
@@ -49,6 +49,8 @@ const Category = () => {
   const { t } = useTranslation();
   const { slug = "" } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const isRelief = location.pathname.startsWith("/relief");
   const [landingPage, setLandingPage] = useState<any>(null);
 
   // Dynamic Metadata States
@@ -489,7 +491,15 @@ const Category = () => {
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
         <Link to="/" className="hover:text-primary transition-colors">{t("breadcrumb.home")}</Link> /{" "}
-        <Link to="/relief" className="hover:text-primary transition-colors">{t("breadcrumb.relief")}</Link> /{" "}
+        {isRelief ? (
+          <>
+            <Link to="/relief" className="hover:text-primary transition-colors">{t("breadcrumb.relief")}</Link> /{" "}
+          </>
+        ) : (
+          <>
+            <Link to="/categories" className="hover:text-primary transition-colors">{t("category.categories", { defaultValue: "Categories" })}</Link> /{" "}
+          </>
+        )}
         <span className="text-foreground font-medium">{title}</span>
       </nav>
       <h1 className="text-3xl font-bold md:text-4xl mb-2">{title}</h1>

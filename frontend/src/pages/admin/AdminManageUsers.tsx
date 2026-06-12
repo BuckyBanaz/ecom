@@ -7,6 +7,7 @@ import {
   Coins, MessageSquare, HardDrive, Settings,
   Globe, Star, Mail, Calendar, Trash, Edit
 } from "lucide-react";
+import { SectionLoader } from "@/components/ui/PageLoader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -277,9 +278,7 @@ const AdminManageUsers = () => {
         </div>
 
         {loading ? (
-          <div className="flex h-44 items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
-          </div>
+          <SectionLoader size={70} />
         ) : adminsList.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground text-xs">
             {t("admin_manage_users.no_accounts")}

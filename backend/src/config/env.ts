@@ -6,12 +6,23 @@ import { z } from "zod";
 // Production: load host-mounted .env.production (not ephemeral /app/.env)
 function loadEnvFile(): void {
   if (process.env.NODE_ENV === "production") {
-    const prodPath = process.env.SETTINGS_ENV_FILE
-      ? path.resolve(process.env.SETTINGS_ENV_FILE)
-      : path.resolve(process.cwd(), ".env.production");
-    if (fs.existsSync(prodPath)) {
-      dotenv.config({ path: prodPath });
-      return;
+    if (process.env.SETTINGS_ENV_FILE) {
+      const prodPath = path.resolve(process.env.SETTINGS_ENV_FILE);
+      if (fs.existsSync(prodPath)) {
+        dotenv.config({ path: prodPath });
+        return;
+      }
+    } else {
+      const inApp = path.resolve(process.cwd(), ".env.production");
+      const atRepoRoot = path.resolve(process.cwd(), "../.env.production");
+      
+      if (fs.existsSync(inApp)) {
+        dotenv.config({ path: inApp });
+        return;
+      } else if (fs.existsSync(atRepoRoot)) {
+        dotenv.config({ path: atRepoRoot });
+        return;
+      }
     }
   }
   dotenv.config();
@@ -19,13 +30,16 @@ function loadEnvFile(): void {
 
 loadEnvFile();
 
-const deriveApiUrl = (clientUrl: string): string => {
+const deriveApiUrl = (clientUrl: string, port: number): string => {
   try {
     const client = new URL(clientUrl);
     const host = client.hostname.replace(/^www\./, "");
+    if (host === "localhost" || host === "127.0.0.1") {
+      return `http://localhost:${port}`;
+    }
     return `${client.protocol}//api.${host}`;
   } catch {
-    return "http://localhost:5000";
+    return `http://localhost:${port}`;
   }
 };
 
@@ -56,7 +70,24 @@ const config = parsed.data;
 
 export const env = {
   ...config,
-  API_URL: config.API_URL ?? deriveApiUrl(config.CLIENT_URL),
+  API_URL: config.API_URL ?? deriveApiUrl(config.CLIENT_URL, config.PORT),
 };
+
+const RUNTIME_ENV_KEYS = [
+  "STRIPE_PUBLISHABLE_KEY",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+] as const;
+
+/** Sync admin-saved .env.production values into the cached env object. */
+export function refreshEnvFromProcess(): void {
+  const mutable = env as Record<string, string | number | undefined>;
+  for (const key of RUNTIME_ENV_KEYS) {
+    const value = process.env[key];
+    if (value !== undefined) {
+      mutable[key] = value;
+    }
+  }
+}
 
 export type EnvType = typeof env;

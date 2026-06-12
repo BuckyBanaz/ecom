@@ -1,5 +1,5 @@
 import { ENDPOINTS, getBaseUrl, API_PREFIX } from "../utils/endpoints";
-import { cacheKey, getCached, isCacheStale, setCache } from "../lib/apiCache";
+import { cacheKey, getCached, isCacheStale, setCache, clearApiCache } from "../lib/apiCache";
 import { normalizeApiProduct } from "../utils/formatters";
 import { translateJsonObject } from "../utils/translator";
 
@@ -87,6 +87,9 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
   }
 
   return promise.then(async (data) => {
+    if (method !== "GET") {
+      clearApiCache();
+    }
     if (!isAdminPanel && method === "GET") {
       try {
         const currentLang = localStorage.getItem("i18nextLng") || "nl";
@@ -536,6 +539,13 @@ export const mediaRepository = {
     });
 
     return { promise, abort: () => xhr.abort() };
+  },
+
+  optimize: async (options: { paths?: string[]; folder?: string; recursive?: boolean }) => {
+    return request<any>(`${ENDPOINTS.MEDIA}/optimize`, {
+      method: "POST",
+      body: JSON.stringify(options),
+    });
   },
 
   move: async (paths: string[], destination: string) => {

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shop/ProductCard";
@@ -11,7 +12,7 @@ import { StarRating } from "@/components/shop/StarRating";
 import { FaIcon } from "@/components/ui/FaIcon";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { megaMenuData } from "@/data/megaMenu";
-import { resolveImgUrl } from "@/utils/image";
+import { isMissingImage, resolveImgUrl } from "@/utils/image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { productRepository, categoryRepository, blogRepository, brandRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -27,6 +28,7 @@ interface ShortcodeRendererProps {
 }
 
 export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRendererProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(!prefetchedData);
   const [dbProducts, setDbProducts] = useState<any[]>(prefetchedData?.products || []);
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
@@ -97,6 +99,24 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
     // 1. Clean the HTML by removing .cms-block wrappers but keeping the shortcode text
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
+
+    // Resolve relative /uploads/ image and document paths to absolute backend URLs
+    const images = doc.querySelectorAll('img');
+    images.forEach(img => {
+      const src = img.getAttribute('src');
+      if (src && src.startsWith('/uploads/')) {
+        img.setAttribute('src', resolveImgUrl(src));
+      }
+    });
+
+    const links = doc.querySelectorAll('a');
+    links.forEach(a => {
+      const href = a.getAttribute('href');
+      if (href && href.startsWith('/uploads/')) {
+        a.setAttribute('href', resolveImgUrl(href));
+      }
+    });
+
     const blocks = doc.querySelectorAll('.cms-block');
     
     blocks.forEach(block => {
@@ -108,7 +128,21 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
       block.replaceWith(textNode);
     });
     
-    const cleanContent = doc.body.innerHTML;
+    // Unwrap shortcodes from enclosing <p> tags before extracting html
+    const paragraphs = Array.from(doc.querySelectorAll('p'));
+    paragraphs.forEach(p => {
+      // Check if paragraph contains only shortcodes, whitespace, br, or nbsp
+      const html = p.innerHTML.trim();
+      // Remove known shortcodes to see if anything else is left
+      const withoutShortcodes = html.replace(/\[[a-zA-Z0-9-]+[^\]]*\]\[\/[a-zA-Z0-9-]+\]/g, '').trim();
+      // If nothing is left except spacing/br, unwrap it
+      if (withoutShortcodes.replace(/^(?:<br\s*\/?>|&nbsp;|\s)+$/, '') === '') {
+        const textNode = doc.createTextNode(p.textContent || "");
+        p.replaceWith(textNode);
+      }
+    });
+    
+    let cleanContent = doc.body.innerHTML;
 
     // 2. Split the clean content by shortcode regex
     const regex = /\[([a-zA-Z0-9-]+)([^\]]*)\]\[\/\1\]/g;
@@ -149,9 +183,14 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
         if (part.type === 'html') {
           // Clean up empty paragraphs that create huge gaps
           let html = part.content.trim();
-          html = html.replace(/^(<p><br\/><\/p>|<p>\s*<\/p>|<br\s*\/?>)+/, '').replace(/(<p><br\/><\/p>|<p>\s*<\/p>|<br\s*\/?>)+$/, '').trim();
           
-          if (!html) return null;
+          // Remove stray trailing/leading p tags or breaks that might have been left
+          html = html.replace(/^(?:<p>\s*<\/p>|<br\s*\/?>|&nbsp;|\s)+/, '')
+                     .replace(/(?:<p>\s*<\/p>|<br\s*\/?>|&nbsp;|\s)+$/, '')
+                     .trim();
+          
+          // If the only thing left is a single empty paragraph or similar, ignore
+          if (!html || html === '<p></p>' || html === '<p><br></p>') return null;
 
           return (
             <div 
@@ -224,11 +263,10 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
 
             const getCategoryImage = (itemSlug: string) => {
               const resolved = resolveCategorySlug(itemSlug);
-              // Prefer DB categories over dummy categories
               const matchedDb = dbCategories.find(c => c.slug === resolved);
-              if (matchedDb && matchedDb.image) return matchedDb.image;
+              if (matchedDb?.image && !isMissingImage(matchedDb.image)) return matchedDb.image;
               const matched = categories.find(c => c.slug === resolved);
-              return matched ? matched.image : "";
+              return matched?.image && !isMissingImage(matched.image) ? matched.image : "";
             };
 
             const showLabel = attributes.show_label !== "false";
@@ -341,7 +379,12 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             const categoriesToRender = dbCategories.length > 0 ? dbCategories.slice(0, 12) : categories.slice(0, 12);
             return (
               <section key={index} className="container-page min-w-0 py-6 md:py-8">
-                {attributes.title && <h2 className="mb-4 text-xl font-bold sm:mb-6 sm:text-2xl md:text-3xl">{attributes.title}</h2>}
+                <div className="mb-4 flex min-w-0 items-end justify-between gap-3 sm:mb-6">
+                  {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{attributes.title}</h2>}
+                  <Link to="/categories" className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:text-sm">
+                    {t("common.viewAll")} <ArrowRight size={16} />
+                  </Link>
+                </div>
                 {loading ? (
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6 animate-pulse">
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -385,7 +428,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                 <div className="mb-4 flex min-w-0 items-end justify-between gap-3 sm:mb-6">
                   {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{attributes.title}</h2>}
                   <Link to={`/category/${attributes.type || "all"}`} className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:text-sm">
-                    View all <ArrowRight size={16} />
+                    {t("common.viewAll")} <ArrowRight size={16} />
                   </Link>
                 </div>
                 {loading ? (

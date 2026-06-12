@@ -27,7 +27,14 @@ COMMIT="$(git rev-parse --short HEAD)"
 echo "==> Deploying commit: ${COMMIT}"
 
 echo "==> Building images: ${SERVICES}"
-docker compose -f "${COMPOSE_FILE}" build --no-cache ${SERVICES}
+BUILD_ARGS=()
+if [[ "${DOCKER_NO_CACHE:-false}" == "true" ]]; then
+  BUILD_ARGS+=(--no-cache)
+  echo "    (full rebuild — DOCKER_NO_CACHE=true)"
+else
+  echo "    (using Docker layer cache — set DOCKER_NO_CACHE=true to force full rebuild)"
+fi
+docker compose -f "${COMPOSE_FILE}" build "${BUILD_ARGS[@]}" ${SERVICES}
 
 echo "==> Starting containers..."
 docker compose -f "${COMPOSE_FILE}" up -d --force-recreate ${SERVICES}

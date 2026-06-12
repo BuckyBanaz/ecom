@@ -8,6 +8,7 @@ import { AppError } from "../middlewares/errorMiddleware";
 import redis from "../config/redis";
 import { emailService } from "../services/emailService";
 import { twilioService } from "../services/twilioService";
+import { parseAndValidateFullPhone } from "../utils/phoneValidation";
 
 // Helper to sign JWT Token
 const signToken = (id: string, email: string, role: string): string => {
@@ -52,9 +53,20 @@ export const registerCustomer = async (
     }
     
     if (registerMethod === "both" || registerMethod === "phone_only") {
-      if (!phone || phone.length < 10) {
-        return next(new AppError("Phone number must be at least 10 digits", 400));
+      if (!phone) {
+        return next(new AppError("Phone number is required", 400));
       }
+      const validation = parseAndValidateFullPhone(phone);
+      if (!validation.isValid) {
+        return next(new AppError("Phone number must be a valid +31 or +91 format with correct digits", 400));
+      }
+      phone = validation.cleanedFullPhone;
+    } else if (phone && !phone.startsWith("placeholder-")) {
+      const validation = parseAndValidateFullPhone(phone);
+      if (!validation.isValid) {
+        return next(new AppError("Phone number must be a valid +31 or +91 format with correct digits", 400));
+      }
+      phone = validation.cleanedFullPhone;
     }
 
     if (!email && !phone) {
@@ -135,9 +147,10 @@ export const registerCustomer = async (
     const token = signToken(newUser.id, newUser.email, newUser.role);
 
     // Send Welcome Email
+    const clientUrl = process.env.STORE_URL || env.CLIENT_URL;
     await emailService.sendTemplateEmail(newUser.email, "welcome_mail", {
       name: newUser.firstName,
-      login_url: `${env.CLIENT_URL}/account`
+      login_url: `${clientUrl}/account`
     });
 
     res.status(201).json({
@@ -381,7 +394,12 @@ export const sendOTP = async (
       return next(new AppError("Invalid phone number format", 400));
     }
 
-    const { phone, type } = parsed.data;
+    let { phone, type } = parsed.data;
+    const validation = parseAndValidateFullPhone(phone);
+    if (!validation.isValid) {
+      return next(new AppError("Phone number must be a valid +31 or +91 format with correct digits", 400));
+    }
+    phone = validation.cleanedFullPhone;
 
     // Verify if user exists based on type
     const user = await prisma.user.findFirst({
@@ -457,7 +475,12 @@ export const verifyOTPLogin = async (
       return next(new AppError("Invalid input format", 400));
     }
 
-    const { phone, otp } = parsed.data;
+    let { phone, otp } = parsed.data;
+    const validation = parseAndValidateFullPhone(phone);
+    if (!validation.isValid) {
+      return next(new AppError("Phone number must be a valid +31 or +91 format with correct digits", 400));
+    }
+    phone = validation.cleanedFullPhone;
 
     if (!redis) {
       return next(new AppError("Redis is not enabled.", 500));
@@ -575,7 +598,14 @@ export const updateProfile = async (
       return next(new AppError(`Validation failed: ${errorMsgs}`, 400));
     }
 
-    const { firstName, lastName, phone } = parsed.data;
+    let { firstName, lastName, phone } = parsed.data;
+    if (phone) {
+      const validation = parseAndValidateFullPhone(phone);
+      if (!validation.isValid) {
+        return next(new AppError("Phone number must be a valid +31 or +91 format with correct digits", 400));
+      }
+      phone = validation.cleanedFullPhone;
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },

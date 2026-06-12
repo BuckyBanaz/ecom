@@ -1,6 +1,12 @@
 import { Request, Response, NextFunction } from "express";
-import { env } from "../config/env";
 import { AppError } from "../middlewares/errorMiddleware";
+import {
+  getStripeClient,
+  getStripePublishableKey,
+  getStripeSecretKey,
+  getStripeWebhookSecret,
+  isStripeConfigured,
+} from "../utils/stripeClient";
 import { notificationTriggerService } from "../services/notificationTriggerService";
 
 // Retrieve public payment configuration (Publishable key)
@@ -14,7 +20,7 @@ export const getPaymentConfig = async (req: Request, res: Response, next: NextFu
 
     res.status(200).json({
       success: true,
-      publishableKey: env.STRIPE_PUBLISHABLE_KEY || "",
+      publishableKey: getStripePublishableKey(),
       enabledMethods: {
         ideal: isTrue(process.env.PAYMENT_ENABLE_IDEAL, true),
         card: isTrue(process.env.PAYMENT_ENABLE_CARD, true),
@@ -37,8 +43,8 @@ export const createPaymentIntent = async (req: Request, res: Response, next: Nex
       return next(new AppError("Invalid payment amount", 400));
     }
 
-    const stripeSecretKey = env.STRIPE_SECRET_KEY;
-    if (!stripeSecretKey) {
+    const stripeSecretKey = getStripeSecretKey();
+    if (!isStripeConfigured()) {
       return next(new AppError("Stripe payment gateway is not configured on the server", 500));
     }
 
@@ -87,13 +93,9 @@ import { db } from "../config/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { messaging } from "../config/firebaseAdmin";
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-04-10"
-});
-
 export const handleStripeWebhook = async (req: Request, res: Response, next: NextFunction) => {
   const sig = req.headers["stripe-signature"] as string;
-  const endpointSecret = env.STRIPE_WEBHOOK_SECRET;
+  const endpointSecret = getStripeWebhookSecret();
 
   if (!endpointSecret) {
     console.error("Missing STRIPE_WEBHOOK_SECRET");
@@ -102,6 +104,7 @@ export const handleStripeWebhook = async (req: Request, res: Response, next: Nex
 
   let event;
   try {
+    const stripe = getStripeClient();
     event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (err: any) {
     console.error(`Webhook Error: ${err.message}`);

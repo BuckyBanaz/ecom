@@ -15,17 +15,34 @@ import { megaMenuData } from "@/data/megaMenu";
 interface MenuCategoryBlockFormProps {
   onInsert: (shortcode: string) => void;
   onCancel: () => void;
+  initialMenuSlug?: string;
+  initialShowLabel?: boolean;
+  isEditing?: boolean;
 }
 
-export function MenuCategoryBlockForm({ onInsert, onCancel }: MenuCategoryBlockFormProps) {
+export function MenuCategoryBlockForm({ 
+  onInsert, 
+  onCancel,
+  initialMenuSlug = "",
+  initialShowLabel = true,
+  isEditing = false,
+}: MenuCategoryBlockFormProps) {
   const { t } = useTranslation();
   const [isMounted, setIsMounted] = useState(false);
-  const [menuSlug, setMenuSlug] = useState("");
-  const [showLabel, setShowLabel] = useState(true);
+  const [menuSlug, setMenuSlug] = useState(initialMenuSlug);
+  const [showLabel, setShowLabel] = useState(initialShowLabel);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    setMenuSlug(initialMenuSlug);
+  }, [initialMenuSlug]);
+
+  useEffect(() => {
+    setShowLabel(initialShowLabel);
+  }, [initialShowLabel]);
 
   const handleInsert = () => {
     let shortcode = `[menu-category menu_slug="${menuSlug}" show_label="${showLabel}"][/menu-category]`;
@@ -70,7 +87,9 @@ export function MenuCategoryBlockForm({ onInsert, onCancel }: MenuCategoryBlockF
 
       <div className="flex justify-end gap-2 pt-4">
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button onClick={handleInsert} disabled={!menuSlug}>Insert Block</Button>
+        <Button onClick={handleInsert} disabled={!menuSlug}>
+          {isEditing ? "Update Block" : "Insert Block"}
+        </Button>
       </div>
     </div>
   );

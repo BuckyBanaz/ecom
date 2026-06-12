@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/db";
 import { AppError } from "../middlewares/errorMiddleware";
 import { z } from "zod";
+import { parseAndValidateFullPhone } from "../utils/phoneValidation";
 
 // Schema for validation
 const addressSchema = z.object({
@@ -60,6 +61,13 @@ export const createAddress = async (req: Request, res: Response, next: NextFunct
 
     const { isDefault, ...rest } = parsed.data;
 
+    // Validate phone
+    const validation = parseAndValidateFullPhone(rest.phone);
+    if (!validation.isValid) {
+      return next(new AppError("Phone number must be a valid +31 or +91 format with correct digits", 400));
+    }
+    const finalPhone = validation.cleanedFullPhone;
+
     // If this is marked as default, unset other defaults
     if (isDefault) {
       await prisma.address.updateMany({
@@ -71,6 +79,7 @@ export const createAddress = async (req: Request, res: Response, next: NextFunct
     const address = await prisma.address.create({
       data: {
         ...rest,
+        phone: finalPhone,
         isDefault,
         userId
       }
@@ -103,6 +112,13 @@ export const updateAddress = async (req: Request, res: Response, next: NextFunct
 
     const { isDefault, ...rest } = parsed.data;
 
+    // Validate phone
+    const validation = parseAndValidateFullPhone(rest.phone);
+    if (!validation.isValid) {
+      return next(new AppError("Phone number must be a valid +31 or +91 format with correct digits", 400));
+    }
+    const finalPhone = validation.cleanedFullPhone;
+
     // If setting to default, unset others
     if (isDefault && !existing.isDefault) {
       await prisma.address.updateMany({
@@ -113,7 +129,7 @@ export const updateAddress = async (req: Request, res: Response, next: NextFunct
 
     const address = await prisma.address.update({
       where: { id },
-      data: { ...rest, isDefault }
+      data: { ...rest, phone: finalPhone, isDefault }
     });
 
     res.status(200).json({ success: true, data: address });

@@ -29,6 +29,7 @@ const defaultTopRight = [
 export function Header() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 300);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -262,7 +263,7 @@ export function Header() {
         </div>
       ) : null}
       <div className="container-page flex min-w-0 items-center gap-2 py-3 sm:gap-3 md:gap-6 md:py-4">
-        <Sheet>
+        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 lg:hidden" aria-label={t("header.menu")}>
               <Menu />
@@ -271,7 +272,7 @@ export function Header() {
           <SheetContent side="left" className="w-[300px] overflow-y-auto p-0">
             <SheetTitle className="sr-only">{t("header.menu")}</SheetTitle>
             <SheetDescription className="sr-only">{t("header.menu")}</SheetDescription>
-            <div className="border-b p-4">
+            <div className="border-b p-4" onClick={() => setIsMobileMenuOpen(false)}>
               <Logo />
             </div>
             <nav className="p-2">
@@ -283,12 +284,13 @@ export function Header() {
                   <ul className="pl-4 pb-2">
                     {menuObj.sections.map((section) => (
                       <li key={section.title} className="mt-2">
-                        <div className="font-medium text-sm mb-1 text-muted-foreground">{section.title}</div>
+                        <div className="font-medium text-sm mb-1 text-primary">{section.title}</div>
                         <ul className="space-y-1">
                           {section.items.map((item) => (
                             <li key={item.slug}>
                               <Link
                                 to={`/category/${item.slug}`}
+                                onClick={() => setIsMobileMenuOpen(false)}
                                 className="block py-1 text-sm hover:text-primary"
                               >
                                 {item.name}
