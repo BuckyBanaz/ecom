@@ -203,8 +203,8 @@
     "verifying_title": "Verifying payment...",
     "verifying_desc": "Please wait while we confirm your order with Stripe.",
     "button_back_to_cart": "Back to cart",
-    "button_back": "\u2190 Back",
-    "button_continue": "Continue \u2192",
+    "button_back": "← Back",
+    "button_continue": "Continue →",
     "button_processing": "Processing...",
     "button_place_order": "Place order",
     "summary_subtotal": "Subtotal",
@@ -223,7 +223,7 @@
     "label_office": "Office",
     "label_other": "Other",
     "label_location": "Location",
-    "label_location_help": "(optional \u2014 auto-fills address fields)",
+    "label_location_help": "(optional — auto-fills address fields)",
     "button_pick_location": "Pick location on map",
     "button_change_location": "change",
     "field_street": "Street address",
@@ -438,7 +438,8 @@
     "filter_titles": {
       "price": "Price",
       "brands": "Brands"
-    }
+    },
+    "bestsellers": "Bestsellers"
   },
   "blog_card": {
     "no_cover": "No cover image",
@@ -531,9 +532,9 @@
     "placeholder_series_select": "Select Series",
     "placeholder_series_first": "Select Brand First",
     "series_none": "None / General Catalog",
-    "label_price": "Price (\u20ac) *",
+    "label_price": "Price (€) *",
     "placeholder_price": "0.00",
-    "label_old_price": "Compare-At Price (\u20ac)",
+    "label_old_price": "Compare-At Price (€)",
     "placeholder_old_price": "Optional markup",
     "label_num_lights": "Number of Lights",
     "placeholder_num_lights": "e.g. 1, 3, 5, etc.",
@@ -625,7 +626,7 @@
     "delete_confirm": "Delete category",
     "toast_reassign_required": "Select a category to move the products to.",
     "form_description": "Create or update a product category.",
-    "card_meta": "{{count}} products \u00b7 Menu: {{menu}}"
+    "card_meta": "{{count}} products · Menu: {{menu}}"
   },
   "admin_brands": {
     "tab_brands": "Brands ({{count}})",
@@ -712,7 +713,7 @@
     "save_changes": "Save Changes",
     "create": "Create Attribute",
     "search_placeholder": "Search attributes by name or slug...",
-    "meta_info": "Type: {{type}} \u00b7 Target: {{visibility}} \u00b7 {{count}} option values",
+    "meta_info": "Type: {{type}} · Target: {{visibility}} · {{count}} option values",
     "available_options": "Available Value Options",
     "yes": "Yes",
     "no": "No",
@@ -907,14 +908,16 @@
     "toast_load_failed": "Failed to load shipping methods from Sendcloud"
   },
   "admin_notifications": {
-    "loading": "Loading notifications...",
-    "title": "All Notifications",
-    "subtitle": "Stay updated with the latest store activities.",
-    "button_mark_all": "Mark All as Read",
-    "empty_title": "No notifications yet",
-    "empty_text": "When new orders are placed, they will appear here.",
-    "toast_marked_all": "All notifications marked as read",
-    "toast_error": "Failed to load notifications (Check Firebase rules)."
+    "title": "Notifications",
+    "mark_all_read": "Mark all read",
+    "no_notifications": "No new notifications",
+    "amount_label": "Amount:",
+    "view_all": "View all notifications",
+    "button_close": "Close",
+    "new_order": "New Order",
+    "all_marked_read": "All notifications marked as read",
+    "uploaded": "Uploaded",
+    "modified": "Modified"
   },
   "admin_testimonials": {
     "button_new": "New Testimonial",
@@ -1948,7 +1951,7 @@
       "email_label": "Email Address",
       "email_placeholder": "john.doe@example.com",
       "password_label": "Password",
-      "password_placeholder": "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+      "password_placeholder": "••••••••",
       "forgot_password": "Forgot password?",
       "sign_in": "Sign In",
       "phone_label": "Phone Number",
@@ -1956,7 +1959,7 @@
       "send_otp": "Send OTP",
       "otp_sent_to": "OTP sent to {{phone}}",
       "otp_label": "Enter 6-digit OTP",
-      "otp_placeholder": "\u2022\u2022\u2022\u2022\u2022\u2022",
+      "otp_placeholder": "••••••",
       "change_number": "Change number",
       "demo_otp_hint": "Use demo OTP <1>123456</1>",
       "verify_login": "Verify & Login",
@@ -1988,7 +1991,7 @@
       "create_account": "Create Account",
       "otp_sent_to": "OTP sent to {{phone}}",
       "otp_label": "Enter 6-digit OTP",
-      "otp_placeholder": "\u2022\u2022\u2022\u2022\u2022\u2022",
+      "otp_placeholder": "••••••",
       "edit_details": "Edit Details",
       "verify_create": "Verify & Create Account",
       "toast_account_created": "Account created successfully!",
@@ -2246,21 +2249,26 @@
     "failed_delete": "Failed to delete",
     "failed_rename": "Failed to rename"
   },
-  "admin_notifications": {
-    "title": "Notifications",
-    "mark_all_read": "Mark all read",
-    "no_notifications": "No new notifications",
-    "amount_label": "Amount:",
-    "view_all": "View all notifications",
-    "button_close": "Close",
-    "new_order": "New Order",
-    "all_marked_read": "All notifications marked as read",
-    "uploaded": "Uploaded",
-    "modified": "Modified"
-  },
   "notfound": {
     "title": "404",
     "message": "Oops! Page not found",
     "back_home": "Return to Home"
-  }
+  },
+  "shortcode": {
+    "view_styles": "(View styles & all options)"
+  },
+  "relief": {
+    "title": "Relief",
+    "subtitle": "Buying lighting? Choose a category",
+    "desc1": "We are spending more and more time at home. Many people also still work from home, so you want your home to feel comfortable. A pleasant living environment inspires, energizes, and provides peace! Therefore, pay more attention to lighting.",
+    "desc2": "With interior lighting, the possibilities are endless. There are various styles and categories. It is important to choose the right lighting because it creates atmosphere in your home.",
+    "desc3": "Illuminate your garden, patio, or driveway with our high-quality outdoor lighting options designed to withstand all weather conditions.",
+    "desc4": "Find the perfect bulb with the right fitting, temperature, and brightness for your home lights."
+  },
+  "Spring Deals": "Spring Deals",
+  "Spring deals": "Spring deals",
+  "Deals": "Deals",
+  "Clearance": "Clearance",
+  "Outlet": "Outlet",
+  "Bestsellers": "Bestsellers"
 }

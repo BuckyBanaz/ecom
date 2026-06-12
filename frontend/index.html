@@ -1,8 +1,9 @@
 <!doctype html>
-<html lang="nl">
+<html lang="nl" translate="no" class="notranslate app-i18n-controlled">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="google" content="notranslate" />
     <title>Schip & ster — Light up your moment</title>
     <meta name="description" content="Shop indoor &amp; outdoor lighting, light bulbs, smart home and more. Ordered before 22:00, delivered next day. 30-day returns.">
     <meta name="author" content="Schip & ster" />
@@ -21,25 +22,28 @@
   <meta property="og:description" content="Shop indoor &amp; outdoor lighting, light bulbs, smart home and more. Ordered before 22:00, delivered next day. 30-day returns.">
   <meta name="twitter:description" content="Shop indoor &amp; outdoor lighting, light bulbs, smart home and more. Ordered before 22:00, delivered next day. 30-day returns.">
 
-  <!-- Hide any stale Google Translate UI left by browser extensions or older sessions. -->
+  <!-- Hide browser Google Translate UI only when app TAAL controls EN/NL -->
   <style>
-    /* Hide the floating banner frame */
-    .goog-te-banner-frame,
-    .goog-te-banner-frame.skiptranslate,
-    iframe.goog-te-banner-frame,
-    .goog-te-ftab,
-    #goog-gt-tt,
-    .goog-tooltip,
-    .goog-tooltip:hover,
-    .VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
-    .VIpgJd-ZVi9od-aZ2wEe-OiiCO {
+    html.app-i18n-controlled .goog-te-banner-frame,
+    html.app-i18n-controlled .goog-te-banner-frame.skiptranslate,
+    html.app-i18n-controlled iframe.goog-te-banner-frame,
+    html.app-i18n-controlled .goog-te-ftab,
+    html.app-i18n-controlled #goog-gt-tt,
+    html.app-i18n-controlled .goog-tooltip,
+    html.app-i18n-controlled .goog-tooltip:hover,
+    html.app-i18n-controlled .VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
+    html.app-i18n-controlled .VIpgJd-ZVi9od-aZ2wEe-OiiCO {
       display: none !important;
       visibility: hidden !important;
     }
-    /* Reset body offset that Google adds when the banner is shown */
-    body { top: 0 !important; position: static !important; }
-    /* Remove the highlight Google adds to translated text */
-    .goog-text-highlight { background: none !important; box-shadow: none !important; }
+    html.app-i18n-controlled body {
+      top: 0 !important;
+      position: static !important;
+    }
+    html.app-i18n-controlled .goog-text-highlight {
+      background: none !important;
+      box-shadow: none !important;
+    }
   </style>
 </head>
 

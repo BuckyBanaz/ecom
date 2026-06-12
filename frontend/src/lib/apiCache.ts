@@ -7,7 +7,13 @@ type CacheEntry<T> = {
 const MEMORY = new Map<string, CacheEntry<unknown>>();
 const LS_PREFIX = "ecom-cache:";
 
-export const cacheKey = (method: string, url: string) => `${method}:${url}`;
+export const cacheKey = (method: string, url: string) => {
+  const lang =
+    typeof localStorage !== "undefined"
+      ? (localStorage.getItem("i18nextLng") || "nl").split("-")[0]
+      : "nl";
+  return `${method}:${url}:${lang}`;
+};
 
 export function getCached<T>(key: string): T | null {
   const mem = MEMORY.get(key) as CacheEntry<T> | undefined;
@@ -64,6 +70,7 @@ export function clearApiCache(prefix?: string) {
     Object.keys(localStorage)
       .filter((k) => k.startsWith(LS_PREFIX))
       .forEach((k) => localStorage.removeItem(k));
+    clearCmsLocalCache();
     return;
   }
 
@@ -72,5 +79,19 @@ export function clearApiCache(prefix?: string) {
   }
   Object.keys(localStorage)
     .filter((k) => k.startsWith(LS_PREFIX + prefix))
+    .forEach((k) => localStorage.removeItem(k));
+}
+
+/** CMS keys stored in localStorage by useCmsData — clear on language switch. */
+export function clearCmsLocalCache() {
+  if (typeof localStorage === "undefined") return;
+  [
+    "mega_menu_data",
+    "header_footer_data",
+    "homepage_data",
+    "relief_page_data",
+  ].forEach((key) => localStorage.removeItem(key));
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith("tr:"))
     .forEach((k) => localStorage.removeItem(k));
 }

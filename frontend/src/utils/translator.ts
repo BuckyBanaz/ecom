@@ -1,3 +1,5 @@
+import { lookupStaticPhrase } from "./cmsPhrases";
+
 const cache: Record<string, string> = {};
 
 // Translatable attribute keys in shortcodes
@@ -31,6 +33,9 @@ export async function translateText(text: string, targetLang: string): Promise<s
   // but sl=auto will handle it anyway. To save api calls, let's skip for simple cases.
   // Wait, if it's already english and target is english, we skip.
   if (lang === "en") return text;
+
+  const staticPhrase = lookupStaticPhrase(text, lang);
+  if (staticPhrase) return staticPhrase;
 
   const cacheKey = `${lang}:${text}`;
   if (cache[cacheKey]) return cache[cacheKey];
@@ -201,19 +206,26 @@ export async function translateJsonObject(obj: any, targetLang: string): Promise
           "shortDescription",
           "excerpt",
           "body",
+          "content",
           "menu",
           "customerName",
           "productName",
           "text",
           "label",
           "brandText",
+          "seoTitle",
+          "seoDesc",
         ].includes(key)
       ) {
-        // Check if it's HTML/Shortcode content
-        if (val.includes("<") || val.includes("[")) {
-          newObj[key] = await translateHtmlOrShortcode(val, lang);
-        } else {
-          newObj[key] = await translateText(val, lang);
+        try {
+          // Check if it's HTML/Shortcode content
+          if (val.includes("<") || val.includes("[")) {
+            newObj[key] = await translateHtmlOrShortcode(val, lang);
+          } else {
+            newObj[key] = await translateText(val, lang);
+          }
+        } catch {
+          newObj[key] = val;
         }
       } 
       // 4. Recursively translate child objects or arrays (except known system keys)

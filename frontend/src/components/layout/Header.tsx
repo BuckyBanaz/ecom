@@ -15,6 +15,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { productRepository, megaMenuRepository, cmsHeaderFooterRepository } from "@/client/apiClient";
 import { useCmsData } from "@/hooks/useCmsData";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { labelT } from "@/utils/i18nLabel";
 
 const defaultTopLeft = [
   { icon: "star", text: "15,000+ reviews" },
@@ -153,14 +154,14 @@ export function Header() {
                 {topLeft.map((item, idx) => (
                     <span key={`desk-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
                       {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
-                      {item.text}
+                      {labelT(t, item.text)}
                     </span>
                   ))}
               </div>
               <div className="flex items-center gap-4 text-muted-foreground">
                 {topRight.map((link, idx) => (
                   <Link key={`desk-r-${link.label}-${idx}`} to={link.href} className="hover:text-primary font-medium">
-                    {link.label}
+                    {labelT(t, link.label)}
                   </Link>
                 ))}
               </div>
@@ -174,12 +175,12 @@ export function Header() {
 
                   return isLink ? (
                     <Link key={`mob-r-${item.label}-${idx}`} to={item.href} className="hover:text-primary font-medium whitespace-nowrap">
-                      {item.label}
+                      {labelT(t, item.label)}
                     </Link>
                   ) : (
                     <span key={`mob-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground whitespace-nowrap">
                       {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
-                      {item.text}
+                      {labelT(t, item.text)}
                     </span>
                   );
                 })}
@@ -205,12 +206,12 @@ export function Header() {
               {menuList.map((menuObj) => (
                 <details key={menuObj.menu} className="border-b py-2">
                   <summary className="cursor-pointer px-2 py-2 font-semibold flex items-center justify-between">
-                    {menuObj.menu}
+                    {labelT(t, menuObj.menu)}
                   </summary>
                   <ul className="pl-4 pb-2">
                     {menuObj.sections.map((section) => (
                       <li key={section.title} className="mt-2">
-                        <div className="font-medium text-sm mb-1 text-primary">{section.title}</div>
+                        <div className="font-medium text-sm mb-1 text-primary">{labelT(t, section.title)}</div>
                         <ul className="space-y-1">
                           {section.items.map((item) => (
                             <li key={item.slug}>
@@ -219,7 +220,7 @@ export function Header() {
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className="block py-1 text-sm hover:text-primary"
                               >
-                                {item.name}
+                                {labelT(t, item.name)}
                               </Link>
                             </li>
                           ))}
@@ -333,7 +334,7 @@ export function Header() {
                 to={`/relief/${menuObj.slug}`}
                 className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
               >
-                {menuObj.menu}
+                {labelT(t, menuObj.menu)}
                 <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === menuObj.slug ? 'rotate-180' : ''}`} />
               </Link>
               
@@ -345,7 +346,7 @@ export function Header() {
                       {menuObj.sections.map((section) => (
                         <div key={section.title}>
                           <h3 className="mb-4 text-base font-bold text-foreground">
-                            {section.title}
+                            {labelT(t, section.title)}
                           </h3>
                           <ul className="space-y-3">
                             {section.items.map((item) => (
@@ -355,7 +356,7 @@ export function Header() {
                                   onClick={() => setActiveMenu(null)}
                                   className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors hover:underline underline-offset-4"
                                 >
-                                  {item.name}
+                                  {labelT(t, item.name)}
                                 </Link>
                               </li>
                             ))}
@@ -373,7 +374,7 @@ export function Header() {
             className="rounded-full px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/10 ml-auto"
             onMouseEnter={() => setActiveMenu(null)}
           >
-            Deals
+            {labelT(t, "Deals")}
           </Link>
         </div>
       </nav>

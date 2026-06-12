@@ -16,6 +16,7 @@ import { isMissingImage, resolveImgUrl } from "@/utils/image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { productRepository, categoryRepository, blogRepository, brandRepository, cmsTestimonialsRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { labelT } from "@/utils/i18nLabel";
 
 interface ShortcodeRendererProps {
   content: string;
@@ -28,7 +29,8 @@ interface ShortcodeRendererProps {
 }
 
 export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRendererProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const L = (text: string | undefined | null) => labelT(t, text, i18n.language);
   const [loading, setLoading] = useState(!prefetchedData);
   const [dbProducts, setDbProducts] = useState<any[]>(prefetchedData?.products || []);
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
@@ -221,17 +223,17 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                   <div className="relative z-10 max-w-4xl flex flex-col gap-4">
                     {attributes.title && (
                       <h1 className="text-3xl font-extrabold md:text-5xl tracking-tight text-foreground">
-                        {attributes.title}
+                        {L(attributes.title)}
                       </h1>
                     )}
                     {attributes.subtitle && (
                       <p className="text-2xl font-bold text-foreground/90">
-                        {attributes.subtitle}
+                        {L(attributes.subtitle)}
                       </p>
                     )}
                     {attributes.description && (
                       <p className="text-lg text-foreground/80 max-w-2xl">
-                        {attributes.description}
+                        {L(attributes.description)}
                       </p>
                     )}
                   </div>
@@ -289,8 +291,8 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                       to={`/relief/${menuObj.slug}`}
                       className="text-2xl font-bold text-foreground hover:text-primary transition-colors flex items-center gap-2"
                     >
-                      {menuObj.menu}
-                      <span className="text-xs font-normal text-muted-foreground hover:underline">(View styles & all options)</span>
+                      {L(menuObj.menu)}
+                      <span className="text-xs font-normal text-muted-foreground hover:underline">{t("shortcode.view_styles", { defaultValue: "(View styles & all options)" })}</span>
                     </Link>
                   </div>
                 )}
@@ -308,19 +310,19 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                           {imgUrl ? (
                             <SafeImage
                               src={imgUrl}
-                              alt={item.name}
+                              alt={L(item.name)}
                               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                               fallbackType="category"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-muted-foreground font-bold text-sm bg-muted">
-                              {item.name}
+                              {L(item.name)}
                             </div>
                           )}
                         </div>
                         <div className="w-full bg-background py-3 px-4 text-center border-t">
                           <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                            {item.name}
+                            {L(item.name)}
                           </span>
                         </div>
                       </Link>
@@ -358,15 +360,15 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                           <div className="absolute inset-0 flex flex-col items-center justify-center px-4 py-6 text-center text-white sm:px-6">
                             {slide.title && (
                               <h1 className="max-w-full break-words text-3xl font-black text-primary drop-shadow-sm sm:text-4xl md:text-6xl lg:text-7xl" style={{ fontFamily: "Inter" }}>
-                                {slide.title}
+                                {L(slide.title)}
                               </h1>
                             )}
                             {slide.subtitle && (
-                              <p className="mt-2 max-w-full break-words text-base font-medium text-white sm:text-lg md:text-2xl">{slide.subtitle}</p>
+                              <p className="mt-2 max-w-full break-words text-base font-medium text-white sm:text-lg md:text-2xl">{L(slide.subtitle)}</p>
                             )}
                             {slide.btnText && slide.btnLink && (
                               <Button asChild size="lg" className="mt-6 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
-                                <Link to={slide.btnLink}>{slide.btnText}</Link>
+                                <Link to={slide.btnLink}>{L(slide.btnText)}</Link>
                               </Button>
                             )}
                           </div>
@@ -390,7 +392,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             return (
               <section key={index} className="container-page min-w-0 py-6 md:py-8">
                 <div className="mb-4 flex min-w-0 items-end justify-between gap-3 sm:mb-6">
-                  {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{attributes.title}</h2>}
+                  {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{L(attributes.title)}</h2>}
                   <Link to="/categories" className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:text-sm">
                     {t("common.viewAll")} <ArrowRight size={16} />
                   </Link>
@@ -412,7 +414,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                           <SafeImage src={c.image} alt={c.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" fallbackType="category" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-80" />
                         </div>
-                        <div className="absolute bottom-3 left-3 right-3 text-white font-semibold text-sm truncate">{c.name}</div>
+                        <div className="absolute bottom-3 left-3 right-3 text-white font-semibold text-sm truncate">{L(c.name)}</div>
                       </Link>
                     ))}
                   </div>
@@ -436,7 +438,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             return (
               <section key={index} className="container-page min-w-0 py-6 md:py-8">
                 <div className="mb-4 flex min-w-0 items-end justify-between gap-3 sm:mb-6">
-                  {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{attributes.title}</h2>}
+                  {attributes.title && <h2 className="min-w-0 text-xl font-bold sm:text-2xl md:text-3xl">{L(attributes.title)}</h2>}
                   <Link to={`/category/${attributes.type || "all"}`} className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:text-sm">
                     {t("common.viewAll")} <ArrowRight size={16} />
                   </Link>
@@ -483,8 +485,8 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                           <FaIcon name={f.icon || "star"} className="h-4 w-4" />
                         </span>
                         <div>
-                          <div className="text-sm font-bold">{f.title}</div>
-                          <div className="text-xs text-muted-foreground">{f.desc}</div>
+                          <div className="text-sm font-bold">{L(f.title)}</div>
+                          <div className="text-xs text-muted-foreground">{L(f.desc)}</div>
                         </div>
                       </div>
                     ))}
@@ -496,7 +498,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
           case "brands-block":
             return (
               <section key={index} className="container-page">
-                {attributes.title && <h2 className="mb-6 text-2xl font-bold md:text-3xl">{attributes.title}</h2>}
+                {attributes.title && <h2 className="mb-6 text-2xl font-bold md:text-3xl">{L(attributes.title)}</h2>}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
                   {dbBrands.map((b) => (
                     <div key={b.id} className="grid h-20 place-items-center rounded-xl border bg-card text-sm font-bold uppercase tracking-wider text-muted-foreground transition hover:text-primary">
@@ -513,11 +515,11 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
               <section key={index} className="container-page">
                 <div className="mb-6 flex items-end justify-between">
                   <div>
-                    {attributes.title && <h2 className="text-2xl font-bold md:text-3xl">{attributes.title}</h2>}
-                    {attributes.description && <p className="text-sm text-muted-foreground">{attributes.description}</p>}
+                    {attributes.title && <h2 className="text-2xl font-bold md:text-3xl">{L(attributes.title)}</h2>}
+                    {attributes.description && <p className="text-sm text-muted-foreground">{L(attributes.description)}</p>}
                   </div>
                   <Link to="/blogs" className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
-                    View all <ArrowRight size={16} />
+                    {t("common.viewAll")} <ArrowRight size={16} />
                   </Link>
                 </div>
                 {loading ? (
@@ -548,14 +550,14 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             return (
               <section key={index} className="container-page">
                 <div className="mb-6 flex items-end justify-between">
-                  {attributes.title && <h2 className="text-2xl font-bold md:text-3xl">{attributes.title}</h2>}
+                  {attributes.title && <h2 className="text-2xl font-bold md:text-3xl">{L(attributes.title)}</h2>}
                 </div>
                 <div className="grid gap-4 md:grid-cols-3">
                   {dbTestimonials.map((r: any) => (
                     <div key={r.id || r.name} className="rounded-xl border bg-card p-5 shadow-sm">
                       <StarRating value={r.rating || 5} size={16} />
-                      {r.title && <h3 className="mt-2 font-semibold">{r.title}</h3>}
-                      <p className="mt-2 text-sm text-muted-foreground">{r.message || r.text}</p>
+                      {r.title && <h3 className="mt-2 font-semibold">{L(r.title)}</h3>}
+                      <p className="mt-2 text-sm text-muted-foreground">{L(r.message || r.text)}</p>
                       <div className="mt-4 flex items-center gap-2">
                         {r.avatar && (
                           <SafeImage src={r.avatar} alt={r.name} className="h-8 w-8 rounded-full object-cover" />

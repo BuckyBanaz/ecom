@@ -5,6 +5,7 @@ import { FaIcon } from "@/components/ui/FaIcon";
 import { cmsHeaderFooterRepository } from "@/client/apiClient";
 import { useCmsData } from "@/hooks/useCmsData";
 import { Logo } from "./Logo";
+import { labelT } from "@/utils/i18nLabel";
 
 export function Footer() {
   const { t } = useTranslation();
@@ -55,11 +56,11 @@ export function Footer() {
         </div>
         {footerColumns.map((c: any) => (
           <div key={c.title}>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider">{c.title}</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider">{labelT(t, c.title)}</h3>
             <ul className="space-y-2 text-sm text-secondary-foreground/75">
               {c.links.map((l: any) => (
                 <li key={l.label}>
-                  <Link to={l.href || "/help"} className="hover:text-primary">{l.label}</Link>
+                  <Link to={l.href || "/help"} className="hover:text-primary">{labelT(t, l.label)}</Link>
                 </li>
               ))}
             </ul>
@@ -72,7 +73,7 @@ export function Footer() {
             {footerBottom.length > 0 ? (
               footerBottom.map((item: any, idx: number) => (
                   <span key={`${item.text}-${idx}`} className="flex items-center gap-2">
-                    {item.icon && <FaIcon name={item.icon} className="h-3.5 w-3.5" />} {item.text}
+                    {item.icon && <FaIcon name={item.icon} className="h-3.5 w-3.5" />} {labelT(t, item.text)}
                   </span>
                 ))
             ) : (

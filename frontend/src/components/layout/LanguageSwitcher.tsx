@@ -14,10 +14,11 @@ import { cn } from "@/lib/utils";
 import {
   clearGoogleTranslateCookie,
   DEFAULT_LANGUAGE,
+  LANGUAGE_STORAGE_KEY,
   SUPPORTED_LANGUAGES,
   type SupportedLanguage,
 } from "@/i18n";
-import { clearApiCache } from "@/lib/apiCache";
+import { clearApiCache, clearCmsLocalCache } from "@/lib/apiCache";
 
 interface LanguageSwitcherProps {
   /** Compact mode: icon-only trigger (for header). */
@@ -60,7 +61,9 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
     setOpen(false);
     clearGoogleTranslateCookie();
     clearApiCache();
+    clearCmsLocalCache();
     localStorage.setItem("i18nextLng", code);
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, code);
     // Force immediate navigation to reset scroll position to top,
     // avoiding layout shifts and parallel translation freezes.
     window.location.replace(window.location.pathname + window.location.search);

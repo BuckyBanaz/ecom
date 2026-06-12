@@ -324,7 +324,7 @@ const ProductPage = () => {
 
           {product.shortDescription && (
             <div className="mt-6">
-              <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground" dangerouslySetInnerHTML={{ __html: product.shortDescription }} />
+              <div className={`text-muted-foreground ${product.shortDescription?.includes('<style') ? '' : 'prose prose-sm dark:prose-invert max-w-none'}`} dangerouslySetInnerHTML={{ __html: product.shortDescription }} />
             </div>
           )}
 
@@ -378,7 +378,7 @@ const ProductPage = () => {
         {/* Left: Description */}
         <div>
           <h2 className="text-xl font-bold mb-6">{t("product.section_description")}</h2>
-          <div className="prose prose-sm max-w-none text-foreground/90 leading-relaxed dark:prose-invert" dangerouslySetInnerHTML={{ __html: product.description }} />
+          <div className={`text-foreground/90 leading-relaxed ${product.description?.includes('<style') ? '' : 'prose prose-sm max-w-none dark:prose-invert'}`} dangerouslySetInnerHTML={{ __html: product.description }} />
         </div>
 
         {/* Right: Specifications */}
