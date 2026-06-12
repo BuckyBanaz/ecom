@@ -85,10 +85,20 @@ services:
     environment:
       DOCKER_HOST: unix:///var/run/docker.sock
       JENKINS_OPTS: --httpPort=8080
+      # Cap JVM heap so deploy builds (frontend/backend) don't OOM-kill the whole VPS
+      JAVA_OPTS: "-Xms256m -Xmx768m -XX:+UseG1GC -Dhudson.model.DirectoryBrowserSupport.CSP="
     env_file:
       - .env.production
     group_add:
       - "${DOCKER_GID:-999}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/login >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    mem_limit: 1536m
+    memswap_limit: 2048m
 
   caddy:
     image: caddy:2.8-alpine

@@ -42,6 +42,24 @@ docker compose -f "${COMPOSE_FILE}" up -d --force-recreate ${SERVICES}
 echo "==> Waiting for containers to settle..."
 sleep 8
 
+# Deploy builds frontend/backend on the host — Jenkins often gets OOM-killed or Caddy shows 502 until upstream is back.
+echo "==> Ensuring Jenkins is up (deploy does not rebuild it, but builds can starve RAM)..."
+if ! curl -sf http://127.0.0.1:8080/login >/dev/null 2>&1; then
+  echo "    Jenkins not responding — restarting jenkins, then caddy..."
+  docker compose -f "${COMPOSE_FILE}" up -d jenkins
+  for i in $(seq 1 24); do
+    if curl -sf http://127.0.0.1:8080/login >/dev/null 2>&1; then
+      echo "    Jenkins ready after ~$((i * 5))s"
+      break
+    fi
+    sleep 5
+  done
+  docker compose -f "${COMPOSE_FILE}" up -d --force-recreate caddy
+  sleep 5
+else
+  echo "    Jenkins OK"
+fi
+
 docker compose -f "${COMPOSE_FILE}" ps
 
 echo "==> Recent backend logs:"
