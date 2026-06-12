@@ -84,17 +84,17 @@ export default function CMSRelief() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Relief Page Builder</h1>
-          <div className="flex items-center gap-3 mt-1">
+          <div className="flex flex-col xl:flex-row items-start xl:items-center gap-2 xl:gap-3 mt-1">
             <p className="text-muted-foreground">Design your Relief landing page using the rich text composer and custom layout blocks.</p>
-            <a href={`${getClientBaseUrl()}/relief`} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md transition-colors border flex items-center gap-1">
+            <a href={`${getClientBaseUrl()}/relief`} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md transition-colors border flex items-center gap-1 w-fit">
               Live URL: {getClientBaseUrl()}/relief
             </a>
           </div>
         </div>
-        <Button onClick={handleSave} className="gap-2 shadow-xs transition-all duration-200">
+        <Button onClick={handleSave} className="gap-2 shadow-xs transition-all duration-200 shrink-0">
           <Save className="h-4 w-4" /> Save Changes
         </Button>
       </div>

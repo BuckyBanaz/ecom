@@ -1,50 +1,14 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CreditCard, Facebook, Instagram, ShieldCheck, Truck, Youtube } from "lucide-react";
 import { FaIcon } from "@/components/ui/FaIcon";
 import { cmsHeaderFooterRepository } from "@/client/apiClient";
+import { useCmsData } from "@/hooks/useCmsData";
 import { Logo } from "./Logo";
 
 export function Footer() {
   const { t } = useTranslation();
-  const [footerData, setFooterData] = useState<any>(null);
-
-  useEffect(() => {
-    const loadFooterData = async () => {
-      try {
-        const result = await cmsHeaderFooterRepository.get();
-        if (result.success && result.data) {
-          setFooterData(result.data);
-          // Also cache in localStorage
-          localStorage.setItem("header_footer_data", JSON.stringify(result.data));
-        } else {
-          // Fallback to localStorage
-          const saved = localStorage.getItem("header_footer_data");
-          if (saved) {
-            try {
-              setFooterData(JSON.parse(saved));
-            } catch {
-              setFooterData(null);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error loading footer data:", error);
-        // Fallback to localStorage
-        const saved = localStorage.getItem("header_footer_data");
-        if (saved) {
-          try {
-            setFooterData(JSON.parse(saved));
-          } catch {
-            setFooterData(null);
-          }
-        }
-      }
-    };
-
-    loadFooterData();
-  }, []);
+  const { data: footerData } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
 
   const footerAbout = footerData?.footerAbout;
   const footerSocial = footerData?.footerSocial;
@@ -69,7 +33,7 @@ export function Footer() {
             {footerAbout?.description || t("footer.about_description")}
           </p>
           <div className="mt-6 flex items-center gap-3">
-            {normalizedSocial.length > 0 ? (
+            {footerData ? (
               normalizedSocial.map((item: any, idx: number) => (
                   <a
                     key={`${item.label}-${idx}`}

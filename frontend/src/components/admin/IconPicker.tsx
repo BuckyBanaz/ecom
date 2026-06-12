@@ -49,8 +49,8 @@ export const IconPicker = ({ value, onChange, buttonLabel }: IconPickerProps) =>
   return (
     <div>
       <Button type="button" variant="outline" className="w-full justify-start gap-2" onClick={() => setOpen(true)}>
-        {activeIcon && <FontAwesomeIcon icon={activeIcon} className="h-4 w-4 text-primary" />}
-        <span>{buttonLabel || t("admin_icon_picker.button_label")}</span>
+        {activeIcon && <FontAwesomeIcon icon={activeIcon} className="h-4 w-4 text-primary shrink-0" />}
+        <span className="truncate">{buttonLabel || (value ? labelFromName(value) : t("admin_icon_picker.button_label"))}</span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl">
@@ -74,7 +74,7 @@ export const IconPicker = ({ value, onChange, buttonLabel }: IconPickerProps) =>
             <div key={normalized} className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[320px] overflow-y-auto">
               {displayList.map((item) => (
                 <button
-                  key={`${normalized}-${item.iconName}`}
+                  key={`${normalized}-${item.prefix}-${item.iconName}`}
                   type="button"
                   className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted"
                   onClick={() => {

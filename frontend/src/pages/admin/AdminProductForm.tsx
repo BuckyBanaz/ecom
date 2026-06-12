@@ -559,10 +559,6 @@ const AdminProductForm = () => {
       toast.error(t("admin_product_form.toast_category_required"));
       return;
     }
-    if (!selectedBrand) {
-      toast.error(t("admin_product_form.toast_brand_required"));
-      return;
-    }
 
     const serializedSpecs = serializeSpecs(specs);
     if (numberOfLights) {
@@ -573,11 +569,14 @@ const AdminProductForm = () => {
     }
 
     // Build flat parameters payload & backend relational EAV mapping
+    const finalBrand = selectedBrand && selectedBrand !== "none" ? selectedBrand : "";
+    const finalBrandId = selectedBrand && selectedBrand !== "none" ? brands.find((b) => b.name === selectedBrand)?.id || null : null;
+    
     const payload = {
       title: name,
       name: name,
-      brand: selectedBrand,
-      brandId: brands.find((b) => b.name === selectedBrand)?.id || null,
+      brand: finalBrand,
+      brandId: finalBrandId,
       category: selectedCategory,
       categoryId: categoriesList.find((c) => c.slug === selectedCategory)?.id || null,
       price: parseFloat(price) || 0,
@@ -701,11 +700,14 @@ const AdminProductForm = () => {
                   <div className="space-y-1.5">
                     <Label htmlFor="brand" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_brand")}</Label>
                     {isMounted && (
-                      <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                      <Select value={selectedBrand || "none"} onValueChange={setSelectedBrand}>
                         <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
                           <SelectValue placeholder={t("admin_product_form.placeholder_brand")} />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
+                          <SelectItem value="none" className="text-xs rounded-lg italic text-muted-foreground">
+                            {t("admin_product_form.brand_none") || "None"}
+                          </SelectItem>
                           {brands.map((b) => (
                             <SelectItem key={b.id} value={b.name} className="text-xs rounded-lg">
                               {b.name}
@@ -720,9 +722,9 @@ const AdminProductForm = () => {
                     <Label htmlFor="series" className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_series")}</Label>
                     {isMounted && (
                       <Select
-                        value={selectedSeries}
+                        value={selectedSeries || "none"}
                         onValueChange={setSelectedSeries}
-                        disabled={!selectedBrand}
+                        disabled={!selectedBrand || selectedBrand === "none"}
                       >
                         <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
                           <SelectValue placeholder={selectedBrand ? t("admin_product_form.placeholder_series_select") : t("admin_product_form.placeholder_series_first")} />

@@ -24,7 +24,8 @@
     "all": "All",
     "more": "More",
     "less": "Less",
-    "currency": "€"
+    "currency": "€",
+    "apply": "Apply"
   },
   "language": {
     "label": "Language",
@@ -523,7 +524,8 @@
     "basic_subtitle": "Provide essential product naming, branding, and pricing details.",
     "label_name": "Product Name *",
     "placeholder_name": "e.g. Nordic Pendant Glass Lamp",
-    "label_brand": "Brand *",
+    "label_brand": "Brand",
+    "brand_none": "None",
     "placeholder_brand": "Select Brand Partner",
     "label_series": "Series / Collection",
     "placeholder_series_select": "Select Series",

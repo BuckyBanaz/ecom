@@ -289,3 +289,93 @@ export const updateHeaderFooter = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ==========================================
+// FAQS CMS METHODS
+// ==========================================
+
+export const getFaqs = async (req: Request, res: Response) => {
+  try {
+    const config = await prisma.cmsConfig.findUnique({
+      where: { key: "faq_data" },
+    });
+
+    if (!config) {
+      return res.status(404).json({ success: false, message: "FAQs not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error fetching FAQs:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const updateFaqs = async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+
+    const config = await prisma.cmsConfig.upsert({
+      where: { key: "faq_data" },
+      update: { value: data },
+      create: { key: "faq_data", value: data },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "FAQs updated",
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error updating FAQs:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ==========================================
+// TESTIMONIALS CMS METHODS
+// ==========================================
+
+export const getTestimonials = async (req: Request, res: Response) => {
+  try {
+    const config = await prisma.cmsConfig.findUnique({
+      where: { key: "testimonials_data" },
+    });
+
+    if (!config) {
+      return res.status(404).json({ success: false, message: "Testimonials not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error fetching testimonials:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const updateTestimonials = async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+
+    const config = await prisma.cmsConfig.upsert({
+      where: { key: "testimonials_data" },
+      update: { value: data },
+      create: { key: "testimonials_data", value: data },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Testimonials updated",
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error updating testimonials:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

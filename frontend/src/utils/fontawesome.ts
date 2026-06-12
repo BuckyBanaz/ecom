@@ -45,9 +45,21 @@ export async function resolveIconAsync(iconName: string): Promise<IconDefinition
   if (cached) return cached;
 
   const loader = ICON_LOADERS[key];
-  const loaded = loader ? await loader().catch(() => faStar) : faStar;
-  iconCache.set(key, loaded);
-  return loaded;
+  if (loader) {
+    const loaded = await loader().catch(() => faStar);
+    iconCache.set(key, loaded);
+    return loaded;
+  }
+
+  // Fallback to loading the full icon map from fontawesome-admin
+  try {
+    const mod = await import("@/utils/fontawesome-admin");
+    const loaded = mod.iconMap.get(key) || faStar;
+    iconCache.set(key, loaded);
+    return loaded;
+  } catch {
+    return faStar;
+  }
 }
 
 export function resolveIcon(iconName: string): IconDefinition {

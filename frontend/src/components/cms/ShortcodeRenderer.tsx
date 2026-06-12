@@ -14,7 +14,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { megaMenuData } from "@/data/megaMenu";
 import { isMissingImage, resolveImgUrl } from "@/utils/image";
 import { Skeleton } from "@/components/ui/skeleton";
-import { productRepository, categoryRepository, blogRepository, brandRepository } from "@/client/apiClient";
+import { productRepository, categoryRepository, blogRepository, brandRepository, cmsTestimonialsRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 interface ShortcodeRendererProps {
@@ -36,18 +36,28 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
   const [dbBrands, setDbBrands] = useState<any[]>(prefetchedData?.brands || []);
   const [dbTestimonials, setDbTestimonials] = useState<any[]>([]);
 
-  // Load testimonials from admin storage
+  // Load testimonials from backend
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("testimonials_data");
-      if (saved) {
-        const list = JSON.parse(saved);
-        const published = Array.isArray(list) ? list.filter((t: any) => t.published !== false) : [];
+    let active = true;
+    cmsTestimonialsRepository.get().then(res => {
+      if (active && res.success && res.data) {
+        const published = Array.isArray(res.data) ? res.data.filter((t: any) => t.published !== false) : [];
         setDbTestimonials(published);
       }
-    } catch {
-      setDbTestimonials([]);
-    }
+    }).catch(err => {
+      console.warn("Failed to load testimonials:", err);
+      try {
+        const saved = localStorage.getItem("testimonials_data");
+        if (saved && active) {
+          const list = JSON.parse(saved);
+          const published = Array.isArray(list) ? list.filter((t: any) => t.published !== false) : [];
+          setDbTestimonials(published);
+        }
+      } catch {
+        if (active) setDbTestimonials([]);
+      }
+    });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {

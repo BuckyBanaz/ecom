@@ -26,10 +26,10 @@ const buildLimiter = (prefix: string, options: Partial<Options>) =>
     ...options,
   });
 
-/** General API protection — 400 requests per 15 minutes per IP */
+/** General API protection — 2000 requests per 15 minutes per IP */
 export const globalLimiter = buildLimiter("global", {
   windowMs: 15 * 60 * 1000,
-  max: 400,
+  max: 2000,
   skip: (req) =>
     req.path === "/health" ||
     req.path === "/api/v1/payments/webhook" ||

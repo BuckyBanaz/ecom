@@ -14,6 +14,7 @@ import { UIBlocksDialog } from "./UIBlocksDialog";
 import { MediaLibraryDialog } from "./media/MediaLibraryDialog";
 import { LayoutTemplate } from "lucide-react";
 import { normalizeUploadedUrl, getApiBaseUrl, resolveImgUrl } from "@/utils/image";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface RichTextEditorProps {
   value: string;
@@ -37,7 +38,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const [isCompressing, setIsCompressing] = useState(false);
   const [imageError, setImageError] = useState("");
   const [isUIBlocksOpen, setIsUIBlocksOpen] = useState(false);
-  const [savedSelection, setSavedSelection] = useState<Range | null>(null);
+  const savedSelectionRef = useRef<Range | null>(null);
 
   // Color picker states
   const textColorInputRef = useRef<HTMLInputElement>(null);
@@ -183,16 +184,20 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const saveSelection = () => {
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
-      setSavedSelection(sel.getRangeAt(0));
+      const range = sel.getRangeAt(0);
+      if (editorRef.current && (editorRef.current.contains(range.commonAncestorContainer) || editorRef.current === range.commonAncestorContainer)) {
+        savedSelectionRef.current = range.cloneRange();
+      }
     }
   };
 
   const restoreSelection = () => {
-    if (savedSelection) {
+    if (savedSelectionRef.current) {
+      editorRef.current?.focus();
       const sel = window.getSelection();
       if (sel) {
         sel.removeAllRanges();
-        sel.addRange(savedSelection);
+        sel.addRange(savedSelectionRef.current);
       }
     } else if (editorRef.current) {
       editorRef.current.focus();
@@ -202,7 +207,15 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const executeCommand = (command: string, arg: string = "") => {
     if (isSourceMode) return;
     
-    restoreSelection();
+    if (document.activeElement !== editorRef.current) {
+      restoreSelection();
+    }
+    
+    try {
+      document.execCommand('styleWithCSS', false, 'true');
+    } catch (e) {
+      // Ignored for older browsers
+    }
     
     document.execCommand(command, false, arg);
     handleInput();
@@ -228,8 +241,13 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
       
       const currentHTML = editorRef.current.innerHTML;
       const normalizedHTML = normalizeUrlsInHtml(currentHTML);
-      onChange(normalizedHTML);
-      setHtmlSource(normalizedHTML);
+      
+      // Only trigger updates if content actually changed
+      // This preserves browser formatting state for empty selections
+      if (normalizedHTML !== htmlSource) {
+        setHtmlSource(normalizedHTML);
+        onChange(normalizedHTML);
+      }
     }
   };
 
@@ -852,36 +870,25 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
 
           {/* Group 8: Colors */}
           {/* Text Color Trigger */}
-          <div className="relative">
-            <ToolbarButton 
-              disabled={isSourceMode} 
-              icon={Palette} 
-              label="Text Color" 
-              onClick={() => textColorInputRef.current?.click()} 
-            />
-            <input 
-              ref={textColorInputRef}
-              type="color" 
-              className="absolute pointer-events-none opacity-0 w-0 h-0"
-              onChange={(e) => executeCommand("foreColor", e.target.value)}
-            />
-          </div>
+          <ColorPickerPopover 
+            icon={Palette}
+            label="Text Color"
+            disabled={isSourceMode}
+            onOpen={() => saveSelection()}
+            onApply={(color) => executeCommand("foreColor", color)}
+          />
           
           {/* Highlight Color Trigger */}
-          <div className="relative">
-            <ToolbarButton 
-              disabled={isSourceMode} 
-              icon={Highlighter} 
-              label="Highlight Color" 
-              onClick={() => bgColorInputRef.current?.click()} 
-            />
-            <input 
-              ref={bgColorInputRef}
-              type="color" 
-              className="absolute pointer-events-none opacity-0 w-0 h-0"
-              onChange={(e) => executeCommand("hiliteColor", e.target.value)}
-            />
-          </div>
+          <ColorPickerPopover 
+            icon={Highlighter}
+            label="Highlight Color"
+            disabled={isSourceMode}
+            onOpen={() => saveSelection()}
+            onApply={(color) => {
+              executeCommand("backColor", color);
+              executeCommand("hiliteColor", color);
+            }}
+          />
 
           <div className="w-[1px] h-6 bg-border mx-1" />
 
@@ -945,8 +952,22 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
               <div
                 ref={editorRef}
                 contentEditable
-                onClick={handleEditorClick}
+                onClick={(e) => {
+                  handleEditorClick(e);
+                  saveSelection();
+                }}
                 onKeyDown={handleEditorKeyDown}
+                onKeyUp={saveSelection}
+                onMouseUp={saveSelection}
+                onMouseLeave={saveSelection}
+                onFocus={() => {
+                  setIsFocused(true);
+                  saveSelection();
+                }}
+                onBlur={() => {
+                  setIsFocused(false);
+                  saveSelection();
+                }}
                 onInput={handleInput}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
@@ -1250,5 +1271,84 @@ function ToolbarButton({
     >
       <Icon className="h-4 w-4" />
     </Button>
+  );
+}
+
+function ColorPickerPopover({
+  icon: Icon,
+  label,
+  disabled,
+  onOpen,
+  onApply,
+  defaultColor = "#000000"
+}: {
+  icon: any;
+  label: string;
+  disabled?: boolean;
+  onOpen: () => void;
+  onApply: (color: string) => void;
+  defaultColor?: string;
+}) {
+  const { t } = useTranslation();
+  const [color, setColor] = useState(defaultColor);
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Popover open={isOpen} onOpenChange={(open) => {
+      if (open) onOpen();
+      setIsOpen(open);
+    }}>
+      <PopoverTrigger asChild>
+        <div>
+          <ToolbarButton 
+            disabled={disabled} 
+            icon={Icon} 
+            label={label} 
+            onClick={() => setIsOpen(true)} 
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3" side="bottom" align="center">
+        <div className="space-y-3">
+          <h4 className="font-medium text-sm leading-none">{label}</h4>
+          
+          <div className="flex gap-2 items-center">
+            <input 
+              type="color" 
+              value={color} 
+              onChange={(e) => setColor(e.target.value)} 
+              className="w-10 h-10 rounded cursor-pointer border-0 p-0"
+            />
+            <Input 
+              value={color} 
+              onChange={(e) => setColor(e.target.value)} 
+              className="flex-1 h-10 font-mono text-sm uppercase"
+              placeholder="#000000"
+            />
+          </div>
+          
+          {/* Preset Swatches */}
+          <div className="grid grid-cols-8 gap-1 pt-2">
+            {["#000000", "#4b5563", "#dc2626", "#ea580c", "#d97706", "#65a30d", "#16a34a", "#0d9488", "#0284c7", "#2563eb", "#4f46e5", "#7c3aed", "#c026d3", "#e11d48", "#ffffff", "#f3f4f6"].map(preset => (
+              <button
+                key={preset}
+                className="w-5 h-5 rounded border border-border shadow-sm hover:scale-110 transition-transform"
+                style={{ backgroundColor: preset }}
+                onClick={() => setColor(preset)}
+                title={preset}
+              />
+            ))}
+          </div>
+          
+          <div className="flex gap-2 justify-end pt-2 border-t mt-2">
+            <Button variant="outline" size="sm" onClick={() => setIsOpen(false)}>{t("common.cancel")}</Button>
+            <Button size="sm" onClick={() => {
+              onApply(color);
+              setIsOpen(false);
+            }}>{t("common.apply")} (OK)</Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

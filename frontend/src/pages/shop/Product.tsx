@@ -73,7 +73,7 @@ const ProductPage = () => {
               id: p.id,
               slug: p.slug,
               name: p.name,
-              brand: p.brand?.name || "Lumio",
+              brand: p.brand?.name || "",
               category: p.category?.slug || "general",
               price: p.price,
               oldPrice: p.oldPrice || undefined,
@@ -270,9 +270,15 @@ const ProductPage = () => {
           <div className="mt-4 space-y-3">
             {/* Row 1: Brand & Series */}
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              <div>
-                {t("product.label_brand")} <span className="text-foreground underline underline-offset-4 hover:text-primary cursor-pointer">{getProductBrandName(product.brand) || "—"}</span>
-              </div>
+              {(() => {
+                const brandName = getProductBrandName(product.brand);
+                return brandName ? (
+                  <div>
+                    {t("product.label_brand")} <span className="text-foreground underline underline-offset-4 hover:text-primary cursor-pointer">{brandName}</span>
+                  </div>
+                ) : null;
+              })()}
+              
               {(() => {
                 let series = null;
                 if (Array.isArray(product.specs)) {
@@ -295,13 +301,24 @@ const ProductPage = () => {
 
             {/* Row 2: Reviews & SKU */}
             <div className="flex items-center gap-2 text-sm">
-              <div className="flex items-center gap-1">
-                <StarRating value={product.rating || 5} size={18} />
-              </div>
-              <a href="#reviews" className="text-[13.5px] font-medium text-foreground hover:underline cursor-pointer">
-                {(product.rating || 5).toFixed(1)} &middot; {product.reviewCount || 0} {t("product.reviews_label")}
-              </a>
-              <span className="text-[13px] text-muted-foreground ml-auto">{t("product.label_sku")} {String(product.id).substring(0, 8).toUpperCase()}</span>
+              {(() => {
+                const realReviewCount = liveReviews.length;
+                const realAvgRating = realReviewCount > 0 
+                  ? liveReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount 
+                  : 0;
+                return (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <StarRating value={realAvgRating > 0 ? realAvgRating : (product.rating || 5)} size={18} />
+                    </div>
+                    <span className="font-bold text-foreground">{realAvgRating > 0 ? realAvgRating.toFixed(1) : (product.rating || 5)}</span>
+                    <span className="text-muted-foreground cursor-pointer hover:text-primary hover:underline" onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })}>
+                      · {realReviewCount > 0 ? realReviewCount : (product.reviewCount || 0)} {t("product.reviews")}
+                    </span>
+                  </>
+                );
+              })()}
+              <div className="ml-auto text-muted-foreground uppercase text-[11px] tracking-wider font-bold">SKU: {product.slug?.toUpperCase()?.slice(0, 8)}</div>
             </div>
           </div>
 
@@ -412,36 +429,52 @@ const ProductPage = () => {
       <div className="mt-20 border-t pt-12">
         <h2 className="text-xl font-bold mb-8">{t("product.section_reviews")}</h2>
         
-        <div className="flex flex-wrap items-start justify-between gap-6 mb-10">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8">
-            <div>
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-4xl font-extrabold">{(product.rating || 0).toFixed(1)}</span>
-                <StarRating value={product.rating} size={18} />
-              </div>
-              <p className="text-xs text-muted-foreground font-medium">{t("product.review_based_on")} {product.reviewCount || 0} {t("product.reviews_count_label")}</p>
-            </div>
+        {(() => {
+          const realReviewCount = liveReviews.length;
+          const realAvgRating = realReviewCount > 0 
+            ? liveReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount 
+            : 0;
             
-            <div className="space-y-1.5 w-[200px]">
-              {[5, 4, 3, 2, 1].map((stars) => {
-                 const pct = stars === 5 ? "82%" : stars === 4 ? "12%" : stars === 3 ? "4%" : "1%";
-                 const count = stars === 5 ? 49 : stars === 4 ? 7 : stars === 3 ? 3 : stars === 2 ? 1 : 0;
-                 return (
-                   <div key={stars} className="flex items-center gap-3 text-xs">
-                     <span className="flex text-muted-foreground">{"★".repeat(stars)}{"☆".repeat(5-stars)}</span>
-                     <div className="flex-1 h-3.5 bg-muted rounded-sm overflow-hidden flex">
-                       <div className="bg-[#333] dark:bg-primary h-full" style={{ width: pct }} />
-                     </div>
-                     <span className="w-5 text-right text-muted-foreground font-medium">{count}</span>
-                   </div>
-                 );
-              })}
+          const ratingCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+          liveReviews.forEach(r => {
+            if (r.rating >= 1 && r.rating <= 5) {
+              ratingCounts[Math.round(r.rating) as keyof typeof ratingCounts]++;
+            }
+          });
+
+          return (
+            <div className="flex flex-wrap items-start justify-between gap-6 mb-10">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8">
+                <div>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-4xl font-extrabold">{realAvgRating.toFixed(1)}</span>
+                    <StarRating value={realAvgRating} size={18} />
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium">{t("product.review_based_on")} {realReviewCount} {t("product.reviews_count_label")}</p>
+                </div>
+                
+                <div className="space-y-1.5 w-[200px]">
+                  {[5, 4, 3, 2, 1].map((stars) => {
+                     const count = ratingCounts[stars as keyof typeof ratingCounts];
+                     const pct = realReviewCount > 0 ? `${(count / realReviewCount) * 100}%` : "0%";
+                     return (
+                       <div key={stars} className="flex items-center gap-3 text-xs">
+                         <span className="flex text-muted-foreground">{"★".repeat(stars)}{"☆".repeat(5-stars)}</span>
+                         <div className="flex-1 h-3.5 bg-muted rounded-sm overflow-hidden flex">
+                           <div className="bg-[#333] dark:bg-primary h-full transition-all duration-500" style={{ width: pct }} />
+                         </div>
+                         <span className="w-5 text-right text-muted-foreground font-medium">{count}</span>
+                       </div>
+                     );
+                  })}
+                </div>
+              </div>
+              <Button onClick={() => setReviewModalOpen(true)} variant="default" className="rounded-full px-6 font-bold bg-[#222] hover:bg-black text-white dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90 shadow-none">
+                {t("product.button_write_review")}
+              </Button>
             </div>
-          </div>
-          <Button onClick={() => setReviewModalOpen(true)} variant="default" className="rounded-full px-6 font-bold bg-[#222] hover:bg-black text-white dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90 shadow-none">
-            {t("product.button_write_review")}
-          </Button>
-        </div>
+          );
+        })()}
 
         {/* Filters bar */}
         <div className="flex justify-end mb-6">

@@ -11,6 +11,8 @@ import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog"
 import { normalizeUploadedUrl } from "@/utils/image";
 import { toast } from "sonner";
 
+import { cmsTestimonialsRepository } from "@/client/apiClient";
+
 const STORAGE_KEY = "testimonials_data";
 
 type Testimonial = {
@@ -42,19 +44,29 @@ const AdminTestimonials = () => {
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setTestimonials(JSON.parse(saved));
-      } catch {
-        setTestimonials([]);
+    let active = true;
+    cmsTestimonialsRepository.get().then(res => {
+      if (active && res.success && res.data) {
+        setTestimonials(res.data);
       }
-    }
+    }).catch(err => {
+      console.error("Failed to load testimonials", err);
+      // Fallback to localStorage if API fails during transition
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && active) {
+        try { setTestimonials(JSON.parse(saved)); } catch { setTestimonials([]); }
+      }
+    });
+    return () => { active = false; };
   }, []);
 
-  const persist = (next: Testimonial[]) => {
+  const persist = async (next: Testimonial[]) => {
     setTestimonials(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    try {
+      await cmsTestimonialsRepository.update(next);
+    } catch (err) {
+      toast.error("Failed to sync to backend");
+    }
   };
 
   const openNew = () => {

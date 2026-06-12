@@ -193,12 +193,12 @@ const CMSHeaderFooter = () => {
 
   return (
     <form onSubmit={save} className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Header & Footer</h1>
           <p className="text-muted-foreground">Configure header top bar and footer layout.</p>
         </div>
-        <Button type="submit" className="gap-2"><Save className="h-4 w-4" /> Save changes</Button>
+        <Button type="submit" className="gap-2 shrink-0"><Save className="h-4 w-4" /> Save changes</Button>
       </div>
 
       <Card>
@@ -221,7 +221,7 @@ const CMSHeaderFooter = () => {
               </Button>
             </div>
             {config.topLeft.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-[120px_1fr_auto] gap-3 items-center">
+              <div key={idx} className="flex flex-col sm:grid sm:grid-cols-[160px_1fr_auto] gap-2 sm:gap-3 items-start sm:items-center p-3 sm:p-0 border rounded-md sm:border-0">
                 <IconPicker
                   value={item.icon}
                   onChange={(val) => {
@@ -269,7 +269,7 @@ const CMSHeaderFooter = () => {
               </Button>
             </div>
             {config.topRight.map((link, idx) => (
-              <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
+              <div key={idx} className="flex flex-col sm:grid sm:grid-cols-[1fr_1fr_auto] gap-2 sm:gap-3 items-start sm:items-center p-3 sm:p-0 border rounded-md sm:border-0">
                 <Input
                   value={link.label}
                   onChange={(e) => {
@@ -337,7 +337,7 @@ const CMSHeaderFooter = () => {
               </Button>
             </div>
             {config.footerSocial.map((link, idx) => (
-              <div key={idx} className="grid grid-cols-[160px_1fr_1fr_auto] gap-3 items-center">
+              <div key={idx} className="flex flex-col sm:grid sm:grid-cols-[160px_1fr_1fr_auto] gap-2 sm:gap-3 items-start sm:items-center p-3 sm:p-0 border rounded-md sm:border-0">
                 <IconPicker
                   value={link.icon}
                   onChange={(val) => {
@@ -418,7 +418,7 @@ const CMSHeaderFooter = () => {
                 </div>
                 <div className="space-y-2">
                   {col.links.map((link, lIdx) => (
-                    <div key={lIdx} className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
+                    <div key={lIdx} className="flex flex-col sm:grid sm:grid-cols-[1fr_1fr_auto] gap-2 sm:gap-3 items-start sm:items-center p-3 sm:p-0 border rounded-md sm:border-0">
                       <Input
                         value={link.label}
                         onChange={(e) => {
@@ -487,7 +487,7 @@ const CMSHeaderFooter = () => {
               </Button>
             </div>
             {config.footerBottom.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-[120px_1fr_auto] gap-3 items-center">
+              <div key={idx} className="flex flex-col sm:grid sm:grid-cols-[160px_1fr_auto] gap-2 sm:gap-3 items-start sm:items-center p-3 sm:p-0 border rounded-md sm:border-0">
                 <IconPicker
                   value={item.icon}
                   onChange={(val) => {

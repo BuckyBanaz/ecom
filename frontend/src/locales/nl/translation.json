@@ -24,7 +24,8 @@
     "all": "Alle",
     "more": "Meer",
     "less": "Minder",
-    "currency": "€"
+    "currency": "€",
+    "apply": "Toepassen"
   },
   "language": {
     "label": "Taal",
@@ -531,7 +532,8 @@
     "basic_subtitle": "Geef essenti\u00eble productnaam-, merk- en prijsgegevens op.",
     "label_name": "Productnaam *",
     "placeholder_name": "bijv. Nordic hanglamp glas",
-    "label_brand": "Merk *",
+    "label_brand": "Merk",
+    "brand_none": "Geen",
     "placeholder_brand": "Selecteer merkpartner",
     "label_series": "Serie / Collectie",
     "placeholder_series_select": "Selecteer serie",

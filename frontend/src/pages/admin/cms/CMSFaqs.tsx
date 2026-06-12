@@ -10,6 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { getClientBaseUrl } from "@/utils/siteUrl";
 
+import { cmsFaqsRepository } from "@/client/apiClient";
+
 const FAQ_KEY = "faq_data";
 
 type FaqItem = { q: string; a: string; published: boolean };
@@ -24,16 +26,34 @@ const CMSFaqs = () => {
   const [faqs, setFaqs] = useState<FaqItem[]>(defaultFaqs);
 
   useEffect(() => {
-    const saved = localStorage.getItem(FAQ_KEY);
-    if (saved) {
-      try { setFaqs(JSON.parse(saved)); } catch { setFaqs(defaultFaqs); }
-    }
+    let active = true;
+    cmsFaqsRepository.get().then(res => {
+      if (active && res.success && res.data) {
+        setFaqs(res.data);
+      }
+    }).catch(err => {
+      console.error("Failed to load FAQs", err);
+      // Fallback to localStorage if API fails during transition
+      const saved = localStorage.getItem(FAQ_KEY);
+      if (saved && active) {
+        try { setFaqs(JSON.parse(saved)); } catch { setFaqs(defaultFaqs); }
+      }
+    });
+    return () => { active = false; };
   }, []);
 
-  const save = (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem(FAQ_KEY, JSON.stringify(faqs));
-    toast.success("FAQs saved");
+    try {
+      const res = await cmsFaqsRepository.update(faqs);
+      if (res.success) {
+        toast.success("FAQs saved");
+      } else {
+        toast.error("Failed to save FAQs");
+      }
+    } catch (err) {
+      toast.error("Network error");
+    }
   };
 
   return (

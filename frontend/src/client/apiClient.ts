@@ -424,6 +424,34 @@ export const cmsFeaturesRepository = {
   },
 };
 
+// 8.7 CMS FAQs Repository
+export const cmsFaqsRepository = {
+  get: async () => {
+    return request<any>(`${ENDPOINTS.CMS}/faqs`, { method: "GET", cacheTtl: CACHE.MEDIUM });
+  },
+  
+  update: async (data: any) => {
+    return request<any>(`${ENDPOINTS.CMS}/faqs`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// 8.8 CMS Testimonials Repository
+export const cmsTestimonialsRepository = {
+  get: async () => {
+    return request<any>(`${ENDPOINTS.CMS}/testimonials`, { method: "GET", cacheTtl: CACHE.MEDIUM });
+  },
+  
+  update: async (data: any) => {
+    return request<any>(`${ENDPOINTS.CMS}/testimonials`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // 9. CMS Pages Repository
 export const cmsPagesRepository = {
   getAll: async () => {

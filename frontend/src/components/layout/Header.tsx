@@ -13,6 +13,7 @@ import { navGroups } from "@/data/categories";
 import { megaMenuData } from "@/data/megaMenu";
 import { useDebounce } from "@/hooks/use-debounce";
 import { productRepository, megaMenuRepository, cmsHeaderFooterRepository } from "@/client/apiClient";
+import { useCmsData } from "@/hooks/useCmsData";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 const defaultTopLeft = [
@@ -39,88 +40,13 @@ export function Header() {
   const { count, setDrawerOpen } = useCart();
   const { ids } = useWishlist();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [menuList, setMenuList] = useState<any[]>([]);
-  const [topLeft, setTopLeft] = useState<any[]>([]);
-  const [topRight, setTopRight] = useState<any[]>([]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const res = await megaMenuRepository.getAll();
-        if (res.success && res.menus && res.menus.length > 0) {
-          setMenuList(res.menus);
-        } else {
-          // Fallback to localStorage or default
-          const saved = localStorage.getItem("mega_menu_data");
-          if (saved) {
-            try { 
-              const parsed = JSON.parse(saved);
-              setMenuList(parsed.length > 0 ? parsed : megaMenuData); 
-            } catch (e) { setMenuList(megaMenuData); }
-          } else {
-            setMenuList(megaMenuData);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load mega menu:", e);
-        const saved = localStorage.getItem("mega_menu_data");
-        if (saved) {
-          try { 
-            const parsed = JSON.parse(saved);
-            setMenuList(parsed.length > 0 ? parsed : megaMenuData); 
-          } catch (e) { setMenuList(megaMenuData); }
-        } else {
-          setMenuList(megaMenuData);
-        }
-      }
+  const { data: rawMegaMenu } = useCmsData("mega_menu_data", () => megaMenuRepository.getAll());
+  const { data: headerFooterData } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
 
-      // Load Header Footer Config
-      try {
-        const hfRes = await cmsHeaderFooterRepository.get();
-        if (hfRes.success && hfRes.data) {
-          setTopLeft(hfRes.data.topLeft || defaultTopLeft);
-          setTopRight(hfRes.data.topRight || defaultTopRight);
-          localStorage.setItem("header_footer_data", JSON.stringify(hfRes.data));
-        } else {
-          // Fallback to localStorage
-          const saved = localStorage.getItem("header_footer_data");
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              setTopLeft(parsed.topLeft || defaultTopLeft);
-              setTopRight(parsed.topRight || defaultTopRight);
-            } catch {
-              setTopLeft(defaultTopLeft);
-              setTopRight(defaultTopRight);
-            }
-          } else {
-            setTopLeft(defaultTopLeft);
-            setTopRight(defaultTopRight);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load header footer config:", e);
-        const saved = localStorage.getItem("header_footer_data");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            setTopLeft(parsed.topLeft || defaultTopLeft);
-            setTopRight(parsed.topRight || defaultTopRight);
-          } catch {
-            setTopLeft(defaultTopLeft);
-            setTopRight(defaultTopRight);
-          }
-        } else {
-          setTopLeft(defaultTopLeft);
-          setTopRight(defaultTopRight);
-        }
-      }
-    };
-
-    loadData();
-    window.addEventListener("megaMenuDataChanged", loadData);
-    return () => window.removeEventListener("megaMenuDataChanged", loadData);
-  }, []);
+  const menuList = (rawMegaMenu as any)?.menus || megaMenuData;
+  const topLeft = headerFooterData ? headerFooterData.topLeft || [] : defaultTopLeft;
+  const topRight = headerFooterData ? headerFooterData.topRight || [] : defaultTopRight;
 
   useEffect(() => {
     if (!debouncedQ.trim()) {
@@ -151,8 +77,8 @@ export function Header() {
         
         const sq = debouncedQ.toLowerCase();
         const filtered = allProductsList.filter((p: any) => 
-          p.name.toLowerCase().includes(sq) || 
-          p.category.toLowerCase().includes(sq)
+          (p.name || "").toLowerCase().includes(sq) || 
+          (typeof p.category === 'object' ? p.category?.name || '' : p.category || '').toLowerCase().includes(sq)
         ).slice(0, 5);
         setSuggestions(filtered);
       } finally {

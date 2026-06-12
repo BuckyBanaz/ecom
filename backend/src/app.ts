@@ -17,12 +17,6 @@ const app = express();
 // Behind Caddy reverse proxy in production (fixes express-rate-limit X-Forwarded-For warning)
 app.set("trust proxy", 1);
 
-// Register HTTP request logger middleware
-app.use(requestLogger);
-
-// Rate limiting — protects against brute-force and abuse
-app.use(globalLimiter);
-
 const allowedOrigins = new Set(
   [
     env.CLIENT_URL,
@@ -56,6 +50,12 @@ app.use(
     credentials: true,
   })
 );
+
+// Register HTTP request logger middleware
+app.use(requestLogger);
+
+// Rate limiting — protects against brute-force and abuse
+app.use(globalLimiter);
 
 // Webhook needs raw body to verify Stripe signature
 import { handleStripeWebhook } from "./controllers/paymentController";

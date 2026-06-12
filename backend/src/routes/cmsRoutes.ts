@@ -12,7 +12,11 @@ import {
   updatePage,
   deletePage,
   getHeaderFooter,
-  updateHeaderFooter
+  updateHeaderFooter,
+  getFaqs,
+  updateFaqs,
+  getTestimonials,
+  updateTestimonials
 } from "../controllers/cmsController";
 import { getPublicSeoConfig, getMaintenanceStatus } from "../controllers/adminSettingsController";
 
@@ -263,6 +267,54 @@ router.get("/header-footer", getHeaderFooter);
  *         description: Server error
  */
 router.put("/header-footer", updateHeaderFooter);
+
+/**
+ * @swagger
+ * /api/v1/cms/faqs:
+ *   get:
+ *     summary: Get FAQs
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: FAQs data
+ */
+router.get("/faqs", getFaqs);
+
+/**
+ * @swagger
+ * /api/v1/cms/faqs:
+ *   put:
+ *     summary: Update FAQs
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: FAQs successfully updated
+ */
+router.put("/faqs", updateFaqs);
+
+/**
+ * @swagger
+ * /api/v1/cms/testimonials:
+ *   get:
+ *     summary: Get Testimonials
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: Testimonials data
+ */
+router.get("/testimonials", getTestimonials);
+
+/**
+ * @swagger
+ * /api/v1/cms/testimonials:
+ *   put:
+ *     summary: Update Testimonials
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: Testimonials successfully updated
+ */
+router.put("/testimonials", updateTestimonials);
 
 /**
  * @swagger

@@ -87,16 +87,7 @@ export default function ReliefCategory() {
         if (menuRes && menuRes.success && menuRes.megaMenus) {
           setMenus(menuRes.megaMenus);
         } else {
-          const savedMenus = localStorage.getItem("mega_menu_data");
-          if (savedMenus) {
-            try {
-              setMenus(JSON.parse(savedMenus));
-            } catch (e) {
-              setMenus(megaMenuData);
-            }
-          } else {
-            setMenus(megaMenuData);
-          }
+          setMenus([]);
         }
 
         if (catRes && catRes.success && catRes.categories) {
