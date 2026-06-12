@@ -10,6 +10,11 @@ import {
   startGoogleTranslatePolicyWatcher,
   syncGoogleTranslatePolicy,
 } from "./utils/googleTranslatePolicy";
+import {
+  consumeLanguageFromUrl,
+  readStoredLanguage,
+  persistLanguageChoice,
+} from "./utils/languageSwitch";
 
 export const SUPPORTED_LANGUAGES = [
   { code: "nl", label: "Nederlands", flag: "🇳🇱" },
@@ -22,6 +27,16 @@ export const DEFAULT_LANGUAGE: SupportedLanguage = "nl";
 export const FALLBACK_LANGUAGE: SupportedLanguage = "en";
 export const LANGUAGE_STORAGE_KEY = "i18nextLng";
 
+/** Apply ?lang= from reload, else keep stored choice, else default Dutch. */
+const initialLanguage: SupportedLanguage =
+  typeof window !== "undefined"
+    ? consumeLanguageFromUrl() ?? readStoredLanguage()
+    : DEFAULT_LANGUAGE;
+
+if (typeof window !== "undefined") {
+  persistLanguageChoice(initialLanguage);
+}
+
 export { clearGoogleTranslateCookie, syncGoogleTranslatePolicy };
 
 i18n
@@ -32,7 +47,7 @@ i18n
       nl: { translation: nlCommon },
       en: { translation: enCommon },
     },
-    // Missing EN keys fall back to English copy, not Dutch.
+    // Do NOT hardcode lng here — it overrides localStorage and blocks language switching.
     fallbackLng: FALLBACK_LANGUAGE,
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
     nonExplicitSupportedLngs: true,
@@ -41,12 +56,17 @@ i18n
       escapeValue: false,
     },
     detection: {
-      order: ["localStorage", "navigator", "htmlTag"],
+      order: ["localStorage", "htmlTag"],
       caches: ["localStorage"],
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
     },
     returnNull: false,
   });
+
+// Ensure i18n matches stored/url language after init.
+if (i18n.language?.split("-")[0] !== initialLanguage) {
+  void i18n.changeLanguage(initialLanguage);
+}
 
 const syncHtmlLang = (lng: string) => {
   if (typeof document !== "undefined") {
@@ -54,9 +74,10 @@ const syncHtmlLang = (lng: string) => {
   }
 };
 
-syncHtmlLang(i18n.language || DEFAULT_LANGUAGE);
+syncHtmlLang(i18n.language || initialLanguage);
 i18n.on("languageChanged", (lng) => {
   syncHtmlLang(lng);
+  persistLanguageChoice(lng.split("-")[0] as SupportedLanguage);
   enableAppControlledTranslation();
 });
 

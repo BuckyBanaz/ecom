@@ -1,11 +1,17 @@
 import { ENDPOINTS, getBaseUrl, API_PREFIX } from "../utils/endpoints";
-import { cacheKey, getCached, isCacheStale, setCache, clearApiCache } from "../lib/apiCache";
+import { cacheKey, getCached, isCacheStale, setCache, clearApiCache, clearCmsHtmlApiCache } from "../lib/apiCache";
 import { normalizeApiProduct } from "../utils/formatters";
-import { translateJsonObject } from "../utils/translator";
+import { shouldMachineTranslateApiUrl, translateJsonObject } from "../utils/translator";
 
 type RequestOptions = RequestInit & { cacheTtl?: number };
 
 const inflight = new Map<string, Promise<unknown>>();
+
+async function maybeTranslateApiData<T>(url: string, data: T): Promise<T> {
+  if (!shouldMachineTranslateApiUrl(url)) return data;
+  const currentLang = localStorage.getItem("i18nextLng") || "nl";
+  return translateJsonObject(data, currentLang);
+}
 
 async function fetchAndParse<T>(url: string, config: RequestInit): Promise<T> {
   const isAdminPanel = window.location.pathname.startsWith("/admin");
@@ -53,8 +59,7 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
           fetchAndParse<T>(url, fetchConfig)
             .then(async (fresh) => {
               try {
-                const currentLang = localStorage.getItem("i18nextLng") || "nl";
-                const translated = await translateJsonObject(fresh, currentLang);
+                const translated = await maybeTranslateApiData(url, fresh);
                 setCache(key, translated, cacheTtl);
                 return translated;
               } catch (err) {
@@ -74,8 +79,7 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
   if (method === "GET" && cacheTtl && !isAdminPanel) {
     return promise.then(async (data) => {
       try {
-        const currentLang = localStorage.getItem("i18nextLng") || "nl";
-        const translated = await translateJsonObject(data, currentLang);
+        const translated = await maybeTranslateApiData(url, data);
         setCache(key, translated, cacheTtl);
         return translated;
       } catch (err) {
@@ -92,8 +96,7 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
     }
     if (!isAdminPanel && method === "GET") {
       try {
-        const currentLang = localStorage.getItem("i18nextLng") || "nl";
-        return await translateJsonObject(data, currentLang);
+        return await maybeTranslateApiData(url, data);
       } catch (err) {
         console.error("Translation fail in direct get:", err);
         return data;

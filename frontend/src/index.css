@@ -276,14 +276,16 @@ All colors MUST be HSL.
   padding: 0.5rem;
 }
 
+.cms-html-root .cms-auto-grid,
 .cms-rich-html .cms-auto-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
   gap: 2rem;
   align-items: center;
   margin: 1.5rem 0;
 }
 
+.cms-html-root .cms-auto-grid-media img,
 .cms-rich-html .cms-auto-grid-media img {
   width: 100%;
   max-width: 100%;

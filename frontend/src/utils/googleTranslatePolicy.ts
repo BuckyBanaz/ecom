@@ -12,6 +12,18 @@ const HTML_BROWSER_GT_CLASS = "browser-translate-active";
 let blockUiObserver: MutationObserver | null = null;
 let policyPollTimer: ReturnType<typeof setInterval> | null = null;
 
+function repairAllCmsHtmlTranslateDamage() {
+  if (typeof document === "undefined") return;
+  document.querySelectorAll(".cms-html-root").forEach((root) => {
+    root.querySelectorAll("font").forEach((font) => {
+      const parent = font.parentNode;
+      if (!parent) return;
+      while (font.firstChild) parent.insertBefore(font.firstChild, font);
+      font.remove();
+    });
+  });
+}
+
 export function getGoogleTranslateTarget(): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(/(?:^|;\s*)googtrans=([^;]*)/);
@@ -82,7 +94,10 @@ function startBlockingBrowserTranslateUi() {
   if (blockUiObserver || typeof MutationObserver === "undefined") return;
 
   blockUiObserver = new MutationObserver(() => {
-    if (isAppControlledTranslation()) hideBrowserTranslateBanner();
+    if (isAppControlledTranslation()) {
+      hideBrowserTranslateBanner();
+      repairAllCmsHtmlTranslateDamage();
+    }
   });
 
   const target = document.body || document.documentElement;
@@ -105,6 +120,7 @@ export function enableAppControlledTranslation() {
 
   ensureNotranslateMeta();
   removeInjectedTranslateArtifacts();
+  repairAllCmsHtmlTranslateDamage();
   startBlockingBrowserTranslateUi();
 }
 

@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { resolveImgUrl } from "@/utils/image";
 import {
   getCmsHtmlWrapperClass,
   hashString,
   normalizeCmsHtmlForStorage,
   parseCmsHtml,
+  repairCmsHtmlTranslateDamage,
 } from "@/utils/cmsHtml";
 
 type CmsHtmlContentProps = {
@@ -12,11 +13,12 @@ type CmsHtmlContentProps = {
   className?: string;
 };
 
-/** Renders CMS HTML on the storefront — supports custom CSS/layout from RichTextEditor source mode. */
+/** Renders CMS HTML — layout must NOT depend on UI language (EN/NL). */
 export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
   const prepared = useMemo(() => {
     const parsed = parseCmsHtml(normalizeCmsHtmlForStorage(html));
-    // Resolve upload paths for images/links in fragment
     const doc = new DOMParser().parseFromString(parsed.html, "text/html");
     doc.querySelectorAll("img[src^='/uploads/']").forEach((img) => {
       img.setAttribute("src", resolveImgUrl(img.getAttribute("src")!));
@@ -27,34 +29,47 @@ export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
     return {
       html: doc.body.innerHTML,
       styles: parsed.styles,
+      styleKey: hashString(parsed.styles.join("\n")),
       wrapperClass: getCmsHtmlWrapperClass(html),
     };
   }, [html]);
 
-  useEffect(() => {
-    if (!prepared.styles.length) return;
+  // Inject styles + HTML atomically (same as editor source mode). Never tied to i18n.language.
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
 
-    const styleId = `cms-page-style-${hashString(prepared.styles.join("\n"))}`;
-    let el = document.getElementById(styleId) as HTMLStyleElement | null;
-    if (!el) {
-      el = document.createElement("style");
-      el.id = styleId;
-      el.dataset.cmsInjected = "true";
-      document.head.appendChild(el);
-    }
-    el.textContent = prepared.styles.join("\n");
+    const styleBlock =
+      prepared.styles.length > 0
+        ? `<style data-cms-page-styles="${prepared.styleKey}">${prepared.styles.join("\n")}</style>`
+        : "";
 
-    return () => {
-      document.getElementById(styleId)?.remove();
-    };
-  }, [prepared.styles]);
+    el.innerHTML = styleBlock + prepared.html;
+    repairCmsHtmlTranslateDamage(el);
+  }, [prepared.html, prepared.styles, prepared.styleKey]);
 
-  if (!prepared.html) return null;
+  // Undo Chrome Google Translate DOM rewrites that break custom grid/flex layouts.
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+
+    const repair = () => repairCmsHtmlTranslateDamage(el);
+    repair();
+
+    const observer = new MutationObserver(repair);
+    observer.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [prepared.html, prepared.styleKey]);
+
+  if (!prepared.html && !prepared.styles.length) return null;
 
   return (
     <div
-      className={[prepared.wrapperClass, className].filter(Boolean).join(" ")}
-      dangerouslySetInnerHTML={{ __html: prepared.html }}
+      ref={rootRef}
+      className={[prepared.wrapperClass, "notranslate cms-html-root", className]
+        .filter(Boolean)
+        .join(" ")}
+      translate="no"
     />
   );
 }

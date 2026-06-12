@@ -34,10 +34,25 @@ export function getCmsHtmlWrapperClass(_html?: string): string {
   return "cms-rich-html container-page min-w-0 overflow-x-hidden break-words";
 }
 
+/** True when author supplied their own layout/CSS — skip auto-normalization. */
+export function hasCustomCmsLayout(html: string): boolean {
+  if (!html?.trim()) return false;
+  const lower = html.toLowerCase();
+  return (
+    /<style[\s>]/i.test(html) ||
+    lower.includes("grid-template") ||
+    lower.includes("display:grid") ||
+    lower.includes("display: grid") ||
+    lower.includes("cms-auto-grid") ||
+    lower.includes("cms-hero-grid")
+  );
+}
+
 /** Normalize editor HTML so side-by-side text+image layouts survive on the live page. */
 export function normalizeCmsHtmlForStorage(html: string): string {
   const cleaned = stripRichTextEditorArtifacts(html);
   if (!cleaned) return "";
+  if (hasCustomCmsLayout(cleaned)) return cleaned;
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(cleaned, "text/html");
@@ -59,6 +74,7 @@ export function normalizeCmsHtmlForStorage(html: string): string {
   });
 
   wrapTextImageHeroGrid(doc);
+  wrapDivHeroGrid(doc);
 
   return doc.body.innerHTML.trim();
 }
@@ -171,6 +187,46 @@ function findHeroImageSlot(children: Element[]): HeroImageSlot | null {
   return null;
 }
 
+/** Single wrapper div with text + image columns (common custom HTML without inline grid). */
+function wrapDivHeroGrid(doc: Document): void {
+  if (doc.body.querySelector(".cms-auto-grid")) return;
+
+  const topDiv =
+    doc.body.children.length === 1 && doc.body.firstElementChild?.tagName === "DIV"
+      ? (doc.body.firstElementChild as HTMLElement)
+      : null;
+  if (!topDiv || topDiv.classList.contains("cms-auto-grid")) return;
+
+  const style = (topDiv.getAttribute("style") || "").toLowerCase();
+  if (/grid-template|display:\s*grid/.test(style)) return;
+
+  const imgs = Array.from(topDiv.querySelectorAll("img")).filter(isHeroImage);
+  if (imgs.length !== 1) return;
+  const img = imgs[0] as HTMLImageElement;
+
+  const textOnly = (topDiv.textContent || "").replace(img.alt || "", "").trim();
+  if (textOnly.length < 24) return;
+
+  const textCol = doc.createElement("div");
+  textCol.className = "cms-auto-grid-text";
+  const imgCol = doc.createElement("div");
+  imgCol.className = "cms-auto-grid-media";
+
+  Array.from(topDiv.childNodes).forEach((node) => {
+    if (node === img) return;
+    if (node instanceof Element && node.contains(img)) return;
+    if (node.nodeType === Node.TEXT_NODE && !node.textContent?.trim()) return;
+    textCol.appendChild(node);
+  });
+
+  imgCol.appendChild(img);
+  topDiv.classList.add("cms-auto-grid");
+  topDiv.append(textCol, imgCol);
+
+  img.style.cssText =
+    "width:100%;max-width:100%;height:auto;display:block;float:none;margin:0;object-fit:cover;border-radius:0.75rem;";
+}
+
 export type ParsedCmsHtml = {
   html: string;
   styles: string[];
@@ -202,4 +258,23 @@ export function hashString(input: string): string {
     h = (Math.imul(31, h) + input.charCodeAt(i)) | 0;
   }
   return Math.abs(h).toString(36);
+}
+
+/** Chrome GT wraps text in <font> tags and breaks custom CSS grid/flex layouts. */
+export function repairCmsHtmlTranslateDamage(root: ParentNode): void {
+  root.querySelectorAll("font").forEach((font) => {
+    const parent = font.parentNode;
+    if (!parent) return;
+    while (font.firstChild) parent.insertBefore(font.firstChild, font);
+    font.remove();
+  });
+
+  root.querySelectorAll(".cms-auto-grid, [style*='grid-template'], [style*='display: grid'], [style*='display:grid']").forEach((el) => {
+    if (el instanceof HTMLElement) {
+      const style = el.getAttribute("style") || "";
+      if (/grid-template|display:\s*grid/i.test(style)) {
+        el.style.display = "grid";
+      }
+    }
+  });
 }

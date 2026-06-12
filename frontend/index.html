@@ -44,6 +44,11 @@
       background: none !important;
       box-shadow: none !important;
     }
+    /* Protect CMS custom HTML layouts from Chrome translate DOM rewrites */
+    html.app-i18n-controlled .cms-html-root,
+    html.app-i18n-controlled .cms-html-root * {
+      translate: no;
+    }
   </style>
 </head>
 

@@ -1,8 +1,20 @@
 import { lookupStaticPhrase } from "./cmsPhrases";
 
-const cache: Record<string, string> = {};
+/** CMS endpoints store rich HTML — never Google-translate the response. */
+export function shouldMachineTranslateApiUrl(url: string): boolean {
+  const path = url.split("?")[0].toLowerCase();
+  if (path.includes("/cms/pages")) return true;
+  if (path.includes("/cms/homepage")) return false;
+  if (path.includes("/cms/relief")) return false;
+  if (path.includes("/cms/header-footer")) return false;
+  if (path.includes("/cms/features")) return false;
+  if (path.includes("/cms/faqs")) return false;
+  if (path.includes("/cms/legal")) return false;
+  // /api/v1/cms/business — dynamic page slug
+  if (/\/cms\/[^/]+$/.test(path)) return false;
+  return true;
+}
 
-// Translatable attribute keys in shortcodes
 const TRANSLATABLE_ATTRS = new Set([
   "title",
   "subtitle",
@@ -18,6 +30,11 @@ const TRANSLATABLE_ATTRS = new Set([
   "title_4",
   "desc_4",
 ]);
+
+/** Rich CMS HTML — never run through Google Translate (breaks grid/CSS/layout). */
+const PRESERVE_STORED_HTML_KEYS = new Set(["body", "content"]);
+
+const cache: Record<string, string> = {};
 
 /**
  * Translates a single text string using Google Translate free API.
@@ -141,6 +158,10 @@ export async function translateJsonObject(obj: any, targetLang: string): Promise
       const val = newObj[key];
       
       if (!val) continue;
+
+      if (PRESERVE_STORED_HTML_KEYS.has(key) && typeof val === "string") {
+        continue;
+      }
 
       // 1. If key is 'specs' (specifications sheet)
       if (key === "specs") {

@@ -82,10 +82,22 @@ export function clearApiCache(prefix?: string) {
     .forEach((k) => localStorage.removeItem(k));
 }
 
+/** Clear cached CMS page/homepage API responses (may contain corrupted translated HTML). */
+export function clearCmsHtmlApiCache() {
+  for (const key of MEMORY.keys()) {
+    if (key.includes("/cms/")) MEMORY.delete(key);
+  }
+  if (typeof localStorage === "undefined") return;
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith(LS_PREFIX) && k.includes("/cms/"))
+    .forEach((k) => localStorage.removeItem(k));
+}
+
 /** Runtime phrase cache only — CMS structure (header/menu/homepage) is language-neutral. */
 export function clearCmsLocalCache() {
   if (typeof localStorage === "undefined") return;
   Object.keys(localStorage)
     .filter((k) => k.startsWith("tr:"))
     .forEach((k) => localStorage.removeItem(k));
+  clearCmsHtmlApiCache();
 }

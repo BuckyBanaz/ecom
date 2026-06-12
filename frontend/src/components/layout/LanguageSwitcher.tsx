@@ -14,12 +14,16 @@ import { cn } from "@/lib/utils";
 import {
   clearGoogleTranslateCookie,
   DEFAULT_LANGUAGE,
-  LANGUAGE_STORAGE_KEY,
   SUPPORTED_LANGUAGES,
+  syncGoogleTranslatePolicy,
   type SupportedLanguage,
 } from "@/i18n";
 import { clearCmsLocalCache } from "@/lib/apiCache";
-import { saveScrollForLanguageReload } from "@/utils/languageSwitch";
+import {
+  buildLanguageSwitchUrl,
+  persistLanguageChoice,
+  saveScrollForLanguageReload,
+} from "@/utils/languageSwitch";
 
 interface LanguageSwitcherProps {
   /** Compact mode: icon-only trigger (for header). */
@@ -62,12 +66,12 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
     setOpen(false);
     clearGoogleTranslateCookie();
     clearCmsLocalCache();
-    localStorage.setItem("i18nextLng", code);
-    localStorage.setItem(LANGUAGE_STORAGE_KEY, code);
+    document.documentElement.classList.remove("translated-ltr", "translated-rtl");
+    document.body?.classList.remove("translated-ltr", "translated-rtl");
+    persistLanguageChoice(code);
+    syncGoogleTranslatePolicy();
     saveScrollForLanguageReload();
-    window.location.replace(
-      window.location.pathname + window.location.search + window.location.hash,
-    );
+    window.location.assign(buildLanguageSwitchUrl(code));
   };
 
   const active =
