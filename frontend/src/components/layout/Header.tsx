@@ -379,13 +379,6 @@ export function Header() {
               )}
             </div>
           ))}
-          <Link
-            to="/deals"
-            className="rounded-full px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/10 ml-auto"
-            onMouseEnter={() => setActiveMenu(null)}
-          >
-            {labelT(t, "Deals", i18n.language)}
-          </Link>
         </div>
       </nav>
     </header>
