@@ -204,32 +204,20 @@ export function Header() {
                 const isExpanded = expandedMobileMenu === menuObj.slug;
                 return (
                   <div key={menuObj.slug} className="border-b py-1">
-                    <div className="flex items-center gap-1 px-2">
-                      <Link
-                        to={`/relief/${menuObj.slug}`}
-                        onClick={() => {
-                          setIsMobileMenuOpen(false);
-                          setExpandedMobileMenu(null);
-                        }}
-                        className="flex-1 py-2 font-semibold hover:text-primary"
-                      >
-                        {labelT(t, menuObj.menu, i18n.language)}
-                      </Link>
-                      <button
-                        type="button"
-                        aria-expanded={isExpanded}
-                        aria-label={t("header.menu")}
-                        onClick={() =>
-                          setExpandedMobileMenu(isExpanded ? null : menuObj.slug)
-                        }
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full hover:bg-muted"
-                      >
-                        <ChevronDown
-                          size={16}
-                          className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                        />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      onClick={() =>
+                        setExpandedMobileMenu(isExpanded ? null : menuObj.slug)
+                      }
+                      className="flex w-full items-center justify-between px-2 py-2 text-left font-semibold hover:text-primary"
+                    >
+                      <span>{labelT(t, menuObj.menu, i18n.language)}</span>
+                      <ChevronDown
+                        size={16}
+                        className={`shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                      />
+                    </button>
                     {isExpanded ? (
                       <ul className="pl-4 pb-2">
                         {menuObj.sections.map((section) => (

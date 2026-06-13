@@ -474,9 +474,34 @@ const Category = () => {
     return list;
   }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes]);
 
+  const getDealsTitle = () => {
+    const priceMax = searchParams.get("price-max");
+    const clearance = searchParams.get("clearance");
+    const bundle = searchParams.get("bundle");
+    const bestseller = searchParams.get("bestseller");
+    const limited = searchParams.get("limited");
+    const isNew = searchParams.get("new");
+    const categoryFilter = searchParams.get("category");
+
+    if (priceMax === "25") return t("category.deals_options.under_25", { defaultValue: "Under €25" });
+    if (priceMax === "50") return t("category.deals_options.under_50", { defaultValue: "Under €50" });
+    if (clearance === "Clearance") return t("category.deals_options.clearance", { defaultValue: "Clearance" });
+    if (bundle === "Bundle") return t("category.deals_options.bundle", { defaultValue: "Bundle Offers" });
+    if (bestseller === "Yes") return t("category.deals_options.bestseller", { defaultValue: "Bestsellers on Sale" });
+    if (limited === "Yes") return t("category.deals_options.limited", { defaultValue: "Limited Time Offers" });
+    if (isNew === "Yes") return t("category.deals_options.new", { defaultValue: "New Deals" });
+
+    if (categoryFilter) {
+      const catObj = categoriesList.find((c) => c.slug === categoryFilter) || categories.find((c) => c.slug === categoryFilter);
+      if (catObj) return t("category.deals_options.category_deals", { name: catObj.name, defaultValue: `${catObj.name} Deals` });
+    }
+
+    return t("category.deals", { defaultValue: "Deals" });
+  };
+
   const title = landingPage?.title || (
     slug === "deals" 
-      ? t("category.spring_deals") 
+      ? getDealsTitle()
       : slug === "bestsellers" 
         ? t("category.bestsellers", { defaultValue: "Bestsellers" }) 
         : slug === "interior-lighting"
