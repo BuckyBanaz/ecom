@@ -10,8 +10,8 @@ const newMegaMenus = [
       {
         title: "Categories",
         items: [
-          { name: "All Lamps", slug: "interior-lighting" },
-          { name: "Pendant Lights", slug: "pendant-lights" },
+          { name: "All Lamps", slug: "all-lamps" },
+          { name: "Pendant Lights", slug: "pendant-light" },
           { name: "Wall Lights", slug: "wall-lights" },
           { name: "Floor Lamps", slug: "floor-lamps" },
           { name: "Table Lamps", slug: "table-lamps" },
@@ -22,58 +22,58 @@ const newMegaMenus = [
       {
         title: "Rooms",
         items: [
-          { name: "Living Room", slug: "interior-lighting?room=Living Room" },
-          { name: "Bedroom", slug: "interior-lighting?room=Bedroom" },
-          { name: "Kitchen", slug: "interior-lighting?room=Kitchen" },
-          { name: "Bathroom", slug: "interior-lighting?room=Bathroom" },
-          { name: "Dining Room", slug: "interior-lighting?room=Dining Room" },
-          { name: "Hallway", slug: "interior-lighting?room=Hallway" },
+          { name: "Living Room", slug: "all-lamps?room=Living Room" },
+          { name: "Bedroom", slug: "all-lamps?room=Bedroom" },
+          { name: "Kitchen", slug: "all-lamps?room=Kitchen" },
+          { name: "Bathroom", slug: "all-lamps?room=Bathroom" },
+          { name: "Dining Room", slug: "all-lamps?room=Dining Room" },
+          { name: "Hallway", slug: "all-lamps?room=Hallway" },
         ]
       },
       {
         title: "Styles",
         items: [
-          { name: "Modern", slug: "interior-lighting?style=Modern" },
-          { name: "Industrial", slug: "interior-lighting?style=Industrial" },
-          { name: "Classic", slug: "interior-lighting?style=Classic" },
-          { name: "Vintage", slug: "interior-lighting?style=Vintage" },
-          { name: "Scandinavian", slug: "interior-lighting?style=Scandinavian" },
-          { name: "Minimal", slug: "interior-lighting?style=Minimal" },
+          { name: "Modern", slug: "all-lamps?style=Modern" },
+          { name: "Industrial", slug: "all-lamps?style=Industrial" },
+          { name: "Classic", slug: "all-lamps?style=Classic" },
+          { name: "Vintage", slug: "all-lamps?style=Vintage" },
+          { name: "Scandinavian", slug: "all-lamps?style=Scandinavian" },
+          { name: "Minimal", slug: "all-lamps?style=Minimal" },
         ]
       }
     ]
   },
   {
     menu: "Pendant Lights",
-    slug: "pendant-lights",
+    slug: "pendant-light",
     sections: [
       {
         title: "By Room",
         items: [
-          { name: "Dining Room", slug: "pendant-lights?room=Dining Room" },
-          { name: "Kitchen Island", slug: "pendant-lights?room=Kitchen" },
-          { name: "Living Room", slug: "pendant-lights?room=Living Room" },
-          { name: "Bedroom", slug: "pendant-lights?room=Bedroom" },
-          { name: "Hallway", slug: "pendant-lights?room=Hallway" }
+          { name: "Dining Room", slug: "pendant-light?room=Dining Room" },
+          { name: "Kitchen Island", slug: "pendant-light?room=Kitchen" },
+          { name: "Living Room", slug: "pendant-light?room=Living Room" },
+          { name: "Bedroom", slug: "pendant-light?room=Bedroom" },
+          { name: "Hallway", slug: "pendant-light?room=Hallway" }
         ]
       },
       {
         title: "By Style",
         items: [
-          { name: "Modern", slug: "pendant-lights?style=Modern" },
-          { name: "Minimal", slug: "pendant-lights?style=Minimal" },
-          { name: "Industrial", slug: "pendant-lights?style=Industrial" },
-          { name: "Classic", slug: "pendant-lights?style=Classic" }
+          { name: "Modern", slug: "pendant-light?style=Modern" },
+          { name: "Minimal", slug: "pendant-light?style=Minimal" },
+          { name: "Industrial", slug: "pendant-light?style=Industrial" },
+          { name: "Classic", slug: "pendant-light?style=Classic" }
         ]
       },
       {
         title: "Popular",
         items: [
-          { name: "Glass Pendants", slug: "pendant-lights?material=Glass" },
-          { name: "Cluster Pendants", slug: "pendant-lights?style=Cluster" },
-          { name: "Black Pendants", slug: "pendant-lights?color=Black" },
-          { name: "Brass Pendants", slug: "pendant-lights?color=Brass" },
-          { name: "Dimmable Pendants", slug: "pendant-lights?dimmable=Yes" }
+          { name: "Glass Pendants", slug: "pendant-light?material=Glass" },
+          { name: "Cluster Pendants", slug: "pendant-light?style=Cluster" },
+          { name: "Black Pendants", slug: "pendant-light?color=Black" },
+          { name: "Brass Pendants", slug: "pendant-light?color=Brass" },
+          { name: "Dimmable Pendants", slug: "pendant-light?dimmable=Yes" }
         ]
       }
     ]
@@ -253,7 +253,7 @@ const newMegaMenus = [
       {
         title: "Shop Deals",
         items: [
-          { name: "Pendant Deals", slug: "deals?category=pendant-lights" },
+          { name: "Pendant Deals", slug: "deals?category=pendant-light" },
           { name: "Wall Light Deals", slug: "deals?category=wall-lights" },
           { name: "Floor Lamp Deals", slug: "deals?category=floor-lamps" },
           { name: "Table Lamp Deals", slug: "deals?category=table-lamps" },
