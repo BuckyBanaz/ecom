@@ -219,7 +219,10 @@ const Category = () => {
   // Sync filters from search queries
   useEffect(() => {
     const filters: Record<string, string[]> = {};
-    const metadataKeys = ["search", "page", "sort"];
+    const metadataKeys = [
+      "search", "page", "sort", "price-min", "price-max", 
+      "bestseller", "new", "limited", "clearance", "bundle"
+    ];
     let brandVal: string[] = [];
 
     searchParams.forEach((value, key) => {
@@ -233,6 +236,11 @@ const Category = () => {
 
     setSelectedFilters(filters);
     setSelectedBrands(brandVal);
+
+    // Handle price query parameters
+    const minPrice = searchParams.get("price-min") ? Number(searchParams.get("price-min")) : 0;
+    const maxPrice = searchParams.get("price-max") ? Number(searchParams.get("price-max")) : 400;
+    setPrice([minPrice, maxPrice]);
   }, [searchParams]);
 
   // Determine dynamic visible filters for this Category based on category attributes and product attributes presence
@@ -411,6 +419,17 @@ const Category = () => {
 
     // 1. Price slider
     list = list.filter((p) => p.price >= price[0] && p.price <= price[1]);
+
+    // 1.2 Custom Query Parameters filtration
+    if (searchParams.get("bestseller") === "Yes") {
+      list = list.filter((p) => p.isBestSelling);
+    }
+    if (searchParams.get("new") === "Yes") {
+      list = list.filter((p) => p.isNewArrival);
+    }
+    if (searchParams.get("limited") === "Yes" || searchParams.get("clearance") === "Clearance") {
+      list = list.filter((p) => p.oldPrice != null);
+    }
 
     // 1.5 Text Search
     const sq = searchParams.get("search")?.toLowerCase();
