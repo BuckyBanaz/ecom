@@ -5,16 +5,37 @@ import { AppError } from "../middlewares/errorMiddleware";
  * using the Google Analytics Data API v1.
  */
 export const getGA4Data = async () => {
-  const propertyId = process.env.GA4_PROPERTY_ID;
-  const clientEmail = process.env.GA4_CLIENT_EMAIL;
-  let privateKey = process.env.GA4_PRIVATE_KEY;
+  const propertyId = process.env.GA4_PROPERTY_ID?.trim();
+  const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
+  let privateKey = process.env.GA4_PRIVATE_KEY?.trim() || "";
 
   if (!propertyId || !clientEmail || !privateKey) {
     return null; // Return null if keys are not configured
   }
 
-  // Handle newlines in the private key environment variable
-  privateKey = privateKey.replace(/\\n/g, "\n");
+  // 1. Remove wrapping quotes
+  privateKey = privateKey.replace(/^["']|["']$/g, "");
+  
+  // 2. Reconstruct the PEM format completely
+  const beginMarker = "-----BEGIN PRIVATE KEY-----";
+  const endMarker = "-----END PRIVATE KEY-----";
+
+  if (privateKey.includes(beginMarker) && privateKey.includes(endMarker)) {
+    // Extract base64 payload
+    let base64 = privateKey.substring(
+      privateKey.indexOf(beginMarker) + beginMarker.length,
+      privateKey.indexOf(endMarker)
+    );
+    // Remove all whitespace, actual newlines, and literal '\n' sequences
+    base64 = base64.replace(/\s/g, "").replace(/\\n/g, "").replace(/\\/g, "");
+    
+    // Split into 64-char chunks
+    const chunks = base64.match(/.{1,64}/g) || [];
+    privateKey = `${beginMarker}\n${chunks.join("\n")}\n${endMarker}\n`;
+  } else {
+    // Fallback if missing markers
+    privateKey = privateKey.replace(/\\+n/g, "\n").trim();
+  }
 
   try {
     // Dynamically require to prevent server crash if module is not installed yet

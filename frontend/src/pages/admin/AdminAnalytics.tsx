@@ -140,10 +140,10 @@ const AdminAnalytics = () => {
     }
   };
 
-  const activeGaData = isConnected ? ga4DataLive.traffic : gaData;
-  const activeSourceData = isConnected && ga4DataLive.sources?.length > 0 ? ga4DataLive.sources : sourceData;
-  const activeDeviceData = isConnected && ga4DataLive.devices?.length > 0 ? ga4DataLive.devices : deviceData;
-  const activeTopPages = isConnected && ga4DataLive.topPages?.length > 0 ? ga4DataLive.topPages : topPages;
+  const activeGaData = isConnected ? (ga4DataLive.traffic || []) : gaData;
+  const activeSourceData = isConnected ? (ga4DataLive.sources || []) : sourceData;
+  const activeDeviceData = isConnected ? (ga4DataLive.devices || []) : deviceData;
+  const activeTopPages = isConnected ? (ga4DataLive.topPages || []) : topPages;
   const isDummy = !isConnected;
 
   return (
@@ -248,18 +248,25 @@ const AdminAnalytics = () => {
           <CardDescription>Daily Page Views vs Unique Visitors over the last 7 days.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={activeGaData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="pageViews" name="Page Views" stroke="#6366f1" strokeWidth={2} activeDot={{ r: 8 }} />
-                <Line type="monotone" dataKey="visitors" name="Unique Visitors" stroke="#10b981" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="h-[350px] w-full flex items-center justify-center">
+            {activeGaData && activeGaData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={activeGaData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="pageViews" name="Page Views" stroke="#6366f1" strokeWidth={2} activeDot={{ r: 8 }} />
+                  <Line type="monotone" dataKey="visitors" name="Unique Visitors" stroke="#10b981" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center space-y-2">
+                <p className="text-sm text-muted-foreground">No traffic data recorded in the last 7 days.</p>
+                <p className="text-xs text-muted-foreground/80">Make sure your GA4 tracking tag is installed on your public website.</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -277,26 +284,30 @@ const AdminAnalytics = () => {
             <CardDescription>Where your visitors are coming from.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={activeSourceData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {activeSourceData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend verticalAlign="bottom" height={36}/>
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="h-[250px] w-full flex items-center justify-center">
+              {activeSourceData && activeSourceData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={activeSourceData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {activeSourceData.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend verticalAlign="bottom" height={36}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-muted-foreground">No traffic sources recorded yet.</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -311,25 +322,29 @@ const AdminAnalytics = () => {
             <CardDescription>Desktop vs Mobile user sessions.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={activeDeviceData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {activeDeviceData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${value}%`} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="h-[250px] w-full flex items-center justify-center">
+              {activeDeviceData && activeDeviceData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={activeDeviceData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {activeDeviceData.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `${value}%`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-muted-foreground">No device data recorded yet.</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -350,13 +365,19 @@ const AdminAnalytics = () => {
                 <div className="col-span-3 text-right">Views</div>
                 <div className="col-span-3 text-right">Bounce</div>
               </div>
-              {activeTopPages.map((page: any, i: number) => (
-                <div key={i} className="grid grid-cols-12 text-sm items-center py-2 border-b last:border-0 hover:bg-slate-50 transition-colors">
-                  <div className="col-span-6 font-medium truncate pr-2 text-primary">{page.path}</div>
-                  <div className="col-span-3 text-right font-semibold">{page.views}</div>
-                  <div className="col-span-3 text-right text-muted-foreground">{page.bounceRate}</div>
+              {activeTopPages && activeTopPages.length > 0 ? (
+                activeTopPages.map((page: any, i: number) => (
+                  <div key={i} className="grid grid-cols-12 text-sm items-center py-2 border-b last:border-0 hover:bg-slate-50 transition-colors">
+                    <div className="col-span-6 font-medium truncate pr-2 text-primary">{page.path}</div>
+                    <div className="col-span-3 text-right font-semibold">{page.views}</div>
+                    <div className="col-span-3 text-right text-muted-foreground">{page.bounceRate}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  No page views recorded yet.
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>

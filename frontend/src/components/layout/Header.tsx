@@ -193,7 +193,28 @@ export function Header() {
             </div>
             <nav className="p-2">
               {menuList.map((menuObj) => (
-                <details key={menuObj.menu} className="border-b py-2">
+                <details 
+                  key={menuObj.menu} 
+                  className="border-b py-2 group"
+                  onMouseEnter={(e) => {
+                    if (window.matchMedia('(hover: hover)').matches) {
+                      e.currentTarget.open = true;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (window.matchMedia('(hover: hover)').matches) {
+                      e.currentTarget.open = false;
+                    }
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.open = true;
+                  }}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      e.currentTarget.open = false;
+                    }
+                  }}
+                >
                   <summary className="cursor-pointer px-2 py-2 font-semibold flex items-center justify-between">
                     {labelT(t, menuObj.menu, i18n.language)}
                   </summary>
