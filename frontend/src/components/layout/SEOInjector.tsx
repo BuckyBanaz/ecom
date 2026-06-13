@@ -39,6 +39,33 @@ export const SEOInjector = () => {
             metaDesc.setAttribute("content", defaultDescription);
           }
 
+          // Update Site Name and Google Structured Data dynamically
+          if (siteName) {
+            // Update og:site_name meta tag
+            let ogSiteName = document.querySelector('meta[property="og:site_name"]');
+            if (!ogSiteName) {
+              ogSiteName = document.createElement("meta");
+              ogSiteName.setAttribute("property", "og:site_name");
+              document.head.appendChild(ogSiteName);
+            }
+            ogSiteName.setAttribute("content", siteName);
+
+            // Update JSON-LD WebSite Structured Data
+            let schemaScript = document.getElementById("website-schema");
+            if (!schemaScript) {
+              schemaScript = document.createElement("script");
+              schemaScript.id = "website-schema";
+              schemaScript.setAttribute("type", "application/ld+json");
+              document.head.appendChild(schemaScript);
+            }
+            schemaScript.innerHTML = JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": siteName,
+              "url": window.location.origin
+            });
+          }
+
           // Inject GA4
           if (ga4 && !document.getElementById(`ga4-script`)) {
             const script1 = document.createElement("script");

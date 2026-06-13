@@ -30,6 +30,10 @@ fi
 COMMIT="$(git rev-parse --short HEAD)"
 echo "==> Deploying commit: ${COMMIT}"
 
+# Stop Jenkins before heavy docker builds — otherwise frontend/backend builds OOM-kill it on small VPSes.
+echo "==> Stopping Jenkins during build (frees RAM — restarted after deploy)..."
+docker compose -f "${COMPOSE_FILE}" stop jenkins 2>/dev/null || true
+
 echo "==> Building images: ${SERVICES}"
 BUILD_ARGS=()
 if [[ "${DOCKER_NO_CACHE:-false}" == "true" ]]; then
