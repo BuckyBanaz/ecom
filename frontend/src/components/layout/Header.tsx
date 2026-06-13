@@ -17,6 +17,13 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { labelT } from "@/utils/i18nLabel";
 import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
 
+/** Mega menu slugs may include query filters, e.g. `all-lamps?room=Living Room`. */
+function categoryItemPath(slug: string): string {
+  const q = slug.indexOf("?");
+  if (q === -1) return `/category/${slug}`;
+  return `/category/${slug.slice(0, q)}${slug.slice(q)}`;
+}
+
 export function Header() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
@@ -30,6 +37,7 @@ export function Header() {
   const { count, setDrawerOpen } = useCart();
   const { ids } = useWishlist();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [expandedMobileMenu, setExpandedMobileMenu] = useState<string | null>(null);
 
   const { data: rawMegaMenu } = useCmsData("mega_menu_data", fetchMegaMenusCmsPayload);
   const { data: headerFooterData } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
@@ -192,54 +200,66 @@ export function Header() {
               <Logo />
             </div>
             <nav className="p-2">
-              {menuList.map((menuObj) => (
-                <details 
-                  key={menuObj.menu} 
-                  className="border-b py-2 group"
-                  onMouseEnter={(e) => {
-                    if (window.matchMedia('(hover: hover)').matches) {
-                      e.currentTarget.open = true;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (window.matchMedia('(hover: hover)').matches) {
-                      e.currentTarget.open = false;
-                    }
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.open = true;
-                  }}
-                  onBlur={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                      e.currentTarget.open = false;
-                    }
-                  }}
-                >
-                  <summary className="cursor-pointer px-2 py-2 font-semibold flex items-center justify-between">
-                    {labelT(t, menuObj.menu, i18n.language)}
-                  </summary>
-                  <ul className="pl-4 pb-2">
-                    {menuObj.sections.map((section) => (
-                      <li key={section.title} className="mt-2">
-                        <div className="font-medium text-sm mb-1 text-primary">{labelT(t, section.title, i18n.language)}</div>
-                        <ul className="space-y-1">
-                          {section.items.map((item) => (
-                            <li key={item.slug}>
-                              <Link
-                                to={`/category/${item.slug}`}
-                                onClick={() => setIsMobileMenuOpen(false)}
-                                className="block py-1 text-sm hover:text-primary"
-                              >
-                                {labelT(t, item.name, i18n.language)}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ))}
+              {menuList.map((menuObj) => {
+                const isExpanded = expandedMobileMenu === menuObj.slug;
+                return (
+                  <div key={menuObj.slug} className="border-b py-1">
+                    <div className="flex items-center gap-1 px-2">
+                      <Link
+                        to={`/relief/${menuObj.slug}`}
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setExpandedMobileMenu(null);
+                        }}
+                        className="flex-1 py-2 font-semibold hover:text-primary"
+                      >
+                        {labelT(t, menuObj.menu, i18n.language)}
+                      </Link>
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        aria-label={t("header.menu")}
+                        onClick={() =>
+                          setExpandedMobileMenu(isExpanded ? null : menuObj.slug)
+                        }
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full hover:bg-muted"
+                      >
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                    </div>
+                    {isExpanded ? (
+                      <ul className="pl-4 pb-2">
+                        {menuObj.sections.map((section) => (
+                          <li key={section.title} className="mt-2">
+                            <div className="mb-1 text-sm font-medium text-primary">
+                              {labelT(t, section.title, i18n.language)}
+                            </div>
+                            <ul className="space-y-1">
+                              {section.items.map((item) => (
+                                <li key={item.slug}>
+                                  <Link
+                                    to={categoryItemPath(item.slug)}
+                                    onClick={() => {
+                                      setIsMobileMenuOpen(false);
+                                      setExpandedMobileMenu(null);
+                                    }}
+                                    className="block py-1.5 text-sm hover:text-primary"
+                                  >
+                                    {labelT(t, item.name, i18n.language)}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                );
+              })}
             </nav>
           </SheetContent>
         </Sheet>
@@ -362,7 +382,7 @@ export function Header() {
                             {section.items.map((item) => (
                               <li key={item.slug}>
                                 <Link
-                                  to={`/category/${item.slug}`}
+                                  to={categoryItemPath(item.slug)}
                                   onClick={() => setActiveMenu(null)}
                                   className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors hover:underline underline-offset-4"
                                 >
