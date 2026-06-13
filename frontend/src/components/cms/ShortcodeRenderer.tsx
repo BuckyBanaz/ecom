@@ -265,33 +265,12 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             const firstSection = menuObj.sections[0];
             const subCategories = firstSection ? firstSection.items : [];
 
-            const resolveCategorySlug = (menuItemSlug: string) => {
-              const mappings: Record<string, string> = {
-                "pendant-lights": "pendant-lamps",
-                "ceiling-lights": "ceiling-lamps",
-                "wall-lights": "wall-lamps",
-                "outdoor-lamps": "outdoor-lamps",
-                "outdoor-wall-lights": "outdoor-lamps",
-                "standing-lights": "outdoor-lamps",
-                "solar-lights": "outdoor-lamps",
-                "sensor-lights": "outdoor-lamps",
-                "spotlights": "outdoor-lamps",
-                "led-bulbs": "led-bulbs",
-                "smart-bulbs": "smart-bulbs",
-                "filament-bulbs": "led-bulbs",
-                "e27": "led-bulbs",
-                "e14": "led-bulbs",
-                "gu10": "led-bulbs",
-                "g9": "led-bulbs"
-              };
-              return mappings[menuItemSlug] || menuItemSlug;
-            };
+
 
             const getCategoryImage = (itemSlug: string) => {
-              const resolved = resolveCategorySlug(itemSlug);
-              const matchedDb = dbCategories.find(c => c.slug === resolved);
+              const matchedDb = dbCategories.find(c => c.slug === itemSlug);
               if (matchedDb?.image && !isMissingImage(matchedDb.image)) return matchedDb.image;
-              const matched = categories.find(c => c.slug === resolved);
+              const matched = categories.find(c => c.slug === itemSlug);
               return matched?.image && !isMissingImage(matched.image) ? matched.image : "";
             };
 
@@ -313,7 +292,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-6 lg:gap-6">
                   {subCategories.map((item: any) => {
                     const imgUrl = getCategoryImage(item.slug);
-                    const resolved = resolveCategorySlug(item.slug);
+                    const resolved = item.slug;
                     return (
                       <Link
                         key={item.slug}

@@ -129,38 +129,20 @@ async function main() {
     indoor: await prisma.category.create({
       data: { slug: "indoor-lighting", name: "Indoor Lighting", image: "/assets/cat-pendant.jpg", group: "interior-lighting" }
     }),
-    outdoor: await prisma.category.create({
-      data: { slug: "outdoor-lighting", name: "Outdoor Lighting", image: "/assets/cat-outdoor.jpg", group: "outdoor-lighting" }
-    }),
     bulbs: await prisma.category.create({
-      data: { slug: "light-bulbs", name: "Light Bulbs", image: "/assets/cat-bulbs.jpg", group: "light-sources" }
-    }),
-    smart: await prisma.category.create({
-      data: { slug: "smart-home", name: "Smart Home", image: "/assets/cat-smart.jpg", group: "light-sources" }
-    }),
-    accessories: await prisma.category.create({
-      data: { slug: "accessories", name: "Accessories", image: "/assets/cat-shades.jpg", group: "interior-lighting" }
-    }),
-    business: await prisma.category.create({
-      data: { slug: "business-lighting", name: "Business Lighting", image: "/assets/cat-office.jpg", group: "commercial-lighting" }
+      data: { slug: "light-sources-parent", name: "Light Sources Parent", image: "/assets/cat-bulbs.jpg", group: "light-sources" }
     }),
   };
 
   // Create Subcategories referencing parent categories
   console.log("🏷️ Creating subcategories...");
   const subCategoriesData = [
-    { slug: "pendant-lamps", name: "Pendant lamps", image: "/assets/cat-pendant.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
-    { slug: "string-lights", name: "String lights", image: "/assets/cat-string.jpg", group: "outdoor-lighting", parentId: parentCats.outdoor.id },
-    { slug: "ceiling-lamps", name: "Ceiling lamps", image: "/assets/cat-ceiling.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
-    { slug: "wall-lamps", name: "Wall lamps", image: "/assets/cat-wall.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
-    { slug: "outdoor-lamps", name: "Outdoor lamps", image: "/assets/cat-outdoor.jpg", group: "outdoor-lighting", parentId: parentCats.outdoor.id },
-    { slug: "floor-lamps", name: "Floor lamps", image: "/assets/cat-floor.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
-    { slug: "smart-bulbs", name: "Smart bulbs", image: "/assets/cat-smart.jpg", group: "light-sources", parentId: parentCats.smart.id },
-    { slug: "lampshades", name: "Lampshades", image: "/assets/cat-shades.jpg", group: "interior-lighting", parentId: parentCats.accessories.id },
-    { slug: "table-lamps", name: "Table lamps", image: "/assets/cat-table.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
-    { slug: "chandeliers", name: "Chandeliers", image: "/assets/cat-chandelier.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
-    { slug: "led-bulbs", name: "LED bulbs", image: "/assets/cat-bulbs.jpg", group: "light-sources", parentId: parentCats.bulbs.id },
-    { slug: "office-lighting", name: "Office lighting", image: "/assets/cat-office.jpg", group: "commercial-lighting", parentId: parentCats.business.id },
+    { slug: "pendant-lights", name: "Pendant Lights", image: "/assets/cat-pendant.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "wall-lights", name: "Wall Lights", image: "/assets/cat-wall.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "floor-lamps", name: "Floor Lamps", image: "/assets/cat-floor.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "table-lamps", name: "Table Lamps", image: "/assets/cat-table.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "spotlights", name: "Spotlights", image: "/assets/cat-ceiling.jpg", group: "interior-lighting", parentId: parentCats.indoor.id },
+    { slug: "light-sources", name: "Light Sources", image: "/assets/cat-bulbs.jpg", group: "light-sources", parentId: parentCats.bulbs.id },
   ];
 
   const categoriesMap: Record<string, any> = {};
@@ -283,18 +265,41 @@ async function main() {
   console.log("📦 Creating EAV Products...");
   const brandList = ["Lumio", "Brilliant", "Calex", "Philips", "Eglo", "Steinhauer"];
   const names: Record<string, string[]> = {
-    "pendant-lamps": ["Mira Rattan Pendant", "Nordic Dome Pendant", "Globe Glass Pendant", "Bamboo Bell Pendant"],
-    "string-lights": ["Café Outdoor String Lights 10m", "Festoon LED Lights 20m"],
-    "ceiling-lamps": ["Halo Plaster Ceiling Light", "Scallop Cloud Ceiling Lamp", "Round Flush Mount LED"],
-    "wall-lamps": ["Spot Adjustable Wall Light", "Brass Sconce Wall Lamp"],
-    "outdoor-lamps": ["Bollard Garden Path Light", "Solar Stake Light Set", "Wall Outdoor Lantern"],
-    "floor-lamps": ["Tripod Rattan Floor Lamp", "Arc Marble Base Floor Lamp"],
-    "smart-bulbs": ["Smart Color RGB Bulb E27", "Smart White Tunable Bulb E14"],
-    lampshades: ["Pink Elephant Kids Shade", "Linen Drum Shade Natural"],
-    "table-lamps": ["Rattan Cage Table Lamp", "Ceramic Vase Table Lamp"],
-    chandeliers: ["Linear Crystal Chandelier", "Black Branch Chandelier"],
-    "led-bulbs": ["Edison Filament LED 6W", "Globe LED Warm 8W"],
-    "office-lighting": ["LED Panel 60x60 4000K", "Suspended Office Light"],
+    "pendant-lights": [
+      "Mira Rattan Pendant",
+      "Nordic Dome Pendant",
+      "Globe Glass Pendant",
+      "Bamboo Bell Pendant",
+      "Linear Crystal Chandelier",
+      "Black Branch Chandelier"
+    ],
+    "wall-lights": [
+      "Spot Adjustable Wall Light",
+      "Brass Sconce Wall Lamp"
+    ],
+    "floor-lamps": [
+      "Tripod Rattan Floor Lamp",
+      "Arc Marble Base Floor Lamp"
+    ],
+    "table-lamps": [
+      "Rattan Cage Table Lamp",
+      "Ceramic Vase Table Lamp"
+    ],
+    "spotlights": [
+      "Halo Plaster Ceiling Light",
+      "Scallop Cloud Ceiling Lamp",
+      "Round Flush Mount LED",
+      "LED Panel 60x60 4000K",
+      "Suspended Office Light"
+    ],
+    "light-sources": [
+      "Smart Color RGB Bulb E27",
+      "Smart White Tunable Bulb E14",
+      "Edison Filament LED 6W",
+      "Globe LED Warm 8W",
+      "Pink Elephant Kids Shade",
+      "Linen Drum Shade Natural"
+    ],
   };
 
   const createdProducts: any[] = [];
@@ -310,10 +315,16 @@ async function main() {
       const onSale = counter % 3 === 0;
       const oldPrice = onSale ? +(price * 1.4).toFixed(2) : null;
 
-      const imgShorthand = catSlug
+      let imgShorthand = catSlug
         .replace("-lamps", "")
         .replace("-lights", "")
         .replace("-bulbs", "");
+      if (imgShorthand === "spotlights") {
+        imgShorthand = "ceiling";
+      }
+      if (imgShorthand === "light-sources") {
+        imgShorthand = "bulbs";
+      }
 
       const brandName = brandList[counter % brandList.length];
       const brand = brandsMap[brandName];
@@ -630,28 +641,29 @@ async function main() {
   await prisma.megaMenu.createMany({
     data: [
       {
-        menu: "Interior lighting",
+        menu: "Interior Lighting",
         slug: "interior-lighting",
         sections: [
           {
             title: "Categories",
             items: [
-              { name: "Pendant lights", slug: "pendant-lights" },
-              { name: "Ceiling lights", slug: "ceiling-lights" },
-              { name: "Wall lights", slug: "wall-lights" },
-              { name: "Table lamps", slug: "table-lamps" },
-              { name: "Floor lamps", slug: "floor-lamps" },
-              { name: "Chandeliers", slug: "chandeliers" },
+              { name: "All Lamps", slug: "all-lamps" },
+              { name: "Pendant Lights", slug: "pendant-lights" },
+              { name: "Wall Lights", slug: "wall-lights" },
+              { name: "Floor Lamps", slug: "floor-lamps" },
+              { name: "Table Lamps", slug: "table-lamps" },
+              { name: "Spotlights", slug: "spotlights" },
+              { name: "Light Sources", slug: "light-sources" },
             ]
           },
           {
             title: "Rooms",
             items: [
-              { name: "Living room", slug: "living-room" },
+              { name: "Living Room", slug: "living-room" },
               { name: "Bedroom", slug: "bedroom" },
               { name: "Kitchen", slug: "kitchen" },
               { name: "Bathroom", slug: "bathroom" },
-              { name: "Dining room", slug: "dining-room" },
+              { name: "Dining Room", slug: "dining-room" },
               { name: "Hallway", slug: "hallway" },
             ]
           },
@@ -662,40 +674,247 @@ async function main() {
               { name: "Industrial", slug: "industrial" },
               { name: "Classic", slug: "classic" },
               { name: "Vintage", slug: "vintage" },
-              { name: "Design", slug: "design" },
-              { name: "Rustic", slug: "rustic" },
+              { name: "Scandinavian", slug: "scandinavian" },
+              { name: "Minimal", slug: "minimal" },
             ]
           }
-        ],
+        ] as any,
       },
       {
-        menu: "Outdoor lighting",
-        slug: "outdoor-lighting",
+        menu: "Pendant Lights",
+        slug: "pendant-lights",
         sections: [
           {
-            title: "Categories",
+            title: "By Room",
             items: [
-              { name: "Wall lanterns", slug: "wall-lanterns" },
-              { name: "Post lights", slug: "post-lights" },
-              { name: "String lights", slug: "string-lights" },
-              { name: "Security lights", slug: "security-lights" },
+              { name: "Dining Room", slug: "dining-room" },
+              { name: "Kitchen Island", slug: "kitchen" },
+              { name: "Living Room", slug: "living-room" },
+              { name: "Bedroom", slug: "bedroom" },
+              { name: "Hallway", slug: "hallway" }
+            ]
+          },
+          {
+            title: "By Style",
+            items: [
+              { name: "Modern", slug: "modern" },
+              { name: "Minimal", slug: "minimal" },
+              { name: "Industrial", slug: "industrial" },
+              { name: "Classic", slug: "classic" }
+            ]
+          },
+          {
+            title: "Popular",
+            items: [
+              { name: "Glass Pendants", slug: "glass-pendants" },
+              { name: "Cluster Pendants", slug: "cluster-pendants" },
+              { name: "Black Pendants", slug: "black-pendants" },
+              { name: "Brass Pendants", slug: "brass-pendants" },
+              { name: "Dimmable Pendants", slug: "dimmable-pendants" }
             ]
           }
-        ],
+        ] as any,
       },
       {
-        menu: "Light sources",
+        menu: "Wall Lights",
+        slug: "wall-lights",
+        sections: [
+          {
+            title: "By Use",
+            items: [
+              { name: "Bedside Wall Lights", slug: "bedside-wall-lights" },
+              { name: "Hallway Wall Lights", slug: "hallway-wall-lights" },
+              { name: "Bathroom Wall Lights", slug: "bathroom-wall-lights" },
+              { name: "Reading Wall Lights", slug: "reading-wall-lights" },
+              { name: "Decorative Wall Lights", slug: "decorative-wall-lights" }
+            ]
+          },
+          {
+            title: "By Style",
+            items: [
+              { name: "Modern", slug: "modern" },
+              { name: "Classic", slug: "classic" },
+              { name: "Vintage", slug: "vintage" },
+              { name: "Minimal", slug: "minimal" }
+            ]
+          },
+          {
+            title: "Popular",
+            items: [
+              { name: "Up & Down Lights", slug: "up-down-lights" },
+              { name: "Sconces", slug: "sconces" },
+              { name: "Swing Arm Lights", slug: "swing-arm-lights" },
+              { name: "LED Wall Lights", slug: "led-wall-lights" },
+              { name: "Gold Wall Lights", slug: "gold-wall-lights" }
+            ]
+          }
+        ] as any,
+      },
+      {
+        menu: "Floor Lamps",
+        slug: "floor-lamps",
+        sections: [
+          {
+            title: "By Room",
+            items: [
+              { name: "Living Room", slug: "living-room" },
+              { name: "Bedroom", slug: "bedroom" },
+              { name: "Reading Corner", slug: "reading-corner" },
+              { name: "Office", slug: "office" }
+            ]
+          },
+          {
+            title: "By Type",
+            items: [
+              { name: "Arc Floor Lamps", slug: "arc-floor-lamps" },
+              { name: "Tripod Lamps", slug: "tripod-lamps" },
+              { name: "LED Floor Lamps", slug: "led-floor-lamps" },
+              { name: "Uplighters", slug: "uplighters" }
+            ]
+          },
+          {
+            title: "Popular",
+            items: [
+              { name: "Black Floor Lamps", slug: "black-floor-lamps" },
+              { name: "Gold Floor Lamps", slug: "gold-floor-lamps" },
+              { name: "Minimal Floor Lamps", slug: "minimal-floor-lamps" },
+              { name: "Dimmable Floor Lamps", slug: "dimmable-floor-lamps" }
+            ]
+          }
+        ] as any,
+      },
+      {
+        menu: "Table Lamps",
+        slug: "table-lamps",
+        sections: [
+          {
+            title: "By Room",
+            items: [
+              { name: "Bedroom", slug: "bedroom" },
+              { name: "Living Room", slug: "living-room" },
+              { name: "Office", slug: "office" },
+              { name: "Hallway", slug: "hallway" }
+            ]
+          },
+          {
+            title: "By Type",
+            items: [
+              { name: "Bedside Lamps", slug: "bedside-lamps" },
+              { name: "Desk Lamps", slug: "desk-lamps" },
+              { name: "Touch Lamps", slug: "touch-lamps" },
+              { name: "Ceramic Lamps", slug: "ceramic-lamps" }
+            ]
+          },
+          {
+            title: "Popular",
+            items: [
+              { name: "Modern Table Lamps", slug: "modern-table-lamps" },
+              { name: "Fabric Shade Lamps", slug: "fabric-shade-lamps" },
+              { name: "Glass Lamps", slug: "glass-lamps" },
+              { name: "Small Table Lamps", slug: "small-table-lamps" }
+            ]
+          }
+        ] as any,
+      },
+      {
+        menu: "Spotlights",
+        slug: "spotlights",
+        sections: [
+          {
+            title: "By Type",
+            items: [
+              { name: "Ceiling Spotlights", slug: "ceiling-spotlights" },
+              { name: "Surface Spotlights", slug: "surface-spotlights" },
+              { name: "Adjustable Spotlights", slug: "adjustable-spotlights" },
+              { name: "Rail Spotlights", slug: "rail-spotlights" }
+            ]
+          },
+          {
+            title: "By Room",
+            items: [
+              { name: "Kitchen", slug: "kitchen" },
+              { name: "Hallway", slug: "hallway" },
+              { name: "Living Room", slug: "living-room" },
+              { name: "Bathroom", slug: "bathroom" }
+            ]
+          },
+          {
+            title: "Popular",
+            items: [
+              { name: "Black Spotlights", slug: "black-spotlights" },
+              { name: "White Spotlights", slug: "white-spotlights" },
+              { name: "LED Spotlights", slug: "led-spotlights" },
+              { name: "2-Light Spots", slug: "2-light-spots" },
+              { name: "4-Light Bars", slug: "4-light-bars" }
+            ]
+          }
+        ] as any,
+      },
+      {
+        menu: "Light Sources",
         slug: "light-sources",
         sections: [
           {
-            title: "Bulb Types",
+            title: "By Base",
             items: [
-              { name: "LED bulbs", slug: "led-bulbs" },
-              { name: "Smart bulbs", slug: "smart-bulbs" },
-              { name: "Halogen", slug: "halogen" },
+              { name: "E27", slug: "e27" },
+              { name: "E14", slug: "e14" },
+              { name: "GU10", slug: "gu10" },
+              { name: "G9", slug: "g9" }
+            ]
+          },
+          {
+            title: "By Type",
+            items: [
+              { name: "LED Bulbs", slug: "led-bulbs" },
+              { name: "Filament Bulbs", slug: "filament-bulbs" },
+              { name: "Dimmable Bulbs", slug: "dimmable-bulbs" },
+              { name: "Warm White Bulbs", slug: "warm-white-bulbs" }
+            ]
+          },
+          {
+            title: "Smart",
+            items: [
+              { name: "Smart Bulbs", slug: "smart-bulbs" },
+              { name: "Tunable White", slug: "tunable-white" },
+              { name: "Color Bulbs", slug: "color-bulbs" },
+              { name: "Energy Saving Bulbs", slug: "energy-saving-bulbs" }
             ]
           }
-        ],
+        ] as any,
+      },
+      {
+        menu: "Deals",
+        slug: "deals",
+        sections: [
+          {
+            title: "Shop Deals",
+            items: [
+              { name: "Pendant Deals", slug: "pendant-deals" },
+              { name: "Wall Light Deals", slug: "wall-light-deals" },
+              { name: "Floor Lamp Deals", slug: "floor-lamp-deals" },
+              { name: "Table Lamp Deals", slug: "table-lamp-deals" },
+              { name: "Bulb Deals", slug: "bulb-deals" }
+            ]
+          },
+          {
+            title: "Discount Type",
+            items: [
+              { name: "Under €25", slug: "under-25" },
+              { name: "Under €50", slug: "under-50" },
+              { name: "Clearance", slug: "clearance" },
+              { name: "Bundle Offers", slug: "bundle-offers" }
+            ]
+          },
+          {
+            title: "Featured",
+            items: [
+              { name: "Bestsellers on Sale", slug: "bestsellers-sale" },
+              { name: "Limited Time Offers", slug: "limited-time-offers" },
+              { name: "New Deals", slug: "new-deals" }
+            ]
+          }
+        ] as any,
       }
     ]
   });
@@ -708,7 +927,7 @@ async function main() {
       value: {
         "interior-lighting": {
           title: "Interior lighting",
-          content: '<h2><strong>Discover Our Premium Selection of Interior lighting</strong></h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p><br/>[product-block title="Popular Products" type="pendant-lamps"][/product-block]<br/>[category-block title="Browse Interior Categories"][/category-block]',
+          content: '<h2><strong>Discover Our Premium Selection of Interior lighting</strong></h2><p>Upgrade your space with modern styles, custom designs, and premium quality crafted for your lifestyle.</p><br/>[product-block title="Popular Products" type="pendant-lights"][/product-block]<br/>[category-block title="Browse Interior Categories"][/category-block]',
           seoTitle: "Interior lighting | Buy Premium Lighting Online",
           seoDescription: "Shop our selection of premium Interior lighting. Free shipping on orders over $50, fast delivery, and modern designs.",
           seoKeywords: "lighting, interior lighting, modern decor, lights",
@@ -716,7 +935,7 @@ async function main() {
         },
         "outdoor-lighting": {
           title: "Outdoor lighting",
-          content: '<h2><strong>Upgrade Your Outdoors</strong></h2><p>Discover durable, stylish outdoor lighting for gardens, patios, and entrances.</p><br/>[product-block title="Popular Outdoor Lamps" type="outdoor-lamps"][/product-block]<br/>[category-block title="Outdoor Categories"][/category-block]',
+          content: '<h2><strong>Upgrade Your Outdoors</strong></h2><p>Discover durable, stylish outdoor lighting for gardens, patios, and entrances.</p><br/>[product-block title="Popular Outdoor Lamps" type="spotlights"][/product-block]<br/>[category-block title="Outdoor Categories"][/category-block]',
           seoTitle: "Outdoor lighting | Buy Premium Lighting Online",
           seoDescription: "Shop our selection of premium Outdoor lighting.",
           seoKeywords: "outdoor lighting, garden lights",
@@ -724,7 +943,7 @@ async function main() {
         },
         "light-sources": {
           title: "Light sources",
-          content: '<h2><strong>Find the Right Bulb</strong></h2><p>LED, smart, and classic bulbs for every room and fixture.</p><br/>[product-block title="Popular Bulbs" type="led-bulbs"][/product-block]<br/>[category-block title="Popular Bulb Categories"][/category-block]',
+          content: '<h2><strong>Find the Right Bulb</strong></h2><p>LED, smart, and classic bulbs for every room and fixture.</p><br/>[product-block title="Popular Bulbs" type="light-sources"][/product-block]<br/>[category-block title="Popular Bulb Categories"][/category-block]',
           seoTitle: "Light sources | Buy Premium Lighting Online",
           seoDescription: "Shop our selection of premium Light sources.",
           seoKeywords: "light bulbs, led, smart bulbs",

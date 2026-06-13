@@ -15,27 +15,7 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReliefCategorySkeleton } from "@/components/ui/SkeletonLoader";
 
-const resolveCategorySlug = (menuItemSlug: string) => {
-  const mappings: Record<string, string> = {
-    "pendant-lights": "pendant-lamps",
-    "ceiling-lights": "ceiling-lamps",
-    "wall-lights": "wall-lamps",
-    "outdoor-lamps": "outdoor-lamps",
-    "outdoor-wall-lights": "outdoor-lamps",
-    "standing-lights": "outdoor-lamps",
-    "solar-lights": "outdoor-lamps",
-    "sensor-lights": "outdoor-lamps",
-    "spotlights": "outdoor-lamps",
-    "led-bulbs": "led-bulbs",
-    "smart-bulbs": "smart-bulbs",
-    "filament-bulbs": "led-bulbs",
-    "e27": "led-bulbs",
-    "e14": "led-bulbs",
-    "gu10": "led-bulbs",
-    "g9": "led-bulbs"
-  };
-  return mappings[menuItemSlug] || menuItemSlug;
-};
+
 
 
 
@@ -58,10 +38,9 @@ export default function ReliefCategory() {
   const [isLoading, setIsLoading] = useState(true);
 
   const getCategoryImage = (itemSlug: string) => {
-    const resolved = resolveCategorySlug(itemSlug);
-    const matchedDb = categoriesList.find(c => c.slug === resolved);
+    const matchedDb = categoriesList.find(c => c.slug === itemSlug);
     if (matchedDb?.image && !isMissingImage(matchedDb.image)) return matchedDb.image;
-    const matched = categories.find(c => c.slug === resolved);
+    const matched = categories.find(c => c.slug === itemSlug);
     return matched?.image && !isMissingImage(matched.image) ? matched.image : "";
   };
 
@@ -255,7 +234,7 @@ export default function ReliefCategory() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                 {subCategories.map((item: any) => {
                   const imgUrl = getCategoryImage(item.slug);
-                  const resolved = resolveCategorySlug(item.slug);
+                  const resolved = item.slug;
                   return (
                     <Link
                       key={item.slug}
@@ -316,7 +295,7 @@ export default function ReliefCategory() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
                     {subCategories.slice(0, 5).map((item: any) => {
                       const imgUrl = getCategoryImage(item.slug);
-                      const resolved = resolveCategorySlug(item.slug);
+                      const resolved = item.slug;
                       return (
                         <Link
                           key={item.slug}

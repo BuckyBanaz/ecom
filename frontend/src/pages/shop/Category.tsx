@@ -23,27 +23,7 @@ import { getProductBrandName, getProductCategorySlug } from "@/utils/formatters"
 import { countProductsWithFilterValue, productMatchesAttributeFilter } from "@/utils/productFilters";
 import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
 
-const resolveCategorySlug = (menuItemSlug: string) => {
-  const mappings: Record<string, string> = {
-    "pendant-lights": "pendant-lamps",
-    "ceiling-lights": "ceiling-lamps",
-    "wall-lights": "wall-lamps",
-    "outdoor-lamps": "outdoor-lamps",
-    "outdoor-wall-lights": "outdoor-lamps",
-    "standing-lights": "outdoor-lamps",
-    "solar-lights": "outdoor-lamps",
-    "sensor-lights": "outdoor-lamps",
-    "spotlights": "outdoor-lamps",
-    "led-bulbs": "led-bulbs",
-    "smart-bulbs": "smart-bulbs",
-    "filament-bulbs": "led-bulbs",
-    "e27": "led-bulbs",
-    "e14": "led-bulbs",
-    "gu10": "led-bulbs",
-    "g9": "led-bulbs"
-  };
-  return mappings[menuItemSlug] || menuItemSlug;
-};
+
 
 const Category = () => {
   const { t } = useTranslation();
@@ -233,23 +213,31 @@ const Category = () => {
     }
   }, [slug]);
 
-  const resolvedSlug = useMemo(() => resolveCategorySlug(slug), [slug]);
+  const resolvedSlug = slug;
   const cat = categoriesList.find((c) => c.slug === resolvedSlug) || categories.find((c) => c.slug === resolvedSlug);
 
-  // Sync style filter from search queries
+  // Sync filters from search queries
   useEffect(() => {
-    const s = searchParams.get("style");
-    if (s) {
-      setSelectedFilters(prev => ({ ...prev, style: [s] }));
-    } else {
-      setSelectedFilters({});
-    }
+    const filters: Record<string, string[]> = {};
+    const metadataKeys = ["search", "page", "sort"];
+    let brandVal: string[] = [];
+
+    searchParams.forEach((value, key) => {
+      if (metadataKeys.includes(key)) return;
+      if (key === "brand") {
+        brandVal = value.split(",");
+      } else {
+        filters[key] = value.split(",");
+      }
+    });
+
+    setSelectedFilters(filters);
+    setSelectedBrands(brandVal);
   }, [searchParams]);
 
-  // Determine dynamic visible filters for this Category
+  // Determine dynamic visible filters for this Category based on category attributes and product attributes presence
   const visibleAttributes = useMemo(() => {
     const activeCatObj = categoriesList.find((c) => c.slug === resolvedSlug);
-    
     const allowedAttrs = attributes.filter(attr => attr.visibility !== "admin");
 
     // DB categories attributes mapping
@@ -259,27 +247,62 @@ const Category = () => {
       );
     }
 
-    // Local Storage / Static mockups fallback category-attributes mapping
-    const fallbackCategoryMapping: Record<string, string[]> = {
-      "pendant-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height", "width", "diameter"],
-      "ceiling-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height", "width", "diameter"],
-      "wall-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "ip-rating", "dimmer-type", "length", "height", "width", "diameter"],
-      "outdoor-lamps": ["color", "light-color", "material", "style", "room", "dimmable", "ip-rating", "length", "height", "width", "diameter"],
-      "floor-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height"],
-      "table-lamps": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "dimmer-type", "length", "height"],
-      "chandeliers": ["color", "light-color", "material", "style", "room", "fitting", "dimmable", "length", "height", "diameter"],
-      "smart-bulbs": ["color", "light-color", "fitting", "dimmable", "dimmer-type"],
-      "led-bulbs": ["color", "light-color", "fitting", "dimmable"],
-      "string-lights": ["color", "light-color", "room", "dimmable", "ip-rating", "length"],
-    };
+    // Otherwise, dynamically show attributes that are actually present on the current filtered category's products!
+    const targetCategory = landingPage?.categorySlug || resolvedSlug;
+    const isDeals = targetCategory === "deals";
+    const isBestsellers = targetCategory === "bestsellers";
+    
+    let allProductsList = productsList.length > 0 ? productsList : products;
+    let list = isDeals
+      ? allProductsList.filter((p) => p.oldPrice)
+      : isBestsellers
+        ? allProductsList.filter((p) => p.isBestSelling)
+        : targetCategory
+          ? allProductsList.filter((p) => {
+              const pCatSlug = getProductCategorySlug(p.category);
+              if (pCatSlug === targetCategory) return true;
+              if (targetCategory === "interior-lighting" || targetCategory === "all-lamps") {
+                const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
+                return categoryObj?.group === "interior-lighting";
+              }
+              const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
+              return categoryObj && categoryObj.group === targetCategory;
+            })
+          : allProductsList;
 
-    const mapping = fallbackCategoryMapping[resolvedSlug];
-    if (mapping) {
-      return allowedAttrs.filter(attr => mapping.includes(attr.slug));
+    const presentAttributeSlugs = new Set<string>();
+    list.forEach(p => {
+      allowedAttrs.forEach(attr => {
+        if (p[attr.slug] != null) presentAttributeSlugs.add(attr.slug);
+        if (p.attributes?.[attr.slug] != null) presentAttributeSlugs.add(attr.slug);
+      });
+      if (Array.isArray(p.specs)) {
+        p.specs.forEach((spec: any) => {
+          if (spec.key) {
+            const cleanKey = (spec.key.includes("::") ? spec.key.split("::").pop()! : spec.key).trim();
+            const matchedAttr = allowedAttrs.find(a => a.name.toLowerCase() === cleanKey.toLowerCase() || a.slug === cleanKey.toLowerCase().replace(/\s+/g, "-"));
+            if (matchedAttr) presentAttributeSlugs.add(matchedAttr.slug);
+          }
+        });
+      } else if (p.specs && typeof p.specs === "object") {
+        Object.keys(p.specs).forEach(key => {
+          const cleanKey = (key.includes("::") ? key.split("::").pop()! : key).trim();
+          const matchedAttr = allowedAttrs.find(a => a.name.toLowerCase() === cleanKey.toLowerCase() || a.slug === cleanKey.toLowerCase().replace(/\s+/g, "-"));
+          if (matchedAttr) presentAttributeSlugs.add(matchedAttr.slug);
+        });
+      }
+      if (Array.isArray(p.productAttributeValues)) {
+        p.productAttributeValues.forEach((pav: any) => {
+          if (pav?.attribute?.slug) presentAttributeSlugs.add(pav.attribute.slug);
+        });
+      }
+    });
+
+    if (presentAttributeSlugs.size > 0) {
+      return allowedAttrs.filter(attr => presentAttributeSlugs.has(attr.slug));
     }
-
-    return allowedAttrs; // Show all if category has no specific mappings defined
-  }, [resolvedSlug, categoriesList, attributes]);
+    return allowedAttrs;
+  }, [resolvedSlug, categoriesList, attributes, productsList, landingPage]);
 
   // Faceted item counts calculator relative to the current category listing
   const getOptionCount = (type: "brand" | "attribute", slugName: string, value: string, attributeName?: string) => {
@@ -294,7 +317,22 @@ const Category = () => {
       : isBestsellers
         ? allProductsList.filter((p) => p.isBestSelling)
         : targetCategory
-          ? allProductsList.filter((p) => getProductCategorySlug(p.category) === targetCategory)
+          ? allProductsList.filter((p) => {
+              const pCatSlug = getProductCategorySlug(p.category);
+              if (pCatSlug === targetCategory) return true;
+              
+              if (targetCategory === "interior-lighting" || targetCategory === "all-lamps") {
+                const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
+                return categoryObj?.group === "interior-lighting";
+              }
+
+              const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
+              if (categoryObj && categoryObj.group === targetCategory) {
+                return true;
+              }
+
+              return false;
+            })
           : allProductsList;
     
     if (isBestsellers && list.length === 0) {
@@ -316,25 +354,8 @@ const Category = () => {
     const matchedVal = colorAttr?.values.find(v => v.value.toLowerCase() === value.toLowerCase());
     if (matchedVal?.colorCode) return matchedVal.colorCode;
 
-    const manualMap: Record<string, string> = {
-      black: "#000000",
-      white: "#ffffff",
-      gold: "#ffd700",
-      silver: "#c0c0c0",
-      copper: "#b87333",
-      natural: "#e6c280",
-      brass: "#b5a642",
-      bronze: "#cd7f32",
-      chrome: "#e8e8e8",
-      grey: "#808080",
-      gray: "#808080",
-      yellow: "#facc15",
-      red: "#ef4444",
-      blue: "#3b82f6",
-      green: "#22c55e",
-      orange: "#f97316",
-    };
-    return manualMap[value.toLowerCase()];
+    // Fallback: use the lowercase value string itself (standard CSS color name)
+    return value.toLowerCase();
   };
 
   // Toggling an attribute filter option
@@ -364,7 +385,22 @@ const Category = () => {
       : isBestsellers
         ? allProductsList.filter((p) => p.isBestSelling)
         : targetCategory
-          ? allProductsList.filter((p) => getProductCategorySlug(p.category) === targetCategory)
+          ? allProductsList.filter((p) => {
+              const pCatSlug = getProductCategorySlug(p.category);
+              if (pCatSlug === targetCategory) return true;
+              
+              if (targetCategory === "interior-lighting" || targetCategory === "all-lamps") {
+                const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
+                return categoryObj?.group === "interior-lighting";
+              }
+
+              const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
+              if (categoryObj && categoryObj.group === targetCategory) {
+                return true;
+              }
+
+              return false;
+            })
           : allProductsList;
     
     if (isBestsellers && list.length === 0) {
@@ -393,8 +429,15 @@ const Category = () => {
       list = list.filter((p) => selectedBrands.includes(getProductBrandName(p.brand)));
     }
 
+    // 2.5 Category filter (useful for deals page category filtering)
+    const catFilter = selectedFilters["category"];
+    if (catFilter && catFilter.length > 0) {
+      list = list.filter((p) => catFilter.includes(getProductCategorySlug(p.category)));
+    }
+
     // 3. Attributes + specs + EAV (productAttributeValues)
     for (const [attrSlug, selectedVals] of Object.entries(selectedFilters)) {
+      if (attrSlug === "category") continue;
       if (selectedVals.length > 0) {
         const attrMeta = attributes.find((a) => a.slug === attrSlug);
         list = list.filter((p) =>
@@ -412,7 +455,17 @@ const Category = () => {
     return list;
   }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes]);
 
-  const title = landingPage?.title || (slug === "deals" ? t("category.spring_deals") : slug === "bestsellers" ? t("category.bestsellers", { defaultValue: "Bestsellers" }) : cat?.name ?? t("category.all_products"));
+  const title = landingPage?.title || (
+    slug === "deals" 
+      ? t("category.spring_deals") 
+      : slug === "bestsellers" 
+        ? t("category.bestsellers", { defaultValue: "Bestsellers" }) 
+        : slug === "interior-lighting"
+          ? t("category.interior_lighting", { defaultValue: "Interior Lighting" })
+          : slug === "light-sources"
+            ? t("category.light_sources", { defaultValue: "Light Sources" })
+            : cat?.name ?? t("category.all_products")
+  );
 
   if (productsLoading) {
     return <CategorySkeleton />;

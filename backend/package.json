@@ -12,6 +12,7 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node --project prisma/tsconfig.json --transpile-only prisma/seed.ts",
     "prisma:seed:product": "ts-node --project prisma/tsconfig.json --transpile-only prisma/seedProduct.ts",
+    "prisma:seed:megamenu": "ts-node --project prisma/tsconfig.json --transpile-only prisma/seedMegaMenu.ts",
     "prisma:seed:templates": "ts-node --transpile-only -e \"require('./src/utils/seedTemplates').seedTemplates().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })\"",
     "prisma:seed:all": "npm run prisma:seed"
   },

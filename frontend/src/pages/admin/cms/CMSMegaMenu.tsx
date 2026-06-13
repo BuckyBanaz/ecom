@@ -709,7 +709,12 @@ export default function CMSMegaMenu() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Mega Menu CMS</h1>
-          <p className="text-muted-foreground">Manage the main desktop navigation mega menu dynamic structure.</p>
+          <p className="text-muted-foreground flex items-center gap-2 flex-wrap">
+            <span>Manage the main desktop navigation mega menu dynamic structure.</span>
+            <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-semibold px-2 py-0.5 rounded-full border border-primary/20">
+              <Sparkles className="h-3 w-3" /> Supports URL Parameter Filtration
+            </span>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={handleReset} className="gap-2">
@@ -1027,6 +1032,35 @@ export default function CMSMegaMenu() {
                 placeholder="e.g. ceiling-lights"
                 required
               />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                You can append filter query parameters to filter products dynamically, e.g. <code className="bg-muted px-1 rounded">pendant-lights?color=Black&room=Living Room</code>.
+              </p>
+            </div>
+
+            <div className="border rounded-lg p-3 bg-muted/20 text-xs space-y-2 mt-2 text-left">
+              <div className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-primary" />
+                <span>Filtration URL Cheat Sheet</span>
+              </div>
+              <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 text-[11px] border-t pt-2 mt-1">
+                <div className="font-semibold text-muted-foreground col-span-1">Base Slugs:</div>
+                <div className="col-span-2 font-mono text-foreground/90">
+                  pendant-lights, wall-lights, floor-lamps, table-lamps, spotlights, light-sources
+                </div>
+                
+                <div className="font-semibold text-muted-foreground col-span-1">Filters:</div>
+                <div className="col-span-2">
+                  <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                    <li><code className="text-foreground bg-muted/70 px-1 py-0.5 rounded font-mono">color=Black</code>, <code className="text-foreground bg-muted/70 px-1 py-0.5 rounded font-mono">color=Black,White</code></li>
+                    <li><code className="text-foreground bg-muted/70 px-1 py-0.5 rounded font-mono">material=Wood,Metal</code></li>
+                    <li><code className="text-foreground bg-muted/70 px-1 py-0.5 rounded font-mono">style=Modern</code></li>
+                    <li><code className="text-foreground bg-muted/70 px-1 py-0.5 rounded font-mono">room=Living Room</code></li>
+                    <li><code className="text-foreground bg-muted/70 px-1 py-0.5 rounded font-mono">fitting=E27</code></li>
+                    <li><code className="text-foreground bg-muted/70 px-1 py-0.5 rounded font-mono">dimmable=Yes</code></li>
+                    <li><code className="text-foreground bg-muted/70 px-1 py-0.5 rounded font-mono">ip-rating=IP44</code></li>
+                  </ul>
+                </div>
+              </div>
             </div>
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setItemDialogOpen(false)}>Cancel</Button>
