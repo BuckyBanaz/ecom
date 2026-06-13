@@ -42,10 +42,14 @@ pipeline {
       steps {
         sh """
           set -e
+          echo "==> Copying workspace code to ${APP_DIR}..."
+          tar --exclude='.git' --exclude='.env.production' --exclude='node_modules' -cf - . | tar -xf - -C '${APP_DIR}'
+          
           export APP_DIR='${APP_DIR}'
           export BRANCH='${params.BRANCH}'
           export COMPOSE_FILE='${COMPOSE_FILE}'
           export SKIP_HEALTH_CHECK='${params.SKIP_HEALTH_CHECK}'
+          export SKIP_GIT_PULL='true'
           bash '${APP_DIR}/scripts/deploy.sh'
         """
       }

@@ -18,10 +18,14 @@ if [[ ! -f ".env.production" ]]; then
   exit 1
 fi
 
-echo "==> Pulling latest code..."
-git fetch origin "${BRANCH}"
-git checkout "${BRANCH}"
-git pull origin "${BRANCH}"
+if [[ "${SKIP_GIT_PULL:-false}" != "true" ]]; then
+  echo "==> Pulling latest code..."
+  git fetch origin "${BRANCH}"
+  git checkout "${BRANCH}"
+  git pull origin "${BRANCH}"
+else
+  echo "==> Skipping git pull (using pre-copied workspace code)"
+fi
 
 COMMIT="$(git rev-parse --short HEAD)"
 echo "==> Deploying commit: ${COMMIT}"
