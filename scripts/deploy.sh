@@ -30,9 +30,14 @@ fi
 COMMIT="$(git rev-parse --short HEAD)"
 echo "==> Deploying commit: ${COMMIT}"
 
-# Stop Jenkins before heavy docker builds — otherwise frontend/backend builds OOM-kill it on small VPSes.
-echo "==> Stopping Jenkins during build (frees RAM — restarted after deploy)..."
-docker compose -f "${COMPOSE_FILE}" stop jenkins 2>/dev/null || true
+# Stop Jenkins before heavy docker builds when deploying over SSH — frees RAM on small VPSes.
+# Never stop from inside the Jenkins container (would kill the running job).
+if [[ -z "${JENKINS_HOME:-}" ]]; then
+  echo "==> Stopping Jenkins during build (frees RAM — restarted after deploy)..."
+  docker compose -f "${COMPOSE_FILE}" stop jenkins 2>/dev/null || true
+else
+  echo "==> Running inside Jenkins — leaving container up during build"
+fi
 
 echo "==> Building images: ${SERVICES}"
 BUILD_ARGS=()
