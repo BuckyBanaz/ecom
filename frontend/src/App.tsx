@@ -62,6 +62,7 @@ const AdminCharges = lazy(() => import("./pages/admin/AdminCharges.tsx"));
 const CMSHomepage = lazy(() => import("./pages/admin/cms/CMSHomepage.tsx"));
 const CMSMegaMenu = lazy(() => import("./pages/admin/cms/CMSMegaMenu.tsx"));
 const CMSRelief = lazy(() => import("./pages/admin/cms/CMSRelief.tsx"));
+const CMSProductPage = lazy(() => import("./pages/admin/cms/CMSProductPage.tsx"));
 const CMSLegal = lazy(() => import("./pages/admin/cms/CMSLegal.tsx"));
 const CMSPages = lazy(() => import("./pages/admin/cms/CMSPages.tsx"));
 const CMSBlogs = lazy(() => import("./pages/admin/cms/CMSBlogs.tsx"));
@@ -156,6 +157,7 @@ function App() {
                             <Route path="testimonials" element={<AdminTestimonials />} />
                             <Route path="cms" element={<Navigate to="/admin/cms/homepage" replace />} />
                             <Route path="cms/homepage" element={<CMSHomepage />} />
+                            <Route path="cms/product-page" element={<CMSProductPage />} />
                             <Route path="cms/megamenu" element={<CMSMegaMenu />} />
                             <Route path="cms/header-footer" element={<CMSHeaderFooter />} />
                             <Route path="cms/faqs" element={<CMSFaqs />} />

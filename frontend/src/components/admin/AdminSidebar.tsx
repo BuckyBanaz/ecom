@@ -39,6 +39,7 @@ const ordersChildrenBase = [
 
 const cmsChildrenBase = [
   { to: "/admin/cms/homepage", icon: Home, labelKey: "homepage" },
+  { to: "/admin/cms/product-page", icon: FileText, labelKey: "product_page" },
   { to: "/admin/cms/header-footer", icon: FileText, labelKey: "header_footer" },
   { to: "/admin/cms/faqs", icon: FileText, labelKey: "faqs" },
   { to: "/admin/cms/megamenu", icon: FolderTree, labelKey: "mega_menu" },

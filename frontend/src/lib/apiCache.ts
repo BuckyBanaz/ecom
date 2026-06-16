@@ -15,25 +15,22 @@ export const cacheKey = (method: string, url: string) => {
   return `${method}:${url}:${lang}`;
 };
 
+// Clear any existing legacy persistent caches from localStorage on initial load
+if (typeof localStorage !== "undefined") {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(LS_PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch (e) {
+    /* ignore block errors */
+  }
+}
+
 export function getCached<T>(key: string): T | null {
   const mem = MEMORY.get(key) as CacheEntry<T> | undefined;
   if (mem && mem.expires > Date.now()) {
     return mem.data;
   }
-
-  try {
-    const raw = localStorage.getItem(LS_PREFIX + key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as CacheEntry<T>;
-    if (parsed.expires > Date.now()) {
-      MEMORY.set(key, parsed);
-      return parsed.data;
-    }
-    localStorage.removeItem(LS_PREFIX + key);
-  } catch {
-    /* ignore corrupt cache */
-  }
-
   return null;
 }
 
@@ -44,24 +41,12 @@ export function setCache<T>(key: string, data: T, ttlMs: number) {
     savedAt: Date.now(),
   };
   MEMORY.set(key, entry as CacheEntry<unknown>);
-  try {
-    localStorage.setItem(LS_PREFIX + key, JSON.stringify(entry));
-  } catch {
-    /* localStorage full — memory cache still works */
-  }
 }
 
 export function isCacheStale(key: string, staleAfterMs: number) {
   const mem = MEMORY.get(key);
   if (mem) return Date.now() - mem.savedAt > staleAfterMs;
-  try {
-    const raw = localStorage.getItem(LS_PREFIX + key);
-    if (!raw) return true;
-    const parsed = JSON.parse(raw) as CacheEntry<unknown>;
-    return Date.now() - parsed.savedAt > staleAfterMs;
-  } catch {
-    return true;
-  }
+  return true;
 }
 
 export function clearApiCache(prefix?: string) {

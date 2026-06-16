@@ -12,6 +12,8 @@ import { seedTemplates } from "./utils/seedTemplates";
 // Run seed script on startup
 seedTemplates();
 
+
+
 const app = express();
 
 // Behind Caddy reverse proxy in production (fixes express-rate-limit X-Forwarded-For warning)

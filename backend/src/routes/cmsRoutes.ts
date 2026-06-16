@@ -16,7 +16,9 @@ import {
   getFaqs,
   updateFaqs,
   getTestimonials,
-  updateTestimonials
+  updateTestimonials,
+  getProductPageConfig,
+  updateProductPageConfig
 } from "../controllers/cmsController";
 import { getPublicSeoConfig, getMaintenanceStatus } from "../controllers/adminSettingsController";
 
@@ -315,6 +317,30 @@ router.get("/testimonials", getTestimonials);
  *         description: Testimonials successfully updated
  */
 router.put("/testimonials", updateTestimonials);
+
+/**
+ * @swagger
+ * /api/v1/cms/product-page:
+ *   get:
+ *     summary: Get product page CMS configuration
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: Product page configuration data
+ */
+router.get("/product-page", getProductPageConfig);
+
+/**
+ * @swagger
+ * /api/v1/cms/product-page:
+ *   put:
+ *     summary: Update product page CMS configuration
+ *     tags: [CMS]
+ *     responses:
+ *       200:
+ *         description: Product page configuration successfully updated
+ */
+router.put("/product-page", updateProductPageConfig);
 
 /**
  * @swagger

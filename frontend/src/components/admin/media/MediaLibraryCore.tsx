@@ -47,6 +47,8 @@ interface MediaLibraryCoreProps {
   isDialog?: boolean;
   onSelect?: (url: string) => void;
   onCancel?: () => void;
+  allowMultiple?: boolean;
+  onSelectMultiple?: (urls: string[]) => void;
 }
 
 // ─── Folder Picker Dialog ─────────────────────────────────────────────────────
@@ -135,7 +137,7 @@ function FolderPickerDialog({
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: MediaLibraryCoreProps) {
+export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMultiple = false, onSelectMultiple }: MediaLibraryCoreProps) {
   const { t } = useTranslation();
   const [currentPath, setCurrentPath] = useState<string>("");
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -436,7 +438,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
 
   const handleItemClick = (e: React.MouseEvent, path: string) => {
     e.stopPropagation();
-    if (isDialog) {
+    if (isDialog && !allowMultiple) {
       setSelectedItems((prev) => { const s = new Set<string>(); if (!prev.has(path)) s.add(path); return s; });
     } else {
       setSelectedItems((prev) => { const s = new Set(prev); s.has(path) ? s.delete(path) : s.add(path); return s; });
@@ -492,10 +494,27 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel }: Media
           {isDialog && (
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={onCancel}>Cancel</Button>
-              <Button disabled={!selectedItemDetails || selectedItemDetails.isFolder || !selectedItemDetails.url}
-                onClick={() => { if (onSelect && selectedItemDetails?.url) onSelect(selectedItemDetails.url); }}>
-                Insert Selected Image
-              </Button>
+              {allowMultiple ? (
+                <Button 
+                  disabled={selectedItems.size === 0}
+                  onClick={() => {
+                    if (onSelectMultiple) {
+                      const selectedUrls = Array.from(selectedItems)
+                        .map((path) => items.find((i) => i.path === path))
+                        .filter((item) => item && !item.isFolder && item.url)
+                        .map((item) => item!.url as string);
+                      onSelectMultiple(selectedUrls);
+                    }
+                  }}
+                >
+                  Insert Selected Images ({selectedItems.size})
+                </Button>
+              ) : (
+                <Button disabled={!selectedItemDetails || selectedItemDetails.isFolder || !selectedItemDetails.url}
+                  onClick={() => { if (onSelect && selectedItemDetails?.url) onSelect(selectedItemDetails.url); }}>
+                  Insert Selected Image
+                </Button>
+              )}
             </div>
           )}
         </div>

@@ -34,7 +34,9 @@ interface ShortcodeRendererProps {
 export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRendererProps) {
   const { t, i18n } = useTranslation();
   const L = (text: string | undefined | null) => labelT(t, text, i18n.language);
-  const [loading, setLoading] = useState(!prefetchedData);
+  const [loading, setLoading] = useState(
+    !prefetchedData || !prefetchedData.products || !prefetchedData.categories
+  );
   const [dbProducts, setDbProducts] = useState<any[]>(prefetchedData?.products || []);
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
   const [dbBlogs, setDbBlogs] = useState<any[]>(prefetchedData?.blogs || []);
@@ -69,9 +71,9 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
   useEffect(() => {
     let active = true;
 
-    if (prefetchedData) {
-      if (prefetchedData.products) setDbProducts(prefetchedData.products);
-      if (prefetchedData.categories) setDbCategories(prefetchedData.categories);
+    if (prefetchedData && prefetchedData.products && prefetchedData.categories) {
+      setDbProducts(prefetchedData.products);
+      setDbCategories(prefetchedData.categories);
       if (prefetchedData.blogs) setDbBlogs(prefetchedData.blogs);
       
       if (prefetchedData.brands) {
@@ -381,7 +383,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
           }
 
           case "category-block": {
-            const categoriesToRender = dbCategories.length > 0 ? dbCategories.slice(0, 12) : categories.slice(0, 12);
+            const categoriesToRender = dbCategories.slice(0, 12);
             return (
               <section key={index} className="container-page min-w-0 py-6 md:py-8">
                 <div className="mb-4 flex min-w-0 items-end justify-between gap-3 sm:mb-6">
@@ -418,15 +420,14 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
 
           case "product-block": {
             let productsToRender = [];
-            if (dbProducts.length > 0) {
-              productsToRender = attributes.type === "deals"
-                ? dbProducts.filter((p) => p.oldPrice !== null)
-                : dbProducts.filter((p) => p.isBestSelling).slice(0, 8);
-              if (productsToRender.length === 0) {
-                productsToRender = dbProducts.slice(0, 8);
-              }
+            const filteredDb = attributes.type === "deals"
+              ? dbProducts.filter((p) => p.oldPrice !== null)
+              : dbProducts.filter((p) => p.isBestSelling).slice(0, 8);
+
+            if (filteredDb.length > 0) {
+              productsToRender = filteredDb;
             } else {
-              productsToRender = attributes.type === "deals" ? dealProducts : featuredProducts.slice(0, 8);
+              productsToRender = dbProducts.slice(0, 8);
             }
             return (
               <section key={index} className="container-page min-w-0 py-6 md:py-8">
@@ -503,7 +504,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             );
 
           case "blogs-block": {
-            const blogsToRender = dbBlogs.length > 0 ? dbBlogs.slice(0, 3) : initialBlogs.slice(0, 3);
+            const blogsToRender = dbBlogs.slice(0, 3);
             return (
               <section key={index} className="container-page">
                 <div className="mb-6 flex items-end justify-between">

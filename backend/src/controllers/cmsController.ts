@@ -379,3 +379,62 @@ export const updateTestimonials = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ==========================================
+// PRODUCT PAGE CMS METHODS
+// ==========================================
+
+export const getProductPageConfig = async (req: Request, res: Response) => {
+  try {
+    const config = await prisma.cmsConfig.findUnique({
+      where: { key: "product_page_data" },
+    });
+
+    const defaultData = {
+      quoteTitle: "Larger quantity required?",
+      quoteButtonText: "Request a quote",
+      klarnaText: "Buy now, pay later with Klarna",
+      features: [
+        "Gratis verzenden boven €100,- in NL",
+        "Fysieke winkel",
+        "Vandaag bestellen vandaag afhalen in de winkel",
+        "Voor 15:00 besteld vandaag verzonden"
+      ],
+      questionTitle: "Do you have a question about this product?",
+      questionSubtitle: "Our employee is happy to help you find the right product",
+      questionButtonText: "Send mail",
+      questionEmail: "info@schipenster.nl",
+      questionImage: "/uploads/employee.png"
+    };
+
+    res.status(200).json({
+      success: true,
+      data: config ? config.value : defaultData,
+    });
+  } catch (error) {
+    console.error("Error fetching product page config:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const updateProductPageConfig = async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+
+    const config = await prisma.cmsConfig.upsert({
+      where: { key: "product_page_data" },
+      update: { value: data },
+      create: { key: "product_page_data", value: data },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Product page configuration updated",
+      data: config.value,
+    });
+  } catch (error) {
+    console.error("Error updating product page config:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+

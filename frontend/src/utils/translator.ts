@@ -50,8 +50,8 @@ export async function translateText(text: string, targetLang: string): Promise<s
   
   // No translation needed if target is English and source is assumed English,
   // but sl=auto will handle it anyway. To save api calls, let's skip for simple cases.
-  // Wait, if it's already english and target is english, we skip.
-  if (lang === "en") return text;
+  // No translation needed if target is Dutch and source is assumed Dutch.
+  if (lang === "nl") return text;
 
   const staticPhrase = lookupStaticPhrase(text, lang);
   if (staticPhrase) return staticPhrase;
@@ -151,7 +151,7 @@ export async function translateCmsText(
 export async function translateHtmlOrShortcode(content: string, targetLang: string): Promise<string> {
   if (!content || !content.trim()) return content;
   const lang = targetLang.split("-")[0].toLowerCase();
-  if (lang === "en") return content;
+  if (lang === "nl") return content;
 
   // Split into HTML tags, shortcode tags, and raw text segments.
   // Example: <h2>Title</h2> [banner title="Spring Deals"]Text[/banner]
@@ -206,7 +206,7 @@ export async function translateHtmlOrShortcode(content: string, targetLang: stri
 export async function translateJsonObject(obj: any, targetLang: string): Promise<any> {
   if (!obj) return obj;
   const lang = targetLang.split("-")[0].toLowerCase();
-  if (lang === "en") return obj;
+  if (lang === "nl") return obj;
 
   if (Array.isArray(obj)) {
     return Promise.all(obj.map((item) => translateJsonObject(item, lang)));

@@ -15,6 +15,7 @@ export const ENDPOINTS = {
   get MEGAMENUS() { return api("/megamenus"); },
   get CMS_HOMEPAGE() { return api("/cms/homepage"); },
   get CMS_RELIEF() { return api("/cms/relief"); },
+  get CMS_PRODUCT_PAGE() { return api("/cms/product-page"); },
   get CMS_PAGES() { return api("/cms/pages"); },
   get CMS_PAGE() { return api("/cms"); },
   get CMS_HEADER_FOOTER() { return api("/cms/header-footer"); },

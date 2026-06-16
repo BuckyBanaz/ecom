@@ -399,6 +399,20 @@ export const cmsHomepageRepository = {
   },
 };
 
+// 8.1 CMS Product Page Repository
+export const cmsProductPageRepository = {
+  get: async () => {
+    return request<any>(ENDPOINTS.CMS_PRODUCT_PAGE, { method: "GET", cacheTtl: CACHE.MEDIUM });
+  },
+  
+  update: async (data: any) => {
+    return request<any>(ENDPOINTS.CMS_PRODUCT_PAGE, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // 8.5 CMS Relief Repository
 export const cmsReliefRepository = {
   get: async () => {

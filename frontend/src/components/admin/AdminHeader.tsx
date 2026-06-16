@@ -35,6 +35,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/orders/invoices": "Invoices",
   "/admin/orders/labels": "Shipping Labels",
   "/admin/cms/homepage": "CMS — Homepage",
+  "/admin/cms/product-page": "CMS — Product Page",
   "/admin/cms/header-footer": "CMS — Header & Footer",
   "/admin/cms/faqs": "CMS — FAQs",
   "/admin/cms/megamenu": "CMS — Mega Menu",

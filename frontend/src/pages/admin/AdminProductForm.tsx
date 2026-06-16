@@ -242,7 +242,7 @@ const AdminProductForm = () => {
             setIsNewArrival(p.isNewArrival ?? false);
             setIsBestSelling(p.isBestSelling ?? false);
             setSelectedCategory(p.category?.slug || "");
-            setSelectedBrand(p.brand?.name || "");
+            setSelectedBrand(typeof p.brand === "string" ? p.brand : (p.brand?.name || ""));
 
             // Parse existing EAV attribute values
             const initialAttrVals: Record<string, string[]> = {};
@@ -976,7 +976,7 @@ const AdminProductForm = () => {
                         ))}
                         <div
                           className="aspect-square rounded-xl border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center text-muted-foreground cursor-pointer hover:border-primary hover:bg-muted/30 transition-all duration-300"
-                          onClick={() => galleryInputRef.current?.click()}
+                          onClick={() => setMediaDialogTarget("gallery")}
                         >
                           <Plus className="h-5 w-5 mb-0.5 opacity-45" />
                           <p className="text-[9px] font-semibold">{t("admin_product_form.add_short")}</p>
@@ -1308,12 +1308,20 @@ const AdminProductForm = () => {
       <MediaLibraryDialog
         open={mediaDialogTarget !== null}
         onOpenChange={(open) => !open && setMediaDialogTarget(null)}
+        allowMultiple={mediaDialogTarget === "gallery"}
         onSelect={(url) => {
           const formattedUrl = normalizeUploadedUrl(url);
           if (mediaDialogTarget === "thumbnail") {
             setThumbnail(formattedUrl);
           } else if (mediaDialogTarget === "gallery") {
             setGalleryImages((prev) => [...prev, formattedUrl]);
+          }
+          setMediaDialogTarget(null);
+        }}
+        onSelectMultiple={(urls) => {
+          if (mediaDialogTarget === "gallery") {
+            const formattedUrls = urls.map(normalizeUploadedUrl);
+            setGalleryImages((prev) => [...prev, ...formattedUrls]);
           }
           setMediaDialogTarget(null);
         }}

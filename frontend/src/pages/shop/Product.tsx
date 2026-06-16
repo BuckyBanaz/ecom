@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Heart, Truck, RotateCcw, ShieldCheck, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Heart, Truck, RotateCcw, ShieldCheck, ThumbsUp, ThumbsDown, ZoomIn, X, Check, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -15,13 +15,15 @@ import { formatPrice, useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { cn } from "@/lib/utils";
 import NotFound from "@/pages/NotFound";
-import { productRepository, reviewRepository } from "@/client/apiClient";
+import { productRepository, reviewRepository, cmsProductPageRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { SectionLoader } from "@/components/ui/PageLoader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReviewModal } from "@/components/shop/ReviewModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { getProductBrandName } from "@/utils/formatters";
+import { resolveImgUrl } from "@/utils/image";
+import { labelT } from "@/utils/i18nLabel";
 
 const ProductPage = () => {
   const { t } = useTranslation();
@@ -34,6 +36,7 @@ const ProductPage = () => {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedReview, setSelectedReview] = useState<any>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [color, setColor] = useState("");
   const [fitting, setFitting] = useState("");
@@ -46,6 +49,37 @@ const ProductPage = () => {
     { id: 3, icon: "shield-check", title: "2-year warranty", description: "Quality you can trust" },
     { id: 4, icon: "headset", title: "Expert support", description: "7 days a week" },
   ]);
+
+  const [productPageCms, setProductPageCms] = useState<any>({
+    quoteTitle: "Larger quantity required?",
+    quoteButtonText: "Request a quote",
+    klarnaText: "Buy now, pay later with Klarna",
+    features: [
+      "Gratis verzenden boven €100,- in NL",
+      "Fysieke winkel",
+      "Vandaag bestellen vandaag afhalen in de winkel",
+      "Voor 15:00 besteld vandaag verzonden"
+    ],
+    questionTitle: "Do you have a question about this product?",
+    questionSubtitle: "Our employee is happy to help you find the right product",
+    questionButtonText: "Send mail",
+    questionEmail: "info@schipenster.nl",
+    questionImage: "/uploads/employee.png"
+  });
+
+  useEffect(() => {
+    const fetchProductPageCms = async () => {
+      try {
+        const res = await cmsProductPageRepository.get();
+        if (res.success && res.data) {
+          setProductPageCms(res.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch product page CMS config:", error);
+      }
+    };
+    fetchProductPageCms();
+  }, []);
 
   useEffect(() => {
     const fetchFeatures = async () => {
@@ -169,6 +203,7 @@ const ProductPage = () => {
   if (!product) return <NotFound />;
 
   const fav = has(product.id);
+  const galleryImages = [product.image, ...(product.images ?? [])].filter(Boolean);
 
   const renderSpecs = () => {
     const renderSpecItems = (items: any[]) => (
@@ -214,28 +249,32 @@ const ProductPage = () => {
 
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
         <div className="space-y-3">
-          <div className="overflow-hidden rounded-xl border border-border/50 bg-muted aspect-square sm:aspect-[4/3] lg:aspect-auto lg:h-[400px]">
-            {/* Build a gallery array that always starts with the cover image */}
-            {(() => {
-              const galleryImages = [product.image, ...(product.images ?? [])];
-              return (
-                <SafeImage
-                  src={galleryImages[selectedImageIndex]}
-                  alt={product.name}
-                  fallbackType="product"
-                  className="h-full w-full object-cover"
-                />
-              );
-            })()}
+          <div 
+            className="relative overflow-hidden rounded-xl border border-border/50 bg-white dark:bg-muted aspect-square sm:aspect-[4/3] lg:aspect-auto lg:h-[400px] flex items-center justify-center cursor-zoom-in group"
+            onClick={() => setIsZoomOpen(true)}
+          >
+            <SafeImage
+              src={galleryImages[selectedImageIndex]}
+              alt={product.name}
+              fallbackType="product"
+              className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute bottom-3 right-3 p-2 rounded-full bg-black/65 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-sm">
+              <ZoomIn className="w-4.5 h-4.5" />
+            </div>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            {[product.image, ...(product.images ?? [])].map((img: string, i: number) => (
-              <div key={i} className={cn("aspect-[4/3] overflow-hidden rounded-lg border bg-muted cursor-pointer transition-all hover:opacity-90", i === selectedImageIndex ? "border-primary ring-1 ring-primary" : "border-border/50") } onClick={() => setSelectedImageIndex(i)}>
+            {galleryImages.map((img: string, i: number) => (
+              <div 
+                key={i} 
+                className={cn("aspect-[4/3] overflow-hidden rounded-lg border bg-white dark:bg-muted cursor-pointer transition-all hover:opacity-90 flex items-center justify-center", i === selectedImageIndex ? "border-primary ring-1 ring-primary" : "border-border/50") } 
+                onClick={() => setSelectedImageIndex(i)}
+              >
                 <SafeImage
                   src={img}
                   alt=""
                   fallbackType="product"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain p-1"
                 />
               </div>
             ))}
@@ -299,27 +338,26 @@ const ProductPage = () => {
               })()}
             </div>
 
-            {/* Row 2: Reviews & SKU */}
-            <div className="flex items-center gap-2 text-sm">
-              {(() => {
-                const realReviewCount = liveReviews.length;
-                const realAvgRating = realReviewCount > 0 
-                  ? liveReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount 
-                  : 0;
-                return (
-                  <>
-                    <div className="flex items-center gap-1">
-                      <StarRating value={realAvgRating > 0 ? realAvgRating : (product.rating || 5)} size={18} />
-                    </div>
-                    <span className="font-bold text-foreground">{realAvgRating > 0 ? realAvgRating.toFixed(1) : (product.rating || 5)}</span>
-                    <span className="text-muted-foreground cursor-pointer hover:text-primary hover:underline" onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })}>
-                      · {realReviewCount > 0 ? realReviewCount : (product.reviewCount || 0)} {t("product.reviews")}
-                    </span>
-                  </>
-                );
-              })()}
-              <div className="ml-auto text-muted-foreground uppercase text-[11px] tracking-wider font-bold">SKU: {product.slug?.toUpperCase()?.slice(0, 8)}</div>
-            </div>
+            {/* Row 2: Reviews */}
+            {liveReviews.length > 0 && (
+              <div className="flex items-center gap-2 text-sm">
+                {(() => {
+                  const realReviewCount = liveReviews.length;
+                  const realAvgRating = liveReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount;
+                  return (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <StarRating value={realAvgRating} size={18} />
+                      </div>
+                      <span className="font-bold text-foreground">{realAvgRating.toFixed(1)}</span>
+                      <span className="text-muted-foreground cursor-pointer hover:text-primary hover:underline" onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })}>
+                        · {realReviewCount} {t("product.reviews")}
+                      </span>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           {product.shortDescription && (
@@ -351,6 +389,80 @@ const ProductPage = () => {
               <Heart size={18} className={cn(fav ? "fill-red-500 text-red-500" : "text-muted-foreground")} />
             </Button>
           </div>
+
+          {/* CMS Configured Sections */}
+          {productPageCms && (
+            <div className="space-y-6">
+              {/* Larger quantity required section */}
+              {productPageCms.quoteTitle && (
+                <div className="mt-8 pt-6 border-t border-border/60 flex items-center justify-between gap-4">
+                  <span className="font-semibold text-foreground text-sm sm:text-base">{labelT(t, productPageCms.quoteTitle)}</span>
+                  <Button 
+                    variant="outline" 
+                    className="rounded-lg bg-[#FAF6F0] hover:bg-[#F3EFE9] text-foreground border-transparent font-semibold text-xs sm:text-sm px-5 py-2 h-auto shadow-sm"
+                    onClick={() => window.location.href = `mailto:${productPageCms.questionEmail || 'info@schipenster.nl'}?subject=Quote Request for ${product.name}`}
+                  >
+                    {labelT(t, productPageCms.quoteButtonText) || "Request a quote"}
+                  </Button>
+                </div>
+              )}
+
+              {/* Klarna Section */}
+              {productPageCms.klarnaText && (
+                <div className="pt-6 border-t border-border/60 flex items-center gap-3">
+                  <div className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full bg-[#FFB3C7] text-black font-extrabold text-[11px] tracking-tight shadow-sm select-none">
+                    Klarna.
+                  </div>
+                  <span className="text-xs sm:text-sm text-muted-foreground font-medium">
+                    {labelT(t, productPageCms.klarnaText)}
+                  </span>
+                </div>
+              )}
+
+              {/* Checkmark Features List */}
+              {productPageCms.features && productPageCms.features.length > 0 && (
+                <ul className="space-y-2.5 pt-2">
+                  {productPageCms.features.map((feat: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <Check className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-xs sm:text-sm text-foreground/80 font-medium">{labelT(t, feat)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Support / Question Card */}
+              {productPageCms.questionTitle && (
+                <div className="mt-8 bg-[#F4F4F4] dark:bg-muted/30 rounded-xl p-6 relative overflow-hidden flex flex-col justify-between items-start min-h-[220px] sm:min-h-[190px] border border-transparent dark:border-border/50">
+                  <div className="max-w-[65%] z-10 space-y-3">
+                    <h4 className="text-base sm:text-lg font-bold text-foreground leading-snug">
+                      {labelT(t, productPageCms.questionTitle)}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      {labelT(t, productPageCms.questionSubtitle)}
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-2 rounded-lg bg-white dark:bg-background hover:bg-muted text-foreground border-transparent font-semibold text-xs sm:text-sm px-6 py-2.5 h-auto shadow-sm"
+                      onClick={() => window.location.href = `mailto:${productPageCms.questionEmail || 'info@schipenster.nl'}?subject=Question about ${product.name}`}
+                    >
+                      {labelT(t, productPageCms.questionButtonText) || "Send mail"}
+                    </Button>
+                  </div>
+                  <div className="absolute right-0 bottom-0 h-full w-[35%] flex items-end justify-end pointer-events-none select-none">
+                    <img 
+                      src={resolveImgUrl(productPageCms.questionImage)} 
+                      alt="Customer Service Employee" 
+                      className="h-[95%] w-auto object-contain object-bottom"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -590,6 +702,33 @@ const ProductPage = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox / Zoom Modal */}
+      <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
+        <DialogContent 
+          className="max-w-[95vw] max-h-[95vh] sm:max-w-[85vw] sm:max-h-[85vh] p-0 border-0 bg-transparent flex items-center justify-center outline-none shadow-none"
+          onClick={() => setIsZoomOpen(false)}
+        >
+          <div 
+            className="relative max-w-full max-h-full p-4 bg-background rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl border border-border/80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setIsZoomOpen(false)}
+              className="absolute top-4 right-4 z-50 rounded-full p-1.5 bg-muted/80 text-foreground hover:bg-destructive hover:text-white hover:scale-105 transition-all duration-200"
+              aria-label="Close zoom view"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <SafeImage
+              src={galleryImages[selectedImageIndex]}
+              alt={product.name}
+              fallbackType="product"
+              className="max-w-[90vw] max-h-[80vh] sm:max-w-[80vw] sm:max-h-[75vh] object-contain rounded-xl"
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

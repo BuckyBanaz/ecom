@@ -95,6 +95,17 @@ const PHRASES: Record<string, Record<string, string>> = {
     "About us": "Over ons",
     "Our story": "Ons verhaal",
     "(View styles & all options)": "(Bekijk stijlen & alle opties)",
+    "Larger quantity required?": "Grotere hoeveelheid nodig?",
+    "Request a quote": "Vraag een offerte aan",
+    "Buy now, pay later with Klarna": "Koop nu, betaal later met Klarna",
+    "Do you have a question about this product?": "Heeft u een vraag over dit product?",
+    "Our employee is happy to help you find the right product": "Onze medewerker helpt u graag bij het vinden van het juiste product",
+    "Send mail": "Stuur een e-mail",
+    "Free shipping over €100 in NL": "Gratis verzenden boven €100,- in NL",
+    "Free shipping above €100 in NL": "Gratis verzenden boven €100,- in NL",
+    "Physical store": "Fysieke winkel",
+    "Order today, pick up in store today": "Vandaag bestellen vandaag afhalen in de winkel",
+    "Ordered before 15:00, shipped today": "Voor 15:00 besteld vandaag verzonden",
   },
 };
 
