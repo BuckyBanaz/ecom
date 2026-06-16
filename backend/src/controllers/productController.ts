@@ -189,6 +189,12 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
               slug: true,
             },
           },
+          productAttributeValues: {
+            include: {
+              attribute: true,
+              attributeValue: true,
+            },
+          },
         };
 
     const products = await prisma.product.findMany({

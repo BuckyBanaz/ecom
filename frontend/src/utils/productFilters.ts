@@ -4,6 +4,8 @@ import { getProductBrandName } from "@/utils/formatters";
 const SPEC_KEY_TO_ATTR_SLUG: Record<string, string> = {
   Material: "material",
   Color: "color",
+  Colour: "color",
+  colour: "color",
   Style: "style",
   Room: "room",
   "Bulb Fitting": "fitting",

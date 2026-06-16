@@ -107,7 +107,7 @@ const ProductPage = () => {
               id: p.id,
               slug: p.slug,
               name: p.name,
-              brand: p.brand?.name || "",
+              brand: getProductBrandName(p.brand),
               category: p.category?.slug || "general",
               price: p.price,
               oldPrice: p.oldPrice || undefined,
@@ -132,7 +132,7 @@ const ProductPage = () => {
             setFitting(mappedFitting);
 
           const pCatSlug = p.category?.slug;
-          const pBrandName = p.brand?.name;
+          const pBrandName = getProductBrandName(p.brand);
           
           let pSeriesName = null;
           if (p.specs) {
@@ -518,7 +518,7 @@ const ProductPage = () => {
 
             {brandProducts.length > 0 && (
               <div>
-                <h3 className="mb-4 text-lg font-semibold text-foreground/80 border-b pb-2">{t("product.similar_from_brand")} {product.brand?.name || product.brand || t("product.this_brand")}</h3>
+                <h3 className="mb-4 text-lg font-semibold text-foreground/80 border-b pb-2">{t("product.similar_from_brand")} {getProductBrandName(product.brand) || t("product.this_brand")}</h3>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   {brandProducts.map((p) => <ProductCard key={p.id} product={p} />)}
                 </div>
