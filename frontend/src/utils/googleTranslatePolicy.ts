@@ -118,6 +118,11 @@ export function enableAppControlledTranslation() {
   document.documentElement.setAttribute("translate", "no");
   document.documentElement.classList.add("notranslate");
 
+  if (document.body) {
+    document.body.classList.add("notranslate");
+    document.body.setAttribute("translate", "no");
+  }
+
   ensureNotranslateMeta();
   removeInjectedTranslateArtifacts();
   repairAllCmsHtmlTranslateDamage();
@@ -132,6 +137,11 @@ export function enableBrowserThirdPartyTranslate() {
   document.documentElement.classList.add(HTML_BROWSER_GT_CLASS);
   document.documentElement.setAttribute("translate", "yes");
   document.documentElement.classList.remove("notranslate");
+
+  if (document.body) {
+    document.body.classList.remove("notranslate");
+    document.body.setAttribute("translate", "yes");
+  }
 
   removeNotranslateMeta();
   stopBlockingBrowserTranslateUi();
