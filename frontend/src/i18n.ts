@@ -56,7 +56,7 @@ i18n
       escapeValue: false,
     },
     detection: {
-      order: ["localStorage", "htmlTag"],
+      order: ["localStorage"],
       caches: ["localStorage"],
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
     },
@@ -68,9 +68,23 @@ if (i18n.language?.split("-")[0] !== initialLanguage) {
   void i18n.changeLanguage(initialLanguage);
 }
 
+const getBrowserPreferredLanguage = (): string => {
+  if (typeof navigator !== "undefined") {
+    if (navigator.languages && navigator.languages.length > 0) {
+      return navigator.languages[0].split("-")[0];
+    }
+    return navigator.language.split("-")[0];
+  }
+  return "nl";
+};
+
 const syncHtmlLang = (lng: string) => {
   if (typeof document !== "undefined") {
-    document.documentElement.lang = lng.split("-")[0];
+    // Lie to the browser to prevent built-in translate banners from popping up.
+    // By setting the lang attribute to the browser's preferred language, Chrome
+    // thinks the page is already in the user's language and will not offer to translate.
+    const preferredLng = getBrowserPreferredLanguage();
+    document.documentElement.lang = preferredLng || lng.split("-")[0];
   }
 };
 
