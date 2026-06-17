@@ -340,6 +340,7 @@ const Checkout = () => {
             ...user,
             address: selectedAddr,
           },
+          paymentMethod: payment, // Pass selected payment method!
           shippingConfig: shipConfig,
           charges,
           appliedCoupon,

@@ -44,7 +44,8 @@ export const registerCustomer = async (
     const { firstName, lastName, password } = parsed.data;
     let { email, phone, otp } = parsed.data;
 
-    const registerMethod = process.env.AUTH_REGISTER_METHOD || "both";
+    const rawMethod = process.env.AUTH_REGISTER_METHOD || "both";
+    const registerMethod = rawMethod === "email" ? "email_only" : (rawMethod === "phone" ? "phone_only" : rawMethod);
     
     if (registerMethod === "both" || registerMethod === "email_only") {
       if (!email || !email.includes("@")) {
@@ -146,11 +147,13 @@ export const registerCustomer = async (
     // Sign token
     const token = signToken(newUser.id, newUser.email, newUser.role);
 
-    // Send Welcome Email
+    // Send Welcome Email (non-blocking)
     const clientUrl = process.env.STORE_URL || env.CLIENT_URL;
-    await emailService.sendTemplateEmail(newUser.email, "welcome_mail", {
+    emailService.sendTemplateEmail(newUser.email, "welcome_mail", {
       name: newUser.firstName,
       login_url: `${clientUrl}/account`
+    }).catch((err) => {
+      console.error("Failed to send welcome email:", err?.message || err);
     });
 
     res.status(201).json({
@@ -989,10 +992,12 @@ export const getAuthConfig = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    const rawMethod = process.env.AUTH_REGISTER_METHOD || "both";
+    const registerMethod = rawMethod === "email" ? "email_only" : (rawMethod === "phone" ? "phone_only" : rawMethod);
     const config = {
       emailLogin: process.env.AUTH_ENABLE_EMAIL !== "false",
       phoneLogin: process.env.AUTH_ENABLE_PHONE === "true",
-      registerMethod: process.env.AUTH_REGISTER_METHOD || "both",
+      registerMethod: registerMethod,
     };
     res.status(200).json({ success: true, data: config });
   } catch (error: any) {

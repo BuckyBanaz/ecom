@@ -14,7 +14,7 @@ import { messaging } from "../config/firebaseAdmin";
 // Initiate Checkout Session
 export const initiateCheckout = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { items, customer, shippingConfig, charges, appliedCoupon } = req.body;
+    const { items, customer, shippingConfig, charges, appliedCoupon, paymentMethod } = req.body;
     
     if (!items || items.length === 0) {
       return next(new AppError("Cart is empty", 400));
@@ -35,6 +35,21 @@ export const initiateCheckout = async (req: Request, res: Response, next: NextFu
       } catch (err) {
         // Ignored for guest checkout
       }
+    }
+
+    // Delete any older unpaid draft orders for this user/email to prevent duplicates
+    const deleteConditions: any[] = [];
+    if (customer?.email) deleteConditions.push({ customerEmail: customer.email.toLowerCase() });
+    if (userId) deleteConditions.push({ userId });
+
+    if (deleteConditions.length > 0) {
+      await prisma.order.deleteMany({
+        where: {
+          OR: deleteConditions,
+          status: "payment_pending",
+          paymentStatus: "pending"
+        }
+      }).catch(err => console.error("Failed to delete older draft orders:", err));
     }
 
     // Recalculate totals on backend to prevent tampering
@@ -58,6 +73,7 @@ export const initiateCheckout = async (req: Request, res: Response, next: NextFu
         paymentMethod: "stripe",
         shippingAddress: JSON.stringify({
           ...customer.address,
+          phone: customer.phone || customer.address?.phone || "",
           _meta: {
             tax: Number(totalCharges || 0),
             discount: Number(discountAmount || 0)
@@ -76,12 +92,18 @@ export const initiateCheckout = async (req: Request, res: Response, next: NextFu
     });
 
     // Determine allowed payment methods
-    const paymentMethods: string[] = [];
+    let paymentMethods: string[] = [];
     if (process.env.PAYMENT_ENABLE_CARD !== "false") paymentMethods.push("card");
     if (process.env.PAYMENT_ENABLE_IDEAL !== "false") paymentMethods.push("ideal");
     if (process.env.PAYMENT_ENABLE_PAYPAL === "true") paymentMethods.push("paypal");
     if (process.env.PAYMENT_ENABLE_KLARNA === "true") paymentMethods.push("klarna");
     if (process.env.PAYMENT_ENABLE_BANCONTACT === "true") paymentMethods.push("bancontact");
+
+    // Prioritize or force selected payment method
+    if (paymentMethod && paymentMethods.includes(paymentMethod)) {
+      paymentMethods = [paymentMethod];
+    }
+
     if (paymentMethods.length === 0) paymentMethods.push("card"); // Fallback
 
     // Create Stripe Checkout Session
@@ -169,38 +191,36 @@ export const verifyCheckoutSession = async (req: Request, res: Response, next: N
           stripePaymentId: session.payment_intent as string || null,
         }
       });
-      // Trigger Order Confirmed notification
-      await notificationTriggerService.triggerOrderNotification(orderId, "order_confirmed").catch(err => {
+      // Trigger Order Confirmed notification (non-blocking)
+      notificationTriggerService.triggerOrderNotification(orderId, "order_confirmed").catch(err => {
         console.error("[VerifyCheckout] Failed to trigger order confirmation notification:", err.message);
       });
 
-      try {
-        await addDoc(collection(db, "admin_notifications"), {
-          title: "New Order",
-          message: `Order ${updatedOrder.orderNumber} has been paid.`,
-          category: "orders",
-          orderId: updatedOrder.id,
-          orderNumber: updatedOrder.orderNumber,
-          total: updatedOrder.total,
-          read: false,
-          createdAt: new Date().toISOString()
-        });
-      } catch (err) {
+      // Send Firebase Admin Dashboard Notification (non-blocking)
+      addDoc(collection(db, "admin_notifications"), {
+        title: "New Order",
+        message: `Order ${updatedOrder.orderNumber} has been paid.`,
+        category: "orders",
+        orderId: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        total: updatedOrder.total,
+        read: false,
+        createdAt: new Date().toISOString()
+      }).catch(err => {
         console.error("Firebase admin notification failed:", err);
-      }
+      });
 
-      try {
-        if (messaging) {
-          const admins = await prisma.user.findMany({
-            where: {
-              role: { in: ["admin", "superadmin"] },
-            },
-            select: { fcmTokens: true }
-          });
-          
+      // Send FCM Push Notification to Admins (non-blocking)
+      if (messaging) {
+        prisma.user.findMany({
+          where: {
+            role: { in: ["admin", "superadmin"] },
+          },
+          select: { fcmTokens: true }
+        }).then(admins => {
           const tokens = admins.flatMap(a => a.fcmTokens || []);
           if (tokens.length > 0) {
-            await messaging.sendEachForMulticast({
+            messaging.sendEachForMulticast({
               tokens: [...new Set(tokens)], // Deduplicate tokens
               notification: {
                 title: "New Order 🎉",
@@ -210,12 +230,15 @@ export const verifyCheckoutSession = async (req: Request, res: Response, next: N
                 orderId: updatedOrder.id,
                 url: `/admin/orders/${updatedOrder.id}`
               }
+            }).then(() => {
+              console.log(`✅ FCM push notification sent to ${tokens.length} devices`);
+            }).catch(fcmErr => {
+              console.error("❌ Failed to send FCM push notification:", fcmErr);
             });
-            console.log(`✅ FCM push notification sent to ${tokens.length} devices`);
           }
-        }
-      } catch (fcmErr) {
-        console.error("❌ Failed to send FCM push notification:", fcmErr);
+        }).catch(err => {
+          console.error("❌ Failed to retrieve admins for FCM:", err?.message || err);
+        });
       }
 
       return res.status(200).json({ success: true, message: "Order verified and updated to paid", order: updatedOrder });
@@ -308,13 +331,13 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
       }
     }
 
-    // Trigger Order Status Update or Delivered notification
+    // Trigger Order Status Update or Delivered notification (non-blocking)
     if (status === "delivered") {
-      await notificationTriggerService.triggerOrderNotification(order.id, "order_delivered").catch(err => {
+      notificationTriggerService.triggerOrderNotification(order.id, "order_delivered").catch(err => {
         console.error("[UpdateOrderStatus] Failed to trigger order delivered notification:", err.message);
       });
     } else {
-      await notificationTriggerService.triggerOrderNotification(order.id, "order_status_update").catch(err => {
+      notificationTriggerService.triggerOrderNotification(order.id, "order_status_update").catch(err => {
         console.error("[UpdateOrderStatus] Failed to trigger status update notification:", err.message);
       });
     }
@@ -550,8 +573,8 @@ export const createSendcloudShipment = async (req: Request, res: Response, next:
       }
     });
 
-    // Trigger Order Shipped notification when label is generated
-    await notificationTriggerService.triggerOrderNotification(updatedOrder.id, "order_shipped").catch(err => {
+    // Trigger Order Shipped notification when label is generated (non-blocking)
+    notificationTriggerService.triggerOrderNotification(updatedOrder.id, "order_shipped").catch(err => {
       console.error("[CreateShipment] Failed to trigger order shipped notification:", err.message);
     });
 

@@ -132,14 +132,14 @@ export const notificationTriggerService = {
       }
 
       // 4. Dispatch WhatsApp
-      if (globalConfig.whatsapp && templateChannels.includes("whatsapp") && recipientPhone) {
+      if (globalConfig.whatsapp && templateChannels.includes("whatsapp") && recipientPhone && !recipientPhone.startsWith("placeholder-")) {
         await twilioService.sendWhatsApp(recipientPhone, customWhatsappBody).catch(err => {
           console.error("[NotificationTrigger] WhatsApp send failed:", err.message);
         });
       }
 
       // 5. Dispatch SMS
-      if (globalConfig.sms && templateChannels.includes("sms") && recipientPhone) {
+      if (globalConfig.sms && templateChannels.includes("sms") && recipientPhone && !recipientPhone.startsWith("placeholder-")) {
         await twilioService.sendSMS(recipientPhone, customSmsBody).catch(err => {
           console.error("[NotificationTrigger] SMS send failed:", err.message);
         });

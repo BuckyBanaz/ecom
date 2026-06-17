@@ -178,10 +178,12 @@ export const getAuthSettings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    const rawMethod = process.env.AUTH_REGISTER_METHOD || "both";
+    const registerMethod = rawMethod === "email" ? "email_only" : (rawMethod === "phone" ? "phone_only" : rawMethod);
     const settings = {
       emailLogin: process.env.AUTH_ENABLE_EMAIL !== "false", // default to true
       phoneLogin: process.env.AUTH_ENABLE_PHONE === "true",
-      registerMethod: process.env.AUTH_REGISTER_METHOD || "both", // "both", "email_only", "phone_only"
+      registerMethod: registerMethod, // "both", "email_only", "phone_only"
       smsProvider: process.env.AUTH_SMS_PROVIDER || "twilio",
       twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
       twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ? "••••••••••••••••••••" : "",

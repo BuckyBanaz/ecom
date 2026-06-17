@@ -33,6 +33,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     env_file:
       - .env.production
     environment:

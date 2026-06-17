@@ -2,18 +2,8 @@ import { lookupStaticPhrase } from "./cmsPhrases";
 import type { TFunction } from "i18next";
 import { labelT } from "./i18nLabel";
 
-/** CMS endpoints store rich HTML — never Google-translate the response. */
 export function shouldMachineTranslateApiUrl(url: string): boolean {
-  const path = url.split("?")[0].toLowerCase();
-  if (path.includes("/cms/pages")) return true;
-  if (path.includes("/cms/homepage")) return false;
-  if (path.includes("/cms/relief")) return false;
-  if (path.includes("/cms/header-footer")) return false;
-  if (path.includes("/cms/features")) return false;
-  if (path.includes("/cms/faqs")) return false;
-  if (path.includes("/cms/legal")) return false;
-  // /api/v1/cms/business — dynamic page slug
-  if (/\/cms\/[^/]+$/.test(path)) return false;
+  // Allow translating all API/CMS endpoints on the storefront when English is selected
   return true;
 }
 
