@@ -225,7 +225,10 @@ export default function AdminReadyToShip() {
                 
                 <div 
                   className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                  onClick={() => setIsCarrierOpen(!isCarrierOpen)}
+                  onClick={() => {
+                    setIsCarrierOpen(!isCarrierOpen);
+                    setCarrierSearch("");
+                  }}
                 >
                   <span className="truncate">
                     {carrier 
@@ -271,7 +274,7 @@ export default function AdminReadyToShip() {
                             return (
                               <div 
                                 key={method.id}
-                                onClick={() => { setCarrier(method.id.toString()); setIsCarrierOpen(false); }}
+                                onClick={() => { setCarrier(method.id.toString()); setIsCarrierOpen(false); setCarrierSearch(""); }}
                                 className={`flex items-center justify-between p-2 text-xs rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${carrier === method.id.toString() ? 'bg-accent/50 font-bold' : ''}`}
                               >
                                 <div className="flex flex-col gap-0.5">

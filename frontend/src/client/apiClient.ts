@@ -36,6 +36,11 @@ async function fetchAndParse<T>(url: string, config: RequestInit): Promise<T> {
     if (response.status === 403 && message.toLowerCase().includes("suspended")) {
       window.dispatchEvent(new CustomEvent("admin-suspended", { detail: message }));
     }
+    if (response.status === 401 && (isAdminPanel || localStorage.getItem("admin_token"))) {
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_user");
+      window.dispatchEvent(new CustomEvent("admin-session-expired"));
+    }
     throw new Error(message);
   }
 

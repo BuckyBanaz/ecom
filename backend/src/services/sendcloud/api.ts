@@ -562,39 +562,52 @@ export const sendcloudApi = {
     try {
       assertHasKeys(config);
 
-      // 1. Find the parcel by order number
-      const response = await fetchWithTimeout(`${BASE_URL_V2}/parcels?order_number=${encodeURIComponent(orderNumber)}`, {
+      // 1. Find the shipments by order number using API v3
+      const response = await fetchWithTimeout(`${BASE_URL_V3}/shipments?order_number=${encodeURIComponent(orderNumber)}`, {
         method: "GET",
         headers: getSendcloudAuthHeaders(),
       }, 5000);
 
       if (!response.ok) {
-        console.warn(`⚠️ Failed to find Sendcloud parcel for order ${orderNumber}`);
+        console.warn(`⚠️ Failed to find Sendcloud shipments for order ${orderNumber} (status: ${response.status})`);
         return;
       }
 
-      const data = await response.json();
-      const parcels = data.parcels || [];
+      const body = await response.json();
+      const shipments = body.data || [];
       
-      // 2. Cancel all active parcels for this order number
-      for (const parcel of parcels) {
-        if (parcel.id && parcel.status?.id !== 999 && parcel.status?.id !== 1000) { // Keep out already cancelled/failed statuses
-          console.log(`📦 Cancelling Sendcloud parcel ${parcel.id} for order ${orderNumber}`);
-          const cancelResponse = await fetchWithTimeout(`${BASE_URL_V2}/parcels/${parcel.id}/cancel`, {
-            method: "POST",
-            headers: getSendcloudAuthHeaders(),
-            body: JSON.stringify({}),
-          }, 5000);
-          if (!cancelResponse.ok) {
-            const errText = await cancelResponse.text();
-            console.warn(`⚠️ Failed to cancel parcel ${parcel.id}:`, errText);
-          } else {
-            console.log(`✅ Successfully cancelled Sendcloud parcel ${parcel.id}`);
-          }
+      console.log(`📦 Found ${shipments.length} shipment(s) in Sendcloud for order ${orderNumber}`);
+
+      // 2. Cancel all active shipments for this order number
+      for (const shipment of shipments) {
+        const shipmentId = shipment.id;
+        if (!shipmentId) continue;
+
+        // Check if the shipment is already cancelled
+        const firstParcel = shipment.parcels?.[0];
+        const statusCode = String(firstParcel?.status?.code || "").toLowerCase();
+        
+        if (statusCode === "cancelled" || statusCode === "label_cancelled") {
+          console.log(`📦 Shipment ${shipmentId} is already cancelled in Sendcloud.`);
+          continue;
+        }
+
+        console.log(`📦 Cancelling Sendcloud shipment ${shipmentId} for order ${orderNumber}`);
+        const cancelResponse = await fetchWithTimeout(`${BASE_URL_V3}/shipments/${shipmentId}/cancel`, {
+          method: "POST",
+          headers: getSendcloudAuthHeaders(),
+          body: JSON.stringify({}),
+        }, 5000);
+
+        if (!cancelResponse.ok) {
+          const errText = await cancelResponse.text();
+          console.warn(`⚠️ Failed to cancel shipment ${shipmentId}:`, errText);
+        } else {
+          console.log(`✅ Successfully cancelled Sendcloud shipment ${shipmentId}`);
         }
       }
     } catch (error) {
-      console.error(`❌ Error cancelling Sendcloud parcel for order ${orderNumber}:`, error);
+      console.error(`❌ Error cancelling Sendcloud shipment for order ${orderNumber}:`, error);
     }
   }
 };

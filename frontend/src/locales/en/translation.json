@@ -1,4 +1,9 @@
 {
+  "admin_session_expired": {
+    "title": "Session Expired",
+    "description": "Your administrator session has expired. Please log in again to continue.",
+    "button_ok": "Log In Again"
+  },
   "common": {
     "search": "Search",
     "searching": "Searching...",

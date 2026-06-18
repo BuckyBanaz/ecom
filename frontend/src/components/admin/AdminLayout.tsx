@@ -21,6 +21,7 @@ export function AdminLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
   const [suspensionMessage, setSuspensionMessage] = useState("");
+  const [isExpired, setIsExpired] = useState(false);
 
   // Initialize FCM token registration
   useFcmToken();
@@ -37,9 +38,15 @@ export function AdminLayout() {
       setIsSuspended(true);
     };
 
+    const handleExpired = () => {
+      setIsExpired(true);
+    };
+
     window.addEventListener("admin-suspended", handleSuspension);
+    window.addEventListener("admin-session-expired", handleExpired);
     return () => {
       window.removeEventListener("admin-suspended", handleSuspension);
+      window.removeEventListener("admin-session-expired", handleExpired);
     };
   }, []);
 
@@ -78,6 +85,28 @@ export function AdminLayout() {
               className="bg-destructive hover:bg-destructive/90 text-white font-bold rounded-xl px-5"
             >
               Okay, Log Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Centered Session Expired Dialog */}
+      <AlertDialog open={isExpired} onOpenChange={() => {}}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-destructive">
+              {t("admin_session_expired.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="mt-2 text-sm text-foreground/85 leading-relaxed font-semibold">
+              {t("admin_session_expired.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogAction 
+              onClick={() => logout()}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl px-5"
+            >
+              {t("admin_session_expired.button_ok")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, FileText, Tag, Printer, ClipboardCopy, Truck, CheckCircle2, Loader2, X } from "lucide-react";
@@ -73,6 +73,10 @@ export default function AdminOrderDetails() {
   const [showLabelMock, setShowLabelMock] = useState(false);
   const [showShipmentModal, setShowShipmentModal] = useState(false);
   const [selectedCarrier, setSelectedCarrier] = useState<string>("Auto Cheapest");
+  const selectedCarrierRef = useRef(selectedCarrier);
+  useEffect(() => {
+    selectedCarrierRef.current = selectedCarrier;
+  }, [selectedCarrier]);
   const [weight, setWeight] = useState<string>("1.5");
   const [length, setLength] = useState<string>("10");
   const [width, setWidth] = useState<string>("10");
@@ -170,7 +174,10 @@ export default function AdminOrderDetails() {
             
             setShippingMethods(allMethods);
             if (allMethods.length > 0) {
-              setSelectedCarrier(allMethods[0].id.toString());
+              const stillExists = allMethods.some((m: any) => m.id.toString() === selectedCarrierRef.current);
+              if (!stillExists) {
+                setSelectedCarrier(allMethods[0].id.toString());
+              }
               
               // Show info toast if destination is international
               if (toCountry && toCountry !== "NL") {
@@ -748,7 +755,10 @@ export default function AdminOrderDetails() {
                   
                   <div 
                     className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                    onClick={() => setIsCarrierOpen(!isCarrierOpen)}
+                    onClick={() => {
+                      setIsCarrierOpen(!isCarrierOpen);
+                      setCarrierSearch("");
+                    }}
                   >
                     <span className="truncate">
                       {selectedCarrier 
@@ -794,7 +804,7 @@ export default function AdminOrderDetails() {
                               return (
                                 <div 
                                   key={method.id}
-                                  onClick={() => { setSelectedCarrier(method.id.toString()); setIsCarrierOpen(false); }}
+                                  onClick={() => { setSelectedCarrier(method.id.toString()); setIsCarrierOpen(false); setCarrierSearch(""); }}
                                   className={`flex items-center justify-between p-2 text-xs rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${selectedCarrier === method.id.toString() ? 'bg-accent/50 font-bold' : ''}`}
                                 >
                                   <div className="flex flex-col gap-0.5">

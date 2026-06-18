@@ -1,4 +1,9 @@
 {
+  "admin_session_expired": {
+    "title": "Sessie verlopen",
+    "description": "Uw administrator-sessie is verlopen. Log opnieuw in om door te gaan.",
+    "button_ok": "Opnieuw inloggen"
+  },
   "common": {
     "search": "Zoeken",
     "searching": "Zoeken...",
