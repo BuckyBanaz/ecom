@@ -6,34 +6,29 @@ import { Loader2, MapPin, Search, LocateFixed } from "lucide-react";
 
 declare global {
   interface Window {
-    L: any;
+    google: any;
   }
 }
 
-let leafletLoadPromise: Promise<void> | null = null;
+const GOOGLE_MAPS_API_KEY = "AIzaSyAoVauo0szWOaKCsNW6lqklZCXmZED-7ZU";
 
-const loadLeaflet = (): Promise<void> => {
-  if (window.L) return Promise.resolve();
-  if (leafletLoadPromise) return leafletLoadPromise;
+let googleMapsLoadPromise: Promise<void> | null = null;
 
-  leafletLoadPromise = new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-leaflet-css]')) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      link.setAttribute("data-leaflet-css", "true");
-      document.head.appendChild(link);
-    }
+const loadGoogleMaps = (): Promise<void> => {
+  if (window.google && window.google.maps) return Promise.resolve();
+  if (googleMapsLoadPromise) return googleMapsLoadPromise;
 
+  googleMapsLoadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
     script.async = true;
+    script.defer = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load map library"));
+    script.onerror = () => reject(new Error("Failed to load Google Maps library"));
     document.head.appendChild(script);
   });
 
-  return leafletLoadPromise;
+  return googleMapsLoadPromise;
 };
 
 interface MapSelectorProps {
@@ -50,7 +45,7 @@ interface MapSelectorProps {
 }
 
 interface SearchResult {
-  place_id: number;
+  place_id: string;
   display_name: string;
   lat: string;
   lon: string;
@@ -76,62 +71,75 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
 
     let cancelled = false;
     const containerEl = mapRef.current;
-    let leafletContainerRef: HTMLDivElement | null = null;
+    let mapDiv: HTMLDivElement | null = null;
 
     const initMap = async () => {
       try {
-        await loadLeaflet();
-      } catch {
+        await loadGoogleMaps();
+      } catch (e) {
+        console.error("Failed to load Google Maps script:", e);
         return;
       }
-      if (cancelled || !mapRef.current || !window.L) return;
+      if (cancelled || !mapRef.current || !window.google) return;
 
-      const leafletContainer = document.createElement("div");
-      leafletContainer.style.width = "100%";
-      leafletContainer.style.height = "100%";
-      leafletContainer.style.position = "relative";
-      containerEl.appendChild(leafletContainer);
-      leafletContainerRef = leafletContainer;
+      const innerDiv = document.createElement("div");
+      innerDiv.style.width = "100%";
+      innerDiv.style.height = "100%";
+      containerEl.appendChild(innerDiv);
+      mapDiv = innerDiv;
 
       const initialLat = 28.6139;
       const initialLng = 77.2090;
 
       try {
-        mapInstance.current = window.L.map(leafletContainer).setView([initialLat, initialLng], 13);
+        mapInstance.current = new window.google.maps.Map(innerDiv, {
+          center: { lat: initialLat, lng: initialLng },
+          zoom: 13,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+        });
 
-        window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "&copy; OpenStreetMap contributors",
-        }).addTo(mapInstance.current);
+        markerInstance.current = new window.google.maps.Marker({
+          position: { lat: initialLat, lng: initialLng },
+          map: mapInstance.current,
+          draggable: true,
+        });
 
-        markerInstance.current = window.L.marker([initialLat, initialLng], { draggable: true }).addTo(mapInstance.current);
-
-        mapInstance.current.on("click", (e: any) => {
-          const { lat, lng } = e.latlng;
+        mapInstance.current.addListener("click", (e: any) => {
+          const latLng = e.latLng;
           if (markerInstance.current) {
-            markerInstance.current.setLatLng([lat, lng]);
-            setSelectedCoords({ lat, lng });
+            markerInstance.current.setPosition(latLng);
+            setSelectedCoords({ lat: latLng.lat(), lng: latLng.lng() });
           }
         });
 
-        markerInstance.current.on("dragend", () => {
-          const position = markerInstance.current.getLatLng();
-          setSelectedCoords({ lat: position.lat, lng: position.lng });
+        markerInstance.current.addListener("dragend", () => {
+          const position = markerInstance.current.getPosition();
+          setSelectedCoords({ lat: position.lat(), lng: position.lng() });
         });
 
+        // Set to current location if allowed
         if ("geolocation" in navigator) {
           navigator.geolocation.getCurrentPosition(
             (position) => {
-              if (!mapInstance.current || !markerInstance.current) return;
+              if (!mapInstance.current || !markerInstance.current || cancelled) return;
               const { latitude, longitude } = position.coords;
-              mapInstance.current.setView([latitude, longitude], 15);
-              markerInstance.current.setLatLng([latitude, longitude]);
-              setSelectedCoords({ lat: latitude, lng: longitude });
+              const pos = { lat: latitude, lng: longitude };
+              mapInstance.current.setCenter(pos);
+              mapInstance.current.setZoom(15);
+              markerInstance.current.setPosition(pos);
+              setSelectedCoords(pos);
             },
-            () => undefined
+            () => {
+              setSelectedCoords({ lat: initialLat, lng: initialLng });
+            }
           );
+        } else {
+          setSelectedCoords({ lat: initialLat, lng: initialLng });
         }
       } catch (e) {
-        console.error("Failed to initialize Leaflet map:", e);
+        console.error("Failed to initialize Google Map:", e);
       }
     };
 
@@ -140,17 +148,17 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
     return () => {
       cancelled = true;
       try {
-        if (mapInstance.current) {
-          mapInstance.current.remove();
-          mapInstance.current = null;
+        if (markerInstance.current) {
+          markerInstance.current.setMap(null);
+          markerInstance.current = null;
         }
-        markerInstance.current = null;
+        mapInstance.current = null;
 
-        if (leafletContainerRef && leafletContainerRef.parentNode === containerEl) {
+        if (mapDiv && mapDiv.parentNode === containerEl) {
           try {
-            containerEl.removeChild(leafletContainerRef);
+            containerEl.removeChild(mapDiv);
           } catch (e) {
-            console.debug("Leaflet container already removed:", e);
+            console.debug("Map container already removed:", e);
           }
         }
       } catch (e) {
@@ -174,13 +182,29 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
     setSearchOpen(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&q=${encodeURIComponent(q)}`;
-        const res = await fetch(url, { headers: { "Accept-Language": "en" } });
-        const data = await res.json();
-        setSearchResults(Array.isArray(data) ? data : []);
+        if (!window.google || !window.google.maps) {
+          setSearchResults([]);
+          setSearching(false);
+          return;
+        }
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ address: q }, (results: any, status: any) => {
+          if (status === "OK" && results) {
+            setSearchResults(
+              results.map((r: any) => ({
+                place_id: r.place_id,
+                display_name: r.formatted_address,
+                lat: r.geometry.location.lat().toString(),
+                lon: r.geometry.location.lng().toString(),
+              }))
+            );
+          } else {
+            setSearchResults([]);
+          }
+          setSearching(false);
+        });
       } catch {
         setSearchResults([]);
-      } finally {
         setSearching(false);
       }
     }, 400);
@@ -191,9 +215,11 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
 
   const goToLocation = (lat: number, lng: number) => {
     if (!mapInstance.current || !markerInstance.current) return;
-    mapInstance.current.setView([lat, lng], 16);
-    markerInstance.current.setLatLng([lat, lng]);
-    setSelectedCoords({ lat, lng });
+    const pos = { lat, lng };
+    mapInstance.current.setCenter(pos);
+    mapInstance.current.setZoom(16);
+    markerInstance.current.setPosition(pos);
+    setSelectedCoords(pos);
   };
 
   const handlePickResult = (r: SearchResult) => {
@@ -223,30 +249,74 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
     
     setLoading(true);
     try {
-      // Reverse Geocoding via Nominatim
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${selectedCoords.lat}&lon=${selectedCoords.lng}`);
-      const data = await res.json();
+      if (!window.google || !window.google.maps) {
+        throw new Error("Google Maps not loaded");
+      }
+      const geocoder = new window.google.maps.Geocoder();
       
-      const addr = data.address || {};
-      
-      onSelect({
-        lat: selectedCoords.lat.toFixed(6),
-        lng: selectedCoords.lng.toFixed(6),
-        street: addr.road || addr.suburb || "",
-        city: addr.city || addr.town || addr.village || "",
-        state: addr.state || "",
-        pincode: addr.postcode || "",
-        country: addr.country || ""
-      });
+      geocoder.geocode(
+        { location: { lat: selectedCoords.lat, lng: selectedCoords.lng } },
+        (results: any, status: any) => {
+          if (status === "OK" && results && results[0]) {
+            const result = results[0];
+            let street = "";
+            let city = "";
+            let state = "";
+            let pincode = "";
+            let country = "";
+
+            // Parse address components
+            for (const component of result.address_components) {
+              const types = component.types;
+              if (types.includes("route")) {
+                street = component.long_name;
+              } else if (types.includes("locality") || types.includes("postal_town")) {
+                city = component.long_name;
+              } else if (types.includes("administrative_area_level_1")) {
+                state = component.long_name;
+              } else if (types.includes("postal_code")) {
+                pincode = component.long_name;
+              } else if (types.includes("country")) {
+                country = component.long_name;
+              }
+            }
+
+            // Fallback for street if route is missing
+            if (!street) {
+              street = result.address_components.find((c: any) => c.types.includes("sublocality"))?.long_name || "";
+            }
+            // Fallback for city if locality is missing
+            if (!city) {
+              city = result.address_components.find((c: any) => c.types.includes("administrative_area_level_2"))?.long_name || "";
+            }
+
+            onSelect({
+              lat: selectedCoords.lat.toFixed(6),
+              lng: selectedCoords.lng.toFixed(6),
+              street,
+              city,
+              state,
+              pincode,
+              country,
+            });
+          } else {
+            throw new Error(`Google reverse geocoding failed: ${status}`);
+          }
+          setLoading(false);
+        }
+      );
     } catch (error) {
       console.error("Geocoding error", error);
       // Fallback
       onSelect({
         lat: selectedCoords.lat.toFixed(6),
         lng: selectedCoords.lng.toFixed(6),
-        street: "", city: "", state: "", pincode: "", country: ""
+        street: "",
+        city: "",
+        state: "",
+        pincode: "",
+        country: "",
       });
-    } finally {
       setLoading(false);
     }
   };

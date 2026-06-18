@@ -71,7 +71,8 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
     persistLanguageChoice(code);
     syncGoogleTranslatePolicy();
     saveScrollForLanguageReload();
-    window.location.assign(buildLanguageSwitchUrl(code));
+    window.location.href = buildLanguageSwitchUrl(code);
+    window.location.reload();
   };
 
   const active =
