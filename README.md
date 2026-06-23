@@ -31,6 +31,11 @@
 
 | Topic | File |
 |-------|------|
+| **Easy product add** (image + one line → auto-fill) | `docs/easy_product_adding_plan.md` |
+| **AI roadmap** (catalog import, room visualizer, returns AI) | `docs/ai_powered_ecommerce_plan.md` |
+| Returns & refunds (+ AI triage) | `docs/returns-system-architecture.md` |
+| Product import / scraping (+ AI auto-fill & images) | `docs/product_scraping_specification.md` |
+| Analytics (GA4, Meta, TikTok) | `docs/analytics_tracking_setup.md` |
 | **VPS ops commands** (Docker, deploy, logs, disk) | `docs/vps_operations_runbook.md` |
 | Production deploy | `docs/production_deployment_checklist.md` |
 | Backup & restore | `docs/backup_restore_guide.md` |
