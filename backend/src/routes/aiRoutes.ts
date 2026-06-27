@@ -38,6 +38,12 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
     const { hint, price, brandName, imagePromptOverride } = req.body;
     const imageFile = req.file;
 
+    if (imageFile) {
+      console.log(`📷 Quick-add image: ${imageFile.size} bytes, ${imageFile.mimetype}`);
+    } else if (hint) {
+      console.warn("⚠️ Quick-add: no image uploaded — AI will invent product photos from text only");
+    }
+
     if (!hint && !imageFile) {
       return res.status(400).json({ success: false, error: "Please provide either a hint or an image." });
     }

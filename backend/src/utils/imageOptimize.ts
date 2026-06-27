@@ -3,6 +3,8 @@ import path from "path";
 import sharp from "sharp";
 
 const MAX_DIMENSION = 1920;
+const AI_MAX_DIMENSION = parseInt(process.env.AI_IMAGE_MAX_PX || "1600", 10);
+const AI_WEBP_QUALITY = parseInt(process.env.AI_IMAGE_QUALITY || "82", 10);
 const MIN_SAVINGS_BYTES = 8 * 1024;
 const IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
 const SKIP_EXT = new Set([".gif", ".svg", ".ico"]);
@@ -106,4 +108,51 @@ export async function optimizeImagesInUploads(
   }
 
   return results;
+}
+
+/** Compress in-memory image (AI uploads / Gemini output) before writing to disk. */
+export async function compressImageBuffer(input: Buffer): Promise<Buffer> {
+  return sharp(input)
+    .rotate()
+    .resize({
+      width: AI_MAX_DIMENSION,
+      height: AI_MAX_DIMENSION,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({ quality: AI_WEBP_QUALITY, effort: 4 })
+    .toBuffer();
+}
+
+export type SavedCompressedImage = {
+  filename: string;
+  publicPath: string;
+  beforeBytes: number;
+  afterBytes: number;
+};
+
+/** Write compressed WebP to a directory; returns URL path under /uploads/... */
+export async function saveCompressedImageToDir(
+  input: Buffer,
+  dir: string,
+  urlPrefix: string,
+  namePrefix: string,
+): Promise<SavedCompressedImage> {
+  const beforeBytes = input.length;
+  const compressed = await compressImageBuffer(input);
+  const filename = `${namePrefix}-${Date.now()}.webp`;
+  await fs.writeFile(path.join(dir, filename), compressed);
+
+  if (compressed.length < beforeBytes) {
+    console.log(
+      `📦 Image compressed: ${Math.round(beforeBytes / 1024)}KB → ${Math.round(compressed.length / 1024)}KB (${filename})`,
+    );
+  }
+
+  return {
+    filename,
+    publicPath: `${urlPrefix}/${filename}`,
+    beforeBytes,
+    afterBytes: compressed.length,
+  };
 }

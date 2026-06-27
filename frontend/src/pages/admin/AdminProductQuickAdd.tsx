@@ -27,6 +27,7 @@ import { useAdmin } from "@/context/AdminContext";
 import { brandRepository } from "@/client/apiClient";
 import {
   clearQuickAddSession,
+  fileFromDataUrl,
   loadQuickAddSession,
   saveQuickAddSession,
 } from "@/utils/quickAddSession";
@@ -239,7 +240,15 @@ const AdminProductQuickAdd = () => {
     setRows((prev) => prev.filter((r) => r.key !== key));
   };
 
-  const validRows = rows.filter((r) => r.imageFile || r.hint.trim());
+  const validRows = rows.filter((r) => r.imageFile || r.imagePreview || r.hint.trim());
+
+  const resolveRowImageFile = (row: ProductRow): File | null => {
+    if (row.imageFile) return row.imageFile;
+    if (row.imagePreview) {
+      return fileFromDataUrl(row.imagePreview, `product-${row.key}.jpg`);
+    }
+    return null;
+  };
 
   const startNewBatch = () => {
     clearQuickAddSession();
@@ -276,7 +285,8 @@ const AdminProductQuickAdd = () => {
       startImagePhaseTimer(row.key);
 
       const formData = new FormData();
-      if (row.imageFile) formData.append("image", row.imageFile);
+      const imageFile = resolveRowImageFile(row);
+      if (imageFile) formData.append("image", imageFile);
       if (row.hint.trim()) formData.append("hint", row.hint.trim());
       if (row.price.trim()) formData.append("price", row.price.trim());
       if (row.brand.trim()) formData.append("brandName", row.brand.trim());

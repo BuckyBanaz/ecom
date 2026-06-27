@@ -55,3 +55,19 @@ export function saveQuickAddSession(data: Omit<QuickAddSession, "savedAt">) {
 export function clearQuickAddSession() {
   sessionStorage.removeItem(SESSION_KEY);
 }
+
+/** Restore a File from session-stored data URL (imageFile is not persisted). */
+export function fileFromDataUrl(dataUrl: string, filename = "product.jpg"): File | null {
+  if (!dataUrl.startsWith("data:")) return null;
+  try {
+    const [header, base64] = dataUrl.split(",");
+    if (!base64) return null;
+    const mime = header.match(/data:([^;]+)/)?.[1] || "image/jpeg";
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new File([bytes], filename, { type: mime });
+  } catch {
+    return null;
+  }
+}

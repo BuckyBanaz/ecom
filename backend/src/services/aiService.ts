@@ -4,6 +4,7 @@ import path from "path";
 import { getAiImageCount } from "../utils/aiLimits";
 import { buildAiLanguageInstruction, getAiOutputLanguage } from "../utils/aiLanguage";
 import { buildCmsPageSystemPrompt, sanitizeCmsAiHtml } from "../utils/cmsAiContent";
+import { saveCompressedImageToDir } from "../utils/imageOptimize";
 
 // ---------------------------------------------------------------------------
 // Call Gemini via REST API (same approach as model listing, guaranteed to work)
@@ -290,12 +291,17 @@ export const aiService = {
 
       // ── Image handling ────────────────────────────────────────────────────
       const aiImagesDir = path.join(__dirname, "../../public/uploads/ai-images");
+      const aiImagesUrlPrefix = "/uploads/ai-images";
       if (!fs.existsSync(aiImagesDir)) fs.mkdirSync(aiImagesDir, { recursive: true });
 
       if (imageFile) {
-        const filename = `ai-product-${Date.now()}-cover.jpg`;
-        fs.writeFileSync(path.join(aiImagesDir, filename), imageFile.buffer);
-        parsedData.image = `/uploads/ai-images/${filename}`;
+        const cover = await saveCompressedImageToDir(
+          imageFile.buffer,
+          aiImagesDir,
+          aiImagesUrlPrefix,
+          "ai-product-cover",
+        );
+        parsedData.image = cover.publicPath;
         parsedData.images = [];
 
         const scene = finalImageScene;
@@ -311,13 +317,18 @@ export const aiService = {
             lifestylePrompt
           );
           if (!imageBuffer) continue;
-          const galleryFilename = `gemini-lifestyle-${Date.now()}-${i}.jpg`;
-          fs.writeFileSync(path.join(aiImagesDir, galleryFilename), imageBuffer);
-          parsedData.images.push(`/uploads/ai-images/${galleryFilename}`);
+          const saved = await saveCompressedImageToDir(
+            imageBuffer,
+            aiImagesDir,
+            aiImagesUrlPrefix,
+            `gemini-lifestyle-${i}`,
+          );
+          parsedData.images.push(saved.publicPath);
         }
 
         if (parsedData.images.length === 0) {
-          console.warn("⚠️  Gemini lifestyle generation failed — cover saved, gallery empty.");
+          console.warn("⚠️  Gemini lifestyle generation failed — using uploaded photo as cover only.");
+          parsedData.images = [parsedData.image];
         } else {
           console.log(`✅ Gemini gallery: ${parsedData.images.length} image(s) from reference product.`);
         }
@@ -353,9 +364,13 @@ export const aiService = {
                 const parts = result?.candidates?.[0]?.content?.parts || [];
                 const imgPart = parts.find((p: any) => p.inlineData?.data);
                 if (!imgPart) continue;
-                const fn = `gemini-product-${Date.now()}-${i}.jpg`;
-                fs.writeFileSync(path.join(aiImagesDir, fn), Buffer.from(imgPart.inlineData.data, "base64"));
-                urls.push(`/uploads/ai-images/${fn}`);
+                const saved = await saveCompressedImageToDir(
+                  Buffer.from(imgPart.inlineData.data, "base64"),
+                  aiImagesDir,
+                  aiImagesUrlPrefix,
+                  `gemini-product-${i}`,
+                );
+                urls.push(saved.publicPath);
                 break;
               } catch {
                 /* try next model */
