@@ -4,6 +4,9 @@ export const API_PREFIX = "/api/v1";
 
 export const getBaseUrl = (): string => getApiBaseUrl();
 
+/** Full API v1 base, e.g. https://api.schipenster.com/api/v1 (works with or without /api/v1 in VITE_API_URL). */
+export const getApiV1Url = (): string => `${getApiBaseUrl()}${API_PREFIX}`;
+
 const api = (path: string): string => `${getApiBaseUrl()}${API_PREFIX}${path}`;
 
 export const ENDPOINTS = {

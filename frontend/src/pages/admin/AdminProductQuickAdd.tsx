@@ -30,6 +30,7 @@ import {
   loadQuickAddSession,
   saveQuickAddSession,
 } from "@/utils/quickAddSession";
+import { getApiV1Url } from "@/utils/endpoints";
 
 interface ProductRow {
   key: string;
@@ -97,7 +98,7 @@ const AdminProductQuickAdd = () => {
   const generatingRef = useRef(false);
   const sessionNotified = useRef(false);
 
-  const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
+  const apiUrl = getApiV1Url();
   const authHeaders = { Authorization: `Bearer ${localStorage.getItem("admin_token")}` };
 
   useEffect(() => {

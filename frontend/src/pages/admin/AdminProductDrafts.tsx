@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
 import { resolveImgUrl } from "@/utils/image";
+import { getApiV1Url } from "@/utils/endpoints";
 
 interface Draft {
   id: string;
@@ -28,7 +29,7 @@ const AdminProductDrafts = () => {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
+  const apiUrl = getApiV1Url();
   const authHeaders = { Authorization: `Bearer ${localStorage.getItem("admin_token")}`, "Content-Type": "application/json" };
 
   const loadDrafts = async () => {

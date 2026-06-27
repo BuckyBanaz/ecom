@@ -18,6 +18,7 @@ import { brandRepository, categoryRepository, attributeRepository, productReposi
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { cn } from "@/lib/utils";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { getApiV1Url } from "@/utils/endpoints";
 
 
 export interface SpecItem {
@@ -242,7 +243,7 @@ const AdminProductForm = () => {
       const loadDraft = async () => {
         setIsProductLoading(true);
         try {
-          const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
+          const apiUrl = getApiV1Url();
           const res = await fetch(`${apiUrl}/ai/drafts/${draftId}`, {
             headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
           });
@@ -659,7 +660,7 @@ const AdminProductForm = () => {
       if (data.success) {
         if (isDraftMode && draftId) {
           try {
-            const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
+            const apiUrl = getApiV1Url();
             await fetch(`${apiUrl}/ai/drafts/${draftId}/published`, {
               method: "PATCH",
               headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
