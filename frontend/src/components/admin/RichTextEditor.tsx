@@ -77,6 +77,7 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
   const [pendingAiContent, setPendingAiContent] = useState("");
   const [pendingAiSeo, setPendingAiSeo] = useState<{ seoTitle: string; seoDesc: string; seoKeywords: string } | null>(null);
   const [aiCodeLines, setAiCodeLines] = useState<string[]>([]);
+  const aiCodeScrollRef = useRef<HTMLDivElement>(null);
 
   const resolveRelativeUrlsInHtml = (html: string): string => {
     if (!html) return "";
@@ -802,10 +803,16 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
     const timer = setInterval(() => {
       const next = pool[idx % pool.length];
       idx += 1;
-      setAiCodeLines((prev) => [...prev.slice(-7), next]);
+      setAiCodeLines((prev) => [...prev.slice(-5), next]);
     }, 420);
     return () => clearInterval(timer);
   }, [isGenerating]);
+
+  useEffect(() => {
+    const el = aiCodeScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [aiCodeLines]);
 
   return (
     <div className="space-y-2">
@@ -1367,8 +1374,8 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
       </Dialog>
 
       <Dialog open={isAiDialogOpen} onOpenChange={(open) => !isGenerating && setIsAiDialogOpen(open)}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col gap-4">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2 text-primary">
               <Sparkles className="h-5 w-5" />
               Generate Page with AI
@@ -1378,28 +1385,34 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
             </DialogDescription>
           </DialogHeader>
           {isGenerating ? (
-            <div className="rounded-xl border border-primary/20 bg-zinc-950 p-4 font-mono text-[11px] text-emerald-400 min-h-[220px] shadow-inner">
-              <div className="flex items-center gap-2 mb-3 text-primary font-sans text-sm font-medium">
+            <div className="flex h-[200px] min-h-0 shrink-0 flex-col overflow-hidden rounded-xl border border-primary/20 bg-zinc-950 p-4 font-mono text-[11px] text-emerald-400 shadow-inner">
+              <div className="mb-3 flex shrink-0 items-center gap-2 font-sans text-sm font-medium text-primary">
                 <Sparkles className="h-4 w-4 animate-pulse" />
                 AI is writing your page…
               </div>
-              <div className="space-y-1 max-h-[160px] overflow-hidden">
+              <div
+                ref={aiCodeScrollRef}
+                className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden pr-1"
+              >
                 {aiCodeLines.map((line, i) => (
-                  <div key={`${i}-${line.slice(0, 12)}`} className="truncate opacity-80 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                    <span className="text-zinc-500 select-none">{"> "}</span>
+                  <div
+                    key={`${i}-${line.slice(0, 12)}`}
+                    className="break-all opacity-80 animate-in fade-in slide-in-from-bottom-1 duration-300"
+                  >
+                    <span className="select-none text-zinc-500">{"> "}</span>
                     {line}
                   </div>
                 ))}
+                <span className="inline-block h-4 w-2 animate-pulse bg-emerald-400" aria-hidden />
               </div>
-              <span className="inline-block w-2 h-4 bg-emerald-400 animate-pulse mt-2" aria-hidden />
             </div>
           ) : (
-            <div className="space-y-4 py-2">
+            <div className="min-h-0 shrink space-y-4 overflow-y-auto py-2">
               <div className="space-y-2">
                 <Label>Your Prompt</Label>
                 <textarea
                   autoFocus
-                  className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                  className="w-full min-h-[120px] max-h-[40vh] resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   placeholder="e.g. Pendant lights page: hero banner, 3 features, bestseller grid…"
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
@@ -1407,7 +1420,7 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setIsAiDialogOpen(false)} disabled={isGenerating}>
               {t("admin_components.button_cancel")}
             </Button>
