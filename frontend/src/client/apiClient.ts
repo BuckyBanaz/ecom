@@ -970,7 +970,7 @@ export const logsRepository = {
 // 29. AI Repository
 export const aiRepository = {
   generateCmsPage: async (prompt: string) => {
-    return request<any>(`${API_PREFIX}/ai/cms/generate`, {
+    return request<any>(ENDPOINTS.AI_CMS_GENERATE, {
       method: "POST",
       body: JSON.stringify({ prompt }),
     });
