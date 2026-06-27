@@ -105,35 +105,6 @@ function App() {
                     <MaintenanceGuard>
                       <Suspense fallback={<PageLoader />}>
                         <Routes>
-                          <Route element={<SiteLayout />}>
-                            <Route path="/" element={<Index />} />
-                            <Route path="/relief" element={<Relief />} />
-                            <Route path="/relief/category/:slug" element={<Category />} />
-                            <Route path="/relief/:slug" element={<ReliefCategory />} />
-                            <Route path="/categories" element={<AllCategories />} />
-                            <Route path="/category" element={<Category />} />
-                            <Route path="/category/:slug" element={<Category />} />
-                            <Route path="/deals" element={<Navigate to="/category/deals" replace />} />
-                            <Route path="/product/:slug" element={<ProductPage />} />
-                            <Route path="/cart" element={<Cart />} />
-                            <Route path="/checkout" element={<Checkout />} />
-                            <Route path="/checkout/success" element={<Checkout />} />
-                            <Route path="/checkout/cancel" element={<Checkout />} />
-                            <Route path="/checkout/retry/:orderId" element={<CheckoutRetry />} />
-                            <Route path="/search" element={<Search />} />
-                            <Route path="/account" element={<AccountAuth />} />
-                            <Route path="/forgot-password" element={<ForgotPassword />} />
-                            <Route path="/reset-password" element={<ResetPassword />} />
-                            <Route path="/dashboard" element={<UserDashboard />} />
-                            <Route path="/faqs" element={<Faqs />} />
-                            <Route path="/blogs" element={<Blogs />} />
-                            <Route path="/blogs/:slug" element={<BlogDetail />} />
-                            <Route path="/wishlist" element={<Wishlist />} />
-                            <Route path="/404" element={<NotFound />} />
-                            <Route path="/:slug" element={<DynamicPage />} />
-                            <Route path="*" element={<NotFound />} />
-                          </Route>
-
                           <Route path="/invoice" element={<InvoicePage />} />
 
                           <Route path="/admin/login" element={<AdminLogin />} />
@@ -167,7 +138,8 @@ function App() {
                             <Route path="cms/header-footer" element={<CMSHeaderFooter />} />
                             <Route path="cms/faqs" element={<CMSFaqs />} />
                             <Route path="cms/relief" element={<CMSRelief />} />
-                            <Route path="cms/:kind" element={<CMSLegal />} />
+                            <Route path="cms/privacy-policy" element={<CMSLegal />} />
+                            <Route path="cms/terms-conditions" element={<CMSLegal />} />
                             <Route path="cms/pages" element={<CMSPages />} />
                             <Route path="cms/blogs" element={<CMSBlogs />} />
                             <Route path="cms/seo" element={<CMSSeo />} />
@@ -179,6 +151,35 @@ function App() {
                             <Route path="logs" element={<AdminLogs />} />
                             <Route path="backups" element={<AdminBackups />} />
                             <Route path="notifications" element={<AdminNotificationsPage />} />
+                          </Route>
+
+                          <Route element={<SiteLayout />}>
+                            <Route path="/" element={<Index />} />
+                            <Route path="/relief" element={<Relief />} />
+                            <Route path="/relief/category/:slug" element={<Category />} />
+                            <Route path="/relief/:slug" element={<ReliefCategory />} />
+                            <Route path="/categories" element={<AllCategories />} />
+                            <Route path="/category" element={<Category />} />
+                            <Route path="/category/:slug" element={<Category />} />
+                            <Route path="/deals" element={<Navigate to="/category/deals" replace />} />
+                            <Route path="/product/:slug" element={<ProductPage />} />
+                            <Route path="/cart" element={<Cart />} />
+                            <Route path="/checkout" element={<Checkout />} />
+                            <Route path="/checkout/success" element={<Checkout />} />
+                            <Route path="/checkout/cancel" element={<Checkout />} />
+                            <Route path="/checkout/retry/:orderId" element={<CheckoutRetry />} />
+                            <Route path="/search" element={<Search />} />
+                            <Route path="/account" element={<AccountAuth />} />
+                            <Route path="/forgot-password" element={<ForgotPassword />} />
+                            <Route path="/reset-password" element={<ResetPassword />} />
+                            <Route path="/dashboard" element={<UserDashboard />} />
+                            <Route path="/faqs" element={<Faqs />} />
+                            <Route path="/blogs" element={<Blogs />} />
+                            <Route path="/blogs/:slug" element={<BlogDetail />} />
+                            <Route path="/wishlist" element={<Wishlist />} />
+                            <Route path="/404" element={<NotFound />} />
+                            <Route path="/:slug" element={<DynamicPage />} />
+                            <Route path="*" element={<NotFound />} />
                           </Route>
                         </Routes>
                       </Suspense>

@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,18 +13,22 @@ import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { getClientBaseUrl } from "@/utils/siteUrl";
+import { cmsPagesRepository } from "@/client/apiClient";
+import { normalizeCmsHtmlForStorage } from "@/utils/cmsHtml";
+import { SectionLoader } from "@/components/ui/PageLoader";
 
 type ImgState = string | null;
+type LegalKind = "privacy-policy" | "terms-conditions";
 
 function ImageUploader({ label, value, onChange }: { label: string; value: ImgState; onChange: (v: ImgState) => void }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
+
   return (
     <div className="space-y-3">
       <Label className="text-sm font-medium">{label}</Label>
-      <div 
+      <div
         onClick={() => !value && setIsDialogOpen(true)}
-        className={`group relative overflow-hidden rounded-xl border-2 border-dashed transition-all ${value ? 'border-border' : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5 cursor-pointer'} bg-muted/30`}
+        className={`group relative overflow-hidden rounded-xl border-2 border-dashed transition-all ${value ? "border-border" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5 cursor-pointer"} bg-muted/30`}
       >
         {value ? (
           <div className="relative aspect-video w-full">
@@ -43,18 +47,16 @@ function ImageUploader({ label, value, onChange }: { label: string; value: ImgSt
           </div>
         )}
       </div>
-      <MediaLibraryDialog 
-        open={isDialogOpen} 
-        onOpenChange={setIsDialogOpen} 
-        onSelect={(url) => {
-          onChange(normalizeUploadedUrl(url));
-        }} 
+      <MediaLibraryDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSelect={(url) => onChange(normalizeUploadedUrl(url))}
       />
     </div>
   );
 }
 
-const presets: Record<string, { title: string; slug: string; body: string }> = {
+const presets: Record<LegalKind, { title: string; slug: string; body: string }> = {
   "privacy-policy": {
     title: "Privacy Policy",
     slug: "privacy-policy",
@@ -68,31 +70,92 @@ const presets: Record<string, { title: string; slug: string; body: string }> = {
 };
 
 const CMSLegal = () => {
-  const { kind = "privacy-policy" } = useParams();
-  const preset = presets[kind] ?? presets["privacy-policy"];
-  
+  const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const kind: LegalKind = pathname.includes("terms-conditions")
+    ? "terms-conditions"
+    : "privacy-policy";
+  const preset = presets[kind];
+
   const [body, setBody] = useState(preset.body);
-  
-  // SEO State
-  const [seoTitle, setSeoTitle] = useState(`${preset.title} | YourStore`);
+  const [seoTitle, setSeoTitle] = useState(`${preset.title} | Schip & Ster`);
   const [seoDesc, setSeoDesc] = useState("");
   const [seoKeywords, setSeoKeywords] = useState("");
   const [seoImage, setSeoImage] = useState<ImgState>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [existsInDb, setExistsInDb] = useState(false);
 
-  // Reset state when route changes
   useEffect(() => {
-    setBody(preset.body);
-    setSeoTitle(`${preset.title} | YourStore`);
-    setSeoDesc("");
-    setSeoKeywords("");
-    setSeoImage(null);
-  }, [kind, preset.body, preset.title]);
+    let cancelled = false;
 
-  const save = (e: React.FormEvent) => { 
-    e.preventDefault(); 
-    console.log("Saving legal page:", { kind, body, seoTitle, seoDesc, seoKeywords, seoImage });
-    toast.success(`${preset.title} successfully updated!`); 
+    const load = async () => {
+      setIsLoading(true);
+      setBody(preset.body);
+      setSeoTitle(`${preset.title} | Schip & Ster`);
+      setSeoDesc("");
+      setSeoKeywords("");
+      setSeoImage(null);
+      setExistsInDb(false);
+
+      try {
+        const res = await cmsPagesRepository.getBySlug(preset.slug);
+        if (cancelled) return;
+        if (res.success && res.page) {
+          setBody(res.page.body || preset.body);
+          setSeoTitle(res.page.seoTitle || `${preset.title} | Schip & Ster`);
+          setSeoDesc(res.page.seoDesc || "");
+          setSeoKeywords(res.page.seoKeywords || "");
+          setSeoImage(res.page.seoImage || null);
+          setExistsInDb(true);
+        }
+      } catch {
+        /* first time — use preset defaults */
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, preset.body, preset.slug, preset.title]);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+
+    const pageData = {
+      title: preset.title,
+      slug: preset.slug,
+      body: normalizeCmsHtmlForStorage(body),
+      published: true,
+      seoTitle,
+      seoDesc,
+      seoKeywords,
+      seoImage,
+    };
+
+    try {
+      if (existsInDb) {
+        await cmsPagesRepository.update(preset.slug, pageData);
+      } else {
+        await cmsPagesRepository.create(pageData);
+        setExistsInDb(true);
+      }
+      toast.success(t("cms_legal.toast_success", { defaultValue: `${preset.title} successfully updated!` }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t("cms_legal.toast_error", { defaultValue: "Failed to save legal page" });
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return <SectionLoader />;
+  }
 
   return (
     <form onSubmit={save} className="space-y-6 pb-12">
@@ -107,17 +170,16 @@ const CMSLegal = () => {
           <p className="text-muted-foreground text-sm">Edit legal page content and optimize it for search engines.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button type="button" variant="outline" className="gap-2 shadow-sm" onClick={() => window.open(`/${preset.slug}`, '_blank')}>
+          <Button type="button" variant="outline" className="gap-2 shadow-sm" onClick={() => window.open(`/${preset.slug}`, "_blank")}>
             <Eye className="h-4 w-4" /> Live Preview
           </Button>
-          <Button type="submit" className="gap-2 shadow-sm">
-            <Save className="h-4 w-4" /> Publish Changes
+          <Button type="submit" className="gap-2 shadow-sm" disabled={isSaving}>
+            <Save className="h-4 w-4" /> {isSaving ? t("common.saving", { defaultValue: "Saving…" }) : "Publish Changes"}
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content Area */}
         <div className="lg:col-span-2 space-y-8">
           <Card className="border-muted-foreground/10 shadow-sm overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
@@ -128,17 +190,21 @@ const CMSLegal = () => {
             </CardHeader>
             <CardContent className="p-0">
               <div className="min-h-[600px]">
-                <RichTextEditor 
-                  value={body} 
-                  onChange={setBody} 
-                  placeholder={`Start writing your ${preset.title.toLowerCase()}...`} 
+                <RichTextEditor
+                  value={body}
+                  onChange={setBody}
+                  placeholder={`Start writing your ${preset.title.toLowerCase()}...`}
+                  onSeoGenerated={(seo) => {
+                    if (seo.seoTitle) setSeoTitle(seo.seoTitle);
+                    if (seo.seoDesc) setSeoDesc(seo.seoDesc);
+                    if (seo.seoKeywords) setSeoKeywords(seo.seoKeywords);
+                  }}
                 />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Sidebar Settings */}
         <div className="space-y-6">
           <Card className="border-muted-foreground/10 shadow-sm sticky top-6">
             <CardHeader className="bg-muted/30 border-b pb-4">
@@ -146,7 +212,6 @@ const CMSLegal = () => {
               <CardDescription>Configure search visibility</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-5">
-              {/* Google Preview */}
               <div className="space-y-2">
                 <Label>Google Search Preview</Label>
                 <div className="border rounded-xl p-4 bg-muted/20 space-y-1 text-left shadow-xs">
@@ -165,26 +230,26 @@ const CMSLegal = () => {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label className="font-semibold">Meta Title</Label>
-                  <span className={`text-xs ${seoTitle.length > 60 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  <span className={`text-xs ${seoTitle.length > 60 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                     {seoTitle.length} / 60
                   </span>
                 </div>
-                <Input value={seoTitle} onChange={e => setSeoTitle(e.target.value)} placeholder="Title for search engines" className="bg-muted/30" />
+                <Input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} placeholder="Title for search engines" className="bg-muted/30" />
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label className="font-semibold">Meta Description</Label>
-                  <span className={`text-xs ${seoDesc.length > 160 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  <span className={`text-xs ${seoDesc.length > 160 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                     {seoDesc.length} / 160
                   </span>
                 </div>
-                <Textarea value={seoDesc} onChange={e => setSeoDesc(e.target.value)} placeholder="Brief description..." rows={4} className="bg-muted/30 resize-none" />
+                <Textarea value={seoDesc} onChange={(e) => setSeoDesc(e.target.value)} placeholder="Brief description..." rows={4} className="bg-muted/30 resize-none" />
               </div>
 
               <div className="space-y-2">
                 <Label className="font-semibold">Meta Keywords</Label>
-                <Input value={seoKeywords} onChange={e => setSeoKeywords(e.target.value)} placeholder="privacy, terms, legal (comma separated)" className="bg-muted/30" />
+                <Input value={seoKeywords} onChange={(e) => setSeoKeywords(e.target.value)} placeholder="privacy, terms, legal (comma separated)" className="bg-muted/30" />
               </div>
 
               <div className="pt-4 border-t">

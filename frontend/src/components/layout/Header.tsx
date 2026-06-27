@@ -13,6 +13,7 @@ import { navGroups } from "@/data/categories";
 import { useDebounce } from "@/hooks/use-debounce";
 import { productRepository, megaMenuRepository, cmsHeaderFooterRepository } from "@/client/apiClient";
 import { useCmsData } from "@/hooks/useCmsData";
+import { useCmsLabel } from "@/hooks/useCmsLabel";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { labelT } from "@/utils/i18nLabel";
 import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
@@ -22,6 +23,25 @@ function categoryItemPath(slug: string): string {
   const q = slug.indexOf("?");
   if (q === -1) return `/category/${slug}`;
   return `/category/${slug.slice(0, q)}${slug.slice(q)}`;
+}
+
+function HeaderTopBarText({ text, icon }: { text: string; icon?: string }) {
+  const label = useCmsLabel(text);
+  return (
+    <span className="flex items-center gap-2 font-medium text-muted-foreground">
+      {icon && <FaIcon name={icon} className="h-4 w-4 text-primary" />}
+      {label}
+    </span>
+  );
+}
+
+function HeaderTopBarLink({ label, href, className }: { label: string; href: string; className?: string }) {
+  const text = useCmsLabel(label);
+  return (
+    <Link to={href} className={className ?? "hover:text-primary font-medium"}>
+      {text}
+    </Link>
+  );
 }
 
 export function Header() {
@@ -149,17 +169,12 @@ export function Header() {
             <div className="hidden md:flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-4">
                 {topLeft.map((item, idx) => (
-                    <span key={`desk-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
-                      {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
-                      {labelT(t, item.text, i18n.language)}
-                    </span>
+                    <HeaderTopBarText key={`desk-l-${item.text}-${idx}`} text={item.text} icon={item.icon} />
                   ))}
               </div>
               <div className="flex items-center gap-4 text-muted-foreground">
                 {topRight.map((link, idx) => (
-                  <Link key={`desk-r-${link.label}-${idx}`} to={link.href} className="hover:text-primary font-medium">
-                    {labelT(t, link.label, i18n.language)}
-                  </Link>
+                  <HeaderTopBarLink key={`desk-r-${link.label}-${idx}`} label={link.label} href={link.href} />
                 ))}
               </div>
             </div>
@@ -171,13 +186,15 @@ export function Header() {
                   const isLink = item.href !== undefined;
 
                   return isLink ? (
-                    <Link key={`mob-r-${item.label}-${idx}`} to={item.href} className="hover:text-primary font-medium whitespace-nowrap">
-                      {labelT(t, item.label, i18n.language)}
-                    </Link>
+                    <HeaderTopBarLink
+                      key={`mob-r-${item.label}-${idx}`}
+                      label={item.label}
+                      href={item.href}
+                      className="hover:text-primary font-medium whitespace-nowrap"
+                    />
                   ) : (
-                    <span key={`mob-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground whitespace-nowrap">
-                      {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
-                      {labelT(t, item.text, i18n.language)}
+                    <span key={`mob-l-${item.text}-${idx}`} className="whitespace-nowrap">
+                      <HeaderTopBarText text={item.text} icon={item.icon} />
                     </span>
                   );
                 })}

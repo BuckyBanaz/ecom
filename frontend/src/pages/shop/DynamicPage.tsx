@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { cmsPagesRepository } from "@/client/apiClient";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { readCachedCmsPage, writeCachedCmsPage } from "@/utils/cmsLocalStorage";
 
+const RESERVED_SLUGS = new Set([
+  "admin", "api", "cart", "checkout", "account", "search", "categories", "category",
+  "product", "blogs", "faqs", "wishlist", "dashboard", "invoice", "relief", "404",
+]);
+
 export default function DynamicPage() {
   const { t } = useTranslation();
-  const { slug } = useParams();
+  const { slug: slugParam } = useParams();
+  const { pathname } = useLocation();
+  const slug = slugParam || pathname.replace(/^\/+/, "").split("/")[0] || "";
   const navigate = useNavigate();
   const [page, setPage] = useState<any>(() => (slug ? readCachedCmsPage(slug) : null));
   const [isLoading, setIsLoading] = useState(() => !(slug && readCachedCmsPage(slug)));
@@ -16,7 +23,11 @@ export default function DynamicPage() {
   useEffect(() => {
     const fetchPage = async () => {
       try {
-        if (!slug) return;
+        if (!slug || RESERVED_SLUGS.has(slug)) {
+          setError(true);
+          setIsLoading(false);
+          return;
+        }
         const cached = readCachedCmsPage(slug);
         if (cached) {
           setPage(cached);
