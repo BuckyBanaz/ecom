@@ -54,61 +54,73 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
   const { cacheTtl, ...fetchConfig } = config;
   const key = cacheKey(method, url);
 
-  if (method === "GET" && cacheTtl && !isAdminPanel) {
-    const cached = getCached<T>(key);
-    if (cached) {
-      const staleAfter = Math.floor(cacheTtl / 3);
-      if (isCacheStale(key, staleAfter) && !inflight.has(key)) {
-        inflight.set(
-          key,
-          fetchAndParse<T>(url, fetchConfig)
-            .then(async (fresh) => {
-              try {
-                const translated = await maybeTranslateApiData(url, fresh);
-                setCache(key, translated, cacheTtl);
-                return translated;
-              } catch (err) {
-                console.error("Translation fail in cache reload:", err);
-                setCache(key, fresh, cacheTtl);
-                return fresh;
-              }
-            })
-            .finally(() => inflight.delete(key))
-        );
+  const execute = async (): Promise<T> => {
+    if (method === "GET" && cacheTtl && !isAdminPanel) {
+      const cached = getCached<T>(key);
+      if (cached) {
+        const staleAfter = Math.floor(cacheTtl / 3);
+        if (isCacheStale(key, staleAfter) && !inflight.has(key)) {
+          inflight.set(
+            key,
+            fetchAndParse<T>(url, fetchConfig)
+              .then(async (fresh) => {
+                try {
+                  const translated = await maybeTranslateApiData(url, fresh);
+                  setCache(key, translated, cacheTtl);
+                  return translated;
+                } catch (err) {
+                  console.error("Translation fail in cache reload:", err);
+                  setCache(key, fresh, cacheTtl);
+                  return fresh;
+                }
+              })
+              .finally(() => inflight.delete(key))
+          );
+        }
+        return cached;
       }
-      return cached;
     }
-  }
 
-  const promise = fetchAndParse<T>(url, fetchConfig);
-  if (method === "GET" && cacheTtl && !isAdminPanel) {
+    const promise = fetchAndParse<T>(url, fetchConfig);
+    if (method === "GET" && cacheTtl && !isAdminPanel) {
+      return promise.then(async (data) => {
+        try {
+          const translated = await maybeTranslateApiData(url, data);
+          setCache(key, translated, cacheTtl);
+          return translated;
+        } catch (err) {
+          console.error("Translation fail in fetch:", err);
+          setCache(key, data, cacheTtl);
+          return data;
+        }
+      });
+    }
+
     return promise.then(async (data) => {
-      try {
-        const translated = await maybeTranslateApiData(url, data);
-        setCache(key, translated, cacheTtl);
-        return translated;
-      } catch (err) {
-        console.error("Translation fail in fetch:", err);
-        setCache(key, data, cacheTtl);
-        return data;
+      if (method !== "GET") {
+        clearApiCache();
       }
+      if (!isAdminPanel && method === "GET") {
+        try {
+          return await maybeTranslateApiData(url, data);
+        } catch (err) {
+          console.error("Translation fail in direct get:", err);
+          return data;
+        }
+      }
+      return data;
     });
+  };
+
+  if (method === "GET") {
+    const pending = inflight.get(key);
+    if (pending) return pending as Promise<T>;
+    const shared = execute().finally(() => inflight.delete(key));
+    inflight.set(key, shared);
+    return shared;
   }
 
-  return promise.then(async (data) => {
-    if (method !== "GET") {
-      clearApiCache();
-    }
-    if (!isAdminPanel && method === "GET") {
-      try {
-        return await maybeTranslateApiData(url, data);
-      } catch (err) {
-        console.error("Translation fail in direct get:", err);
-        return data;
-      }
-    }
-    return data;
-  });
+  return execute();
 }
 
 const CACHE = {
@@ -247,7 +259,7 @@ export const seriesRepository = {
 // 5. Attributes Repository
 export const attributeRepository = {
   getAll: async () => {
-    return request<any>(ENDPOINTS.ATTRIBUTES, { method: "GET" });
+    return request<any>(ENDPOINTS.ATTRIBUTES, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   getById: async (id: string) => {
@@ -393,7 +405,7 @@ export const authRepository = {
 // 8. CMS Homepage Repository
 export const cmsHomepageRepository = {
   get: async () => {
-    return request<any>(ENDPOINTS.CMS_HOMEPAGE, { method: "GET", cacheTtl: CACHE.MEDIUM });
+    return request<any>(ENDPOINTS.CMS_HOMEPAGE, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   update: async (data: any) => {
@@ -481,7 +493,7 @@ export const cmsPagesRepository = {
   },
   
   getBySlug: async (slug: string) => {
-    return request<any>(`${ENDPOINTS.CMS_PAGE}/${slug}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
+    return request<any>(`${ENDPOINTS.CMS_PAGE}/${slug}`, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   create: async (data: any) => {
@@ -725,6 +737,18 @@ export const adminSettingsRepository = {
   getMaintenanceStatus: async () => {
     return request<any>(ENDPOINTS.PUBLIC_MAINTENANCE_STATUS, { method: "GET", cacheTtl: CACHE.SHORT });
   },
+  getAiSettings: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/ai`, { method: "GET" });
+  },
+  getAiModels: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/ai/models`, { method: "GET" });
+  },
+  updateAiSettings: async (data: any) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/ai`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // 15. Email Templates Repository
@@ -941,6 +965,16 @@ export const logsRepository = {
   },
   stats: async () => request<any>(`${ENDPOINTS.ADMIN_LOGS}/stats`, { method: "GET" }),
   clear: async () => request<any>(ENDPOINTS.ADMIN_LOGS, { method: "DELETE" }),
+};
+
+// 29. AI Repository
+export const aiRepository = {
+  generateCmsPage: async (prompt: string) => {
+    return request<any>(`${API_PREFIX}/ai/cms/generate`, {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    });
+  },
 };
 
 const apiClient = {

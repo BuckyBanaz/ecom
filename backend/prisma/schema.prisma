@@ -389,3 +389,20 @@ model StoreCharge {
 
   @@map("store_charges")
 }
+
+// 16. AI Product Drafts (Quick Add — save before publish)
+model ProductDraft {
+  id        String   @id @default(uuid())
+  status    String   @default("draft") // draft | published | failed
+  batchId   String?  @map("batch_id")
+  name      String?
+  payload   Json
+  error     String?
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([batchId])
+  @@map("product_drafts")
+}

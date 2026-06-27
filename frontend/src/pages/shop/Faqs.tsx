@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { faqs as defaultFaqs } from "@/data/faqs";
 import { cmsFaqsRepository } from "@/client/apiClient";
+import { buildFaqPageSchema, removeJsonLd, upsertJsonLd } from "@/utils/seoMeta";
 
 const Faqs = () => {
   const { t } = useTranslation();
@@ -29,6 +30,12 @@ const Faqs = () => {
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (faqs.length === 0) return;
+    upsertJsonLd("faq-schema", buildFaqPageSchema(faqs));
+    return () => removeJsonLd("faq-schema");
+  }, [faqs]);
 
   return (
     <div className="container-page max-w-3xl py-10">

@@ -6,6 +6,13 @@ import { blogRepository } from "@/client/apiClient";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { initialBlogs } from "@/data/blogs";
 import { LottieLoader } from "@/components/ui/PageLoader";
+import {
+  applyPageMeta,
+  buildBlogPostingSchema,
+  buildBreadcrumbSchema,
+  removeJsonLd,
+  upsertJsonLd,
+} from "@/utils/seoMeta";
 
 const BlogDetail = () => {
   const { t } = useTranslation();
@@ -46,27 +53,34 @@ const BlogDetail = () => {
   const blog = useMemo(() => blogs.find((b) => b.slug === slug), [blogs, slug]);
 
   useEffect(() => {
-    if (blog) {
-      document.title = blog.seoTitle || blog.title || "Blog";
-      
-      let metaDesc = document.querySelector('meta[name="description"]');
-      if (!metaDesc) {
-        metaDesc = document.createElement('meta');
-        metaDesc.setAttribute('name', 'description');
-        document.head.appendChild(metaDesc);
-      }
-      metaDesc.setAttribute('content', blog.seoDescription || blog.excerpt || "");
+    if (!blog) return;
 
-      if (blog.seoKeywords) {
-        let metaKeywords = document.querySelector('meta[name="keywords"]');
-        if (!metaKeywords) {
-          metaKeywords = document.createElement('meta');
-          metaKeywords.setAttribute('name', 'keywords');
-          document.head.appendChild(metaKeywords);
-        }
-        metaKeywords.setAttribute('content', blog.seoKeywords);
-      }
-    }
+    const title = blog.seoTitle || blog.title || "Blog";
+    const description = blog.seoDescription || blog.excerpt || "";
+    const canonical = `${window.location.origin}/blogs/${blog.slug}`;
+
+    applyPageMeta({
+      title,
+      description,
+      keywords: blog.seoKeywords || "",
+      canonical,
+      ogType: "article",
+      ogImage: blog.cover,
+      ogTitle: blog.title,
+      ogDescription: description,
+    });
+
+    upsertJsonLd("article-schema", buildBlogPostingSchema(blog));
+    upsertJsonLd(
+      "breadcrumb-schema",
+      buildBreadcrumbSchema([
+        { name: "Home", url: "/" },
+        { name: "Blog", url: "/blogs" },
+        { name: blog.title, url: `/blogs/${blog.slug}` },
+      ])
+    );
+
+    return () => removeJsonLd("article-schema", "breadcrumb-schema");
   }, [blog]);
 
   if (loading) {

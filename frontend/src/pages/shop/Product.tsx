@@ -24,6 +24,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { getProductBrandName } from "@/utils/formatters";
 import { resolveImgUrl } from "@/utils/image";
 import { labelT } from "@/utils/i18nLabel";
+import {
+  applyPageMeta,
+  buildBreadcrumbSchema,
+  buildProductSchema,
+  removeJsonLd,
+  upsertJsonLd,
+} from "@/utils/seoMeta";
 
 const ProductPage = () => {
   const { t } = useTranslation();
@@ -172,28 +179,43 @@ const ProductPage = () => {
     fetchProduct();
   }, [slug]);
 
-  // Update SEO Meta Tags when product is loaded
+  // Update SEO + AEO structured data when product is loaded
   useEffect(() => {
-    if (liveProduct) {
-      document.title = liveProduct.seoTitle || `${liveProduct.name} | Premium Lighting`;
-      
-      let metaDescription = document.querySelector('meta[name="description"]');
-      if (!metaDescription) {
-        metaDescription = document.createElement('meta');
-        metaDescription.setAttribute('name', 'description');
-        document.head.appendChild(metaDescription);
-      }
-      metaDescription.setAttribute('content', liveProduct.seoDescription || liveProduct.shortDescription || "");
+    if (!liveProduct) return;
 
-      let metaKeywords = document.querySelector('meta[name="keywords"]');
-      if (!metaKeywords) {
-        metaKeywords = document.createElement('meta');
-        metaKeywords.setAttribute('name', 'keywords');
-        document.head.appendChild(metaKeywords);
-      }
-      metaKeywords.setAttribute('content', liveProduct.seoKeywords || "");
-    }
-  }, [liveProduct]);
+    const title = liveProduct.seoTitle || `${liveProduct.name} | Schip & Ster`;
+    const description = liveProduct.seoDescription || liveProduct.shortDescription || "";
+    const canonical = `${window.location.origin}/product/${liveProduct.slug || slug}`;
+
+    applyPageMeta({
+      title,
+      description,
+      keywords: liveProduct.seoKeywords || "",
+      canonical,
+      ogType: "product",
+      ogImage: liveProduct.image,
+      ogTitle: liveProduct.name,
+      ogDescription: description,
+    });
+
+    upsertJsonLd(
+      "product-schema",
+      buildProductSchema(liveProduct, { reviews: liveReviews })
+    );
+    upsertJsonLd(
+      "breadcrumb-schema",
+      buildBreadcrumbSchema([
+        { name: "Home", url: "/" },
+        { name: "Categories", url: "/categories" },
+        ...(liveProduct.category
+          ? [{ name: liveProduct.category, url: `/category/${liveProduct.category}` }]
+          : []),
+        { name: liveProduct.name, url: `/product/${liveProduct.slug || slug}` },
+      ])
+    );
+
+    return () => removeJsonLd("product-schema", "breadcrumb-schema");
+  }, [liveProduct, liveReviews, slug]);
 
   if (loading) {
     return <SectionLoader />;

@@ -6,7 +6,15 @@ interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fallbackType?: "product" | "category" | "brand" | "series";
 }
 
-export function SafeImage({ src, alt, className, fallbackType, ...props }: SafeImageProps) {
+export function SafeImage({
+  src,
+  alt,
+  className,
+  fallbackType,
+  loading = "lazy",
+  decoding = "async",
+  ...props
+}: SafeImageProps) {
   const [hasError, setHasError] = useState(false);
   const resolvedSrc = resolveImgUrl(src);
 
@@ -40,6 +48,8 @@ export function SafeImage({ src, alt, className, fallbackType, ...props }: SafeI
       src={resolvedSrc}
       alt={alt}
       className={className}
+      loading={loading}
+      decoding={decoding}
       onError={() => setHasError(true)}
       {...props}
     />

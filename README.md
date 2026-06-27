@@ -19,13 +19,10 @@
 - [x] **Order Management** — Admin orders, ready-to-ship, in-transit, delivered, returns
 - [x] **User Authentication** — Customer + admin login, OTP, roles & permissions
 - [x] **Mobile Responsive** — Storefront layout optimised for phones
-- [x] **CI/CD (Jenkins)** — Deploy via `code-deploy` branch on VPS
+- [x] **Production deploy** — SSH + `scripts/deploy.sh` on `code-deploy` branch
 - [x] **Admin Backups** — Database & uploads download from admin panel
 - [x] **i18n** — Dutch / English storefront
-
-### Pending
-
-- [ ] **Sendcloud (live labels)** — Integration code exists; carrier labels blocked until Sendcloud billing, carrier contracts, and sender address are fully activated. See `docs/sendcloud_integration.md`.
+- [x] **Sendcloud (live labels)** — Carrier label generation, shipment creation, tracking webhooks, and admin label download. See `docs/sendcloud_integration.md`.
 
 ### Docs
 
@@ -40,7 +37,7 @@
 | Production deploy | `docs/production_deployment_checklist.md` |
 | Backup & restore | `docs/backup_restore_guide.md` |
 | Sendcloud setup | `docs/sendcloud_integration.md` |
-| Jenkins / CI-CD | `docs/v1.4-cicd-jenkins-plan.md` |
+| SEO & AEO | `docs/seo-and-aeo.md` |
 
 ---
 

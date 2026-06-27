@@ -26,7 +26,6 @@ const allowedOrigins = new Set(
     "https://schipenster.com",
     "https://www.schipenster.com",
     "https://api.schipenster.com",
-    "https://jenkins.schipenster.com",
     "http://localhost:5173",
     "http://localhost:8080",
     "http://localhost:5000",
@@ -67,8 +66,19 @@ app.post("/api/v1/payments/webhook", express.raw({ type: "application/json" }), 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Serve uploaded media statically
-app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
+// Serve uploaded media statically — long cache so repeat visits don't re-download images
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../public/uploads"), {
+    maxAge: "365d",
+    immutable: true,
+    etag: true,
+    lastModified: true,
+    setHeaders(res) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    },
+  })
+);
 
 // Serve Swagger API Interactive documentation UI
 setupSwagger(app);
@@ -106,6 +116,7 @@ import authRoutes from "./routes/authRoutes";
 import productRoutes from "./routes/productRoutes";
 import categoryRoutes from "./routes/categoryRoutes";
 import brandRoutes from "./routes/brandRoutes";
+import aiRoutes from "./routes/aiRoutes";
 import seriesRoutes from "./routes/seriesRoutes";
 import attributeRoutes from "./routes/attributeRoutes";
 import megaMenuRoutes from "./routes/megaMenuRoutes";
@@ -156,6 +167,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/brands", brandRoutes);
+app.use("/api/v1/ai", aiRoutes);
 app.use("/api/v1/addresses", addressRoutes);
 app.use("/api/v1/wishlists", wishlistRoutes);
 app.use("/api/v1/series", seriesRoutes);

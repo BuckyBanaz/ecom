@@ -9,6 +9,8 @@ import {
 } from "../services/settingsStore";
 
 import { prisma } from "../config/db";
+import { clampAiBulkLimit, clampAiImageCount } from "../utils/aiLimits";
+import { getAiOutputLanguage, getAiOutputLanguageLabel } from "../utils/aiLanguage";
 
 // ----------------------------------------------------
 // 1. GET SMTP SETTINGS
@@ -228,6 +230,123 @@ export const updateAuthSettings = async (
 };
 
 // ----------------------------------------------------
+// 7.5 GET AI SETTINGS
+// ----------------------------------------------------
+export const getAiSettings = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+      const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
+      const settings = {
+        enabled: process.env.AI_ENABLED === "true",
+        googleApiKey: apiKey ? "••••••••••••••••••••" : "",
+        systemPrompt: process.env.AI_SYSTEM_PROMPT || "",
+      model: process.env.AI_MODEL || "llama-3.3-70b-versatile",
+      imageGenerationCount: clampAiImageCount(parseInt(process.env.AI_IMAGE_COUNT || "1", 10)),
+      bulkProductLimit: clampAiBulkLimit(parseInt(process.env.AI_BULK_LIMIT || "5", 10)),
+      defaultImagePrompt: process.env.AI_IMAGE_PROMPT || "in a modern interior setting",
+      outputLanguage: getAiOutputLanguage(),
+      outputLanguageLabel: getAiOutputLanguageLabel(),
+    };
+
+    res.status(200).json({ success: true, data: settings });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 7.6 UPDATE AI SETTINGS
+// ----------------------------------------------------
+export const updateAiSettings = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { enabled, googleApiKey, systemPrompt, model, imageGenerationCount, bulkProductLimit, defaultImagePrompt, outputLanguage } = req.body;
+
+    const updates: Record<string, string> = {};
+    if (enabled !== undefined) updates.AI_ENABLED = enabled ? "true" : "false";
+
+    if (googleApiKey !== undefined && googleApiKey !== "" && !googleApiKey.includes("••")) {
+      updates.GOOGLE_API_KEY = googleApiKey.replace(/[\s\u2022•]/g, "");
+    }
+
+    if (systemPrompt !== undefined) {
+      updates.AI_SYSTEM_PROMPT = systemPrompt;
+    }
+
+    if (model !== undefined) {
+      updates.AI_MODEL = model;
+    }
+
+    if (imageGenerationCount !== undefined) {
+      updates.AI_IMAGE_COUNT = String(clampAiImageCount(Number(imageGenerationCount)));
+    }
+
+    if (bulkProductLimit !== undefined) {
+      updates.AI_BULK_LIMIT = String(clampAiBulkLimit(Number(bulkProductLimit)));
+    }
+
+    if (defaultImagePrompt !== undefined) {
+      updates.AI_IMAGE_PROMPT = defaultImagePrompt;
+    }
+
+    if (outputLanguage !== undefined) {
+      updates.AI_OUTPUT_LANGUAGE = outputLanguage;
+    }
+
+    await saveSettings(updates);
+
+    res.status(200).json({ success: true, message: "AI Settings updated successfully" });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 7.7 GET AI MODELS (Gemini)
+// ----------------------------------------------------
+export const getAiModels = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) {
+      res.status(400).json({ success: false, error: "Google Gemini API Key not configured." });
+      return;
+    }
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch models from Gemini API: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    // Filter for gemini models
+    const models = (result.models || [])
+      .filter((m: any) => m.name.includes("gemini"))
+      .map((m: any) => ({
+        id: m.name.replace("models/", ""), // 'gemini-1.5-flash'
+        displayName: `${m.displayName} (${m.version || 'latest'})`,
+        description: m.description
+      }));
+
+    res.status(200).json({ success: true, data: models });
+  } catch (error: any) {
+    console.error("Error fetching AI models:", error);
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
 // GET GENERAL SETTINGS (Store info + Maintenance Mode)
 // ----------------------------------------------------
 export const getGeneralSettings = async (
@@ -315,9 +434,9 @@ export const getSeoConfig = async (
       defaultTitle: process.env.SEO_DEFAULT_TITLE || "Schip & Ster — Your Store",
       defaultDescription: process.env.SEO_DEFAULT_DESCRIPTION || "Discover thousands of products at the best prices.",
       defaultKeywords: process.env.SEO_DEFAULT_KEYWORDS || "ecommerce, shop, online",
-      canonical: process.env.SEO_CANONICAL_URL || "https://schip-ster.example.com",
+      canonical: process.env.SEO_CANONICAL_URL || "https://schipenster.com",
       twitterHandle: process.env.SEO_TWITTER_HANDLE || "@schipster",
-      ogImage: process.env.SEO_OG_IMAGE || "",
+      ogImage: process.env.SEO_OG_IMAGE || "https://schipenster.com/og-image.png",
       indexable: process.env.SEO_INDEXABLE !== "false", // default true
       ga4: process.env.ANALYTICS_GA4 || "",
       gtm: process.env.ANALYTICS_GTM || "",
@@ -346,9 +465,9 @@ export const getPublicSeoConfig = async (
       defaultTitle: process.env.SEO_DEFAULT_TITLE || "Schip & Ster — Your Store",
       defaultDescription: process.env.SEO_DEFAULT_DESCRIPTION || "Discover thousands of products at the best prices.",
       defaultKeywords: process.env.SEO_DEFAULT_KEYWORDS || "ecommerce, shop, online",
-      canonical: process.env.SEO_CANONICAL_URL || "https://schip-ster.example.com",
+      canonical: process.env.SEO_CANONICAL_URL || "https://schipenster.com",
       twitterHandle: process.env.SEO_TWITTER_HANDLE || "@schipster",
-      ogImage: process.env.SEO_OG_IMAGE || "",
+      ogImage: process.env.SEO_OG_IMAGE || "https://schipenster.com/og-image.png",
       indexable: process.env.SEO_INDEXABLE !== "false", // default true
       ga4: process.env.ANALYTICS_GA4 || "",
       gtm: process.env.ANALYTICS_GTM || "",

@@ -20,7 +20,7 @@
 | Docker (local) | `docker-compose.yml` |
 | Docker (prod) | `docker-compose.prod.yml` |
 | Reverse proxy | `Caddyfile` |
-| CI/CD | `Jenkinsfile` |
+| Deploy | `scripts/deploy.sh` on VPS (`code-deploy` branch) |
 | Docs folder | `docs/` |
 
 ---
@@ -44,7 +44,6 @@
 | Storefront | https://schipenster.com |
 | API | https://api.schipenster.com |
 | Swagger | https://api.schipenster.com/api-docs |
-| Jenkins | https://jenkins.schipenster.com |
 | Admin Panel | https://schipenster.com/admin |
 
 ---

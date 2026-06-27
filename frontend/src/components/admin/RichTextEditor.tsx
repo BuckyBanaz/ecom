@@ -4,7 +4,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Link, Image as ImageIcon, Table, Minus, Undo, Redo, Code, Quote, Eraser, 
-  Palette, Highlighter, Indent, Outdent, ArrowUp, ArrowDown, Edit, Trash, Trash2, Type
+  Palette, Highlighter, Indent, Outdent, ArrowUp, ArrowDown, Edit, Trash, Trash2, Type, Sparkles, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -17,15 +17,18 @@ import { normalizeUploadedUrl, getApiBaseUrl, resolveImgUrl } from "@/utils/imag
 import { normalizeCmsHtmlForStorage } from "@/utils/cmsHtml";
 import { CmsHtmlContent } from "@/components/cms/CmsHtmlContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { aiRepository } from "@/client/apiClient";
+import { toast } from "sonner";
 
 interface RichTextEditorProps {
   value: string;
   onChange: (val: string) => void;
   label?: string;
   placeholder?: string;
+  onSeoGenerated?: (seoData: { seoTitle: string; seoDesc: string; seoKeywords: string }) => void;
 }
 
-export function RichTextEditor({ value, onChange, label, placeholder }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, label, placeholder, onSeoGenerated }: RichTextEditorProps) {
   const { t } = useTranslation();
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -55,6 +58,11 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const [imgWidth, setImgWidth] = useState("");
   const [imgHeight, setImgHeight] = useState("auto");
   const [imgAlign, setImgAlign] = useState<"left" | "center" | "right" | "none">("none");
+
+  // AI Dialog state
+  const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const resolveRelativeUrlsInHtml = (html: string): string => {
     if (!html) return "";
@@ -692,6 +700,56 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     }
   };
 
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+    try {
+      setIsGenerating(true);
+      const res = await aiRepository.generateCmsPage(aiPrompt);
+      if (res.success && res.htmlContent) {
+        let content = res.htmlContent as string;
+        content = normalizeCmsHtmlForStorage(content);
+        content = normalizeUrlsInHtml(content);
+
+        const replaceAll =
+          !value.trim() ||
+          window.confirm(
+            value.trim()
+              ? "Replace all existing page content with AI-generated content?"
+              : undefined
+          );
+
+        if (replaceAll) {
+          if (editorRef.current) {
+            editorRef.current.innerHTML = resolveRelativeUrlsInHtml(content);
+            handleInput();
+          } else {
+            onChange(content);
+          }
+        } else {
+          executeCommand("insertHTML", resolveRelativeUrlsInHtml(content));
+          handleInput();
+        }
+
+        setIsAiDialogOpen(false);
+        setAiPrompt("");
+        if (onSeoGenerated && (res.seoTitle || res.seoDesc || res.seoKeywords)) {
+          onSeoGenerated({
+            seoTitle: res.seoTitle || "",
+            seoDesc: res.seoDesc || "",
+            seoKeywords: res.seoKeywords || "",
+          });
+        }
+        toast.success(t("admin_richtext.ai_success", { defaultValue: "Page content generated — uses shortcodes + inline HTML (no JavaScript)." }));
+      } else {
+        toast.error(res.error || t("admin_richtext.ai_failed", { defaultValue: "Failed to generate page content." }));
+      }
+    } catch (err: any) {
+      toast.error(err.message || t("admin_richtext.ai_failed", { defaultValue: "Failed to generate page content." }));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-2">
       {label && <label className="text-sm font-semibold text-foreground">{label}</label>}
@@ -700,7 +758,15 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
         {/* Advanced Toolbar */}
         <div className="flex flex-wrap items-center gap-1 border-b bg-muted/30 p-2">
           
-          {/* Group 1: Source & History */}
+          {/* Group 1: AI, Source & History */}
+          <ToolbarButton 
+            disabled={isSourceMode}
+            icon={Sparkles} 
+            label="Generate with AI" 
+            onClick={() => setIsAiDialogOpen(true)}
+            className="text-primary hover:text-primary hover:bg-primary/10"
+          />
+          <div className="w-[1px] h-6 bg-border mx-1" />
           <ToolbarButton 
             active={isSourceMode}
             icon={Code} 
@@ -992,17 +1058,6 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           </div>
         </div>
 
-        {/* Storefront preview — matches live page rendering */}
-        {(htmlSource || value)?.trim() && (
-          <div className="border-t bg-muted/10">
-            <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-b bg-muted/20">
-              Live page preview
-            </div>
-            <div className="max-h-[420px] overflow-auto bg-background">
-              <CmsHtmlContent html={normalizeUrlsInHtml(normalizeCmsHtmlForStorage(htmlSource || value || ""))} />
-            </div>
-          </div>
-        )}
       </div>
 
       <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
@@ -1140,17 +1195,17 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl font-bold">
               <ImageIcon className="h-5 w-5 text-primary" />
-              Edit Image Properties
+              {t("admin_rich_text_editor.insert_image_dialog")}
             </DialogTitle>
             <DialogDescription>
-              Adjust size, alignment, and display options for this image.
+              {t("admin_rich_text_editor.ui_blocks")} {/* Reusing a general translation or leave as is if no exact match, but let's just use empty string or generic text */}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-6 py-4">
             {/* Alignment Options */}
             <div className="space-y-3">
-              <Label className="text-sm font-semibold">Alignment</Label>
+              <Label className="text-sm font-semibold">{t("admin_cms_components.align")}</Label>
               <div className="grid grid-cols-4 gap-2">
                 {[
                   { value: "none", label: "Inline", icon: AlignLeft },
@@ -1183,7 +1238,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
             {/* Size Options */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">Width</Label>
+                <Label className="text-sm font-semibold">{t("admin_cms_components.width")}</Label>
                 <Input
                   value={imgWidth}
                   onChange={(e) => setImgWidth(e.target.value)}
@@ -1192,7 +1247,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">Height</Label>
+                <Label className="text-sm font-semibold">{t("admin_cms_components.height")}</Label>
                 <Input
                   value={imgHeight}
                   onChange={(e) => setImgHeight(e.target.value)}
@@ -1233,7 +1288,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
               onClick={handleDeleteImage}
             >
               <Trash2 className="h-4 w-4" />
-              Delete Image
+              {t("admin_components.button_delete")}
             </Button>
             <div className="flex gap-2 w-full justify-end">
               <Button
@@ -1241,15 +1296,49 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
                 variant="outline"
                 onClick={() => setIsImgPropertiesOpen(false)}
               >
-                Cancel
+                {t("admin_components.button_cancel")}
               </Button>
               <Button
                 type="button"
                 onClick={handleApplyImageProperties}
               >
-                Apply Changes
+                {t("admin_components.button_save")}
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Sparkles className="h-5 w-5" />
+              {t("admin_quick_add.title")} {/* Reuse a generic AI title or keep as is, wait I'll use common translations */}
+              Generate Page with AI
+            </DialogTitle>
+            <DialogDescription>
+              Describe your lighting page. AI builds it with <strong>shortcodes</strong> (hero, products, categories) and inline HTML — not JavaScript. Example: &quot;Pendant lights landing page with hero, features, bestsellers&quot;.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Your Prompt</Label>
+              <textarea
+                autoFocus
+                className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                placeholder="e.g. Create a pendant lights collection page: text hero, image hero banner, 3 shipping/warranty features, bestseller products grid, customer reviews section."
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAiDialogOpen(false)}>{t("admin_components.button_cancel")}</Button>
+            <Button onClick={handleAiGenerate} disabled={!aiPrompt.trim() || isGenerating} className="gap-2">
+              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {isGenerating ? t("admin_quick_add.btn_generating") : "Generate Page"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1257,19 +1346,23 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   );
 }
 
-function ToolbarButton({ 
-  icon: Icon, 
-  label, 
-  onClick, 
-  disabled = false,
-  active = false
-}: { 
+interface ToolbarButtonProps { 
   icon: any; 
   label: string; 
   onClick: () => void;
   disabled?: boolean;
   active?: boolean;
-}) {
+  className?: string;
+}
+
+function ToolbarButton({ 
+  icon: Icon, 
+  label, 
+  onClick, 
+  disabled = false,
+  active = false,
+  className = ""
+}: ToolbarButtonProps) {
   return (
     <Button
       type="button"
@@ -1278,7 +1371,7 @@ function ToolbarButton({
       disabled={disabled}
       className={`h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-md transition-all duration-150 ${
         active ? "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15" : ""
-      }`}
+      } ${className}`}
       onClick={onClick}
       onMouseDown={(e) => e.preventDefault()}
       title={label}

@@ -1,110 +1,127 @@
 import { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { cmsHomepageRepository, productRepository, categoryRepository, blogRepository } from "@/client/apiClient";
-import { HomepageSkeleton } from "@/components/ui/SkeletonLoader";
-import { cacheKey, getCached } from "@/lib/apiCache";
-import { ENDPOINTS } from "@/utils/endpoints";
+import { readCachedHomepage, writeCachedHomepage, detectShortcodeBlocks } from "@/utils/cmsLocalStorage";
 
-const readHomepageCache = () => {
-  const cached = getCached<any>(cacheKey("GET", ENDPOINTS.CMS_HOMEPAGE));
-  return cached?.success && cached?.data?.content ? cached.data.content : "";
-};
-
-const readSupplementaryCache = () => {
-  const pd: { products?: any[]; categories?: any[]; blogs?: any[] } = {};
-  const prod = getCached<any>(cacheKey("GET", `${ENDPOINTS.PRODUCTS}?limit=40`));
-  const cats = getCached<any>(cacheKey("GET", ENDPOINTS.CATEGORIES));
-  const blogs = getCached<any>(cacheKey("GET", `${ENDPOINTS.BLOGS}?published=true`));
-  if (prod?.success && prod.products) pd.products = prod.products;
-  if (cats?.success && cats.categories) pd.categories = cats.categories;
-  if (blogs?.success && blogs.blogs) pd.blogs = blogs.blogs;
-  return pd;
+const applyHomepageSeo = (data: { seoTitle?: string; seoDesc?: string; seoKeywords?: string }) => {
+  if (data.seoTitle) document.title = data.seoTitle;
+  if (data.seoDesc) {
+    let metaDesc = document.querySelector('meta[name="description"]');
+    if (!metaDesc) {
+      metaDesc = document.createElement("meta");
+      metaDesc.setAttribute("name", "description");
+      document.head.appendChild(metaDesc);
+    }
+    metaDesc.setAttribute("content", data.seoDesc);
+  }
+  if (data.seoKeywords) {
+    let metaKeywords = document.querySelector('meta[name="keywords"]');
+    if (!metaKeywords) {
+      metaKeywords = document.createElement("meta");
+      metaKeywords.setAttribute("name", "keywords");
+      document.head.appendChild(metaKeywords);
+    }
+    metaKeywords.setAttribute("content", data.seoKeywords);
+  }
 };
 
 const Index = () => {
-  const { t } = useTranslation();
-  const initialContent = readHomepageCache();
-  const initialSupplementary = readSupplementaryCache();
-  const [content, setContent] = useState(initialContent);
-  const [isLoading, setIsLoading] = useState(!initialContent);
-  const [prefetchedData, setPrefetchedData] = useState(initialSupplementary);
+  const cached = readCachedHomepage();
+  const [content, setContent] = useState(cached?.content || "");
+  const [prefetchedData, setPrefetchedData] = useState<{
+    products?: any[];
+    categories?: any[];
+    blogs?: any[];
+  }>({});
+
+  useEffect(() => {
+    if (cached) applyHomepageSeo(cached);
+  }, []);
 
   useEffect(() => {
     let active = true;
 
     const fetchHomepage = async () => {
-      if (!initialContent) setIsLoading(true);
       try {
         const res = await cmsHomepageRepository.get();
-        if (!active) return;
+        if (!active || !res.success || !res.data?.content) return;
 
-        if (res.success && res.data?.content) {
-          setContent(res.data.content);
-
-          if (res.data.seoTitle) document.title = res.data.seoTitle;
-          if (res.data.seoDesc) {
-            let metaDesc = document.querySelector('meta[name="description"]');
-            if (!metaDesc) {
-              metaDesc = document.createElement("meta");
-              metaDesc.setAttribute("name", "description");
-              document.head.appendChild(metaDesc);
-            }
-            metaDesc.setAttribute("content", res.data.seoDesc);
-          }
-          if (res.data.seoKeywords) {
-            let metaKeywords = document.querySelector('meta[name="keywords"]');
-            if (!metaKeywords) {
-              metaKeywords = document.createElement("meta");
-              metaKeywords.setAttribute("name", "keywords");
-              document.head.appendChild(metaKeywords);
-            }
-            metaKeywords.setAttribute("content", res.data.seoKeywords);
-          }
-        }
+        setContent(res.data.content);
+        writeCachedHomepage({
+          content: res.data.content,
+          seoTitle: res.data.seoTitle,
+          seoDesc: res.data.seoDesc,
+          seoKeywords: res.data.seoKeywords,
+        });
+        applyHomepageSeo(res.data);
       } catch (error) {
         console.error("Failed to load homepage data", error);
-      } finally {
-        if (active) setIsLoading(false);
       }
     };
 
+    fetchHomepage();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Only fetch shortcode data when the homepage actually uses shortcodes
+  useEffect(() => {
+    const blocks = detectShortcodeBlocks(content);
+    const needsProducts = blocks.has("product-block");
+    const needsCategories = blocks.has("category-block") || blocks.has("menu-category");
+    const needsBlogs = blocks.has("blogs-block");
+
+    if (!needsProducts && !needsCategories && !needsBlogs) return;
+
+    let active = true;
     const fetchSupplementaryData = async () => {
       try {
-        const [prodRes, catRes, blogRes] = await Promise.all([
-          productRepository.getAll({ limit: 40 }),
-          categoryRepository.getAll(),
-          blogRepository.getAll({ published: true }).catch(() => ({ success: false })),
-        ]);
+        const tasks: Promise<any>[] = [];
+        if (needsProducts) tasks.push(productRepository.getAll({ limit: 40 }));
+        if (needsCategories) tasks.push(categoryRepository.getAll());
+        if (needsBlogs) tasks.push(blogRepository.getAll({ published: true }).catch(() => ({ success: false })));
+
+        const results = await Promise.all(tasks);
         if (!active) return;
 
         const pd: { products?: any[]; categories?: any[]; blogs?: any[] } = {};
-        if (prodRes.success && prodRes.products) pd.products = prodRes.products;
-        if (catRes.success && catRes.categories) pd.categories = catRes.categories;
-        if (blogRes.success && blogRes.blogs) pd.blogs = blogRes.blogs;
+        let i = 0;
+        if (needsProducts) {
+          const prodRes = results[i++];
+          if (prodRes?.success && prodRes.products) pd.products = prodRes.products;
+        }
+        if (needsCategories) {
+          const catRes = results[i++];
+          if (catRes?.success && catRes.categories) pd.categories = catRes.categories;
+        }
+        if (needsBlogs) {
+          const blogRes = results[i++];
+          if (blogRes?.success && blogRes.blogs) pd.blogs = blogRes.blogs;
+        }
         setPrefetchedData(pd);
       } catch (error) {
         console.error("Failed to load homepage supplementary data", error);
       }
     };
 
-    fetchHomepage();
     fetchSupplementaryData();
-
     return () => {
       active = false;
     };
-  }, []);
+  }, [content]);
 
-  if (isLoading) {
-    return <HomepageSkeleton />;
+  if (!content) {
+    return (
+      <div className="container-page py-20 text-center text-muted-foreground animate-pulse">
+        Loading…
+      </div>
+    );
   }
 
   return (
     <div>
       <ShortcodeRenderer content={content} prefetchedData={prefetchedData} />
-      
-   
     </div>
   );
 };

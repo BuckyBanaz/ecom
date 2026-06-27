@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 
 const navItemsBase = [
   { to: "/admin", icon: LayoutDashboard, labelKey: "dashboard", permission: "dashboard" },
-  { to: "/admin/analytics", icon: BarChart3, labelKey: "analytics", permission: "dashboard" },
+  { to: "/admin/analytics", icon: BarChart3, labelKey: "analytics", permission: "analytics" },
   { to: "/admin/products", icon: Package, labelKey: "products", permission: "products" },
   { to: "/admin/categories", icon: FolderTree, labelKey: "categories", permission: "categories" },
   { to: "/admin/brands", icon: Tag, labelKey: "brands", permission: "brands" },
@@ -23,8 +23,8 @@ const navItemsBase = [
   { to: "/admin/testimonials", icon: Quote, labelKey: "testimonials", permission: "testimonials" },
   { to: "/admin/storage", icon: HardDrive, labelKey: "storage", permission: "storage" },
   { to: "/admin/users", icon: Users, labelKey: "users", permission: "users" },
-  { to: "/admin/logs", icon: Terminal, labelKey: "logs", permission: "dashboard" },
-  { to: "/admin/backups", icon: HardDrive, labelKey: "backups", permission: "settings" },
+  { to: "/admin/logs", icon: Terminal, labelKey: "logs", permission: "logs" },
+  { to: "/admin/backups", icon: HardDrive, labelKey: "backups", permission: "backups" },
   { to: "/admin/settings", icon: Settings, labelKey: "settings", permission: "settings" },
 ];
 
@@ -49,7 +49,7 @@ const cmsChildrenBase = [
   { to: "/admin/cms/pages", icon: FileCode, labelKey: "dynamic_pages" },
   { to: "/admin/cms/blogs", icon: Newspaper, labelKey: "blogs" },
   { to: "/admin/cms/email-templates", icon: Mail, labelKey: "email_templates" },
-  { to: "/admin/cms/seo", icon: Search, labelKey: "seo_settings" },
+  { to: "/admin/cms/seo", icon: Search, labelKey: "site_seo" },
 ];
 
 export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileOpen: (open: boolean) => void }) {

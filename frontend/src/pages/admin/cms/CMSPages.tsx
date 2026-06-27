@@ -16,6 +16,8 @@ import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog"
 import { resolveImgUrl, normalizeUploadedUrl } from "@/utils/image";
 import { getClientBaseUrl } from "@/utils/siteUrl";
 import { SectionLoader } from "@/components/ui/PageLoader";
+import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
+import { getApiBaseUrl } from "@/utils/image";
 
 type ImgState = string | null;
 
@@ -267,7 +269,50 @@ const CMSPages = () => {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="min-h-[600px]">
-                  <RichTextEditor value={body} onChange={setBody} placeholder="Start building your page..." />
+                  <RichTextEditor 
+                    value={body} 
+                    onChange={setBody} 
+                    placeholder="Start building your page..." 
+                    onSeoGenerated={(seoData) => {
+                      if (seoData.seoTitle) setSeoTitle(seoData.seoTitle);
+                      if (seoData.seoDesc) setSeoDesc(seoData.seoDesc);
+                      if (seoData.seoKeywords) setSeoKeywords(seoData.seoKeywords);
+                    }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-muted-foreground/10 shadow-sm overflow-hidden mt-6">
+              <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Eye className="h-5 w-5 text-primary" />
+                    Live Preview
+                  </CardTitle>
+                  <CardDescription>
+                    See exactly how your page will look to customers on the storefront.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0 bg-muted/10">
+                <div className="h-[600px] overflow-y-auto w-full p-4 relative">
+                   <div className="bg-background rounded-xl shadow-xs border overflow-hidden min-h-full">
+                      <div className="w-full bg-muted/30 border-b px-4 py-2 flex items-center gap-2">
+                         <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                         <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+                         <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                         <div className="ml-4 text-xs font-mono text-muted-foreground bg-background px-3 py-1 rounded border">
+                           {getClientBaseUrl().replace(/^https?:\/\//, "")}/{slug || "your-page"}
+                         </div>
+                      </div>
+                      <div className="p-6 md:p-10 pointer-events-none">
+                        {body ? (
+                          <ShortcodeRenderer content={body.replace(/src="\/uploads\//g, `src="${getApiBaseUrl()}/uploads/`)} />
+                        ) : (
+                          <p className="text-muted-foreground">Start typing to see preview...</p>
+                        )}
+                      </div>
+                   </div>
                 </div>
               </CardContent>
             </Card>

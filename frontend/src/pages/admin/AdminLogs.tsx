@@ -47,8 +47,9 @@ const levelVariant = (level: LogLevel) => {
 
 export default function AdminLogs() {
   const { t } = useTranslation();
-  const { user } = useAdmin();
+  const { user, logout, hasPermission } = useAdmin();
   const isSuperAdmin = user?.role === "superadmin";
+  const canViewLogs = hasPermission("logs");
 
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [stats, setStats] = useState<LogStats | null>(null);
@@ -110,6 +111,10 @@ export default function AdminLogs() {
       toast.error(err.message || t("admin_logs.toast_clear_failed"));
     }
   };
+
+  if (!canViewLogs) {
+    return <p className="text-center py-12 text-muted-foreground">{t("admin_product_form.no_permission")}</p>;
+  }
 
   return (
     <div className="space-y-6">

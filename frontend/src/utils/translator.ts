@@ -3,7 +3,8 @@ import type { TFunction } from "i18next";
 import { labelT } from "./i18nLabel";
 
 export function shouldMachineTranslateApiUrl(url: string): boolean {
-  // Allow translating all API/CMS endpoints on the storefront when English is selected
+  // CMS HTML is translated in CmsHtmlContent; skip heavy JSON walk on /cms/* responses.
+  if (url.includes("/cms/")) return false;
   return true;
 }
 

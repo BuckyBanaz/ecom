@@ -20,24 +20,14 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
   // Monitor customer_token changes (e.g. login/logout)
   useEffect(() => {
-    const handleStorageChange = () => {
-      setToken(localStorage.getItem("customer_token"));
-    };
-    window.addEventListener("storage", handleStorageChange);
-    
-    // Check every second to ensure token reactivity in the same window context
-    const interval = setInterval(() => {
-      const currentToken = localStorage.getItem("customer_token");
-      if (currentToken !== token) {
-        setToken(currentToken);
-      }
-    }, 1000);
-
+    const syncToken = () => setToken(localStorage.getItem("customer_token"));
+    window.addEventListener("storage", syncToken);
+    window.addEventListener("customer-auth-changed", syncToken);
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      clearInterval(interval);
+      window.removeEventListener("storage", syncToken);
+      window.removeEventListener("customer-auth-changed", syncToken);
     };
-  }, [token]);
+  }, []);
 
   // Sync / Fetch effect
   useEffect(() => {
@@ -85,34 +75,35 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
         const localIds: string[] = JSON.parse(localStorage.getItem("lg-wishlist") || "[]");
         setIds(localIds);
         
-        // Fetch details from backend database for each local ID
-        const fetchedItems = [];
-        for (const id of localIds) {
-          try {
-            const res = await productRepository.getByIdOrSlug(id);
-            if (res.success && res.product) {
-              const p = res.product;
-              // Format product consistent with frontend view requirements
-              fetchedItems.push({
-                id: p.id,
-                slug: p.slug,
-                name: p.name,
-                brand: p.brand?.name || "Lumio",
-                category: p.category?.slug || "general",
-                price: p.price,
-                oldPrice: p.oldPrice || undefined,
-                rating: p.rating || 5,
-                reviewCount: p.reviewCount || 0,
-                image: p.images?.[0] || "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?q=80&w=800",
-                images: p.images || [],
-                inStock: p.inStock ?? true
-              });
+        // Fetch product details in parallel (not one-by-one)
+        const results = await Promise.all(
+          localIds.map(async (id) => {
+            try {
+              const res = await productRepository.getByIdOrSlug(id);
+              if (res.success && res.product) {
+                const p = res.product;
+                return {
+                  id: p.id,
+                  slug: p.slug,
+                  name: p.name,
+                  brand: p.brand?.name || "Lumio",
+                  category: p.category?.slug || "general",
+                  price: p.price,
+                  oldPrice: p.oldPrice || undefined,
+                  rating: p.rating || 5,
+                  reviewCount: p.reviewCount || 0,
+                  image: p.images?.[0] || "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?q=80&w=800",
+                  images: p.images || [],
+                  inStock: p.inStock ?? true,
+                };
+              }
+            } catch (e) {
+              console.error("Failed to fetch product details for guest wishlist ID:", id, e);
             }
-          } catch (e) {
-            console.error("Failed to fetch product details for guest wishlist ID:", id, e);
-          }
-        }
-        setItems(fetchedItems);
+            return null;
+          })
+        );
+        setItems(results.filter(Boolean));
       } catch (e) {
         setIds([]);
         setItems([]);

@@ -18,6 +18,7 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import { labelT } from "@/utils/i18nLabel";
 import { CmsHtmlContent } from "@/components/cms/CmsHtmlContent";
 import { extractMegaMenus, readMegaMenusFromStorage } from "@/utils/megaMenu";
+import { detectShortcodeBlocks } from "@/utils/cmsLocalStorage";
 import type { MegaMenu } from "@/data/megaMenu";
 
 interface ShortcodeRendererProps {
@@ -34,8 +35,21 @@ interface ShortcodeRendererProps {
 export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRendererProps) {
   const { t, i18n } = useTranslation();
   const L = (text: string | undefined | null) => labelT(t, text, i18n.language);
+
+  const requiredBlocks = useMemo(() => detectShortcodeBlocks(content), [content]);
+  const needsProducts = requiredBlocks.has("product-block");
+  const needsCategories =
+    requiredBlocks.has("category-block") || requiredBlocks.has("menu-category");
+  const needsBlogs = requiredBlocks.has("blogs-block");
+  const needsBrands = requiredBlocks.has("brands-block");
+  const needsTestimonials = requiredBlocks.has("reviews-block");
+  const needsMegaMenu = requiredBlocks.has("menu-category");
+
   const [loading, setLoading] = useState(
-    !prefetchedData || !prefetchedData.products || !prefetchedData.categories
+    () =>
+      (needsProducts && !prefetchedData?.products) ||
+      (needsCategories && !prefetchedData?.categories) ||
+      (needsBlogs && !prefetchedData?.blogs),
   );
   const [dbProducts, setDbProducts] = useState<any[]>(prefetchedData?.products || []);
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
@@ -44,8 +58,8 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
   const [dbMegaMenus, setDbMegaMenus] = useState<MegaMenu[]>(prefetchedData?.megaMenus || readMegaMenusFromStorage());
   const [dbTestimonials, setDbTestimonials] = useState<any[]>([]);
 
-  // Load testimonials from backend
   useEffect(() => {
+    if (!needsTestimonials) return;
     let active = true;
     cmsTestimonialsRepository.get().then(res => {
       if (active && res.success && res.data) {
@@ -66,57 +80,91 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
       }
     });
     return () => { active = false; };
-  }, []);
+  }, [needsTestimonials]);
 
   useEffect(() => {
     let active = true;
 
-    if (prefetchedData && prefetchedData.products && prefetchedData.categories) {
-      setDbProducts(prefetchedData.products);
-      setDbCategories(prefetchedData.categories);
-      if (prefetchedData.blogs) setDbBlogs(prefetchedData.blogs);
-      
-      if (prefetchedData.brands) {
-        setDbBrands(prefetchedData.brands);
-      } else {
+    if (requiredBlocks.size === 0) {
+      setLoading(false);
+      return () => { active = false; };
+    }
+
+    const applyPrefetched = () => {
+      if (prefetchedData?.products) setDbProducts(prefetchedData.products);
+      if (prefetchedData?.categories) setDbCategories(prefetchedData.categories);
+      if (prefetchedData?.blogs) setDbBlogs(prefetchedData.blogs);
+      if (prefetchedData?.brands) setDbBrands(prefetchedData.brands);
+      if (prefetchedData?.megaMenus) setDbMegaMenus(prefetchedData.megaMenus);
+    };
+
+    const hasPrefetchedCore =
+      (!needsProducts || !!prefetchedData?.products) &&
+      (!needsCategories || !!prefetchedData?.categories) &&
+      (!needsBlogs || !!prefetchedData?.blogs);
+
+    if (hasPrefetchedCore) {
+      applyPrefetched();
+      if (needsBrands && !prefetchedData?.brands) {
         brandRepository.getAll().then(res => {
           if (active && res.success && res.brands) setDbBrands(res.brands);
         }).catch(err => console.warn("Failed to fetch brands", err));
       }
-
-      if (prefetchedData.megaMenus) {
-        setDbMegaMenus(prefetchedData.megaMenus);
-      } else {
+      if (needsMegaMenu && !prefetchedData?.megaMenus) {
         megaMenuRepository.getAll().then(res => {
           if (active && res.success && res.menus) setDbMegaMenus(res.menus);
         }).catch(() => {
           if (active) setDbMegaMenus(readMegaMenusFromStorage());
         });
       }
-      
       setLoading(false);
       return () => { active = false; };
     }
 
     const fetchRealData = async () => {
       try {
-        const [prodRes, catRes, blogRes, brandRes, menuRes] = await Promise.all([
-          productRepository.getAll({ limit: 40 }),
-          categoryRepository.getAll(),
-          blogRepository.getAll({ published: true }).catch(() => ({ success: false })),
-          brandRepository.getAll().catch(() => ({ success: false })),
-          megaMenuRepository.getAll().catch(() => ({ success: false })),
-        ]);
-        if (!active) return;
-        if (prodRes.success && prodRes.products) setDbProducts(prodRes.products);
-        if (catRes.success && catRes.categories) setDbCategories(catRes.categories);
-        if (blogRes.success && blogRes.blogs) setDbBlogs(blogRes.blogs);
-        if (brandRes.success && brandRes.brands) setDbBrands(brandRes.brands);
-        if (menuRes.success && menuRes.menus) {
-          setDbMegaMenus(menuRes.menus);
-        } else {
-          setDbMegaMenus(readMegaMenusFromStorage());
+        const tasks: Promise<any>[] = [];
+        const taskKeys: string[] = [];
+        if (needsProducts) {
+          tasks.push(productRepository.getAll({ limit: 40 }));
+          taskKeys.push("products");
         }
+        if (needsCategories) {
+          tasks.push(categoryRepository.getAll());
+          taskKeys.push("categories");
+        }
+        if (needsBlogs) {
+          tasks.push(blogRepository.getAll({ published: true }).catch(() => ({ success: false })));
+          taskKeys.push("blogs");
+        }
+        if (needsBrands) {
+          tasks.push(brandRepository.getAll().catch(() => ({ success: false })));
+          taskKeys.push("brands");
+        }
+        if (needsMegaMenu) {
+          tasks.push(megaMenuRepository.getAll().catch(() => ({ success: false })));
+          taskKeys.push("menus");
+        }
+
+        if (tasks.length === 0) {
+          setLoading(false);
+          return;
+        }
+
+        const results = await Promise.all(tasks);
+        if (!active) return;
+
+        results.forEach((res, idx) => {
+          const key = taskKeys[idx];
+          if (key === "products" && res.success && res.products) setDbProducts(res.products);
+          if (key === "categories" && res.success && res.categories) setDbCategories(res.categories);
+          if (key === "blogs" && res.success && res.blogs) setDbBlogs(res.blogs);
+          if (key === "brands" && res.success && res.brands) setDbBrands(res.brands);
+          if (key === "menus") {
+            if (res.success && res.menus) setDbMegaMenus(res.menus);
+            else setDbMegaMenus(readMegaMenusFromStorage());
+          }
+        });
       } catch (err) {
         console.warn("Failed to load real data for Shortcodes:", err);
       } finally {
@@ -125,7 +173,16 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
     };
     fetchRealData();
     return () => { active = false; };
-  }, [prefetchedData]);
+  }, [
+    content,
+    requiredBlocks,
+    needsProducts,
+    needsCategories,
+    needsBlogs,
+    needsBrands,
+    needsMegaMenu,
+    prefetchedData,
+  ]);
 
   const parts = useMemo(() => {
     if (!content) return [];

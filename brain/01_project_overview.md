@@ -73,12 +73,13 @@
 - Order Management (admin orders, shipping statuses)
 - User Authentication (customer + admin, OTP, roles & permissions)
 - Mobile Responsive Storefront
-- CI/CD via Jenkins
+- CI/CD via Jenkins & Live Deployment
 - Admin Backups (DB + uploads)
 - i18n (Dutch / English)
+- Sendcloud Integration (Live Labels & Shipping)
 
 ### ⏳ Pending
-- **Sendcloud (live labels)** — Integration code exists; blocked until Sendcloud billing + carrier contracts activated
+- (No major features pending. Project is live and functional)
 
 ---
 

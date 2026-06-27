@@ -40,6 +40,8 @@ const AdminLayout = lazy(() => import("./components/admin/AdminLayout.tsx"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin.tsx"));
 const Dashboard = lazy(() => import("./pages/admin/Dashboard.tsx"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.tsx"));
+const AdminProductQuickAdd = lazy(() => import("./pages/admin/AdminProductQuickAdd.tsx"));
+const AdminProductDrafts = lazy(() => import("./pages/admin/AdminProductDrafts.tsx"));
 const AdminProductForm = lazy(() => import("./pages/admin/AdminProductForm.tsx"));
 const AdminReviews = lazy(() => import("./pages/admin/AdminReviews.tsx"));
 const AdminCategories = lazy(() => import("./pages/admin/AdminCategories.tsx"));
@@ -139,6 +141,9 @@ function App() {
                             <Route index element={<Dashboard />} />
                             <Route path="analytics" element={<AdminAnalytics />} />
                             <Route path="products" element={<AdminProducts />} />
+                            <Route path="products/quick-add" element={<AdminProductQuickAdd />} />
+                            <Route path="product-drafts" element={<AdminProductDrafts />} />
+                            <Route path="products/drafts/:draftId" element={<AdminProductForm />} />
                             <Route path="products/new" element={<AdminProductForm />} />
                             <Route path="products/:id/edit" element={<AdminProductForm />} />
                             <Route path="products/:id/reviews" element={<AdminReviews />} />

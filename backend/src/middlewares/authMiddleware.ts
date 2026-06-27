@@ -70,14 +70,15 @@ export const validateUserExists = async (
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   superadmin: [
-    "dashboard", "products", "categories", "brands", "attributes", 
-    "orders", "offers", "charges", "reviews", "testimonials", 
-    "storage", "users", "manage_users", "cms", "email_templates", "settings"
+    "dashboard", "analytics", "products", "categories", "brands", "attributes",
+    "orders", "offers", "charges", "reviews", "testimonials",
+    "storage", "users", "manage_users", "cms", "email_templates", "ai",
+    "logs", "backups", "settings"
   ],
   admin: [
-    "dashboard", "products", "categories", "brands", "attributes", 
-    "orders", "offers", "charges", "reviews", "testimonials", 
-    "storage", "users", "email_templates"
+    "dashboard", "analytics", "products", "categories", "brands", "attributes",
+    "orders", "offers", "charges", "reviews", "testimonials",
+    "storage", "users", "email_templates", "ai"
   ],
   moderator: [
     "dashboard", "products", "orders", "reviews", "testimonials"
@@ -98,8 +99,10 @@ const BASE_URL_PERMISSIONS: Record<string, string> = {
   "/api/v1/cms": "cms",
   "/api/v1/media": "storage",
   "/api/v1/admin/settings": "settings",
-  "/api/v1/admin/backups": "settings",
+  "/api/v1/admin/backups": "backups",
+  "/api/v1/admin/logs": "logs",
   "/api/v1/admin/email-templates": "email_templates",
+  "/api/v1/ai": "ai",
   "/api/v1/megamenus": "cms",
   "/api/v1/shipping": "settings",
   "/api/v1/webhooks": "settings"
@@ -110,6 +113,10 @@ const getRequiredPermission = (req: Request): string | null => {
   
   if (url.includes("/api/v1/auth/admins") || url.includes("/api/v1/auth/create-admin")) {
     return "manage_users";
+  }
+
+  if (url.includes("/api/v1/admin/settings/ai")) {
+    return "ai";
   }
   
   const baseUrl = req.baseUrl || "";

@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IconPicker } from "@/components/admin/IconPicker";
-import { Trash2, Plus, Loader2 } from "lucide-react";
+import { Trash2, Plus, Loader2, Brain, ImageIcon } from "lucide-react";
 import { cmsFeaturesRepository, adminSettingsRepository, authRepository } from "@/client/apiClient";
 import { useAdmin } from "@/context/AdminContext";
 
@@ -17,6 +17,7 @@ const AdminSettings = () => {
   const { user: adminUser, hasPermission } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
   const isSuperAdmin = hasPermission("settings");
+  const canManageAi = hasPermission("ai") || isSuperAdmin;
 
   const queryTab = new URLSearchParams(window.location.search).get("tab") || (isSuperAdmin ? "features" : "profile");
   const [tab, setTab] = useState(!isSuperAdmin && queryTab !== "profile" ? "profile" : queryTab);
@@ -100,6 +101,19 @@ const AdminSettings = () => {
   });
   const [isLoadingGeneral, setIsLoadingGeneral] = useState(true);
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
+
+  const [aiSettings, setAiSettings] = useState({
+    enabled: false,
+    googleApiKey: "",
+    systemPrompt: "",
+    model: "gemini-1.5-flash",
+    imageGenerationCount: 1,
+    bulkProductLimit: 5,
+    defaultImagePrompt: "",
+    outputLanguage: "nl",
+  });
+  const [availableAiModels, setAvailableAiModels] = useState<any[]>([]);
+  const [isLoadingAi, setIsLoadingAi] = useState(true);
 
   const [profileData, setProfileData] = useState({
     firstName: "",
@@ -276,12 +290,37 @@ const AdminSettings = () => {
         setIsLoadingGeneral(false);
       }
     };
+    const fetchAiSettings = async () => {
+      try {
+        const res = await adminSettingsRepository.getAiSettings();
+        if (res.success && res.data) {
+          setAiSettings(res.data);
+        }
+        
+        // Also try to fetch available models if key exists
+        if (res.data?.googleApiKey) {
+          try {
+            const modelsRes = await adminSettingsRepository.getAiModels();
+            if (modelsRes.success && modelsRes.data) {
+              setAvailableAiModels(modelsRes.data);
+            }
+          } catch (modelErr) {
+            console.error("Failed to load AI models list:", modelErr);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching AI settings:", error);
+      } finally {
+        setIsLoadingAi(false);
+      }
+    };
     fetchFeatures();
     fetchSmtpSettings();
     fetchPaymentSettings();
     fetchShippingSettings();
     fetchAuthSettings();
     fetchGeneralSettings();
+    fetchAiSettings();
   }, [isSuperAdmin]);  const handleSaveFeatures = async () => {
     try {
       const res = await cmsFeaturesRepository.update(featureItems);
@@ -373,6 +412,30 @@ const AdminSettings = () => {
     }
   };
 
+  const handleSaveAi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await adminSettingsRepository.updateAiSettings(aiSettings);
+      if (res.success) {
+        toast.success("AI Settings updated successfully");
+        if (aiSettings.googleApiKey) {
+          try {
+            const modelsRes = await adminSettingsRepository.getAiModels();
+            if (modelsRes.success && modelsRes.data) {
+              setAvailableAiModels(modelsRes.data);
+            }
+          } catch (modelErr) {
+            console.error("Failed to load AI models list:", modelErr);
+          }
+        }
+      } else {
+        toast.error("Failed to update AI settings");
+      }
+    } catch (error) {
+      toast.error("An error occurred while saving AI settings");
+    }
+  };
+
   const handleSendTestEmail = async () => {
     const testEmail = window.prompt(t("admin_settings.smtp_test_prompt"));
     if (!testEmail) return;
@@ -404,6 +467,9 @@ const AdminSettings = () => {
                 <TabsTrigger value="payments" className="text-xs sm:text-sm">{t("admin_settings.tab_payments")}</TabsTrigger>
                 <TabsTrigger value="shipping" className="text-xs sm:text-sm">{t("admin_settings.tab_shipping")}</TabsTrigger>
               </>
+            )}
+            {canManageAi && (
+              <TabsTrigger value="ai" className="text-xs sm:text-sm">AI Brain</TabsTrigger>
             )}
           </TabsList>
         </div>
@@ -742,6 +808,159 @@ const AdminSettings = () => {
               )}
               
               <Button type="submit" className="rounded-full w-full sm:w-auto mt-4">Save Auth Settings</Button>
+            </form>
+          )}
+        </TabsContent>
+
+        <TabsContent value="ai">
+          {isLoadingAi ? (
+            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
+          ) : (
+            <form onSubmit={handleSaveAi} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" /> AI Brain Configuration
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Configure your AI models (Gemini) used for quick product generation and insights.
+              </p>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="font-semibold">Enable AI Features</p>
+                    <p className="text-xs text-muted-foreground">Turn on/off AI features site-wide</p>
+                  </div>
+                  <Switch 
+                    checked={aiSettings.enabled} 
+                    onCheckedChange={c => setAiSettings({...aiSettings, enabled: c})} 
+                  />
+                </div>
+                
+                <div>
+                  <Label>Google Gemini API Key</Label>
+                  <Input 
+                    type="password" 
+                    value={aiSettings.googleApiKey} 
+                    onChange={e => setAiSettings({...aiSettings, googleApiKey: e.target.value})} 
+                    placeholder="AIza..." 
+                    className="mt-1" 
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Get your free key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Google AI Studio</a>. Required for text and vision capabilities.
+                  </p>
+                </div>
+
+                <div>
+                  <Label>AI Model</Label>
+                  {isMounted && (
+                    <Select value={aiSettings.model} onValueChange={v => setAiSettings({...aiSettings, model: v})}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableAiModels.length > 0 ? (
+                          availableAiModels.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.displayName}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash (Fast)</SelectItem>
+                            <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Powerful)</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Choose which Gemini model to use for AI tasks.
+                  </p>
+                </div>
+
+                <div>
+                  <Label>AI output language</Label>
+                  {isMounted && (
+                    <Select
+                      value={aiSettings.outputLanguage || "nl"}
+                      onValueChange={(v) => setAiSettings({ ...aiSettings, outputLanguage: v })}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nl">Nederlands (Dutch)</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="de">Deutsch (German)</SelectItem>
+                        <SelectItem value="fr">Français (French)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Product titles, descriptions, SEO fields, and CMS page text will be generated in this language.
+                  </p>
+                </div>
+                
+                <div>
+                  <Label>System Prompt (Optional)</Label>
+                  <textarea 
+                    value={aiSettings.systemPrompt} 
+                    onChange={e => setAiSettings({...aiSettings, systemPrompt: e.target.value})} 
+                    className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 mt-1" 
+                    placeholder="You are an expert e-commerce catalog manager..." 
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Custom instructions for the AI on how to format or generate the product details. Leave blank to use the default.
+                  </p>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-muted-foreground/10">
+                  <h4 className="text-sm font-bold flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4 text-primary" /> Image Processing & Vision
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-foreground/80">Gallery images per product (0–5)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="5"
+                        value={aiSettings.imageGenerationCount}
+                        onChange={(e) => setAiSettings({ ...aiSettings, imageGenerationCount: Math.min(5, Math.max(0, parseInt(e.target.value) || 0)) })}
+                        className="mt-1"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Gemini lifestyle images using your reference photo.</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-foreground/80">Bulk Quick Add limit (1–5)</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="5"
+                        value={aiSettings.bulkProductLimit ?? 5}
+                        onChange={(e) => setAiSettings({ ...aiSettings, bulkProductLimit: Math.min(5, Math.max(1, parseInt(e.target.value) || 1)) })}
+                        className="mt-1"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Max products per AI batch on Quick Add page.</p>
+                    </div>
+                    
+                    <div className="space-y-1.5 md:col-span-1">
+                      <Label className="text-xs font-bold text-foreground/80">Default Background/Scene</Label>
+                      <Input
+                        value={aiSettings.defaultImagePrompt}
+                        onChange={(e) => setAiSettings({ ...aiSettings, defaultImagePrompt: e.target.value })}
+                        placeholder="e.g. in a modern cozy living room"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              
+              <Button type="submit" className="rounded-full w-full sm:w-auto mt-4">Save AI Settings</Button>
             </form>
           )}
         </TabsContent>

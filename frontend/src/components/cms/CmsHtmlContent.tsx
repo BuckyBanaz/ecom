@@ -19,13 +19,18 @@ type CmsHtmlContentProps = {
 export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
   const { t, i18n } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
-  const [localizedHtml, setLocalizedHtml] = useState("");
+  const [localizedHtml, setLocalizedHtml] = useState<string | null>(null);
 
   const prepared = useMemo(() => {
     const parsed = parseCmsHtml(normalizeCmsHtmlForStorage(html));
     const doc = new DOMParser().parseFromString(parsed.html, "text/html");
-    doc.querySelectorAll("img[src^='/uploads/']").forEach((img) => {
-      img.setAttribute("src", resolveImgUrl(img.getAttribute("src")!));
+    doc.querySelectorAll("img").forEach((img) => {
+      const src = img.getAttribute("src");
+      if (src?.includes("/uploads/")) {
+        img.setAttribute("src", resolveImgUrl(src));
+      }
+      if (!img.getAttribute("loading")) img.setAttribute("loading", "lazy");
+      if (!img.getAttribute("decoding")) img.setAttribute("decoding", "async");
     });
     doc.querySelectorAll("a[href^='/uploads/']").forEach((a) => {
       a.setAttribute("href", resolveImgUrl(a.getAttribute("href")!));
@@ -38,17 +43,33 @@ export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
     };
   }, [html]);
 
-  // Translate text nodes only (never the raw HTML string / CSS).
+  const displayHtml = localizedHtml ?? prepared.html;
+
+  // Dutch shows immediately; EN translates in idle time so CMS paint is not blocked.
   useEffect(() => {
+    setLocalizedHtml(null);
+    const lang = i18n.language.split("-")[0].toLowerCase();
+    if (lang === "nl" || !prepared.html.trim()) return;
+
     let active = true;
+    const runTranslation = () => {
+      translateCmsHtmlForLocale(prepared.html, i18n.language, t).then((next) => {
+        if (active) setLocalizedHtml(next);
+      });
+    };
 
-    (async () => {
-      const next = await translateCmsHtmlForLocale(prepared.html, i18n.language, t);
-      if (active) setLocalizedHtml(next);
-    })();
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(runTranslation, { timeout: 2000 });
+      return () => {
+        active = false;
+        window.cancelIdleCallback(id);
+      };
+    }
 
+    const timer = window.setTimeout(runTranslation, 0);
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
   }, [prepared.html, i18n.language, t]);
 
@@ -61,21 +82,9 @@ export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
         ? `<style data-cms-page-styles="${prepared.styleKey}">${prepared.styles.join("\n")}</style>`
         : "";
 
-    el.innerHTML = styleBlock + localizedHtml;
+    el.innerHTML = styleBlock + displayHtml;
     repairCmsHtmlTranslateDamage(el);
-  }, [localizedHtml, prepared.styles, prepared.styleKey]);
-
-  useLayoutEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-
-    const repair = () => repairCmsHtmlTranslateDamage(el);
-    repair();
-
-    const observer = new MutationObserver(repair);
-    observer.observe(el, { childList: true, subtree: true, characterData: true });
-    return () => observer.disconnect();
-  }, [localizedHtml, prepared.styleKey]);
+  }, [displayHtml, prepared.styles, prepared.styleKey]);
 
   if (!prepared.html && !prepared.styles.length) return null;
 

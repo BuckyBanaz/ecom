@@ -15,6 +15,7 @@ import {
 import apiClient from "@/client/apiClient";
 import { ENDPOINTS } from "@/utils/endpoints";
 import { toast } from "sonner";
+import { useAdmin } from "@/context/AdminContext";
 
 // Mock Data for Google Analytics (Traffic)
 const gaData = [
@@ -76,6 +77,7 @@ const topPages = [
 
 const AdminAnalytics = () => {
   const { t } = useTranslation();
+  const { hasPermission } = useAdmin();
   const [ga4DataLive, setGa4DataLive] = useState<any>({ traffic: [], sources: [], devices: [], topPages: [] });
   const [showConfig, setShowConfig] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -145,6 +147,10 @@ const AdminAnalytics = () => {
   const activeDeviceData = isConnected ? (ga4DataLive.devices || []) : deviceData;
   const activeTopPages = isConnected ? (ga4DataLive.topPages || []) : topPages;
   const isDummy = !isConnected;
+
+  if (!hasPermission("analytics")) {
+    return <p className="text-center py-12 text-muted-foreground">{t("admin_product_form.no_permission")}</p>;
+  }
 
   return (
     <div className="space-y-6">

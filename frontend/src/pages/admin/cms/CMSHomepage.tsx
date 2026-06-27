@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Save, Upload, Eye, Image as ImageIcon, CheckCircle2 } from "lucide-react";
+import { Save, Eye, Image as ImageIcon, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
@@ -18,13 +18,13 @@ type ImgState = string | null;
 
 function ImageUploader({ label, value, onChange }: { label: string; value: ImgState; onChange: (v: ImgState) => void }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
+
   return (
     <div className="space-y-3">
       <Label className="text-sm font-medium">{label}</Label>
-      <div 
+      <div
         onClick={() => !value && setIsDialogOpen(true)}
-        className={`group relative overflow-hidden rounded-xl border-2 border-dashed transition-all ${value ? 'border-border' : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5 cursor-pointer'} bg-muted/30`}
+        className={`group relative overflow-hidden rounded-xl border-2 border-dashed transition-all ${value ? "border-border" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5 cursor-pointer"} bg-muted/30`}
       >
         {value ? (
           <div className="relative aspect-video w-full">
@@ -43,23 +43,17 @@ function ImageUploader({ label, value, onChange }: { label: string; value: ImgSt
           </div>
         )}
       </div>
-      <MediaLibraryDialog 
-        open={isDialogOpen} 
-        onOpenChange={setIsDialogOpen} 
-        onSelect={(url) => {
-          onChange(normalizeUploadedUrl(url));
-        }} 
+      <MediaLibraryDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSelect={(url) => onChange(normalizeUploadedUrl(url))}
       />
     </div>
   );
 }
 
-
-
 const CMSHomepage = () => {
   const [content, setContent] = useState("");
-  
-  // SEO State
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDesc, setSeoDesc] = useState("");
   const [seoKeywords, setSeoKeywords] = useState("");
@@ -81,7 +75,7 @@ const CMSHomepage = () => {
           setContent("");
         }
       } catch (error) {
-        console.error("Failed to load homepage data", error);
+        console.error("Failed to fetch homepage:", error);
         setContent("");
       } finally {
         setIsLoading(false);
@@ -90,8 +84,8 @@ const CMSHomepage = () => {
     fetchHomepage();
   }, []);
 
-  const save = async (e: React.FormEvent) => { 
-    e.preventDefault(); 
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       await cmsHomepageRepository.update({
         content,
@@ -100,7 +94,7 @@ const CMSHomepage = () => {
         seoKeywords,
         seoImage,
       });
-      toast.success("Homepage successfully updated!"); 
+      toast.success("Homepage successfully updated!");
     } catch (error) {
       toast.error("Failed to update homepage");
     }
@@ -120,10 +114,12 @@ const CMSHomepage = () => {
               <CheckCircle2 className="w-3 h-3 mr-1" /> Published
             </Badge>
           </div>
-          <p className="text-muted-foreground text-sm">Design your homepage layout and optimize it for search engines.</p>
+          <p className="text-muted-foreground text-sm">
+            What visitors see at <strong className="text-foreground">/</strong> — content + homepage SEO together.
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button type="button" variant="outline" className="gap-2 shadow-sm" onClick={() => window.open('/', '_blank')}>
+          <Button type="button" variant="outline" className="gap-2 shadow-sm" onClick={() => window.open("/", "_blank")}>
             <Eye className="h-4 w-4" /> Live Preview
           </Button>
           <Button type="submit" className="gap-2 shadow-sm">
@@ -133,7 +129,6 @@ const CMSHomepage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content Area */}
         <div className="lg:col-span-2 space-y-8">
           <Card className="border-muted-foreground/10 shadow-sm overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
@@ -144,71 +139,77 @@ const CMSHomepage = () => {
             </CardHeader>
             <CardContent className="p-0">
               <div className="min-h-[600px]">
-                <RichTextEditor 
-                  value={content} 
-                  onChange={setContent} 
-                  placeholder="Start building your homepage..." 
+                <RichTextEditor
+                  value={content}
+                  onChange={setContent}
+                  placeholder="Start building your homepage..."
                 />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Sidebar Settings */}
         <div className="space-y-6">
           <Card className="border-muted-foreground/10 shadow-sm sticky top-6">
             <CardHeader className="bg-muted/30 border-b pb-4">
-              <CardTitle className="text-lg">SEO & Social</CardTitle>
-              <CardDescription>Configure search engine visibility.</CardDescription>
+              <CardTitle className="text-lg">Homepage SEO (/)</CardTitle>
+              <CardDescription>
+                Google title & description for the main landing page only.
+              </CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-5">
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label className="font-semibold">Meta Title</Label>
-                  <span className={`text-xs ${seoTitle.length > 60 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  <span className={`text-xs ${seoTitle.length > 60 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                     {seoTitle.length} / 60
                   </span>
                 </div>
-                <Input 
-                  value={seoTitle} 
-                  onChange={e => setSeoTitle(e.target.value)} 
-                  placeholder="e.g. Premium Lighting & Home Decor" 
+                <Input
+                  value={seoTitle}
+                  onChange={(e) => setSeoTitle(e.target.value)}
+                  placeholder="e.g. Schip & Ster — Premium Lighting"
                   className="bg-muted/30"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label className="font-semibold">Meta Description</Label>
-                  <span className={`text-xs ${seoDesc.length > 160 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  <span className={`text-xs ${seoDesc.length > 160 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                     {seoDesc.length} / 160
                   </span>
                 </div>
-                <Textarea 
-                  value={seoDesc} 
-                  onChange={e => setSeoDesc(e.target.value)} 
-                  placeholder="Brief compelling description for search results..." 
-                  rows={4} 
+                <Textarea
+                  value={seoDesc}
+                  onChange={(e) => setSeoDesc(e.target.value)}
+                  placeholder="Brief compelling description for search results..."
+                  rows={4}
                   className="bg-muted/30 resize-none"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label className="font-semibold">Meta Keywords</Label>
-                <Input 
-                  value={seoKeywords} 
-                  onChange={e => setSeoKeywords(e.target.value)} 
-                  placeholder="lighting, decor, shop (comma separated)" 
+                <Input
+                  value={seoKeywords}
+                  onChange={(e) => setSeoKeywords(e.target.value)}
+                  placeholder="lighting, decor, shop (comma separated)"
                   className="bg-muted/30"
                 />
               </div>
 
               <div className="pt-4 border-t">
-                <ImageUploader label="Social Share Image (OG Image)" value={seoImage} onChange={setSeoImage} />
-                <p className="text-xs text-muted-foreground mt-2">
-                  This image will be displayed when your homepage is shared on social media (Facebook, X, etc). Recommended: 1200x630px.
-                </p>
+                <ImageUploader label="Social Share Image (OG)" value={seoImage} onChange={setSeoImage} />
+                <p className="text-xs text-muted-foreground mt-2">Recommended: 1200×630px when homepage link is shared.</p>
               </div>
+
+              <p className="text-xs text-muted-foreground border-t pt-4">
+                Site-wide settings (canonical, sitemap, analytics) →{" "}
+                <Link to="/admin/cms/seo" className="font-semibold text-primary underline">
+                  Site SEO & Analytics
+                </Link>
+              </p>
             </CardContent>
           </Card>
         </div>

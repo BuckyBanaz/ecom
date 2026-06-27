@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SectionLoader } from "@/components/ui/PageLoader";
 import { backupsRepository } from "@/client/apiClient";
+import { useAdmin } from "@/context/AdminContext";
 
 type BackupType = "database" | "uploads" | "full";
 
@@ -32,6 +33,7 @@ const typeVariant = (type: BackupType) => {
 
 export default function AdminBackups() {
   const { t } = useTranslation();
+  const { hasPermission } = useAdmin();
   const [backups, setBackups] = useState<BackupEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<BackupType | null>(null);
@@ -92,6 +94,10 @@ export default function AdminBackups() {
       toast.error(err.message || t("admin_backups.toast_delete_failed"));
     }
   };
+
+  if (!hasPermission("backups")) {
+    return <p className="text-center py-12 text-muted-foreground">{t("admin_product_form.no_permission")}</p>;
+  }
 
   return (
     <div className="space-y-6">

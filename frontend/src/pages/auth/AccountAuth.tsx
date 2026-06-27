@@ -91,6 +91,7 @@ const AccountAuth = () => {
         toast.success(res.message || t("auth_pages.login.toast_logged_in"));
         localStorage.setItem("customer_token", res.token);
         localStorage.setItem("customer_user", JSON.stringify(res.user));
+        window.dispatchEvent(new CustomEvent("customer-auth-changed"));
         navigate(redirectTo);
       } else {
         toast.error(res.message || t("auth_pages.login.toast_login_failed"));
@@ -145,6 +146,7 @@ const AccountAuth = () => {
         toast.success(res.message || t("auth_pages.login.toast_logged_in"));
         localStorage.setItem("customer_token", res.token);
         localStorage.setItem("customer_user", JSON.stringify(res.user));
+        window.dispatchEvent(new CustomEvent("customer-auth-changed"));
         navigate(redirectTo);
       } else {
         toast.error(res.message || t("auth_pages.login.toast_otp_invalid"));
@@ -226,6 +228,7 @@ const AccountAuth = () => {
         toast.success(res.message || t("auth_pages.register.toast_account_created"));
         localStorage.setItem("customer_token", res.token);
         localStorage.setItem("customer_user", JSON.stringify(res.user));
+        window.dispatchEvent(new CustomEvent("customer-auth-changed"));
         navigate(redirectTo);
       } else {
         toast.error(res.message || t("auth_pages.register.toast_register_failed"));

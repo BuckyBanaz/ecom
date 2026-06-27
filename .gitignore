@@ -23,6 +23,8 @@ build/
 *.env
 **/.env
 **/.env.local
+**/scratch_test_key.js
+**/scratch_*.js
 *.bak
 **/.env.bak
 

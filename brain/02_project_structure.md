@@ -11,9 +11,8 @@ ecom/
 ├── local-scripts/     # Local dev helpers
 ├── docker-compose.yml        # Local dev (Postgres + Redis + Backend)
 ├── docker-compose.prod.yml   # Production compose
-├── docker-compose.jenkins.yml
 ├── Caddyfile          # Reverse proxy config
-├── Jenkinsfile        # CI/CD pipeline
+├── scripts/deploy.sh  # Production deploy (SSH)
 └── .env.production    # Production environment vars
 ```
 

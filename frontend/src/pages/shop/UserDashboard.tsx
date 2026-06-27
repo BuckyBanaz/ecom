@@ -134,6 +134,7 @@ const UserDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem("customer_token");
     localStorage.removeItem("customer_user");
+    window.dispatchEvent(new CustomEvent("customer-auth-changed"));
     toast.success(t("dashboard.sidebar.toast_logout"));
     navigate("/account");
   };

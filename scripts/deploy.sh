@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Idempotent production deploy — run on VPS (/opt/ecom) or via Jenkins.
+# Idempotent production deploy — run on VPS (/opt/ecom) via SSH.
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/ecom}"
-BRANCH="${BRANCH:-v1.4}"
+BRANCH="${BRANCH:-code-deploy}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 SERVICES="${SERVICES:-backend frontend caddy}"
 
@@ -30,15 +30,6 @@ fi
 COMMIT="$(git rev-parse --short HEAD)"
 echo "==> Deploying commit: ${COMMIT}"
 
-# Stop Jenkins before heavy docker builds when deploying over SSH — frees RAM on small VPSes.
-# Never stop from inside the Jenkins container (would kill the running job).
-if [[ -z "${JENKINS_HOME:-}" ]]; then
-  echo "==> Stopping Jenkins during build (frees RAM — restarted after deploy)..."
-  docker compose -f "${COMPOSE_FILE}" stop jenkins 2>/dev/null || true
-else
-  echo "==> Running inside Jenkins — leaving container up during build"
-fi
-
 echo "==> Building images: ${SERVICES}"
 BUILD_ARGS=()
 if [[ "${DOCKER_NO_CACHE:-false}" == "true" ]]; then
@@ -54,24 +45,6 @@ docker compose -f "${COMPOSE_FILE}" up -d --force-recreate ${SERVICES}
 
 echo "==> Waiting for containers to settle..."
 sleep 8
-
-# Deploy builds frontend/backend on the host — Jenkins often gets OOM-killed or Caddy shows 502 until upstream is back.
-echo "==> Ensuring Jenkins is up (deploy does not rebuild it, but builds can starve RAM)..."
-if ! curl -sf http://127.0.0.1:8080/login >/dev/null 2>&1; then
-  echo "    Jenkins not responding — restarting jenkins, then caddy..."
-  docker compose -f "${COMPOSE_FILE}" up -d jenkins
-  for i in $(seq 1 24); do
-    if curl -sf http://127.0.0.1:8080/login >/dev/null 2>&1; then
-      echo "    Jenkins ready after ~$((i * 5))s"
-      break
-    fi
-    sleep 5
-  done
-  docker compose -f "${COMPOSE_FILE}" up -d --force-recreate caddy
-  sleep 5
-else
-  echo "    Jenkins OK"
-fi
 
 docker compose -f "${COMPOSE_FILE}" ps
 

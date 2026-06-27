@@ -197,7 +197,31 @@ function seoFilePath(name: string): string {
   return path.join(ensureSeoFilesDir(), name);
 }
 
-const DEFAULT_ROBOTS = "User-agent: *\nAllow: /\n";
+const DEFAULT_ROBOTS = `User-agent: *
+Allow: /
+
+# AI / answer-engine crawlers (AEO)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+Sitemap: https://schipenster.com/sitemap.xml
+# LLM context file: https://schipenster.com/llms.txt
+`;
 
 export async function getRobotsTxtContent(): Promise<string> {
   const robotsPath = seoFilePath("robots.txt");

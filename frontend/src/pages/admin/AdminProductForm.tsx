@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,18 +29,20 @@ export interface SpecItem {
 
 const AdminProductForm = () => {
   const { t } = useTranslation();
-  const { id } = useParams<{ id: string }>();
+  const { id, draftId } = useParams<{ id?: string; draftId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasPermission } = useAdmin();
 
-  const isEdit = id !== undefined && id !== "new";
+  const isDraftMode = Boolean(draftId);
+  const isEdit = id !== undefined && id !== "new" && !isDraftMode;
 
   // Mount guard for portal-based components
   const [isMounted, setIsMounted] = useState(false);
 
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
-  const [isProductLoading, setIsProductLoading] = useState(isEdit);
+  const [isProductLoading, setIsProductLoading] = useState(isEdit || isDraftMode);
   const [mediaDialogTarget, setMediaDialogTarget] = useState<"thumbnail" | "gallery" | null>(null);
 
   // Data states
@@ -211,12 +213,65 @@ const AdminProductForm = () => {
     }));
   };
 
-  // Load existing product details (if Edit mode)
+  const applyDraftToForm = (draft: Record<string, any>) => {
+    setName(draft.name || "");
+    setPrice(String(draft.price || ""));
+    setThumbnail(draft.image || null);
+    setGalleryImages(Array.isArray(draft.images) ? draft.images : []);
+    setDescription(draft.description || "");
+    setShortDescription(draft.shortDescription || "");
+    setInStock(draft.inStock ?? true);
+    setSelectedCategory(draft.category || "");
+    setSelectedBrand(draft.brand || "");
+    setSeoTitle(draft.seoTitle || "");
+    setSeoDescription(draft.seoDescription || "");
+    setSeoKeywords(draft.seoKeywords || "");
+    setSelectedAttributeValues(draft.attributes || {});
+    const parsed = parseSpecs(draft.specs || {});
+    parsed.forEach((s) => {
+      if (s.key === "Number of lights") setNumberOfLights(s.value);
+      if (s.key === "Series") setSelectedSeries(s.value);
+    });
+    setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+    toast.info(t("admin_product_form.draft_loaded"));
+  };
+
+  // Load existing product details (if Edit mode or Draft mode)
   useEffect(() => {
+    if (isDraftMode && draftId) {
+      const loadDraft = async () => {
+        setIsProductLoading(true);
+        try {
+          const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
+          const res = await fetch(`${apiUrl}/ai/drafts/${draftId}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+          });
+          const data = await res.json();
+          if (data.success && data.draft?.payload) {
+            applyDraftToForm(data.draft.payload);
+          } else {
+            toast.error(t("admin_product_form.draft_load_failed"));
+            navigate("/admin/product-drafts");
+          }
+        } catch {
+          toast.error(t("admin_product_form.draft_load_failed"));
+        } finally {
+          setIsProductLoading(false);
+        }
+      };
+      loadDraft();
+      return;
+    }
+
     if (!isEdit) {
-      setSpecs(DEFAULT_SPECS_STRUCTURE);
-      setNumberOfLights("");
-      setSelectedSeries("");
+      const draft = location.state?.draft;
+      if (draft) {
+        applyDraftToForm(draft);
+      } else {
+        setSpecs(DEFAULT_SPECS_STRUCTURE);
+        setNumberOfLights("");
+        setSelectedSeries("");
+      }
       return;
     }
 
@@ -602,6 +657,17 @@ const AdminProductForm = () => {
         : await productRepository.create(payload);
 
       if (data.success) {
+        if (isDraftMode && draftId) {
+          try {
+            const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
+            await fetch(`${apiUrl}/ai/drafts/${draftId}/published`, {
+              method: "PATCH",
+              headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+            });
+          } catch {
+            /* non-blocking */
+          }
+        }
         toast.success(isEdit ? t("admin_product_form.toast_product_updated", { name }) : t("admin_product_form.toast_product_created", { name }));
         navigate("/admin/products");
         return;
