@@ -24,7 +24,10 @@ export function FeaturesBlockForm({ features, onAddFeature, onRemoveFeature, onU
   return (
     <div className="space-y-4 border rounded-md p-4 bg-muted/20">
       <div className="flex items-center justify-between">
-        <Label className="text-base font-semibold">Features Items</Label>
+        <div>
+          <Label className="text-base font-semibold">Features Items</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">Items are center-aligned on the live page (2, 3, or 4 in a row).</p>
+        </div>
         <Button type="button" variant="outline" size="sm" onClick={onAddFeature}>
           <Plus className="h-4 w-4 mr-2" /> Add Item
         </Button>

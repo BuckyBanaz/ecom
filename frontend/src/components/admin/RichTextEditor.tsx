@@ -8,6 +8,16 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { UIBlocksDialog } from "./UIBlocksDialog";
@@ -63,6 +73,10 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiConfirmOpen, setAiConfirmOpen] = useState(false);
+  const [pendingAiContent, setPendingAiContent] = useState("");
+  const [pendingAiSeo, setPendingAiSeo] = useState<{ seoTitle: string; seoDesc: string; seoKeywords: string } | null>(null);
+  const [aiCodeLines, setAiCodeLines] = useState<string[]>([]);
 
   const resolveRelativeUrlsInHtml = (html: string): string => {
     if (!html) return "";
@@ -710,36 +724,23 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
         content = normalizeCmsHtmlForStorage(content);
         content = normalizeUrlsInHtml(content);
 
-        const replaceAll =
-          !value.trim() ||
-          window.confirm(
-            value.trim()
-              ? "Replace all existing page content with AI-generated content?"
-              : undefined
-          );
+        const seoPayload = {
+          seoTitle: res.seoTitle || "",
+          seoDesc: res.seoDesc || "",
+          seoKeywords: res.seoKeywords || "",
+        };
 
-        if (replaceAll) {
-          if (editorRef.current) {
-            editorRef.current.innerHTML = resolveRelativeUrlsInHtml(content);
-            handleInput();
-          } else {
-            onChange(content);
-          }
+        if (!value.trim()) {
+          applyAiContent(content, true, seoPayload);
+          setIsAiDialogOpen(false);
+          setAiPrompt("");
+          toast.success(t("admin_richtext.ai_success", { defaultValue: "Page content generated — uses shortcodes + inline HTML (no JavaScript)." }));
         } else {
-          executeCommand("insertHTML", resolveRelativeUrlsInHtml(content));
-          handleInput();
+          setPendingAiContent(content);
+          setPendingAiSeo(seoPayload);
+          setIsAiDialogOpen(false);
+          setAiConfirmOpen(true);
         }
-
-        setIsAiDialogOpen(false);
-        setAiPrompt("");
-        if (onSeoGenerated && (res.seoTitle || res.seoDesc || res.seoKeywords)) {
-          onSeoGenerated({
-            seoTitle: res.seoTitle || "",
-            seoDesc: res.seoDesc || "",
-            seoKeywords: res.seoKeywords || "",
-          });
-        }
-        toast.success(t("admin_richtext.ai_success", { defaultValue: "Page content generated — uses shortcodes + inline HTML (no JavaScript)." }));
       } else {
         toast.error(res.error || t("admin_richtext.ai_failed", { defaultValue: "Failed to generate page content." }));
       }
@@ -749,6 +750,62 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
       setIsGenerating(false);
     }
   };
+
+  const applyAiContent = (
+    content: string,
+    replaceAll: boolean,
+    seo?: { seoTitle: string; seoDesc: string; seoKeywords: string } | null,
+  ) => {
+    if (replaceAll) {
+      if (editorRef.current) {
+        editorRef.current.innerHTML = resolveRelativeUrlsInHtml(content);
+        handleInput();
+      } else {
+        onChange(content);
+      }
+    } else {
+      executeCommand("insertHTML", resolveRelativeUrlsInHtml(content));
+      handleInput();
+    }
+
+    if (onSeoGenerated && seo && (seo.seoTitle || seo.seoDesc || seo.seoKeywords)) {
+      onSeoGenerated(seo);
+    }
+  };
+
+  const handleAiReplaceAll = () => {
+    applyAiContent(pendingAiContent, true, pendingAiSeo);
+    setAiConfirmOpen(false);
+    setPendingAiContent("");
+    setPendingAiSeo(null);
+    setAiPrompt("");
+    toast.success(t("admin_richtext.ai_success", { defaultValue: "Page content generated — uses shortcodes + inline HTML (no JavaScript)." }));
+  };
+
+  const handleAiAppend = () => {
+    applyAiContent(pendingAiContent, false, pendingAiSeo);
+    setAiConfirmOpen(false);
+    setPendingAiContent("");
+    setPendingAiSeo(null);
+    setAiPrompt("");
+    toast.success(t("admin_richtext.ai_success", { defaultValue: "Page content generated — uses shortcodes + inline HTML (no JavaScript)." }));
+  };
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setAiCodeLines([]);
+      return;
+    }
+    const pool = AI_CMS_CODE_LINES;
+    setAiCodeLines([pool[0]]);
+    let idx = 1;
+    const timer = setInterval(() => {
+      const next = pool[idx % pool.length];
+      idx += 1;
+      setAiCodeLines((prev) => [...prev.slice(-7), next]);
+    }, 420);
+    return () => clearInterval(timer);
+  }, [isGenerating]);
 
   return (
     <div className="space-y-2">
@@ -1309,42 +1366,98 @@ export function RichTextEditor({ value, onChange, label, placeholder, onSeoGener
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
-        <DialogContent>
+      <Dialog open={isAiDialogOpen} onOpenChange={(open) => !isGenerating && setIsAiDialogOpen(open)}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-primary">
               <Sparkles className="h-5 w-5" />
-              {t("admin_quick_add.title")} {/* Reuse a generic AI title or keep as is, wait I'll use common translations */}
               Generate Page with AI
             </DialogTitle>
             <DialogDescription>
-              Describe your lighting page. AI builds it with <strong>shortcodes</strong> (hero, products, categories) and inline HTML — not JavaScript. Example: &quot;Pendant lights landing page with hero, features, bestsellers&quot;.
+              Describe your lighting page. AI builds it with <strong>shortcodes</strong> (hero, products, categories) and inline HTML — not JavaScript.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Your Prompt</Label>
-              <textarea
-                autoFocus
-                className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
-                placeholder="e.g. Create a pendant lights collection page: text hero, image hero banner, 3 shipping/warranty features, bestseller products grid, customer reviews section."
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-              />
+          {isGenerating ? (
+            <div className="rounded-xl border border-primary/20 bg-zinc-950 p-4 font-mono text-[11px] text-emerald-400 min-h-[220px] shadow-inner">
+              <div className="flex items-center gap-2 mb-3 text-primary font-sans text-sm font-medium">
+                <Sparkles className="h-4 w-4 animate-pulse" />
+                AI is writing your page…
+              </div>
+              <div className="space-y-1 max-h-[160px] overflow-hidden">
+                {aiCodeLines.map((line, i) => (
+                  <div key={`${i}-${line.slice(0, 12)}`} className="truncate opacity-80 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                    <span className="text-zinc-500 select-none">{"> "}</span>
+                    {line}
+                  </div>
+                ))}
+              </div>
+              <span className="inline-block w-2 h-4 bg-emerald-400 animate-pulse mt-2" aria-hidden />
             </div>
-          </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Your Prompt</Label>
+                <textarea
+                  autoFocus
+                  className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                  placeholder="e.g. Pendant lights page: hero banner, 3 features, bestseller grid…"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAiDialogOpen(false)}>{t("admin_components.button_cancel")}</Button>
+            <Button variant="outline" onClick={() => setIsAiDialogOpen(false)} disabled={isGenerating}>
+              {t("admin_components.button_cancel")}
+            </Button>
             <Button onClick={handleAiGenerate} disabled={!aiPrompt.trim() || isGenerating} className="gap-2">
               {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {isGenerating ? t("admin_quick_add.btn_generating") : "Generate Page"}
+              {isGenerating ? "Generating magic…" : "Generate Page"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={aiConfirmOpen} onOpenChange={setAiConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace existing content?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This page already has content. Replace everything with the AI-generated page, or append the new blocks below what you have?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => { setPendingAiContent(""); setPendingAiSeo(null); }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleAiAppend} className="bg-secondary text-secondary-foreground hover:bg-secondary/90">
+              Append below
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleAiReplaceAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Replace all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
+const AI_CMS_CODE_LINES = [
+  '[hero-banner count="1" title_1="Spring Deals" overlay_opacity_1="40"]',
+  '[features-block count="3" icon_1="truck-fast" title_1="Free EU Shipping"]',
+  '[product-block type="bestsellers" title="Popular Products"]',
+  '<section class="container-page py-12">…</section>',
+  '[category-block title="Shop by Room"]',
+  'seoTitle: "Premium Interior Lighting | Schip & Ster"',
+  'import { HeroBanner, FeaturesGrid } from "@/cms/blocks"',
+  'await prisma.category.findMany({ select: { slug: true } })',
+  '[reviews-block title="Customer Reviews"]',
+  'normalizeCmsHtmlForStorage(htmlContent)',
+  'const overlayOpacity = slide.overlayOpacity ?? 40;',
+  '[text-hero title="Crafting Atmosphere Through Light"]',
+];
 
 interface ToolbarButtonProps { 
   icon: any; 

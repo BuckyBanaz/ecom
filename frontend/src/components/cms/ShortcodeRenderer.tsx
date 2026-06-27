@@ -390,11 +390,15 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             const slides = [];
             for (let i = 1; i <= count; i++) {
               slides.push({
-                title: attributes[`title_${i}`] || attributes.title, // fallback for old shortcodes
+                title: attributes[`title_${i}`] || attributes.title,
                 subtitle: attributes[`subtitle_${i}`] || attributes.subtitle,
                 bgImage: attributes[`background_image_${i}`] || attributes.background_image,
                 btnText: attributes[`primary_button_text_${i}`] || attributes.primary_button_text,
                 btnLink: attributes[`primary_button_link_${i}`] || attributes.primary_button_link,
+                titleColor: attributes[`title_color_${i}`] || "",
+                subtitleColor: attributes[`subtitle_color_${i}`] || "",
+                overlayOpacity: parseInt(attributes[`overlay_opacity_${i}`] || "40", 10),
+                borderRadius: parseInt(attributes[`border_radius_${i}`] || "12", 10),
               });
             }
             return (
@@ -404,19 +408,30 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                   className="w-full overflow-hidden"
                 >
                   <CarouselContent className="-ml-2 md:-ml-4">
-                    {slides.map((slide, sIndex) => (
+                    {slides.map((slide, sIndex) => {
+                      const radius = slide.borderRadius ?? 12;
+                      const overlay = (slide.overlayOpacity ?? 40) / 100;
+                      return (
                       <CarouselItem key={sIndex} className="pl-2 md:pl-4">
-                        <div className="relative h-full overflow-hidden rounded-xl">
-                          <SafeImage src={slide.bgImage} alt="Hero" className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]" fallbackType="category" />
-                          <div className="absolute inset-0 bg-black/40" />
+                        <div className="relative h-full overflow-hidden" style={{ borderRadius: radius }}>
+                          <SafeImage src={slide.bgImage} alt="Hero" className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]" style={{ borderRadius: radius }} fallbackType="category" />
+                          <div className="absolute inset-0 bg-black" style={{ opacity: overlay, borderRadius: radius }} />
                           <div className="absolute inset-0 flex flex-col items-center justify-center px-4 py-6 text-center text-white sm:px-6">
                             {slide.title && (
-                              <h1 className="max-w-full break-words text-3xl font-black text-primary drop-shadow-sm sm:text-4xl md:text-6xl lg:text-7xl" style={{ fontFamily: "Inter" }}>
+                              <h1
+                                className={`max-w-full break-words text-3xl font-black drop-shadow-sm sm:text-4xl md:text-6xl lg:text-7xl ${slide.titleColor ? "" : "text-primary"}`}
+                                style={{ fontFamily: "Inter", ...(slide.titleColor ? { color: slide.titleColor } : {}) }}
+                              >
                                 {L(slide.title)}
                               </h1>
                             )}
                             {slide.subtitle && (
-                              <p className="mt-2 max-w-full break-words text-base font-medium text-white sm:text-lg md:text-2xl">{L(slide.subtitle)}</p>
+                              <p
+                                className={`mt-2 max-w-full break-words text-base font-medium sm:text-lg md:text-2xl ${slide.subtitleColor ? "" : "text-white"}`}
+                                style={slide.subtitleColor ? { color: slide.subtitleColor } : undefined}
+                              >
+                                {L(slide.subtitle)}
+                              </p>
                             )}
                             {slide.btnText && slide.btnLink && (
                               <Button asChild size="lg" className="mt-6 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
@@ -426,7 +441,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                           </div>
                         </div>
                       </CarouselItem>
-                    ))}
+                    );})}
                   </CarouselContent>
                   {slides.length > 1 && (
                     <>
@@ -529,9 +544,9 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             }
             return (
               <section key={index} className="container-page">
-                <div className="grid grid-cols-2 gap-4 rounded-2xl bg-muted p-6 md:grid-cols-4">
+                <div className="flex flex-wrap items-start justify-center gap-x-10 gap-y-5 rounded-2xl bg-muted p-6 md:gap-x-14 md:p-8">
                   {feats.map((f, i) => (
-                      <div key={i} className="flex items-start gap-3">
+                      <div key={i} className="flex w-full max-w-[280px] items-start gap-3 sm:w-auto sm:min-w-[200px]">
                         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                           <FaIcon name={f.icon || "star"} className="h-4 w-4" />
                         </span>

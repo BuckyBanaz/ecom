@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { categoryRepository } from "@/client/apiClient";
 
 // Import extracted UI components
-import { HeroBannerForm, HeroSlide } from "./cms-ui-components/HeroBannerForm";
+import { HeroBannerForm, HeroSlide, createDefaultHeroSlide } from "./cms-ui-components/HeroBannerForm";
 import { CategoryBlockForm } from "./cms-ui-components/CategoryBlockForm";
 import { ProductBlockForm } from "./cms-ui-components/ProductBlockForm";
 import { FeaturesBlockForm, FeatureItem } from "./cms-ui-components/FeaturesBlockForm";
@@ -40,9 +40,7 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
   const [description, setDescription] = useState("");
 
   // Hero Banner Specific (Slides)
-  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([
-    { title: "", subtitle: "", bgImage: "", btnText: "", btnLink: "", imageMode: "url" }
-  ]);
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([createDefaultHeroSlide()]);
 
   // Categories Specific
   const [categories, setCategories] = useState(""); // comma separated
@@ -67,7 +65,7 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
     setTitle("");
     setSubtitle("");
     setDescription("");
-    setHeroSlides([{ title: "", subtitle: "", bgImage: "", btnText: "", btnLink: "", imageMode: "url" }]);
+    setHeroSlides([createDefaultHeroSlide()]);
     setCategories("");
     setProductType("bestsellers");
     setFeatures([{ icon: "truck-fast", title: "Fast delivery", description: "Order before 22:00, delivered next day" }]);
@@ -109,10 +107,14 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
                bgImage: attributes[`background_image_${i}`] || (i === 1 ? attributes.background_image : "") || "",
                btnText: attributes[`primary_button_text_${i}`] || (i === 1 ? attributes.primary_button_text : "") || "",
                btnLink: attributes[`primary_button_link_${i}`] || (i === 1 ? attributes.primary_button_link : "") || "",
+               titleColor: attributes[`title_color_${i}`] || "",
+               subtitleColor: attributes[`subtitle_color_${i}`] || "",
+               overlayOpacity: parseInt(attributes[`overlay_opacity_${i}`] || "40", 10),
+               borderRadius: parseInt(attributes[`border_radius_${i}`] || "12", 10),
                imageMode: "url" as const
              });
            }
-           setHeroSlides(slides.length > 0 ? slides : [{ title: "", subtitle: "", bgImage: "", btnText: "", btnLink: "", imageMode: "url" }]);
+           setHeroSlides(slides.length > 0 ? slides : [createDefaultHeroSlide()]);
         } else if (type === "category-block") {
            setCategories(attributes.categories || "");
         } else if (type === "product-block") {
@@ -152,7 +154,7 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
   };
 
   const addHeroSlide = () => {
-    setHeroSlides([...heroSlides, { title: "", subtitle: "", bgImage: "", btnText: "", btnLink: "", imageMode: "url" }]);
+    setHeroSlides([...heroSlides, createDefaultHeroSlide()]);
   };
   const removeHeroSlide = (index: number) => {
     setHeroSlides(heroSlides.filter((_, i) => i !== index));
@@ -179,6 +181,10 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
           if (slide.bgImage) attributes.push(`background_image_${i+1}="${slide.bgImage}"`);
           if (slide.btnText) attributes.push(`primary_button_text_${i+1}="${slide.btnText}"`);
           if (slide.btnLink) attributes.push(`primary_button_link_${i+1}="${slide.btnLink}"`);
+          if (slide.titleColor) attributes.push(`title_color_${i+1}="${slide.titleColor}"`);
+          if (slide.subtitleColor) attributes.push(`subtitle_color_${i+1}="${slide.subtitleColor}"`);
+          attributes.push(`overlay_opacity_${i+1}="${slide.overlayOpacity ?? 40}"`);
+          attributes.push(`border_radius_${i+1}="${slide.borderRadius ?? 12}"`);
         });
         break;
       case "category-block":
