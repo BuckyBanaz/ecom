@@ -124,6 +124,18 @@ const CMSSeo = () => {
         </AlertDescription>
       </Alert>
 
+      <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
+        <Info className="h-4 w-4 text-amber-600" />
+        <AlertDescription>
+          Google reads <strong>static HTML</strong>, not JavaScript. After saving site name, description, or OG image here,{" "}
+          <strong>rebuild &amp; redeploy the frontend</strong> (Docker build picks up these values). Then use{" "}
+          <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline">
+            Search Console
+          </a>{" "}
+          → URL Inspection → Request indexing. Favicon and snippet updates can take 1–4 weeks.
+        </AlertDescription>
+      </Alert>
+
       <Tabs defaultValue="site" className="space-y-4">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="site">Site defaults</TabsTrigger>
