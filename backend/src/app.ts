@@ -7,6 +7,7 @@ import { setupSwagger } from "./config/swagger";
 import { requestLogger } from "./middlewares/loggerMiddleware";
 import { globalLimiter } from "./middlewares/rateLimitMiddleware";
 import redis from "./config/redis";
+import { serveResizedUpload } from "./middlewares/imageResizeMiddleware";
 import { seedTemplates } from "./utils/seedTemplates";
 
 // Run seed script on startup
@@ -68,7 +69,8 @@ app.post("/api/v1/webhooks/sendcloud", express.raw({ type: "application/json" })
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Serve uploaded media statically — long cache so repeat visits don't re-download images
+// Serve uploaded media — optional ?w= resize, then static originals
+app.use("/uploads", serveResizedUpload);
 app.use(
   "/uploads",
   express.static(path.join(__dirname, "../public/uploads"), {

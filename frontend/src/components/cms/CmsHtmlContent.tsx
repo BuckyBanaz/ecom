@@ -26,10 +26,10 @@ export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
     const doc = new DOMParser().parseFromString(parsed.html, "text/html");
     doc.querySelectorAll("img").forEach((img, index) => {
       const src = img.getAttribute("src");
-      if (src?.includes("/uploads/")) {
-        img.setAttribute("src", resolveImgUrl(src));
-      }
       const isLcp = index === 0;
+      if (src?.includes("/uploads/")) {
+        img.setAttribute("src", resolveImgUrl(src, { width: isLcp ? 960 : undefined }));
+      }
       if (!img.getAttribute("loading")) {
         img.setAttribute("loading", isLcp ? "eager" : "lazy");
       }

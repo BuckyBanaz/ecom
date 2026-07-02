@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { BlogCard } from "@/components/shop/BlogCard";
 import { categories } from "@/data/categories";
-import { dealProducts, featuredProducts } from "@/data/products";
-import { initialBlogs } from "@/data/blogs";
 import { StarRating } from "@/components/shop/StarRating";
 import { FaIcon } from "@/components/ui/FaIcon";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
@@ -404,9 +402,10 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             }
             return (
               <section key={index} className="container-page min-w-0 pt-4 pb-2 md:pt-6">
-                <Carousel 
-                  opts={{ loop: true }} 
+                <Carousel
+                  opts={{ loop: true }}
                   className="w-full overflow-hidden"
+                  aria-label="Hero banners"
                 >
                   <CarouselContent className="-ml-2 md:-ml-4">
                     {slides.map((slide, sIndex) => {
@@ -419,6 +418,8 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                             src={slide.bgImage}
                             alt={slide.title ? L(slide.title) : "Hero banner"}
                             priority={sIndex === 0}
+                            responsiveWidths={sIndex === 0 ? [640, 960, 1200] : [640, 960]}
+                            sizes="100vw"
                             width={1200}
                             height={440}
                             className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]"

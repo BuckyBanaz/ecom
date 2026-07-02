@@ -32,6 +32,8 @@ export const globalLimiter = buildLimiter("global", {
   max: 2000,
   skip: (req) =>
     req.path === "/health" ||
+    req.path === "/robots.txt" ||
+    req.path === "/sitemap.xml" ||
     req.path === "/api/v1/payments/webhook" ||
     req.originalUrl.startsWith("/uploads/"),
 });

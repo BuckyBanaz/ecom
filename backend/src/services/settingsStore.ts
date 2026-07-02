@@ -228,10 +228,14 @@ Sitemap: https://schipenster.com/sitemap.xml
 
 export async function getRobotsTxtContent(): Promise<string> {
   const robotsPath = seoFilePath("robots.txt");
+  let content = DEFAULT_ROBOTS;
   if (fs.existsSync(robotsPath)) {
-    return fs.readFileSync(robotsPath, "utf-8");
+    const raw = fs.readFileSync(robotsPath, "utf-8").trim();
+    if (raw && raw.includes("User-agent:")) {
+      content = raw.endsWith("\n") ? raw : `${raw}\n`;
+    }
   }
-  return DEFAULT_ROBOTS;
+  return content.endsWith("\n") ? content : `${content}\n`;
 }
 
 export async function saveRobotsTxtContent(content: string): Promise<void> {

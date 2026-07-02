@@ -24,6 +24,31 @@
 
     </script>
 
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem("cms_homepage_data");
+          if (!raw) return;
+          var data = JSON.parse(raw);
+          if (!data || !data.content) return;
+          var content = data.content;
+          var m =
+            content.match(/background_image_1="([^"]+)"/i) ||
+            content.match(/background_image="([^"]+)"/i) ||
+            content.match(/<img[^>]+src="([^"]+)"/i);
+          if (!m || !m[1] || m[1].indexOf("/uploads/") === -1) return;
+          var path = m[1].slice(m[1].indexOf("/uploads/"));
+          var href = path + (path.indexOf("?") >= 0 ? "&" : "?") + "w=960";
+          var link = document.createElement("link");
+          link.rel = "preload";
+          link.as = "image";
+          link.href = href;
+          link.setAttribute("fetchpriority", "high");
+          document.head.appendChild(link);
+        } catch (e) {}
+      })();
+    </script>
+
     <meta charset="UTF-8" />
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

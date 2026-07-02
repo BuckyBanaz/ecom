@@ -1,9 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
-
-import nlCommon from "./locales/nl/translation.json";
-import enCommon from "./locales/en/translation.json";
 import {
   clearGoogleTranslateCookie,
   enableAppControlledTranslation,
@@ -27,6 +24,17 @@ export const DEFAULT_LANGUAGE: SupportedLanguage = "nl";
 export const FALLBACK_LANGUAGE: SupportedLanguage = "en";
 export const LANGUAGE_STORAGE_KEY = "i18nextLng";
 
+const localeLoaders: Record<SupportedLanguage, () => Promise<{ default: Record<string, unknown> }>> = {
+  nl: () => import("./locales/nl/translation.json"),
+  en: () => import("./locales/en/translation.json"),
+};
+
+async function loadLocale(lang: SupportedLanguage) {
+  if (i18n.hasResourceBundle(lang, "translation")) return;
+  const mod = await localeLoaders[lang]();
+  i18n.addResourceBundle(lang, "translation", mod.default, true, true);
+}
+
 /** Apply ?lang= from reload, else keep stored choice, else default Dutch. */
 const initialLanguage: SupportedLanguage =
   typeof window !== "undefined"
@@ -38,35 +46,6 @@ if (typeof window !== "undefined") {
 }
 
 export { clearGoogleTranslateCookie, syncGoogleTranslatePolicy };
-
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    resources: {
-      nl: { translation: nlCommon },
-      en: { translation: enCommon },
-    },
-    // Do NOT hardcode lng here — it overrides localStorage and blocks language switching.
-    fallbackLng: FALLBACK_LANGUAGE,
-    supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
-    nonExplicitSupportedLngs: true,
-    load: "languageOnly",
-    interpolation: {
-      escapeValue: false,
-    },
-    detection: {
-      order: ["localStorage"],
-      caches: ["localStorage"],
-      lookupLocalStorage: LANGUAGE_STORAGE_KEY,
-    },
-    returnNull: false,
-  });
-
-// Ensure i18n matches stored/url language after init.
-if (i18n.language?.split("-")[0] !== initialLanguage) {
-  void i18n.changeLanguage(initialLanguage);
-}
 
 const getBrowserPreferredLanguage = (): string => {
   if (typeof navigator !== "undefined") {
@@ -80,23 +59,70 @@ const getBrowserPreferredLanguage = (): string => {
 
 const syncHtmlLang = (lng: string) => {
   if (typeof document !== "undefined") {
-    // Lie to the browser to prevent built-in translate banners from popping up.
-    // By setting the lang attribute to the browser's preferred language, Chrome
-    // thinks the page is already in the user's language and will not offer to translate.
     const preferredLng = getBrowserPreferredLanguage();
     document.documentElement.lang = preferredLng || lng.split("-")[0];
   }
 };
 
-syncHtmlLang(i18n.language || initialLanguage);
-i18n.on("languageChanged", (lng) => {
-  syncHtmlLang(lng);
-  persistLanguageChoice(lng.split("-")[0] as SupportedLanguage);
-  enableAppControlledTranslation();
-});
+let initPromise: Promise<typeof i18n> | null = null;
 
-if (typeof window !== "undefined") {
-  startGoogleTranslatePolicyWatcher();
+/** Load only the active locale up front; lazy-load the fallback locale after paint. */
+export function initI18n() {
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    const initialBundle = await localeLoaders[initialLanguage]();
+
+    await i18n
+      .use(LanguageDetector)
+      .use(initReactI18next)
+      .init({
+        resources: {
+          [initialLanguage]: { translation: initialBundle.default },
+        },
+        lng: initialLanguage,
+        fallbackLng: FALLBACK_LANGUAGE,
+        supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
+        nonExplicitSupportedLngs: true,
+        partialBundledLanguages: true,
+        load: "languageOnly",
+        interpolation: {
+          escapeValue: false,
+        },
+        detection: {
+          order: ["localStorage"],
+          caches: ["localStorage"],
+          lookupLocalStorage: LANGUAGE_STORAGE_KEY,
+        },
+        returnNull: false,
+      });
+
+    syncHtmlLang(i18n.language || initialLanguage);
+    i18n.on("languageChanged", (lng) => {
+      syncHtmlLang(lng);
+      persistLanguageChoice(lng.split("-")[0] as SupportedLanguage);
+      enableAppControlledTranslation();
+      void loadLocale(lng.split("-")[0] as SupportedLanguage);
+    });
+
+    if (typeof window !== "undefined") {
+      startGoogleTranslatePolicyWatcher();
+
+      const preloadFallback = () => {
+        const other = initialLanguage === "nl" ? "en" : "nl";
+        void loadLocale(other);
+      };
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(preloadFallback, { timeout: 3000 });
+      } else {
+        window.setTimeout(preloadFallback, 1500);
+      }
+    }
+
+    return i18n;
+  })();
+
+  return initPromise;
 }
 
 export default i18n;

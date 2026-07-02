@@ -5,6 +5,29 @@ import { cmsHomepageRepository, productRepository, categoryRepository, blogRepos
 import { readCachedHomepage, writeCachedHomepage, detectShortcodeBlocks, extractHomepageLcpImage } from "@/utils/cmsLocalStorage";
 import { resolveImgUrl } from "@/utils/image";
 
+function preloadHomepageLcpImage(content: string) {
+  const lcpUrl = extractHomepageLcpImage(content);
+  if (!lcpUrl) return;
+
+  const href = resolveImgUrl(lcpUrl, { width: 960 });
+  if (!href || typeof document === "undefined") return;
+
+  const selector = `link[rel="preload"][as="image"][href="${href}"]`;
+  if (document.querySelector(selector)) return;
+
+  const link = document.createElement("link");
+  link.rel = "preload";
+  link.as = "image";
+  link.href = href;
+  link.setAttribute("fetchpriority", "high");
+  document.head.appendChild(link);
+}
+
+const cachedOnLoad = readCachedHomepage();
+if (cachedOnLoad?.content) {
+  preloadHomepageLcpImage(cachedOnLoad.content);
+}
+
 const applyHomepageSeo = (data: { seoTitle?: string; seoDesc?: string; seoKeywords?: string }) => {
   if (data.seoTitle) document.title = data.seoTitle;
   if (data.seoDesc) {
@@ -40,27 +63,9 @@ const Index = () => {
     if (cached) applyHomepageSeo(cached);
   }, []);
 
-  // Preload the LCP hero image as soon as homepage content is known.
+  // Preload the LCP hero image when content becomes available.
   useEffect(() => {
-    const lcpUrl = extractHomepageLcpImage(content);
-    if (!lcpUrl) return;
-
-    const href = resolveImgUrl(lcpUrl);
-    if (!href) return;
-
-    const existing = document.querySelector(`link[rel="preload"][as="image"][href="${href}"]`);
-    if (existing) return;
-
-    const link = document.createElement("link");
-    link.rel = "preload";
-    link.as = "image";
-    link.href = href;
-    link.setAttribute("fetchpriority", "high");
-    document.head.appendChild(link);
-
-    return () => {
-      link.remove();
-    };
+    if (content) preloadHomepageLcpImage(content);
   }, [content]);
 
   useEffect(() => {
