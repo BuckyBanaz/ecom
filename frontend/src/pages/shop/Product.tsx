@@ -197,7 +197,7 @@ const ProductPage = () => {
       ogType: "product",
       ogImage: liveProduct.image,
       ogTitle: liveProduct.name,
-      ogDescription: description,
+      hreflangPath: `/product/${liveProduct.slug || slug}`,
     });
 
     upsertJsonLd(

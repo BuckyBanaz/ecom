@@ -15,6 +15,7 @@ import apiClient from "@/client/apiClient";
 import { SeoPlaybookPanel } from "@/components/admin/seo/SeoPlaybookPanel";
 import { SeoAuditPanel } from "@/components/admin/seo/SeoAuditPanel";
 import { SeoAutopilotPanel } from "@/components/admin/seo/SeoAutopilotPanel";
+import { SeoGscPanel } from "@/components/admin/seo/SeoGscPanel";
 
 const CMSSeo = () => {
   const [global, setGlobal] = useState({
@@ -29,6 +30,7 @@ const CMSSeo = () => {
     indexable: true,
   });
   const [analytics, setAnalytics] = useState({ ga4: "", gtm: "", metaPixel: "", tiktokPixel: "" });
+  const [apiKeys, setApiKeys] = useState({ ga4PropertyId: "", ga4ClientEmail: "", ga4PrivateKey: "", gscSiteUrl: "" });
   const [robots, setRobots] = useState("");
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,12 @@ const CMSSeo = () => {
             indexable: d.indexable,
           });
           setAnalytics({ ga4: d.ga4, gtm: d.gtm, metaPixel: d.metaPixel, tiktokPixel: d.tiktokPixel });
+          setApiKeys({
+            ga4PropertyId: d.ga4PropertyId || "",
+            ga4ClientEmail: d.ga4ClientEmail || "",
+            ga4PrivateKey: "",
+            gscSiteUrl: d.gscSiteUrl || "",
+          });
         }
       } catch (err: any) {
         toast.error(err.message || "Failed to load SEO configuration");
@@ -71,7 +79,7 @@ const CMSSeo = () => {
     try {
       await Promise.all([
         apiClient.put(ENDPOINTS.SEO_ROBOTS, { robots }),
-        apiClient.put(ENDPOINTS.ADMIN_SEO_CONFIG, { ...global, ...analytics }),
+        apiClient.put(ENDPOINTS.ADMIN_SEO_CONFIG, { ...global, ...analytics, ...apiKeys }),
       ]);
       toast.success("Site settings saved");
     } catch (err: any) {
@@ -120,6 +128,7 @@ const CMSSeo = () => {
           <TabsTrigger value="playbook">Playbook & Keywords</TabsTrigger>
           <TabsTrigger value="audit">Page Audit</TabsTrigger>
           <TabsTrigger value="autopilot">Autopilot</TabsTrigger>
+          <TabsTrigger value="gsc">Search Console</TabsTrigger>
           <TabsTrigger value="site">Site & Analytics</TabsTrigger>
           <TabsTrigger value="technical">Sitemap & Robots</TabsTrigger>
         </TabsList>
@@ -127,6 +136,7 @@ const CMSSeo = () => {
         <TabsContent value="playbook" className="mt-0"><SeoPlaybookPanel /></TabsContent>
         <TabsContent value="audit" className="mt-0"><SeoAuditPanel /></TabsContent>
         <TabsContent value="autopilot" className="mt-0"><SeoAutopilotPanel /></TabsContent>
+        <TabsContent value="gsc" className="mt-0"><SeoGscPanel /></TabsContent>
 
         <TabsContent value="site" className="mt-0">
           <form onSubmit={saveSiteConfig} className="space-y-4">
@@ -155,12 +165,21 @@ const CMSSeo = () => {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle>Analytics & tracking</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Analytics & tracking</CardTitle><CardDescription>GTM loads Meta/TikTok/GA4 on the storefront. API keys below power admin dashboards.</CardDescription></CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><Label>GA4 ID</Label><Input value={analytics.ga4} onChange={(e) => setAnalytics({ ...analytics, ga4: e.target.value })} className="mt-1" /></div>
-                <div><Label>GTM ID</Label><Input value={analytics.gtm} onChange={(e) => setAnalytics({ ...analytics, gtm: e.target.value })} className="mt-1" /></div>
-                <div><Label>Meta Pixel</Label><Input value={analytics.metaPixel} onChange={(e) => setAnalytics({ ...analytics, metaPixel: e.target.value })} className="mt-1" /></div>
-                <div><Label>TikTok Pixel</Label><Input value={analytics.tiktokPixel} onChange={(e) => setAnalytics({ ...analytics, tiktokPixel: e.target.value })} className="mt-1" /></div>
+                <div><Label>GA4 ID</Label><Input value={analytics.ga4} onChange={(e) => setAnalytics({ ...analytics, ga4: e.target.value })} className="mt-1" placeholder="G-XXXXXXXX" /></div>
+                <div><Label>GTM ID</Label><Input value={analytics.gtm} onChange={(e) => setAnalytics({ ...analytics, gtm: e.target.value })} className="mt-1" placeholder="GTM-XXXXXXX" /></div>
+                <div><Label>Meta Pixel (optional — prefer GTM)</Label><Input value={analytics.metaPixel} onChange={(e) => setAnalytics({ ...analytics, metaPixel: e.target.value })} className="mt-1" /></div>
+                <div><Label>TikTok Pixel (optional — prefer GTM)</Label><Input value={analytics.tiktokPixel} onChange={(e) => setAnalytics({ ...analytics, tiktokPixel: e.target.value })} className="mt-1" /></div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Google API credentials</CardTitle><CardDescription>Same service account for Admin Analytics (GA4 Data API) and Search Console.</CardDescription></CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><Label>Search Console site URL</Label><Input value={apiKeys.gscSiteUrl} onChange={(e) => setApiKeys({ ...apiKeys, gscSiteUrl: e.target.value })} className="mt-1" placeholder="https://yoursite.com/" /></div>
+                <div><Label>GA4 Property ID</Label><Input value={apiKeys.ga4PropertyId} onChange={(e) => setApiKeys({ ...apiKeys, ga4PropertyId: e.target.value })} className="mt-1" /></div>
+                <div className="sm:col-span-2"><Label>Service account email</Label><Input value={apiKeys.ga4ClientEmail} onChange={(e) => setApiKeys({ ...apiKeys, ga4ClientEmail: e.target.value })} className="mt-1" /></div>
+                <div className="sm:col-span-2"><Label>Service account private key</Label><Textarea value={apiKeys.ga4PrivateKey} onChange={(e) => setApiKeys({ ...apiKeys, ga4PrivateKey: e.target.value })} className="mt-1 font-mono text-xs min-h-[100px]" placeholder="Paste only when changing — leave blank to keep existing" /></div>
               </CardContent>
             </Card>
           </form>

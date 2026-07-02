@@ -8,6 +8,7 @@ import {
   SITE_ORIGIN,
   setSeoPlaybookCache,
   upsertJsonLd,
+  upsertHreflangAlternates,
   upsertLink,
   upsertMeta,
 } from "@/utils/seoMeta";
@@ -173,6 +174,10 @@ export const SEOInjector = () => {
         upsertJsonLd("organization-schema", structured.organization);
         upsertJsonLd("website-schema", structured.website);
         upsertJsonLd("navigation-schema", structured.navigation);
+
+        if (window.location.pathname === "/" || window.location.pathname === "") {
+          upsertHreflangAlternates("/");
+        }
 
         cancelTracking = deferTrackingScripts({ ga4, gtm, metaPixel, tiktokPixel });
       } catch (err) {

@@ -6,91 +6,68 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Info, BarChart3, LineChart as LineChartIcon, Activity, Users, MousePointerClick, CreditCard, TrendingUp, MonitorSmartphone, Map, Globe, Settings } from "lucide-react";
-import { 
-  LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
+import { Info, LineChart as LineChartIcon, Activity, Users, MonitorSmartphone, Globe, Settings, Loader2 } from "lucide-react";
+import {
+  LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import apiClient from "@/client/apiClient";
 import { ENDPOINTS } from "@/utils/endpoints";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
 
-// Mock Data for Google Analytics (Traffic)
-const gaData = [
-  { date: "1 Jun", pageViews: 1200, visitors: 800 },
-  { date: "2 Jun", pageViews: 1400, visitors: 950 },
-  { date: "3 Jun", pageViews: 1100, visitors: 700 },
-  { date: "4 Jun", pageViews: 1800, visitors: 1200 },
-  { date: "5 Jun", pageViews: 2200, visitors: 1500 },
-  { date: "6 Jun", pageViews: 1900, visitors: 1300 },
-  { date: "7 Jun", pageViews: 2400, visitors: 1700 },
-];
+type Ga4DashboardData = {
+  traffic: Array<{ date: string; pageViews: number; visitors: number }>;
+  sources: Array<{ name: string; value: number; color: string }>;
+  devices: Array<{ name: string; value: number; color: string }>;
+  topPages: Array<{ path: string; views: string; bounceRate: string }>;
+};
 
-// Mock Data for Meta Pixel (Conversions)
-const metaData = [
-  { date: "1 Jun", viewContent: 400, addToCart: 80, purchase: 12 },
-  { date: "2 Jun", viewContent: 450, addToCart: 95, purchase: 15 },
-  { date: "3 Jun", viewContent: 350, addToCart: 70, purchase: 10 },
-  { date: "4 Jun", viewContent: 600, addToCart: 120, purchase: 22 },
-  { date: "5 Jun", viewContent: 750, addToCart: 150, purchase: 28 },
-  { date: "6 Jun", viewContent: 650, addToCart: 130, purchase: 25 },
-  { date: "7 Jun", viewContent: 800, addToCart: 170, purchase: 32 },
-];
+const EMPTY_GA4: Ga4DashboardData = {
+  traffic: [],
+  sources: [],
+  devices: [],
+  topPages: [],
+};
 
-// Mock Data for TikTok Pixel (Ad Performance)
-const tiktokData = [
-  { date: "1 Jun", impressions: 5000, clicks: 150 },
-  { date: "2 Jun", impressions: 5500, clicks: 180 },
-  { date: "3 Jun", impressions: 4200, clicks: 120 },
-  { date: "4 Jun", impressions: 7000, clicks: 250 },
-  { date: "5 Jun", impressions: 8500, clicks: 320 },
-  { date: "6 Jun", impressions: 7800, clicks: 290 },
-  { date: "7 Jun", impressions: 9500, clicks: 380 },
-];
-
-// Mock Data for Traffic Sources
-const sourceData = [
-  { name: 'Organic Search', value: 4500, color: '#10b981' },
-  { name: 'Direct', value: 2100, color: '#3b82f6' },
-  { name: 'Social Media', value: 1800, color: '#f43f5e' },
-  { name: 'Referral', value: 900, color: '#f59e0b' },
-  { name: 'Email', value: 500, color: '#8b5cf6' },
-];
-
-// Mock Data for Device Breakdown
-const deviceData = [
-  { name: 'Mobile', value: 65, color: '#6366f1' },
-  { name: 'Desktop', value: 30, color: '#14b8a6' },
-  { name: 'Tablet', value: 5, color: '#f97316' },
-];
-
-// Mock Data for Top Pages
-const topPages = [
-  { path: '/', views: '45,210', bounceRate: '32%' },
-  { path: '/category/deals', views: '18,500', bounceRate: '41%' },
-  { path: '/product/smart-lamp', views: '12,300', bounceRate: '28%' },
-  { path: '/checkout', views: '8,150', bounceRate: '15%' },
-  { path: '/blogs/lighting-tips', views: '5,420', bounceRate: '65%' },
-];
+function AnalyticsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </div>
+        <Skeleton className="h-10 w-40" />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-28 rounded-xl" />
+      </div>
+      <Skeleton className="h-[420px] rounded-xl" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Skeleton className="h-[320px] rounded-xl" />
+        <Skeleton className="h-[320px] rounded-xl" />
+        <Skeleton className="h-[320px] rounded-xl" />
+      </div>
+    </div>
+  );
+}
 
 const AdminAnalytics = () => {
   const { t } = useTranslation();
   const { hasPermission } = useAdmin();
-  const [ga4DataLive, setGa4DataLive] = useState<any>({ traffic: [], sources: [], devices: [], topPages: [] });
+  const [ga4DataLive, setGa4DataLive] = useState<Ga4DashboardData>(EMPTY_GA4);
   const [showConfig, setShowConfig] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  
-  // Dynamic Totals
-  const totalViews = isConnected ? ga4DataLive.traffic?.reduce((acc: any, curr: any) => acc + (curr.pageViews || 0), 0) : 11050;
-  const totalVisitors = isConnected ? ga4DataLive.traffic?.reduce((acc: any, curr: any) => acc + (curr.visitors || 0), 0) : 7450;
   const [keys, setKeys] = useState({
     ga4PropertyId: "",
     ga4ClientEmail: "",
-    ga4PrivateKey: ""
+    ga4PrivateKey: "",
   });
 
   useEffect(() => {
@@ -98,30 +75,31 @@ const AdminAnalytics = () => {
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
-      // Fetch both data and config in parallel
       const [dataRes, configRes] = await Promise.all([
-        apiClient.get<{ ga4Data: any[] | null }>(ENDPOINTS.ADMIN_ANALYTICS_DATA).catch(() => null),
-        apiClient.get<{ data: any }>(ENDPOINTS.ADMIN_SEO_CONFIG).catch(() => null)
+        apiClient.get<{ ga4Data: Ga4DashboardData | null }>(ENDPOINTS.ADMIN_ANALYTICS_DATA).catch(() => null),
+        apiClient.get<{ data: Record<string, string> }>(ENDPOINTS.ADMIN_SEO_CONFIG).catch(() => null),
       ]);
 
-      if (configRes && configRes.data) {
+      if (configRes?.data) {
         setKeys({
           ga4PropertyId: configRes.data.ga4PropertyId || "",
           ga4ClientEmail: configRes.data.ga4ClientEmail || "",
-          ga4PrivateKey: configRes.data.ga4PrivateKey || ""
+          ga4PrivateKey: configRes.data.ga4PrivateKey || "",
         });
       }
 
-      // If backend returns an object with traffic array, it means connection is successful
-      if (dataRes && dataRes.ga4Data && dataRes.ga4Data.traffic && Array.isArray(dataRes.ga4Data.traffic)) {
+      if (dataRes?.ga4Data?.traffic && Array.isArray(dataRes.ga4Data.traffic)) {
         setGa4DataLive(dataRes.ga4Data);
         setIsConnected(true);
       } else {
+        setGa4DataLive(EMPTY_GA4);
         setIsConnected(false);
       }
     } catch (err) {
       console.error(err);
+      setGa4DataLive(EMPTY_GA4);
       setIsConnected(false);
     } finally {
       setLoading(false);
@@ -132,24 +110,29 @@ const AdminAnalytics = () => {
     setSaving(true);
     try {
       await apiClient.put(ENDPOINTS.ADMIN_SEO_CONFIG, keys);
-      toast.success("API Keys saved successfully");
+      toast.success("GA4 API configuration saved");
       setShowConfig(false);
-      fetchData(); // Refetch live data
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save keys");
+      await fetchData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save keys");
     } finally {
       setSaving(false);
     }
   };
 
-  const activeGaData = isConnected ? (ga4DataLive.traffic || []) : gaData;
-  const activeSourceData = isConnected ? (ga4DataLive.sources || []) : sourceData;
-  const activeDeviceData = isConnected ? (ga4DataLive.devices || []) : deviceData;
-  const activeTopPages = isConnected ? (ga4DataLive.topPages || []) : topPages;
-  const isDummy = !isConnected;
+  const totalViews = isConnected
+    ? ga4DataLive.traffic.reduce((acc, curr) => acc + (curr.pageViews || 0), 0)
+    : null;
+  const totalVisitors = isConnected
+    ? ga4DataLive.traffic.reduce((acc, curr) => acc + (curr.visitors || 0), 0)
+    : null;
 
   if (!hasPermission("analytics")) {
     return <p className="text-center py-12 text-muted-foreground">{t("admin_product_form.no_permission")}</p>;
+  }
+
+  if (loading) {
+    return <AnalyticsSkeleton />;
   }
 
   return (
@@ -157,66 +140,74 @@ const AdminAnalytics = () => {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Website Analytics</h1>
-          <p className="text-muted-foreground">Monitor your global tracking performance across all platforms.</p>
+          <p className="text-muted-foreground">
+            GA4 reporting inside admin. Storefront tags (Meta, TikTok, etc.) are managed via GTM in CMS → SEO.
+          </p>
         </div>
         <Button onClick={() => setShowConfig(true)} variant="outline" className="gap-2">
-          <Settings className="h-4 w-4" /> Configure API Keys
+          <Settings className="h-4 w-4" /> Configure GA4 API
         </Button>
       </div>
 
       <Dialog open={showConfig} onOpenChange={setShowConfig}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>API Configuration</DialogTitle>
+            <DialogTitle>GA4 Data API Configuration</DialogTitle>
             <DialogDescription>
-              Connect your Google Cloud Service Account to enable real-time GA4 tracking in the dashboard.
+              Connect a Google Cloud service account to pull live GA4 metrics into this dashboard. This is separate from your GTM container on the storefront.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label>GA4 Property ID</Label>
-              <Input 
-                placeholder="e.g. 351234567" 
+              <Input
+                placeholder="e.g. 351234567"
                 value={keys.ga4PropertyId}
-                onChange={(e) => setKeys({...keys, ga4PropertyId: e.target.value})}
+                onChange={(e) => setKeys({ ...keys, ga4PropertyId: e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>GA4 Client Email (Service Account)</Label>
-              <Input 
-                placeholder="analytics-proxy@your-project.iam.gserviceaccount.com" 
+              <Input
+                placeholder="analytics-proxy@your-project.iam.gserviceaccount.com"
                 value={keys.ga4ClientEmail}
-                onChange={(e) => setKeys({...keys, ga4ClientEmail: e.target.value})}
+                onChange={(e) => setKeys({ ...keys, ga4ClientEmail: e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>GA4 Private Key</Label>
-              <Textarea 
-                placeholder="-----BEGIN PRIVATE KEY-----\n..." 
+              <Textarea
+                placeholder="-----BEGIN PRIVATE KEY-----\n..."
                 className="font-mono text-xs h-32"
                 value={keys.ga4PrivateKey}
-                onChange={(e) => setKeys({...keys, ga4PrivateKey: e.target.value})}
+                onChange={(e) => setKeys({ ...keys, ga4PrivateKey: e.target.value })}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowConfig(false)}>Cancel</Button>
-            <Button onClick={saveKeys} disabled={saving}>{saving ? "Saving..." : "Save Configuration"}</Button>
+            <Button onClick={saveKeys} disabled={saving}>
+              {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving...</> : "Save Configuration"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {isDummy && !loading && (
+      {!isConnected && (
         <Alert variant="default" className="bg-blue-50/50 text-blue-800 border-blue-200">
           <Info className="h-4 w-4 stroke-blue-600" />
-          <AlertTitle>API Connection Required</AlertTitle>
-          <AlertDescription>
-            This chart currently displays structural dummy data. To view live reports inside this dashboard, you need to configure the OAuth Service Account for the Google Analytics Data API. Your live website tracking is currently sending data to the cloud dashboard.
+          <AlertTitle>GA4 API not connected</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>
+              Configure the GA4 Data API service account above to see live traffic here. Your storefront can still send events through GTM — that does not automatically populate this admin chart.
+            </p>
+            <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowConfig(true)}>
+              Configure GA4 API
+            </Button>
           </AlertDescription>
         </Alert>
       )}
 
-      {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -224,9 +215,11 @@ const AdminAnalytics = () => {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalViews.toLocaleString()}</div>
+            <div className="text-2xl font-bold">
+              {totalViews != null ? totalViews.toLocaleString() : "—"}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {isConnected ? "Last 7 days" : <><span className="text-green-500 inline-flex items-center"><TrendingUp className="mr-1 h-3 w-3"/>+12.5%</span> from last week</>}
+              {isConnected ? "Last 7 days" : "Connect GA4 API to view"}
             </p>
           </CardContent>
         </Card>
@@ -236,28 +229,29 @@ const AdminAnalytics = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalVisitors.toLocaleString()}</div>
+            <div className="text-2xl font-bold">
+              {totalVisitors != null ? totalVisitors.toLocaleString() : "—"}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {isConnected ? "Last 7 days" : <><span className="text-green-500 inline-flex items-center"><TrendingUp className="mr-1 h-3 w-3"/>+8.2%</span> from last week</>}
+              {isConnected ? "Last 7 days" : "Connect GA4 API to view"}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Google Analytics 4 */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <LineChartIcon className="h-5 w-5 text-indigo-500" />
             <CardTitle>Google Analytics (Traffic)</CardTitle>
           </div>
-          <CardDescription>Daily Page Views vs Unique Visitors over the last 7 days.</CardDescription>
+          <CardDescription>Daily page views vs unique visitors over the last 7 days.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[350px] w-full flex items-center justify-center">
-            {activeGaData && activeGaData.length > 0 ? (
+            {ga4DataLive.traffic.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={activeGaData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <LineChart data={ga4DataLive.traffic} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" />
                   <YAxis />
@@ -268,19 +262,18 @@ const AdminAnalytics = () => {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-center space-y-2">
-                <p className="text-sm text-muted-foreground">No traffic data recorded in the last 7 days.</p>
-                <p className="text-xs text-muted-foreground/80">Make sure your GA4 tracking tag is installed on your public website.</p>
+              <div className="text-center space-y-2 px-4">
+                <p className="text-sm text-muted-foreground">No GA4 traffic data yet.</p>
+                <p className="text-xs text-muted-foreground/80">
+                  Connect the GA4 Data API, or verify your GTM container fires GA4 on the live storefront.
+                </p>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Traffic Sources */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -291,11 +284,11 @@ const AdminAnalytics = () => {
           </CardHeader>
           <CardContent>
             <div className="h-[250px] w-full flex items-center justify-center">
-              {activeSourceData && activeSourceData.length > 0 ? (
+              {ga4DataLive.sources.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={activeSourceData}
+                      data={ga4DataLive.sources}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -303,37 +296,36 @@ const AdminAnalytics = () => {
                       paddingAngle={5}
                       dataKey="value"
                     >
-                      {activeSourceData.map((entry: any, index: number) => (
+                      {ga4DataLive.sources.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip />
-                    <Legend verticalAlign="bottom" height={36}/>
+                    <Legend verticalAlign="bottom" height={36} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="text-sm text-muted-foreground">No traffic sources recorded yet.</p>
+                <p className="text-sm text-muted-foreground">No traffic source data yet.</p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Device Breakdown */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <MonitorSmartphone className="h-5 w-5 text-indigo-500" />
               <CardTitle>Device Breakdown</CardTitle>
             </div>
-            <CardDescription>Desktop vs Mobile user sessions.</CardDescription>
+            <CardDescription>Desktop vs mobile user sessions.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[250px] w-full flex items-center justify-center">
-              {activeDeviceData && activeDeviceData.length > 0 ? (
+              {ga4DataLive.devices.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={activeDeviceData}
+                      data={ga4DataLive.devices}
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
@@ -341,7 +333,7 @@ const AdminAnalytics = () => {
                       labelLine={false}
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
-                      {activeDeviceData.map((entry: any, index: number) => (
+                      {ga4DataLive.devices.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -349,13 +341,12 @@ const AdminAnalytics = () => {
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="text-sm text-muted-foreground">No device data recorded yet.</p>
+                <p className="text-sm text-muted-foreground">No device data yet.</p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Top Pages */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -371,8 +362,8 @@ const AdminAnalytics = () => {
                 <div className="col-span-3 text-right">Views</div>
                 <div className="col-span-3 text-right">Bounce</div>
               </div>
-              {activeTopPages && activeTopPages.length > 0 ? (
-                activeTopPages.map((page: any, i: number) => (
+              {ga4DataLive.topPages.length > 0 ? (
+                ga4DataLive.topPages.map((page, i) => (
                   <div key={i} className="grid grid-cols-12 text-sm items-center py-2 border-b last:border-0 hover:bg-slate-50 transition-colors">
                     <div className="col-span-6 font-medium truncate pr-2 text-primary">{page.path}</div>
                     <div className="col-span-3 text-right font-semibold">{page.views}</div>

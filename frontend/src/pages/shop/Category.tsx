@@ -558,7 +558,7 @@ const Category = () => {
       description: `Shop ${title} at Schip & Ster — premium lighting with next-day delivery in NL.`,
       seoKeywords: landingPage?.seoKeywords || (cat as any)?.seoKeywords,
       canonical: `${window.location.origin}${categoryUrl}`,
-      ogType: "website",
+      hreflangPath: categoryUrl,
     });
 
     if (filtered.length > 0) {

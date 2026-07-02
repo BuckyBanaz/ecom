@@ -34,7 +34,10 @@ export function upsertMeta(attr: "name" | "property", key: string, content: stri
 
 export function upsertLink(rel: string, href: string, extra?: Record<string, string>) {
   if (!href) return;
-  let el = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
+  const selector = extra?.hreflang
+    ? `link[rel="${rel}"][hreflang="${extra.hreflang}"]`
+    : `link[rel="${rel}"]:not([hreflang])`;
+  let el = document.querySelector(selector) as HTMLLinkElement | null;
   if (!el) {
     el = document.createElement("link");
     el.rel = rel;
@@ -44,6 +47,34 @@ export function upsertLink(rel: string, href: string, extra?: Record<string, str
   if (extra) {
     Object.entries(extra).forEach(([k, v]) => el!.setAttribute(k, v));
   }
+}
+
+export function clearHreflangAlternates() {
+  document.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove());
+}
+
+/** Build NL/EN alternate URLs using ?lang= query (storefront has no /nl/ paths). */
+export function buildHreflangUrl(path: string, lang: "nl" | "en"): string {
+  const url = new URL(absoluteUrl(path));
+  if (lang === "en") {
+    url.searchParams.set("lang", "en");
+  } else {
+    url.searchParams.delete("lang");
+  }
+  return url.toString();
+}
+
+export function upsertHreflangAlternates(path: string) {
+  if (!path) return;
+  clearHreflangAlternates();
+  const alternates: Array<{ hreflang: string; href: string }> = [
+    { hreflang: "nl", href: buildHreflangUrl(path, "nl") },
+    { hreflang: "en", href: buildHreflangUrl(path, "en") },
+    { hreflang: "x-default", href: buildHreflangUrl(path, "nl") },
+  ];
+  alternates.forEach(({ hreflang, href }) => {
+    upsertLink("alternate", href, { hreflang });
+  });
 }
 
 export function upsertJsonLd(id: string, data: object) {
@@ -157,6 +188,7 @@ export function applyPageMeta(opts: {
   ogTitle?: string;
   ogDescription?: string;
   skipPlaybook?: boolean;
+  hreflangPath?: string;
 }) {
   const resolved = opts.skipPlaybook
     ? {
@@ -185,6 +217,7 @@ export function applyPageMeta(opts: {
   }
   if (ogTitle) upsertMeta("name", "twitter:title", ogTitle);
   if (ogDesc) upsertMeta("name", "twitter:description", ogDesc);
+  if (opts.hreflangPath) upsertHreflangAlternates(opts.hreflangPath);
 }
 
 export type BreadcrumbItem = { name: string; url: string };

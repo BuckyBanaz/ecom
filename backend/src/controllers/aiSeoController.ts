@@ -21,6 +21,16 @@ import {
 } from "../services/seoJobQueueService";
 import { getBlogTopicSuggestions } from "../services/blogContextService";
 import { loadCmsContextForAi } from "../services/cmsContextService";
+import { getInternalLinkSuggestions } from "../services/internalLinkService";
+import {
+  getRankHistory,
+  summarizeRankTrend,
+  syncRankTracking,
+} from "../services/rankTrackingService";
+import {
+  fetchSearchConsoleOverview,
+  getSearchConsoleStatus,
+} from "../services/searchConsoleService";
 
 const VALID_TYPES: SeoEntityType[] = ["product", "category", "blog", "cms_page", "homepage"];
 
@@ -284,6 +294,58 @@ export const generateBlogWithAi = async (req: Request, res: Response, next: Next
           ? "Blog generation queued — will publish when ready. Safe to refresh."
           : "Blog draft queued — safe to refresh the page.",
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSearchConsoleStatusHandler = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const status = await getSearchConsoleStatus();
+    res.json({ success: true, ...status });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSearchConsoleOverviewHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const days = Math.min(90, Math.max(7, parseInt(String(req.query.days || "28"), 10) || 28));
+    const overview = await fetchSearchConsoleOverview(days);
+    res.json({ success: true, overview });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getRankTrackingHandler = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const history = await getRankHistory();
+    const keywords = [...new Set(history.snapshots.map((s) => s.keyword))];
+    const trends = keywords.map((keyword) => summarizeRankTrend(history.snapshots, keyword));
+    res.json({ success: true, history, trends });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const syncRankTrackingHandler = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const result = await syncRankTracking();
+    const trends = result.keywords.map((keyword) =>
+      summarizeRankTrend(result.history.snapshots, keyword),
+    );
+    res.json({ success: true, ...result, trends });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getInternalLinkSuggestionsHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const limit = Math.min(50, Math.max(5, parseInt(String(req.query.limit || "25"), 10) || 25));
+    const suggestions = await getInternalLinkSuggestions(limit);
+    res.json({ success: true, suggestions });
   } catch (error) {
     next(error);
   }

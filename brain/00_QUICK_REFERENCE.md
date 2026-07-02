@@ -190,9 +190,9 @@ node -r dotenv/config scripts/test-return-flow-audit.js <order-uuid>
 
 1. **Guest checkout** — see `brain/08_future_tasks.md` §1
 2. **AI Shopping Assistant** (storefront RAG chatbot) — see `brain/08_future_tasks.md` §2
-3. **Meta Pixel & TikTok live analytics** — see `brain/08_future_tasks.md` §2
-4. **SEO v0.2+** — Search Console API, rank tracking, hreflang — see `brain/08_future_tasks.md` §3
-5. **Deploy v0.1** — commit, migrations on prod — see `brain/08_future_tasks.md` §4
+3. **Meta Pixel & TikTok live analytics** — **out of scope**; tags via GTM in CMS → SEO
+4. **SEO v0.2** (branch `v0.2`) — Search Console API, rank tracking, hreflang, internal linking — see `brain/08_future_tasks.md`
+5. **Deploy migrations** on production — see `brain/08_future_tasks.md`
 
 ## ✅ Recently Completed
 
@@ -201,4 +201,5 @@ node -r dotenv/config scripts/test-return-flow-audit.js <order-uuid>
 - **AI CMS Coder** — Rich Text Editor → generates HTML, shortcodes & SEO (`POST /api/v1/ai/cms/generate`)
 - **Returns & Refunds + AI Triage** — refund after receive; Sendcloud return labels; webhook auto-refund on `-RET`; admin manual refund
 - **Returns polish** — 30-day UI pre-check, dual FE/BE validation, transactional return labels, refund DB lock
-- **AI SEO Expert (v0.1)** — unified `/admin/cms/seo`, job queue, autopilot, AI blog/FAQ writers — see `brain/08_future_tasks.md`
+- **AI SEO Expert (v0.1)** — unified `/admin/cms/seo`, job queue, autopilot, AI blog/FAQ writers — pushed `origin/v0.1`
+- **Analytics loading fix (v0.2)** — skeleton on load, no dummy chart flash; GTM handles storefront pixels

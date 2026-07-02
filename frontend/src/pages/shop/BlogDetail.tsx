@@ -69,7 +69,7 @@ const BlogDetail = () => {
       ogType: "article",
       ogImage: blog.cover,
       ogTitle: blog.title,
-      ogDescription: description,
+      hreflangPath: `/blogs/${blog.slug}`,
     });
 
     upsertJsonLd("article-schema", buildBlogPostingSchema(blog));

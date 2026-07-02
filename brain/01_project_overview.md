@@ -80,14 +80,14 @@
 - AI Product Quick Add (Gemini — image + hint → auto-fill product, lifestyle images, drafts)
 - AI CMS Coder (Gemini — generate/edit CMS page HTML, shortcodes & SEO from prompt)
 - Returns & refunds (refund after receive, Sendcloud return labels, AI triage, dual validation) — see `docs/shipping-and-refund/`
-- AI SEO Expert (v0.1) — unified `/admin/cms/seo`, audit, playbook, bulk optimize, autopilot, AI blog/FAQ writers, background job queue
+- AI SEO Expert (v0.1) — unified `/admin/cms/seo`, audit, playbook, bulk optimize, autopilot, AI blog/FAQ writers
+- Storefront tracking via **GTM** (CMS → SEO); Meta/TikTok tags configured inside GTM container — no separate live pixel APIs
 
-### ⏳ Pending
+### ⏳ Pending (v0.2)
+- Search Console API + rank tracking + hreflang (NL/EN) + internal linking suggestions
 - Guest checkout & login
 - AI Shopping Assistant (storefront RAG chatbot)
-- Meta Pixel & TikTok live analytics dashboard
-- SEO v0.2+ (Search Console API, rank tracking, hreflang)
-- Deploy v0.1 + run production migrations
+- Production migrations deploy
 
 ---
 

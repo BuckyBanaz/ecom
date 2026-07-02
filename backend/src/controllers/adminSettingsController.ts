@@ -446,6 +446,7 @@ export const getSeoConfig = async (
       ga4PropertyId: process.env.GA4_PROPERTY_ID || "",
       ga4ClientEmail: process.env.GA4_CLIENT_EMAIL || "",
       ga4PrivateKey: process.env.GA4_PRIVATE_KEY ? "••••••••••••••••••••" : "",
+      gscSiteUrl: process.env.GSC_SITE_URL || "",
     };
 
     res.status(200).json({ success: true, data: config });
@@ -503,7 +504,7 @@ export const updateSeoConfig = async (
       siteName, titleTemplate, defaultTitle, defaultDescription, defaultKeywords, 
       canonical, twitterHandle, ogImage, indexable, 
       ga4, gtm, metaPixel, tiktokPixel,
-      ga4PropertyId, ga4ClientEmail, ga4PrivateKey
+      ga4PropertyId, ga4ClientEmail, ga4PrivateKey, gscSiteUrl
     } = req.body;
 
     const updates: Record<string, string> = {};
@@ -526,6 +527,7 @@ export const updateSeoConfig = async (
     if (ga4PrivateKey !== undefined && ga4PrivateKey !== "" && !ga4PrivateKey.includes("••")) {
       updates.GA4_PRIVATE_KEY = ga4PrivateKey;
     }
+    if (gscSiteUrl !== undefined) updates.GSC_SITE_URL = gscSiteUrl;
 
     await saveSettings(updates);
 

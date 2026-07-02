@@ -44,7 +44,7 @@ This document tracks pending advanced features and recently completed work.
 - **Sendcloud return label**: optimistic DB claim → Sendcloud API → transactional save; rollback + cancel orphan parcel on failure; 409 on concurrent label creation
 - **Concurrent refund lock**: `SELECT … FOR UPDATE` + `refund_processing` flag before Stripe; 409 on double manual refund
 
-### AI SEO Expert (v0.1 — branch `v0.1`, implemented locally)
+### AI SEO Expert (v0.1 — pushed to `origin/v0.1`)
 - **Admin UI**: unified **SEO & AI Expert** at `/admin/cms/seo` (merged old `/admin/ai-seo` → redirect)
 - **Panels**: Site audit, playbook (target keywords), per-page optimize, bulk optimize, autopilot, background job banner
 - **Settings tab**: SEO Autopilot config + hourly check in `backend/src/index.ts`
@@ -57,7 +57,25 @@ This document tracks pending advanced features and recently completed work.
 
 ---
 
-## ⏳ Pending
+## 🚀 v0.2 Scope (branch `v0.2` — in progress)
+
+**Tracking note:** Meta Pixel, TikTok Pixel, and other ad tags are **not** built as separate live admin integrations. Storefront tracking runs through **Google Tag Manager** (GTM ID in CMS → SEO). Admin Analytics uses the **GA4 Data API** (service account) for in-dashboard charts only.
+
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | **Search Console API** — queries, clicks, impressions | ✅ Done |
+| 2 | **Rank tracking** — playbook target keywords vs GSC position | ✅ Done |
+| 3 | **Hreflang (NL/EN)** — `link rel="alternate"` via `?lang=en` | ✅ Done |
+| 4 | **Internal linking suggestions** — catalog + GSC + playbook | ✅ Done |
+| 5 | **Analytics loading fix** — skeleton → empty or live GA4 | ✅ Done |
+
+### Out of scope for v0.2
+- Live Meta / TikTok dashboard APIs (use GTM instead)
+- Automated backlink creation (suggestions only, by design)
+
+---
+
+## ⏳ Pending (other)
 
 ### 1. Guest Checkout & Login
 - **Status**: Pending
@@ -69,24 +87,16 @@ This document tracks pending advanced features and recently completed work.
 
 ### 2. Advanced AI Features (Remaining)
 - **AI Shopping Assistant**: Storefront RAG Chatbot
-- **Meta Pixel & TikTok Live Analytics**: Dashboard integration for real tracking events (AdminAnalytics may still use mock data)
 
-### 3. AI SEO — v0.2+ (not started)
-- **Search Console API** — real GSC data for smarter autopilot (suggestions only today)
-- Rank tracking, automated internal linking, hreflang
-- Live backlink building (by design: AI suggestions only, not auto-created)
-
-### 4. Deploy & Ops (when ready)
-- Commit + push `v0.1` branch changes
+### 3. Deploy & Ops (when ready)
 - Run pending migrations on production:
   - `20260627120000_return_flow_improvements`
   - `20260702120000_seo_fields_blog_category`
 - Kill duplicate backend process if `EADDRINUSE :5000`
 
-### 5. Docs sync (optional)
-- `brain/04_api_reference.md`, `brain/05_frontend_routes.md` — keep in sync after deploy
+### 4. Docs sync (optional)
 - `README.md` — mention unified SEO page
 
 ---
 
-*Note: Core platform — Admin panel, Storefront, CMS, Products, Cart, Checkout, Sendcloud, AI Quick Add, AI CMS Coder, Returns & Refunds (with polish), and AI SEO Expert (v0.1) — are implemented on branch `v0.1`. Production deploy + migration run may still be pending.*
+*Note: v0.1 pushed to GitHub. Active development on `v0.2` for Search Console, rank tracking, hreflang, and internal linking.*

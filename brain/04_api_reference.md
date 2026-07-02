@@ -223,6 +223,11 @@ Uploaded files served at: `/uploads/<filename>`
 | GET | `/ai/blogs/suggestions` | Blog topic suggestions |
 | POST | `/ai/blogs/generate` | AI blog writer (queued) |
 | POST | `/ai/faqs/generate` | AI FAQ writer (queued) |
+| GET | `/ai/seo/search-console/status` | GSC connection status |
+| GET | `/ai/seo/search-console/overview` | GSC clicks/impressions/queries/pages |
+| GET | `/ai/seo/rank-tracking` | Stored rank history + trends |
+| POST | `/ai/seo/rank-tracking/sync` | Sync playbook keywords from GSC |
+| GET | `/ai/seo/internal-links` | Internal linking suggestions |
 
 ---
 

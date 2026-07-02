@@ -62,6 +62,11 @@ export const ENDPOINTS = {
   get AI_BLOG_SUGGESTIONS() { return api("/ai/blogs/suggestions"); },
   get AI_CMS_CONTEXT() { return api("/ai/cms/context"); },
   get AI_FAQ_GENERATE() { return api("/ai/faqs/generate"); },
+  get AI_SEO_GSC_STATUS() { return api("/ai/seo/search-console/status"); },
+  get AI_SEO_GSC_OVERVIEW() { return api("/ai/seo/search-console/overview"); },
+  get AI_SEO_RANK_TRACKING() { return api("/ai/seo/rank-tracking"); },
+  get AI_SEO_RANK_SYNC() { return api("/ai/seo/rank-tracking/sync"); },
+  get AI_SEO_INTERNAL_LINKS() { return api("/ai/seo/internal-links"); },
   get RETURNS() { return api("/returns"); },
 };
 

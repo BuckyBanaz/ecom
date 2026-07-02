@@ -12,7 +12,7 @@ import {
   markDraftPublished,
   saveProductDraft,
 } from "../controllers/productDraftController";
-import { bulkOptimizeSeo, dismissSeoJobHandler, generateBlogWithAi, generateFaqsWithAi, getAutopilotConfig, getBlogTopicSuggestionsHandler, getCmsContextSummaryHandler, getSeoAudit, getSeoJobStatusHandler, getSeoPlaybookHandler, optimizeSeoEntity, runAutopilotNow, syncPlaybookToAllPages, updateAutopilotConfig, updateSeoPlaybookHandler } from "../controllers/aiSeoController";
+import { bulkOptimizeSeo, dismissSeoJobHandler, generateBlogWithAi, generateFaqsWithAi, getAutopilotConfig, getBlogTopicSuggestionsHandler, getCmsContextSummaryHandler, getInternalLinkSuggestionsHandler, getRankTrackingHandler, getSearchConsoleOverviewHandler, getSearchConsoleStatusHandler, getSeoAudit, getSeoJobStatusHandler, getSeoPlaybookHandler, optimizeSeoEntity, runAutopilotNow, syncPlaybookToAllPages, syncRankTrackingHandler, updateAutopilotConfig, updateSeoPlaybookHandler } from "../controllers/aiSeoController";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -157,6 +157,11 @@ router.post("/seo/job/dismiss", dismissSeoJobHandler);
 router.get("/seo/autopilot", getAutopilotConfig);
 router.put("/seo/autopilot", updateAutopilotConfig);
 router.post("/seo/autopilot/run", runAutopilotNow);
+router.get("/seo/search-console/status", getSearchConsoleStatusHandler);
+router.get("/seo/search-console/overview", getSearchConsoleOverviewHandler);
+router.get("/seo/rank-tracking", getRankTrackingHandler);
+router.post("/seo/rank-tracking/sync", syncRankTrackingHandler);
+router.get("/seo/internal-links", getInternalLinkSuggestionsHandler);
 router.get("/blogs/suggestions", getBlogTopicSuggestionsHandler);
 router.post("/blogs/generate", generateBlogWithAi);
 router.get("/cms/context", getCmsContextSummaryHandler);
