@@ -3,8 +3,9 @@ import path from "path";
 import sharp from "sharp";
 
 const MAX_DIMENSION = 1920;
-const AI_MAX_DIMENSION = parseInt(process.env.AI_IMAGE_MAX_PX || "1600", 10);
-const AI_WEBP_QUALITY = parseInt(process.env.AI_IMAGE_QUALITY || "82", 10);
+/** E-commerce product / AI gallery — keep files small for fast LCP. */
+const AI_MAX_DIMENSION = parseInt(process.env.AI_IMAGE_MAX_PX || "1200", 10);
+const AI_WEBP_QUALITY = parseInt(process.env.AI_IMAGE_QUALITY || "75", 10);
 const MIN_SAVINGS_BYTES = 8 * 1024;
 const IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
 const SKIP_EXT = new Set([".gif", ".svg", ".ico"]);
@@ -112,16 +113,22 @@ export async function optimizeImagesInUploads(
 
 /** Compress in-memory image (AI uploads / Gemini output) before writing to disk. */
 export async function compressImageBuffer(input: Buffer): Promise<Buffer> {
-  return sharp(input)
+  const pipeline = sharp(input)
     .rotate()
     .resize({
       width: AI_MAX_DIMENSION,
       height: AI_MAX_DIMENSION,
       fit: "inside",
       withoutEnlargement: true,
-    })
-    .webp({ quality: AI_WEBP_QUALITY, effort: 4 })
-    .toBuffer();
+    });
+
+  try {
+    return await pipeline
+      .webp({ quality: AI_WEBP_QUALITY, effort: 5, smartSubsample: true })
+      .toBuffer();
+  } catch {
+    return pipeline.jpeg({ quality: AI_WEBP_QUALITY, mozjpeg: true }).toBuffer();
+  }
 }
 
 export type SavedCompressedImage = {
@@ -141,17 +148,52 @@ export async function saveCompressedImageToDir(
   const beforeBytes = input.length;
   const compressed = await compressImageBuffer(input);
   const filename = `${namePrefix}-${Date.now()}.webp`;
-  await fs.writeFile(path.join(dir, filename), compressed);
+  const fullPath = path.join(dir, filename);
+  await fs.writeFile(fullPath, compressed);
 
-  if (compressed.length < beforeBytes) {
-    console.log(
-      `📦 Image compressed: ${Math.round(beforeBytes / 1024)}KB → ${Math.round(compressed.length / 1024)}KB (${filename})`,
-    );
-  }
+  const savedPct = beforeBytes > 0 ? Math.round((1 - compressed.length / beforeBytes) * 100) : 0;
+  console.log(
+    `📦 AI image saved: ${Math.round(beforeBytes / 1024)}KB → ${Math.round(compressed.length / 1024)}KB (${savedPct}% smaller) → ${filename}`,
+  );
 
   return {
     filename,
     publicPath: `${urlPrefix}/${filename}`,
+    beforeBytes,
+    afterBytes: compressed.length,
+  };
+}
+
+export type AiImageConvertResult = {
+  oldPath: string;
+  newPath: string;
+  beforeBytes: number;
+  afterBytes: number;
+};
+
+/** Convert one on-disk AI image (JPG/PNG) to WebP; returns null if skipped. */
+export async function convertUploadFileToWebp(fullPath: string): Promise<AiImageConvertResult | null> {
+  const ext = path.extname(fullPath).toLowerCase();
+  if (!IMAGE_EXT.test(fullPath) || ext === ".webp" || SKIP_EXT.has(ext)) return null;
+
+  const beforeBytes = (await fs.stat(fullPath)).size;
+  const compressed = await compressImageBuffer(await fs.readFile(fullPath));
+  const webpPath = fullPath.replace(/\.(jpe?g|png)$/i, ".webp");
+  if (webpPath === fullPath) return null;
+
+  await fs.writeFile(webpPath, compressed);
+
+  const dirName = path.basename(path.dirname(fullPath));
+  const oldRelative = `/uploads/${dirName}/${path.basename(fullPath)}`;
+  const newRelative = `/uploads/${dirName}/${path.basename(webpPath)}`;
+
+  if (compressed.length < beforeBytes) {
+    await fs.unlink(fullPath).catch(() => undefined);
+  }
+
+  return {
+    oldPath: oldRelative,
+    newPath: newRelative,
     beforeBytes,
     afterBytes: compressed.length,
   };

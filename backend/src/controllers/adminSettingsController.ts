@@ -7,6 +7,7 @@ import {
   saveRobotsTxtContent,
   saveSitemapXmlContent,
 } from "../services/settingsStore";
+import { getRobotsTxtValidationError, sanitizeRobotsTxt } from "../utils/robotsTxt";
 
 import { prisma } from "../config/db";
 import { clampAiBulkLimit, clampAiImageCount } from "../utils/aiLimits";
@@ -568,8 +569,17 @@ export const updateRobotsTxt = async (
 ): Promise<void> => {
   try {
     const { robots } = req.body;
-    await saveRobotsTxtContent(robots || "");
-    res.status(200).json({ success: true, message: "robots.txt updated successfully" });
+    const raw = typeof robots === "string" ? robots : "";
+    const validationError = getRobotsTxtValidationError(raw);
+    const sanitized = sanitizeRobotsTxt(raw);
+    await saveRobotsTxtContent(sanitized);
+    res.status(200).json({
+      success: true,
+      robots: sanitized,
+      message: validationError
+        ? `robots.txt saved. Fixed invalid line(s): ${validationError}`
+        : "robots.txt updated successfully",
+    });
   } catch (error: any) {
     next(error);
   }

@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { injectSeoHtml } from "./vite-plugin-inject-seo";
 
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
@@ -21,7 +22,7 @@ export default defineConfig(() => ({
       },
     },
   },
-  plugins: [react()],
+  plugins: [react(), injectSeoHtml()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

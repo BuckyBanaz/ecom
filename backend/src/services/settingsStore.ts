@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-import { refreshEnvFromProcess } from "../config/env";
+import { sanitizeRobotsTxt } from "../utils/robotsTxt";
 import { resetStripeClient } from "../utils/stripeClient";
 
 /** Production always writes to the host-mounted .env.production — never ephemeral /app/.env */
@@ -198,11 +198,13 @@ function seoFilePath(name: string): string {
 }
 
 const DEFAULT_ROBOTS = `User-agent: *
-Disallow: /admin
-Disallow: /checkout
-Disallow: /dashboard
-Disallow: /account
+Disallow: /admin/
 Disallow: /cart
+Disallow: /checkout/
+Disallow: /account/
+Disallow: /dashboard
+Disallow: /search
+Disallow: /api/
 Allow: /
 
 User-agent: GPTBot
@@ -224,6 +226,7 @@ User-agent: ClaudeBot
 Allow: /
 
 Sitemap: https://schipenster.com/sitemap.xml
+# LLM context: https://schipenster.com/llms.txt
 `;
 
 export async function getRobotsTxtContent(): Promise<string> {
@@ -232,15 +235,15 @@ export async function getRobotsTxtContent(): Promise<string> {
   if (fs.existsSync(robotsPath)) {
     const raw = fs.readFileSync(robotsPath, "utf-8").trim();
     if (raw && raw.includes("User-agent:")) {
-      content = raw.endsWith("\n") ? raw : `${raw}\n`;
+      content = raw;
     }
   }
-  return content.endsWith("\n") ? content : `${content}\n`;
+  return sanitizeRobotsTxt(content);
 }
 
 export async function saveRobotsTxtContent(content: string): Promise<void> {
   const robotsPath = seoFilePath("robots.txt");
-  fs.writeFileSync(robotsPath, content || "", "utf-8");
+  fs.writeFileSync(robotsPath, sanitizeRobotsTxt(content || DEFAULT_ROBOTS), "utf-8");
 }
 
 export async function getSitemapXmlContent(): Promise<string | null> {

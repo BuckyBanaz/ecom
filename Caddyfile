@@ -4,6 +4,15 @@
 
 {$DOMAIN}, www.{$DOMAIN} {
   encode gzip zstd
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Cross-Origin-Opener-Policy "same-origin"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+
   handle /robots.txt {
     reverse_proxy backend:5000
   }
@@ -20,5 +29,14 @@
 
 api.{$DOMAIN} {
   encode gzip zstd
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Cross-Origin-Opener-Policy "same-origin"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+
   reverse_proxy backend:5000
 }

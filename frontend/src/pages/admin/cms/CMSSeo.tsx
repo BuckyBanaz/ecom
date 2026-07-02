@@ -187,6 +187,10 @@ const CMSSeo = () => {
             </CardHeader>
             <CardContent>
               <Label className="mb-2 block">robots.txt</Label>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Comments must start with <code>#</code>. Example:{" "}
+                <code># LLM context: https://schipenster.com/llms.txt</code> — not plain text (Lighthouse marks that invalid).
+              </p>
               <Textarea value={robots} onChange={(e) => setRobots(e.target.value)} className="font-mono text-sm min-h-[160px]" />
             </CardContent>
           </Card>

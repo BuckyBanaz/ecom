@@ -45,6 +45,8 @@ async function ogImage() {
 }
 
 await squareIcon(48, "favicon-48x48.png", 0.1);
+await sharp(path.join(publicDir, "favicon-48x48.png")).toFile(path.join(publicDir, "favicon.ico"));
+console.log("✓ favicon.ico (from 48×48 PNG — Google default path)");
 await squareIcon(192, "favicon-192x192.png", 0.12);
 await squareIcon(180, "apple-touch-icon.png", 0.12);
 await sharp(path.join(publicDir, "favicon-192x192.png"))

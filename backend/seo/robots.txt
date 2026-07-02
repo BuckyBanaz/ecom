@@ -1,9 +1,11 @@
 User-agent: *
-Disallow: /admin
-Disallow: /checkout
-Disallow: /dashboard
-Disallow: /account
+Disallow: /admin/
 Disallow: /cart
+Disallow: /checkout/
+Disallow: /account/
+Disallow: /dashboard
+Disallow: /search
+Disallow: /api/
 Allow: /
 
 User-agent: GPTBot
@@ -25,3 +27,4 @@ User-agent: ClaudeBot
 Allow: /
 
 Sitemap: https://schipenster.com/sitemap.xml
+# LLM context: https://schipenster.com/llms.txt

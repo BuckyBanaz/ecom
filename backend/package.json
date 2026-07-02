@@ -15,7 +15,9 @@
     "prisma:seed:megamenu": "ts-node --project prisma/tsconfig.json --transpile-only prisma/seedMegaMenu.ts",
     "prisma:seed:products": "ts-node --project prisma/tsconfig.json --transpile-only prisma/seedProductsOnly.ts",
     "prisma:seed:templates": "ts-node --transpile-only -e \"require('./src/utils/seedTemplates').seedTemplates().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })\"",
-    "prisma:seed:all": "npm run prisma:seed"
+    "prisma:seed:all": "npm run prisma:seed",
+    "compress:ai-images": "node scripts/compress-ai-images.js",
+    "generate:seo-assets": "node scripts/generate-seo-assets.mjs"
   },
   "dependencies": {
     "@google-analytics/data": "^6.1.0",

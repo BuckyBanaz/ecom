@@ -66,6 +66,11 @@ services:
       args:
         VITE_API_URL: https://api.${DOMAIN}
         VITE_APP_URL: https://${DOMAIN}
+        SEO_SITE_NAME: ${SEO_SITE_NAME:-Schip & Ster}
+        SEO_DEFAULT_TITLE: ${SEO_DEFAULT_TITLE:-Schip & Ster — Light up your moment}
+        SEO_DEFAULT_DESCRIPTION: ${SEO_DEFAULT_DESCRIPTION:-Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns.}
+        SEO_OG_IMAGE: ${SEO_OG_IMAGE:-https://schipenster.com/og-image.png}
+        SEO_CANONICAL_URL: ${SEO_CANONICAL_URL:-https://schipenster.com/}
     restart: unless-stopped
     depends_on:
       - backend
