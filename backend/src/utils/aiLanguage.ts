@@ -31,17 +31,27 @@ export function getAiOutputLanguageLabel(lang?: AiOutputLanguage): string {
   return LANGUAGE_NAMES[code];
 }
 
-/** Instruction block injected into product + CMS AI prompts. */
+/** Neutral store role line — market is NL/BE but text language comes from AI Brain setting. */
+export function buildAiStoreRoleLine(siteName: string): string {
+  return `You are an expert for "${siteName}", a premium online lighting store serving the Netherlands & Belgium.`;
+}
+
+/** Instruction block injected into every customer-facing AI prompt. */
 export function buildAiLanguageInstruction(lang?: AiOutputLanguage): string {
   const code = lang || getAiOutputLanguage();
   const name = LANGUAGE_NAMES[code];
 
   return `
-=== OUTPUT LANGUAGE (REQUIRED) ===
-Write ALL customer-facing text in ${name}:
+=== OUTPUT LANGUAGE (REQUIRED — HIGHEST PRIORITY) ===
+Write ALL customer-facing text EXCLUSIVELY in ${name}.
+This OVERRIDES: SEO playbook brand voice, GEO focus, any "Dutch primary" hints, and the language of existing CMS/product context below (translate or rewrite into ${name} for new output).
+
+Applies to:
 - Product: name, shortDescription, description, seoTitle, seoDescription, seoKeywords, specs (values), attribute values
-- CMS: htmlContent visible text, seoTitle, seoDesc, seoKeywords, shortcode title/subtitle/description/button text attributes
-Keep JSON property names in English. Do not mix languages unless the user hint is explicitly in another language.
+- CMS: htmlContent visible text, seoTitle, seoDesc, seoKeywords, shortcode title/subtitle/description/button text
+- SEO meta, FAQ questions & answers, blog title/body/excerpt, llms.txt prose, robots.txt comments
+
+Keep JSON property names in English. Do NOT mix languages in one response.
 Use natural ${name} e-commerce copy for a lighting store in the Netherlands/EU market.
 `.trim();
 }

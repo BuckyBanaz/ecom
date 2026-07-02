@@ -68,6 +68,7 @@ export async function saveSeoPlaybook(playbook: Partial<SeoPlaybook>): Promise<S
 export function buildPlaybookPromptBlock(playbook: SeoPlaybook): string {
   return `
 GLOBAL SEO PLAYBOOK (apply to every page — change here reflects site-wide):
+NOTE: Admin → Settings → AI Brain "output language" controls the LANGUAGE of generated text. When an OUTPUT LANGUAGE block appears in this prompt, it overrides brand voice / GEO language hints below.
 - Site name: ${playbook.siteName}
 - Title template: ${playbook.titleTemplate} (%s = page-specific title)
 - Global keywords (always include where relevant): ${playbook.globalKeywords}

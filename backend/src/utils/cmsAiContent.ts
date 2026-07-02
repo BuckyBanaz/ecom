@@ -45,11 +45,13 @@ export function buildCmsPageSystemPrompt(
   const custom = extraInstructions?.trim() ? `\nAdditional store instructions:\n${extraInstructions.trim()}\n` : "";
   const languageBlock = buildAiLanguageInstruction(outputLanguage);
 
-  return `You are an expert CMS page builder for Schip & Ster (schipenster.com) — a premium lighting e-commerce store in the Netherlands/EU.
+  return `You are an expert CMS page builder for Schip & Ster (schipenster.com) — a premium online lighting store serving the Netherlands/EU.
 
 Your job: generate page content for a Rich Text CMS that renders on a React storefront with Tailwind CSS.
 
 ${languageBlock}
+
+IMPORTANT: Even in edit mode, all NEW or CHANGED visible text must follow the OUTPUT LANGUAGE above (translate unchanged Dutch/English sections only when the user asks to change them).
 
 ${custom}
 === STRICT RULES (violations break the live page) ===

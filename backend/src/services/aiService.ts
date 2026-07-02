@@ -2,7 +2,7 @@ import { prisma } from "../config/db";
 import fs from "fs";
 import path from "path";
 import { getAiImageCount } from "../utils/aiLimits";
-import { buildAiLanguageInstruction, getAiOutputLanguage } from "../utils/aiLanguage";
+import { buildAiLanguageInstruction, buildAiStoreRoleLine, getAiOutputLanguage } from "../utils/aiLanguage";
 import {
   buildPlaybookPromptBlock,
   getSeoPlaybook,
@@ -553,7 +553,7 @@ ${userMessage}`;
     const playbookBlock = buildPlaybookPromptBlock(playbook);
 
     const prompt = `
-You are an expert SEO, GEO (Generative Engine Optimization), and AEO (Answer Engine Optimization) specialist for "${playbook.siteName}", a Dutch e-commerce lighting store.
+${buildAiStoreRoleLine(playbook.siteName)}
 
 ${playbookBlock}
 
@@ -620,7 +620,7 @@ Return ONLY valid JSON:
       `Expert lighting guide targeting keywords: ${keywords.split(",").slice(0, 3).join(", ")}`;
 
     const prompt = `
-You are an expert content writer for "${playbook.siteName}", a premium Dutch e-commerce lighting store.
+${buildAiStoreRoleLine(playbook.siteName)}
 
 ${buildPlaybookPromptBlock(playbook)}
 ${languageInstruction}
@@ -716,7 +716,7 @@ Return ONLY valid JSON:
     const merge = input.mergeWithExisting !== false;
 
     const prompt = `
-You are an expert FAQ writer for "${playbook.siteName}", a Dutch lighting e-commerce store.
+${buildAiStoreRoleLine(playbook.siteName)}
 
 ${buildPlaybookPromptBlock(playbook)}
 ${languageInstruction}
@@ -724,7 +724,7 @@ ${languageInstruction}
 Generate ${cap} FAQ question-answer pairs optimized for:
 - **SEO** — natural keywords: ${keywords}
 - **AEO** — direct, factual answers AI assistants (ChatGPT, Gemini, Google AI Overviews) can cite
-- **GEO** — helpful for Dutch/Belgian homeowners shopping for lighting online
+- **GEO** — helpful for homeowners in NL/BE shopping for lighting online
 
 ${input.focus?.trim() ? `Focus area: ${input.focus.trim()}` : "Cover shipping, returns, warranty, payments, products, and store policies based on the website context below."}
 
@@ -740,6 +740,7 @@ Rules:
 - Accurate to the store context — do not invent policies not supported by context
 - Include at least 2 product/lighting-specific FAQs
 - Include at least 1 shipping/delivery FAQ for NL/BE
+- NEW FAQs must use the OUTPUT LANGUAGE above (existing FAQs kept as-is when merging)
 
 Return ONLY valid JSON:
 {
@@ -771,15 +772,18 @@ Return ONLY valid JSON:
 
   async generateBacklinkSuggestions(targetKeywords: string): Promise<string[]> {
     const playbook = await getSeoPlaybook();
+    const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
     const prompt = `
-You are an SEO link-building strategist for "${playbook.siteName}" (Dutch lighting e-commerce).
+${buildAiStoreRoleLine(playbook.siteName)}
+
+${languageInstruction}
 
 Target keywords to rank for: ${targetKeywords}
 
 Generate 8 realistic backlink outreach opportunities (NOT spam). Each line format:
 "[Site type] Site name — angle: one sentence pitch for guest post or partnership"
 
-Focus: Dutch/EU home & garden blogs, interior design magazines, sustainable living sites, local NL business directories.
+Focus: home & garden blogs, interior design magazines, sustainable living sites, and relevant EU business directories for the NL/BE market.
 
 Return ONLY valid JSON: { "suggestions": ["line1", "line2", ...] }`;
 
