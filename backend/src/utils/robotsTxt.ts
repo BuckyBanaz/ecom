@@ -1,5 +1,7 @@
 /** Sanitize robots.txt — invalid lines break Lighthouse SEO (must use # comments). */
 
+import { unwrapAiPlainTextPayload } from "./aiPlainTextOutput";
+
 const VALID_DIRECTIVE = /^(User-agent|Disallow|Allow|Sitemap|Crawl-delay|Host)\s*:/i;
 
 export function sanitizeRobotsTxt(raw: string): string {
@@ -42,4 +44,25 @@ export function getRobotsTxtValidationError(raw: string): string | null {
     return "robots.txt must include at least one User-agent: directive.";
   }
   return null;
+}
+
+/** AI robots.txt → unwrap JSON if needed, then sanitize directives. */
+export function normalizeRobotsTxtFromAi(raw: string): string {
+  let unwrapped = unwrapAiPlainTextPayload(raw, ["robots_txt", "robots", "content", "text"]);
+
+  // Recover older bad saves where sanitizeRobotsTxt turned JSON lines into # comments
+  if (!unwrapped.includes("User-agent:") && raw.includes("#")) {
+    const decommented = raw
+      .split(/\r?\n/)
+      .map((line) => {
+        const t = line.trim();
+        if (t.startsWith("# ")) return t.slice(2);
+        if (t === "#") return "";
+        return line.trimEnd();
+      })
+      .join("\n");
+    unwrapped = unwrapAiPlainTextPayload(decommented, ["robots_txt", "robots", "content", "text"]);
+  }
+
+  return sanitizeRobotsTxt(unwrapped);
 }

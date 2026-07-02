@@ -2,7 +2,8 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import { refreshEnvFromProcess } from "../config/env";
-import { sanitizeRobotsTxt } from "../utils/robotsTxt";
+import { sanitizeRobotsTxt, normalizeRobotsTxtFromAi } from "../utils/robotsTxt";
+import { unwrapAiPlainTextPayload } from "../utils/aiPlainTextOutput";
 import { resetStripeClient } from "../utils/stripeClient";
 
 /** Production always writes to the host-mounted .env.production — never ephemeral /app/.env */
@@ -234,9 +235,17 @@ export async function getRobotsTxtContent(): Promise<string> {
   const robotsPath = seoFilePath("robots.txt");
   let content = DEFAULT_ROBOTS;
   if (fs.existsSync(robotsPath)) {
-    const raw = fs.readFileSync(robotsPath, "utf-8").trim();
-    if (raw && raw.includes("User-agent:")) {
-      content = raw;
+    const raw = fs.readFileSync(robotsPath, { encoding: "utf8" }).trim();
+    if (raw) {
+      const looksLikeJsonWrapper =
+        raw.includes("robots_txt") || raw.trim().startsWith("{") || raw.trim().startsWith("# {");
+      if (looksLikeJsonWrapper) {
+        content = normalizeRobotsTxtFromAi(raw);
+      } else if (raw.includes("User-agent:")) {
+        content = raw;
+      } else {
+        content = normalizeRobotsTxtFromAi(raw);
+      }
     }
   }
   return sanitizeRobotsTxt(content);
@@ -244,7 +253,10 @@ export async function getRobotsTxtContent(): Promise<string> {
 
 export async function saveRobotsTxtContent(content: string): Promise<void> {
   const robotsPath = seoFilePath("robots.txt");
-  fs.writeFileSync(robotsPath, sanitizeRobotsTxt(content || DEFAULT_ROBOTS), "utf-8");
+  const normalized = content.includes("robots_txt") || content.trim().startsWith("{")
+    ? normalizeRobotsTxtFromAi(content)
+    : sanitizeRobotsTxt(content || DEFAULT_ROBOTS);
+  fs.writeFileSync(robotsPath, normalized, { encoding: "utf8" });
 }
 
 export async function getSitemapXmlContent(): Promise<string | null> {
@@ -317,17 +329,9 @@ export async function getLlmsTxtContent(): Promise<string> {
   if (fs.existsSync(llmsPath)) {
     const raw = fs.readFileSync(llmsPath, { encoding: "utf8" }).trim();
     if (raw) {
-      // Strip accidental JSON wrapper saved from an earlier AI bug
-      if (raw.includes('"llms_txt"') && raw.includes("{")) {
-        try {
-          const jsonStart = raw.indexOf("{");
-          const parsed = JSON.parse(raw.slice(jsonStart)) as { llms_txt?: string };
-          if (parsed.llms_txt?.trim()) {
-            return parsed.llms_txt.replace(/\\n/g, "\n").trim() + "\n";
-          }
-        } catch {
-          /* fall through */
-        }
+      if (raw.includes('"llms_txt"') || raw.startsWith("{")) {
+        const unwrapped = unwrapAiPlainTextPayload(raw, ["llms_txt", "llms", "content", "text", "body"]);
+        if (unwrapped.trim()) return unwrapped.endsWith("\n") ? unwrapped : `${unwrapped}\n`;
       }
       return raw + (raw.endsWith("\n") ? "" : "\n");
     }

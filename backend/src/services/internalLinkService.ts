@@ -92,7 +92,7 @@ async function loadLinkablePages(): Promise<LinkablePage[]> {
       type: "cms_page",
       id: p.id,
       label: p.title,
-      url: `/page/${p.slug}`,
+      url: `/${p.slug}`,
       text: `${p.title} ${p.seoKeywords || ""}`,
     })),
   ];

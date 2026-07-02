@@ -37,8 +37,9 @@ export async function loadCmsContextForAi(): Promise<CmsContextPayload> {
     playbook,
   ] = await Promise.all([
     prisma.cmsPage.findMany({
+      where: { published: true },
       orderBy: { updatedAt: "desc" },
-      take: 25,
+      take: 50,
       select: { title: true, slug: true, body: true, published: true, seoTitle: true, seoDesc: true, seoKeywords: true },
     }),
     prisma.category.findMany({
@@ -70,15 +71,26 @@ export async function loadCmsContextForAi(): Promise<CmsContextPayload> {
     `=== STORE: ${playbook.siteName} ===`,
     `Target SEO keywords: ${playbook.targetRankKeywords || playbook.globalKeywords || "lighting, lamps, Netherlands"}`,
     "",
-    "=== DYNAMIC CMS PAGES ===",
+    "=== STATIC STOREFRONT ROUTES ===",
+    "- / (homepage)",
+    "- /categories (all categories)",
+    "- /category/deals (promotions)",
+    "- /category/bestsellers",
+    "- /brands",
+    "- /blogs (blog index)",
+    "- /faqs (shipping, returns, warranty)",
+    "- /relief (category hub)",
+    "",
+    "=== DYNAMIC CMS PAGES (live — use /{slug} URLs in llms.txt) ===",
   ];
 
   for (const p of pages) {
-    const bodyText = truncate(stripHtml(p.body || ""), 400);
+    const bodyText = truncate(stripHtml(p.body || ""), 500);
     lines.push(
-      `- [${p.published ? "live" : "draft"}] "${p.title}" → /pages/${p.slug}`,
-      `  SEO: ${p.seoTitle || p.title} | ${truncate(p.seoDesc || "", 120)}`,
-      bodyText ? `  Content: ${bodyText}` : "",
+      `- "${p.title}" → /${p.slug}`,
+      `  SEO: ${p.seoTitle || p.title} | ${truncate(p.seoDesc || "", 140)}`,
+      p.seoKeywords ? `  Keywords: ${truncate(p.seoKeywords, 100)}` : "",
+      bodyText ? `  Summary: ${bodyText}` : "",
     );
   }
 

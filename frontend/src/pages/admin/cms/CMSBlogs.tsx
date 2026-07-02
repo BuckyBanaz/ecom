@@ -263,9 +263,15 @@ const CMSBlogs = () => {
           <h1 className="text-3xl font-bold">Blogs</h1>
           <p className="text-muted-foreground">AI writes SEO posts from live offers, new products &amp; price drops</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <div className="flex gap-2">
-            <Input placeholder="Custom topic (optional)" value={aiTopic} onChange={(e) => { setAiTopic(e.target.value); setSelectedSuggestionId(undefined); }} className="min-w-[200px]" />
+        <div className="flex flex-col gap-3 w-full">
+          <Textarea
+            placeholder="Custom blog prompt — e.g. Write a guide about LED pendant lights for the living room…"
+            value={aiTopic}
+            onChange={(e) => { setAiTopic(e.target.value); setSelectedSuggestionId(undefined); }}
+            className="min-h-[88px] text-sm resize-y"
+            rows={3}
+          />
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => generateWithAi(false)} disabled={aiBusy} className="gap-2 shrink-0">
               {draftBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               AI Draft
@@ -274,8 +280,8 @@ const CMSBlogs = () => {
               {publishBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               AI Publish
             </Button>
+            <Button onClick={openNew} variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Manual post</Button>
           </div>
-          <Button onClick={openNew} variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Manual post</Button>
         </div>
       </div>
 
@@ -296,22 +302,24 @@ const CMSBlogs = () => {
               return (
                 <div
                   key={s.id}
-                  className={`flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between ${active ? "border-primary bg-primary/5" : "bg-muted/20"}`}
+                  className={`flex flex-col gap-3 rounded-lg border p-4 ${active ? "border-primary bg-primary/5" : "bg-muted/20"}`}
                 >
                   <button
                     type="button"
                     onClick={() => pickSuggestion(s)}
-                    className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left w-full"
                   >
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{s.label}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{s.topic}</p>
+                    <Icon className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold">{s.label}</p>
+                        {s.type === "offer" && <Badge variant="secondary" className="h-5 text-[10px]">Offer</Badge>}
+                        {s.type === "price_drop" && <Badge variant="secondary" className="h-5 text-[10px]">Sale</Badge>}
+                      </div>
+                      <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">{s.topic}</p>
                     </div>
-                    {s.type === "offer" && <Badge variant="secondary" className="shrink-0 h-5 text-[10px]">Offer</Badge>}
-                    {s.type === "price_drop" && <Badge variant="secondary" className="shrink-0 h-5 text-[10px]">Sale</Badge>}
                   </button>
-                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  <div className="flex flex-wrap items-center gap-1.5 border-t pt-3">
                     <SuggestionActions
                       addLabel="AI Draft"
                       dismissLabel="Skip"

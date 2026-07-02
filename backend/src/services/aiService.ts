@@ -15,7 +15,8 @@ import {
   sanitizeCmsAiHtml,
 } from "../utils/cmsAiContent";
 import { saveCompressedBlogCoverToDir, saveCompressedImageToDir } from "../utils/imageOptimize";
-import { sanitizeRobotsTxt } from "../utils/robotsTxt";
+import { sanitizeRobotsTxt, normalizeRobotsTxtFromAi } from "../utils/robotsTxt";
+import { unwrapAiPlainTextPayload } from "../utils/aiPlainTextOutput";
 import { getSeoCanonicalBaseUrl } from "./settingsStore";
 
 // ---------------------------------------------------------------------------
@@ -293,38 +294,7 @@ function fixUtf8Mojibake(text: string): string {
 
 /** Gemini sometimes wraps llms.txt in JSON — unwrap to plain markdown. */
 function normalizeLlmsTxtOutput(raw: string, siteName: string): string {
-  let text = fixUtf8Mojibake(stripPlainAiText(raw));
-
-  const jsonStart = text.indexOf("{");
-  if (jsonStart !== -1 && /"llms_txt"|"llms"|"content"|"text"\s*:/.test(text.slice(jsonStart))) {
-    try {
-      const parsed = extractJson(text.slice(jsonStart));
-      const fromJson =
-        parsed.llms_txt ?? parsed.llms ?? parsed.content ?? parsed.text ?? parsed.body;
-      if (typeof fromJson === "string" && fromJson.trim()) {
-        text = fromJson.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
-      }
-    } catch {
-      // keep stripped text
-    }
-  }
-
-  if (text.includes("\\n") && !text.includes("\n\n")) {
-    text = text.replace(/\\n/g, "\n").replace(/\\"/g, '"');
-  }
-
-  text = text.trim();
-
-  // Drop stray JSON wrapper lines if any remain
-  if (text.startsWith("{") && text.endsWith("}")) {
-    try {
-      const parsed = extractJson(text);
-      const inner = parsed.llms_txt ?? parsed.llms ?? parsed.content ?? parsed.text;
-      if (typeof inner === "string") text = inner.replace(/\\n/g, "\n").trim();
-    } catch {
-      /* ignore */
-    }
-  }
+  let text = fixUtf8Mojibake(unwrapAiPlainTextPayload(raw, ["llms_txt", "llms", "content", "text", "body"]));
 
   if (!text.startsWith("#")) {
     text = `# ${siteName}\n\n${text}`;
@@ -907,7 +877,13 @@ REQUIRED structure:
 4. Final comment line: # LLM context: ${baseUrl}/llms.txt
 
 Use ONLY valid robots.txt syntax. Comments MUST start with #.
-Do NOT use markdown. Return plain robots.txt text only.
+
+CRITICAL OUTPUT FORMAT:
+- Return ONLY raw robots.txt plain text.
+- Do NOT return JSON. Do NOT use { "robots_txt": "..." } or any JSON wrapper.
+- Do NOT wrap in code fences.
+- Start with: User-agent: *
+- Use real newlines, not \\n escapes.
 
 ${existing ? `Current robots.txt (improve and keep valid parts):\n${existing.slice(0, 2500)}` : ""}
 
@@ -916,7 +892,7 @@ ${contextBlock.slice(0, 2000)}
 ---`;
 
     const responseText = await callGeminiWithFallback([{ text: prompt }], 0.25);
-    return sanitizeRobotsTxt(stripPlainAiText(responseText));
+    return normalizeRobotsTxtFromAi(responseText);
   },
 
   async generateLlmsTxt(input?: { existingContent?: string; canonicalUrl?: string }) {
@@ -940,14 +916,15 @@ Required sections:
 1. # Site name as H1
 2. > One-paragraph summary (lighting e-commerce, NL/BE, shipping/returns/warranty from playbook)
 3. Languages & currency
-4. ## Key pages — markdown links to real paths: /, /categories, /category/deals, /blogs, /faqs, /brands (full URLs with ${baseUrl})
-5. ## Product categories — list main category slugs from context
-6. ## Policies — shipping, returns, warranty, payment methods
-7. ## Contact — website + email if known
-8. ## For AI systems — routing hints (/product/{slug}, /category/{slug}, /faqs)
+4. ## Key pages — markdown links: /, /categories, /category/deals, /blogs, /faqs, /brands (full URLs with ${baseUrl})
+5. ## CMS pages — MUST list EVERY page from "DYNAMIC CMS PAGES" in the context below as [Title](${baseUrl}/{slug}) with a one-line description from its SEO/summary
+6. ## Product categories — list main category slugs from context with full URLs
+7. ## Policies — shipping, returns, warranty, payment methods
+8. ## Contact — website + email if known
+9. ## For AI systems — routing hints: /product/{slug}, /category/{slug}, /blogs/{slug}, /{cms-page-slug}, /faqs
 
-Use REAL category/blog/page slugs from the store context below when listing examples.
-Keep under 120 lines. No HTML.
+Use REAL slugs from the store context below — especially all CMS pages under "DYNAMIC CMS PAGES".
+Keep under 150 lines. No HTML.
 
 CRITICAL OUTPUT FORMAT:
 - Return ONLY the raw llms.txt document (markdown plain text).
@@ -958,8 +935,8 @@ CRITICAL OUTPUT FORMAT:
 
 ${existing ? `Current llms.txt (refresh and improve):\n${existing.slice(0, 3500)}` : ""}
 
---- LIVE STORE CONTEXT (${summary.productCount} products, ${summary.categoryCount} categories, ${summary.blogCount} blogs) ---
-${contextBlock.slice(0, 4500)}
+--- LIVE STORE CONTEXT (${summary.productCount} products, ${summary.pageCount} CMS pages, ${summary.categoryCount} categories, ${summary.blogCount} blogs) ---
+${contextBlock.slice(0, 9000)}
 ---`;
 
     const responseText = await callGeminiWithFallback([{ text: prompt }], 0.35);

@@ -10,7 +10,7 @@ import {
   getLlmsTxtContent,
   saveLlmsTxtContent,
 } from "../services/settingsStore";
-import { getRobotsTxtValidationError, sanitizeRobotsTxt } from "../utils/robotsTxt";
+import { sanitizeRobotsTxt, getRobotsTxtValidationError, normalizeRobotsTxtFromAi } from "../utils/robotsTxt";
 import { prisma } from "../config/db";
 import { getInvoiceVendorSettings, isApiDocsEnabled } from "../utils/generalSettings";
 import { clampAiBulkLimit, clampAiImageCount } from "../utils/aiLimits";
@@ -636,8 +636,8 @@ export const updateRobotsTxt = async (
   try {
     const { robots } = req.body;
     const raw = typeof robots === "string" ? robots : "";
-    const validationError = getRobotsTxtValidationError(raw);
-    const sanitized = sanitizeRobotsTxt(raw);
+    const sanitized = normalizeRobotsTxtFromAi(raw);
+    const validationError = getRobotsTxtValidationError(sanitized);
     await saveRobotsTxtContent(sanitized);
     res.status(200).json({
       success: true,
