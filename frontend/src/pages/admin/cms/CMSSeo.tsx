@@ -238,7 +238,7 @@ const CMSSeo = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><Label>{t("cms_seo.site_gsc_url")}</Label><Input value={apiKeys.gscSiteUrl} onChange={(e) => setApiKeys({ ...apiKeys, gscSiteUrl: e.target.value })} className="mt-1" placeholder="https://yoursite.com/" /></div>
+                <div><Label>{t("cms_seo.site_gsc_url")}</Label><Input value={apiKeys.gscSiteUrl} onChange={(e) => setApiKeys({ ...apiKeys, gscSiteUrl: e.target.value })} className="mt-1" placeholder="sc-domain:schipenster.com" /></div>
                 <div><Label>{t("cms_seo.site_ga4_property")}</Label><Input value={apiKeys.ga4PropertyId} onChange={(e) => setApiKeys({ ...apiKeys, ga4PropertyId: e.target.value })} className="mt-1" /></div>
                 <div className="sm:col-span-2"><Label>{t("cms_seo.site_service_email")}</Label><Input value={apiKeys.ga4ClientEmail} onChange={(e) => setApiKeys({ ...apiKeys, ga4ClientEmail: e.target.value })} className="mt-1" /></div>
                 <div className="sm:col-span-2">

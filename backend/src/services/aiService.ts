@@ -268,9 +268,69 @@ function extractJson(raw: string): any {
 function stripPlainAiText(raw: string): string {
   return raw
     .trim()
-    .replace(/^```(?:txt|text|markdown|robots)?\s*/i, "")
+    .replace(/^```(?:txt|text|markdown|robots|json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
+}
+
+/** Fix UTF-8 punctuation shown as mojibake when em dash was saved wrong. */
+function fixUtf8Mojibake(text: string): string {
+  const emDash = String.fromCharCode(0x2014);
+  const enDash = String.fromCharCode(0x2013);
+  const leftQuote = String.fromCharCode(0x201c);
+  const rightQuote = String.fromCharCode(0x201d);
+  return text
+    .replace(/\u00e2\u20ac[\u201c\u201d]/g, emDash)
+    .replace(/\u00e2\u20ac\u0093/g, enDash)
+    .replace(/\u00e2\u20ac\u2122/g, "'")
+    .replace(/\u00e2\u20ac\u0153/g, leftQuote)
+    .replace(/\u00e2\u20ac\u009d/g, rightQuote)
+    .replace(/\u00c3\u00a9/g, "\u00e9")
+    .replace(/\u00c3\u00ab/g, "\u00eb")
+    .replace(/\u00c3\u00af/g, "\u00ef")
+    .replace(/\u00c3\u00b6/g, "\u00f6");
+}
+
+/** Gemini sometimes wraps llms.txt in JSON — unwrap to plain markdown. */
+function normalizeLlmsTxtOutput(raw: string, siteName: string): string {
+  let text = fixUtf8Mojibake(stripPlainAiText(raw));
+
+  const jsonStart = text.indexOf("{");
+  if (jsonStart !== -1 && /"llms_txt"|"llms"|"content"|"text"\s*:/.test(text.slice(jsonStart))) {
+    try {
+      const parsed = extractJson(text.slice(jsonStart));
+      const fromJson =
+        parsed.llms_txt ?? parsed.llms ?? parsed.content ?? parsed.text ?? parsed.body;
+      if (typeof fromJson === "string" && fromJson.trim()) {
+        text = fromJson.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      }
+    } catch {
+      // keep stripped text
+    }
+  }
+
+  if (text.includes("\\n") && !text.includes("\n\n")) {
+    text = text.replace(/\\n/g, "\n").replace(/\\"/g, '"');
+  }
+
+  text = text.trim();
+
+  // Drop stray JSON wrapper lines if any remain
+  if (text.startsWith("{") && text.endsWith("}")) {
+    try {
+      const parsed = extractJson(text);
+      const inner = parsed.llms_txt ?? parsed.llms ?? parsed.content ?? parsed.text;
+      if (typeof inner === "string") text = inner.replace(/\\n/g, "\n").trim();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (!text.startsWith("#")) {
+    text = `# ${siteName}\n\n${text}`;
+  }
+
+  return text.endsWith("\n") ? text : `${text}\n`;
 }
 
 export const aiService = {
@@ -887,7 +947,14 @@ Required sections:
 8. ## For AI systems — routing hints (/product/{slug}, /category/{slug}, /faqs)
 
 Use REAL category/blog/page slugs from the store context below when listing examples.
-Keep under 120 lines. No HTML. No JSON. Plain llms.txt markdown only.
+Keep under 120 lines. No HTML.
+
+CRITICAL OUTPUT FORMAT:
+- Return ONLY the raw llms.txt document (markdown plain text).
+- Do NOT return JSON. Do NOT use { "llms_txt": "..." } or any JSON wrapper.
+- Do NOT wrap in code fences.
+- Start your response with: # ${playbook.siteName}
+- Use UTF-8 punctuation (em dash — is OK). Do not escape newlines as \\n.
 
 ${existing ? `Current llms.txt (refresh and improve):\n${existing.slice(0, 3500)}` : ""}
 
@@ -896,10 +963,6 @@ ${contextBlock.slice(0, 4500)}
 ---`;
 
     const responseText = await callGeminiWithFallback([{ text: prompt }], 0.35);
-    const content = stripPlainAiText(responseText);
-    if (!content.startsWith("#")) {
-      return `# ${playbook.siteName}\n\n${content}`;
-    }
-    return content;
+    return normalizeLlmsTxtOutput(responseText, playbook.siteName);
   },
 };

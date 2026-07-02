@@ -54,6 +54,46 @@ export function getGscSiteUrl(): string | null {
   return canonical.endsWith("/") ? canonical : `${canonical}/`;
 }
 
+/** Domain property form used when GSC is verified as sc-domain:example.com */
+export function deriveGscDomainProperty(siteUrl: string): string | null {
+  const trimmed = siteUrl.trim();
+  if (trimmed.startsWith("sc-domain:")) return trimmed;
+  try {
+    const url = trimmed.startsWith("http") ? new URL(trimmed) : new URL(`https://${trimmed}`);
+    const host = url.hostname.replace(/^www\./i, "");
+    if (!host || host.includes("localhost")) return null;
+    return `sc-domain:${host}`;
+  } catch {
+    return null;
+  }
+}
+
+/** URL-prefix form: https://example.com/ */
+export function deriveGscUrlPrefix(siteUrl: string): string | null {
+  const trimmed = siteUrl.trim();
+  if (trimmed.startsWith("sc-domain:")) {
+    const host = trimmed.slice("sc-domain:".length).trim();
+    return host ? `https://${host}/` : null;
+  }
+  try {
+    const url = trimmed.startsWith("http") ? new URL(trimmed) : new URL(`https://${trimmed}`);
+    return `https://${url.hostname}/`;
+  } catch {
+    return null;
+  }
+}
+
+export function getGscSiteUrlCandidates(): string[] {
+  const primary = getGscSiteUrl();
+  if (!primary) return [];
+  const candidates = [primary];
+  const domain = deriveGscDomainProperty(primary);
+  const prefix = deriveGscUrlPrefix(primary);
+  if (domain && !candidates.includes(domain)) candidates.push(domain);
+  if (prefix && !candidates.includes(prefix)) candidates.push(prefix);
+  return candidates;
+}
+
 export function isGoogleApiConfigured(): boolean {
   return !!getGoogleServiceAccountCredentials() && !!getGscSiteUrl();
 }

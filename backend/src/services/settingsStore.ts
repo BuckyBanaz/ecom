@@ -315,13 +315,28 @@ export function getSeoCanonicalBaseUrl(): string {
 export async function getLlmsTxtContent(): Promise<string> {
   const llmsPath = seoFilePath("llms.txt");
   if (fs.existsSync(llmsPath)) {
-    const raw = fs.readFileSync(llmsPath, "utf-8").trim();
-    if (raw) return raw;
+    const raw = fs.readFileSync(llmsPath, { encoding: "utf8" }).trim();
+    if (raw) {
+      // Strip accidental JSON wrapper saved from an earlier AI bug
+      if (raw.includes('"llms_txt"') && raw.includes("{")) {
+        try {
+          const jsonStart = raw.indexOf("{");
+          const parsed = JSON.parse(raw.slice(jsonStart)) as { llms_txt?: string };
+          if (parsed.llms_txt?.trim()) {
+            return parsed.llms_txt.replace(/\\n/g, "\n").trim() + "\n";
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+      return raw + (raw.endsWith("\n") ? "" : "\n");
+    }
   }
   return DEFAULT_LLMS.replace(/https:\/\/schipenster\.com/g, getSeoCanonicalBaseUrl());
 }
 
 export async function saveLlmsTxtContent(content: string): Promise<void> {
   const llmsPath = seoFilePath("llms.txt");
-  fs.writeFileSync(llmsPath, (content || DEFAULT_LLMS).trim() + "\n", "utf-8");
+  const normalized = (content || DEFAULT_LLMS).trim() + "\n";
+  fs.writeFileSync(llmsPath, normalized, { encoding: "utf8" });
 }

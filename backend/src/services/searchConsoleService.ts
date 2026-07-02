@@ -3,15 +3,39 @@ import { AppError } from "../middlewares/errorMiddleware";
 import {
   getGoogleServiceAccountCredentials,
   getGscSiteUrl,
+  getGscSiteUrlCandidates,
   getGoogleIntegrationStatus,
 } from "../utils/googleCredentials";
 
 const GSC_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 
+async function resolveSearchConsoleSiteUrl(
+  client: ReturnType<typeof google.searchconsole>,
+): Promise<string> {
+  const candidates = getGscSiteUrlCandidates();
+  if (candidates.length === 0) {
+    throw new AppError(
+      "Search Console not configured — set GSC site URL and GA4 service account credentials in CMS → SEO → Site & Analytics.",
+      400,
+    );
+  }
+
+  let lastError: unknown;
+  for (const siteUrl of candidates) {
+    try {
+      await client.sites.get({ siteUrl });
+      return siteUrl;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Search Console connection failed");
+}
+
 function getSearchConsoleClient() {
   const creds = getGoogleServiceAccountCredentials();
-  const siteUrl = getGscSiteUrl();
-  if (!creds || !siteUrl) {
+  if (!creds || !getGscSiteUrl()) {
     throw new AppError(
       "Search Console not configured — set GSC site URL and GA4 service account credentials in CMS → SEO → Site & Analytics.",
       400,
@@ -24,7 +48,7 @@ function getSearchConsoleClient() {
     scopes: [GSC_SCOPE],
   });
 
-  return { client: google.searchconsole({ version: "v1", auth }), siteUrl };
+  return { client: google.searchconsole({ version: "v1", auth }) };
 }
 
 function formatGscDate(daysAgo: number): string {
@@ -81,8 +105,8 @@ export async function getSearchConsoleStatus() {
   }
 
   try {
-    const { client, siteUrl } = getSearchConsoleClient();
-    await client.sites.get({ siteUrl });
+    const { client } = getSearchConsoleClient();
+    const siteUrl = await resolveSearchConsoleSiteUrl(client);
     return { ...base, configured: true, siteUrl, connected: true, error: null };
   } catch (err: unknown) {
     let message = err instanceof Error ? err.message : "Search Console connection failed";
@@ -95,7 +119,8 @@ export async function getSearchConsoleStatus() {
 }
 
 export async function fetchSearchConsoleOverview(days = 28) {
-  const { client, siteUrl } = getSearchConsoleClient();
+  const { client } = getSearchConsoleClient();
+  const siteUrl = await resolveSearchConsoleSiteUrl(client);
   const startDate = formatGscDate(days);
   const endDate = formatGscDate(0);
 
@@ -160,7 +185,8 @@ export async function fetchSearchConsoleOverview(days = 28) {
 export async function fetchKeywordRankings(keywords: string[], days = 28): Promise<GscQueryRow[]> {
   if (keywords.length === 0) return [];
 
-  const { client, siteUrl } = getSearchConsoleClient();
+  const { client } = getSearchConsoleClient();
+  const siteUrl = await resolveSearchConsoleSiteUrl(client);
   const startDate = formatGscDate(days);
   const endDate = formatGscDate(0);
 
