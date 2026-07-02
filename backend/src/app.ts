@@ -56,6 +56,37 @@ app.use(
 // Register HTTP request logger middleware
 app.use(requestLogger);
 
+// Health probe — before rate limiter so monitoring never blocks
+app.get("/health", async (_req, res) => {
+  let redisStatus: "connected" | "disabled" | "error" = "disabled";
+
+  if (env.ENABLE_REDIS === "true") {
+    if (!redis) {
+      redisStatus = "error";
+    } else {
+      try {
+        const pong = await Promise.race([
+          redis.ping(),
+          new Promise<string>((_, reject) => setTimeout(() => reject(new Error("timeout")), 2000)),
+        ]);
+        redisStatus = pong === "PONG" ? "connected" : "error";
+      } catch {
+        redisStatus = "error";
+      }
+    }
+  }
+
+  const healthy = redisStatus !== "error";
+
+  res.status(healthy ? 200 : 503).json({
+    success: healthy,
+    status: healthy ? "healthy" : "degraded",
+    redis: redisStatus,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Rate limiting — protects against brute-force and abuse
 app.use(globalLimiter);
 
@@ -86,35 +117,6 @@ app.use(
 
 // Serve Swagger API Interactive documentation UI
 setupSwagger(app);
-
-// Health probe endpoint for monitoring
-app.get("/health", async (_req, res) => {
-  let redisStatus: "connected" | "disabled" | "error" = "disabled";
-
-  if (env.ENABLE_REDIS === "true") {
-    if (!redis) {
-      redisStatus = "error";
-    } else {
-      try {
-        const pong = await redis.ping();
-        redisStatus = pong === "PONG" ? "connected" : "error";
-      } catch {
-        redisStatus = "error";
-      }
-    }
-  }
-
-  const healthy = redisStatus !== "error";
-
-  res.status(healthy ? 200 : 503).json({
-    success: healthy,
-    status: healthy ? "healthy" : "degraded",
-    redis: redisStatus,
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  });
-});
-
 
 import authRoutes from "./routes/authRoutes";
 import productRoutes from "./routes/productRoutes";

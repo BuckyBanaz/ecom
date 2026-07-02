@@ -25,6 +25,7 @@ This document tracks pending advanced features and recently completed work.
 - Prompt → HTML fragment with shortcodes + inline styles + SEO meta (title, desc, keywords)
 - Edit mode: preserves existing page content and applies targeted updates
 - Backend: `backend/src/utils/cmsAiContent.ts` (prompt rules + HTML sanitization)
+- Full CMS context injected automatically for smarter page generation
 
 ### Returns & Refunds + AI Triage
 - **Customer UI**: `/dashboard` → delivered order → "Request Return" (reason + photos, 30 days from delivery)
@@ -36,9 +37,29 @@ This document tracks pending advanced features and recently completed work.
 - **Docs**: `docs/shipping-and-refund/` (flows, policies, customer UI)
 - **Test**: `backend/scripts/reset-order-for-return-test.js`, `backend/scripts/test-return-flow-audit.js`
 
+### Returns Polish + Dual Validation (✅ done)
+- **30-day window pre-check (frontend)**: `getReturnEligibility()` hides button + shows expiry message before API call
+- **Shared validation utils**: `frontend/src/utils/returnValidation.ts` + `backend/src/utils/returnValidation.ts`
+- **Backend enforces** (even if frontend bypassed): delivered status, window, active return, reason, photos (1–5, JPEG/PNG/WebP/GIF), note length (2000), shipment weight (0.01–30 kg)
+- **Sendcloud return label**: optimistic DB claim → Sendcloud API → transactional save; rollback + cancel orphan parcel on failure; 409 on concurrent label creation
+- **Concurrent refund lock**: `SELECT … FOR UPDATE` + `refund_processing` flag before Stripe; 409 on double manual refund
+
+### AI SEO Expert (v0.1 — branch `v0.1`, implemented locally)
+- **Admin UI**: unified **SEO & AI Expert** at `/admin/cms/seo` (merged old `/admin/ai-seo` → redirect)
+- **Panels**: Site audit, playbook (target keywords), per-page optimize, bulk optimize, autopilot, background job banner
+- **Settings tab**: SEO Autopilot config + hourly check in `backend/src/index.ts`
+- **AI Blog writer**: `/admin/cms/blogs` — topic suggestions from offers/products/price drops; Gemini cover (WebP compressed)
+- **AI FAQ writer**: `/admin/cms/faqs` — full CMS context
+- **Background job queue**: `seoJobQueueService.ts` — bulk SEO, autopilot, blog, FAQ; persists in `CmsConfig` key `seo_job_state`; poll `GET /ai/seo/job`
+- **API**: audit, playbook, optimize, bulk-optimize, job status, autopilot, `POST /ai/blogs/generate`, `POST /ai/faqs/generate`
+- **DB migration** (local): `20260702120000_seo_fields_blog_category` — Blog + Category SEO columns
+- **Fixes**: Real Sendcloud labels in `/admin/orders/labels` (PDF preview/download, not mock barcode)
+
 ---
 
-## 1. Guest Checkout & Login
+## ⏳ Pending
+
+### 1. Guest Checkout & Login
 - **Status**: Pending
 - **Tasks**:
   - Make `passwordHash` optional in database (`schema.prisma`)
@@ -46,16 +67,26 @@ This document tracks pending advanced features and recently completed work.
   - Add "Checkout as Guest" form on frontend (`AccountAuth.tsx`)
   - Support guest flow in checkout and order tracking
 
-## 2. Advanced AI Features (Remaining)
-- **Status**: Partially complete — see ✅ Completed section above
-- **Still pending**:
-  - **AI Shopping Assistant**: Storefront RAG Chatbot
-  - **Meta Pixel & TikTok Live Analytics**: Dashboard integration for tracking events
+### 2. Advanced AI Features (Remaining)
+- **AI Shopping Assistant**: Storefront RAG Chatbot
+- **Meta Pixel & TikTok Live Analytics**: Dashboard integration for real tracking events (AdminAnalytics may still use mock data)
 
-## 3. Returns — Optional polish (non-blocking)
-- Frontend pre-check for 30-day return window before showing "Request Return" button (backend already enforces)
-- Transactional wrap for `createReturnShipment` + Sendcloud API call
-- DB-level lock for concurrent manual refund calls
+### 3. AI SEO — v0.2+ (not started)
+- **Search Console API** — real GSC data for smarter autopilot (suggestions only today)
+- Rank tracking, automated internal linking, hreflang
+- Live backlink building (by design: AI suggestions only, not auto-created)
+
+### 4. Deploy & Ops (when ready)
+- Commit + push `v0.1` branch changes
+- Run pending migrations on production:
+  - `20260627120000_return_flow_improvements`
+  - `20260702120000_seo_fields_blog_category`
+- Kill duplicate backend process if `EADDRINUSE :5000`
+
+### 5. Docs sync (optional)
+- `brain/04_api_reference.md`, `brain/05_frontend_routes.md` — keep in sync after deploy
+- `README.md` — mention unified SEO page
 
 ---
-*Note: The core platform including Admin panel, Storefront, CMS, Product Management, Cart, Checkout, Sendcloud Live Labels, AI Product Quick Add, AI CMS Coder, and Returns & Refunds are fully implemented and deployed.*
+
+*Note: Core platform — Admin panel, Storefront, CMS, Products, Cart, Checkout, Sendcloud, AI Quick Add, AI CMS Coder, Returns & Refunds (with polish), and AI SEO Expert (v0.1) — are implemented on branch `v0.1`. Production deploy + migration run may still be pending.*

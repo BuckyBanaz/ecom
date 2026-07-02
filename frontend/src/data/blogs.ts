@@ -8,6 +8,9 @@ export type Blog = {
   author: string;
   published: boolean;
   date: string;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoKeywords?: string | null;
 };
 
 export const initialBlogs: Blog[] = [

@@ -21,21 +21,21 @@ import {
 } from "@/components/ui/select";
 import { returnsRepository } from "@/client/apiClient";
 import { toast } from "sonner";
-
-const RETURN_REASONS = [
-  "damaged",
-  "wrong_item",
-  "defective",
-  "not_as_described",
-  "changed_mind",
-  "other",
-] as const;
+import {
+  filterReturnPhotoFiles,
+  MAX_RETURN_NOTE_LENGTH,
+  MAX_RETURN_PHOTOS,
+  RETURN_REASONS,
+  type ReturnEligibilityResult,
+  validateReturnSubmitInput,
+} from "@/utils/returnValidation";
 
 interface ReturnRequestModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orderId: string;
   orderNumber: string;
+  returnEligibility: ReturnEligibilityResult;
   onSuccess: () => void;
 }
 
@@ -44,6 +44,7 @@ export function ReturnRequestModal({
   onOpenChange,
   orderId,
   orderNumber,
+  returnEligibility,
   onSuccess,
 }: ReturnRequestModalProps) {
   const { t } = useTranslation();
@@ -69,7 +70,11 @@ export function ReturnRequestModal({
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
-    const next = [...photos, ...Array.from(files)].slice(0, 5);
+    const accepted = filterReturnPhotoFiles(Array.from(files));
+    if (accepted.length < files.length) {
+      toast.error(t("returns.toast_photos_type"));
+    }
+    const next = [...photos, ...accepted].slice(0, MAX_RETURN_PHOTOS);
     previews.forEach((p) => URL.revokeObjectURL(p));
     setPhotos(next);
     setPreviews(next.map((f) => URL.createObjectURL(f)));
@@ -82,12 +87,14 @@ export function ReturnRequestModal({
   };
 
   const handleSubmit = async () => {
-    if (!reason) {
-      toast.error(t("returns.toast_reason_required"));
-      return;
-    }
-    if (photos.length === 0) {
-      toast.error(t("returns.toast_photos_required"));
+    const validationError = validateReturnSubmitInput({
+      reason,
+      photos,
+      customerNote,
+      eligibility: returnEligibility,
+    });
+    if (validationError) {
+      toast.error(t(validationError));
       return;
     }
 
@@ -112,6 +119,8 @@ export function ReturnRequestModal({
     }
   };
 
+  const canSubmit = returnEligibility.allowed;
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
@@ -128,7 +137,7 @@ export function ReturnRequestModal({
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label>{t("returns.reason_label")}</Label>
-            <Select value={reason} onValueChange={setReason}>
+            <Select value={reason} onValueChange={setReason} disabled={!canSubmit}>
               <SelectTrigger>
                 <SelectValue placeholder={t("returns.reason_placeholder")} />
               </SelectTrigger>
@@ -149,6 +158,8 @@ export function ReturnRequestModal({
               onChange={(e) => setCustomerNote(e.target.value)}
               placeholder={t("returns.note_placeholder")}
               rows={3}
+              maxLength={MAX_RETURN_NOTE_LENGTH}
+              disabled={!canSubmit}
             />
           </div>
 
@@ -158,9 +169,10 @@ export function ReturnRequestModal({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               multiple
               className="hidden"
+              disabled={!canSubmit}
               onChange={(e) => handleFiles(e.target.files)}
             />
             <div className="flex flex-wrap gap-2">
@@ -171,12 +183,13 @@ export function ReturnRequestModal({
                     type="button"
                     onClick={() => removePhoto(i)}
                     className="absolute top-0.5 right-0.5 rounded-full bg-black/60 p-0.5 text-white"
+                    disabled={!canSubmit}
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ))}
-              {photos.length < 5 && (
+              {photos.length < MAX_RETURN_PHOTOS && canSubmit && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -200,7 +213,7 @@ export function ReturnRequestModal({
           <Button variant="outline" onClick={() => handleClose(false)} disabled={submitting}>
             {t("returns.cancel")}
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting} className="gap-2">
+          <Button onClick={handleSubmit} disabled={submitting || !canSubmit} className="gap-2">
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
             {t("returns.submit")}
           </Button>

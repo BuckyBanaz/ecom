@@ -550,7 +550,13 @@ const Category = () => {
     if (productsLoading) return;
 
     const categoryUrl = slug ? `/category/${slug}` : "/category";
+
     applyPageMeta({
+      seoTitle: landingPage?.seoTitle || (cat as any)?.seoTitle,
+      title,
+      seoDescription: landingPage?.seoDescription || (cat as any)?.seoDescription,
+      description: `Shop ${title} at Schip & Ster — premium lighting with next-day delivery in NL.`,
+      seoKeywords: landingPage?.seoKeywords || (cat as any)?.seoKeywords,
       canonical: `${window.location.origin}${categoryUrl}`,
       ogType: "website",
     });

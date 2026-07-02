@@ -188,9 +188,11 @@ const ProductPage = () => {
     const canonical = `${window.location.origin}/product/${liveProduct.slug || slug}`;
 
     applyPageMeta({
-      title,
-      description,
-      keywords: liveProduct.seoKeywords || "",
+      seoTitle: liveProduct.seoTitle,
+      title: liveProduct.name,
+      seoDescription: liveProduct.seoDescription,
+      description: liveProduct.shortDescription || "",
+      seoKeywords: liveProduct.seoKeywords,
       canonical,
       ogType: "product",
       ogImage: liveProduct.image,

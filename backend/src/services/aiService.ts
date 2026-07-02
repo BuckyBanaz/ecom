@@ -4,11 +4,17 @@ import path from "path";
 import { getAiImageCount } from "../utils/aiLimits";
 import { buildAiLanguageInstruction, getAiOutputLanguage } from "../utils/aiLanguage";
 import {
+  buildPlaybookPromptBlock,
+  getSeoPlaybook,
+  mergeGlobalKeywords,
+  applyTitleTemplate,
+} from "./seoPlaybookService";
+import {
   buildCmsPageSystemPrompt,
   buildCmsPageUserMessage,
   sanitizeCmsAiHtml,
 } from "../utils/cmsAiContent";
-import { saveCompressedImageToDir } from "../utils/imageOptimize";
+import { saveCompressedBlogCoverToDir, saveCompressedImageToDir } from "../utils/imageOptimize";
 
 // ---------------------------------------------------------------------------
 // Call Gemini via REST API (same approach as model listing, guaranteed to work)
@@ -160,6 +166,52 @@ async function callGeminiImageGeneration(
     }
   }
 
+  return null;
+}
+
+async function generateTextToImage(prompt: string, filenamePrefix: string): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) {
+    console.warn("Blog cover image skipped: no GOOGLE_API_KEY");
+    return null;
+  }
+
+  const aiImagesDir = path.join(__dirname, "../../public/uploads/ai-images");
+  const aiImagesUrlPrefix = "/uploads/ai-images";
+  if (!fs.existsSync(aiImagesDir)) fs.mkdirSync(aiImagesDir, { recursive: true });
+
+  const configured = process.env.AI_IMAGE_MODEL || "gemini-2.5-flash-image";
+  const modelsToTry = [...new Set([configured, "gemini-2.5-flash-image", "gemini-2.5-flash-image-preview"])];
+
+  for (const model of modelsToTry) {
+    try {
+      console.log(`🎨 Blog cover trying model: ${model}`);
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+        }),
+      });
+      if (!response.ok) continue;
+      const result: any = await response.json();
+      const parts = result?.candidates?.[0]?.content?.parts || [];
+      const imgPart = parts.find((p: any) => p.inlineData?.data);
+      if (!imgPart) continue;
+      const saved = await saveCompressedBlogCoverToDir(
+        Buffer.from(imgPart.inlineData.data, "base64"),
+        aiImagesDir,
+        aiImagesUrlPrefix,
+        filenamePrefix,
+      );
+      console.log(`✅ Blog cover saved: ${saved.publicPath}`);
+      return saved.publicPath;
+    } catch (err: any) {
+      console.warn(`⚠️  Blog cover ${model} failed:`, err.message?.slice(0, 100));
+    }
+  }
   return null;
 }
 
@@ -406,6 +458,8 @@ export const aiService = {
       existingSeo?: { seoTitle?: string; seoDesc?: string; seoKeywords?: string };
     },
   ) {
+    const { loadCmsContextForAi } = await import("./cmsContextService");
+    const { contextBlock } = await loadCmsContextForAi();
     const cmsExtra = process.env.AI_CMS_SYSTEM_PROMPT || process.env.AI_SYSTEM_PROMPT || "";
     const systemPrompt = buildCmsPageSystemPrompt(cmsExtra, getAiOutputLanguage());
     const userMessage = buildCmsPageUserMessage(
@@ -413,12 +467,16 @@ export const aiService = {
       options?.existingContent,
       options?.existingSeo,
     );
+    const fullPrompt = `${systemPrompt}
+
+--- FULL WEBSITE CMS CONTEXT (dynamic pages, categories, blogs, offers — use for accurate copy & SEO/AEO/GEO) ---
+${contextBlock}
+---
+
+${userMessage}`;
 
     try {
-      const responseText = await callGeminiWithFallback(
-        [{ text: `${systemPrompt}\n\n${userMessage}` }],
-        0.35
-      );
+      const responseText = await callGeminiWithFallback([{ text: fullPrompt }], 0.35);
       const parsed = extractJson(responseText);
 
       if (!parsed.htmlContent || typeof parsed.htmlContent !== "string") {
@@ -441,6 +499,253 @@ export const aiService = {
       console.error("CMS Page AI Generation failed:", error);
       throw new Error("Failed to generate CMS page: " + error.message);
     }
+  },
+
+  async optimizeSeoEntity(input: {
+    entityType: "product" | "category" | "blog" | "cms_page" | "homepage";
+    label: string;
+    url: string;
+    content: string;
+    existingSeo?: { seoTitle?: string | null; seoDescription?: string | null; seoKeywords?: string | null };
+  }) {
+    const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
+    const playbook = await getSeoPlaybook();
+    const playbookBlock = buildPlaybookPromptBlock(playbook);
+
+    const prompt = `
+You are an expert SEO, GEO (Generative Engine Optimization), and AEO (Answer Engine Optimization) specialist for "${playbook.siteName}", a Dutch e-commerce lighting store.
+
+${playbookBlock}
+
+${languageInstruction}
+
+Optimize meta tags for this page:
+- Page type: ${input.entityType}
+- Page title/label: ${input.label}
+- URL path: ${input.url}
+
+Page content (for context):
+${input.content.slice(0, 3500)}
+
+Current SEO (may be empty):
+- Title: ${input.existingSeo?.seoTitle || "(none)"}
+- Description: ${input.existingSeo?.seoDescription || "(none)"}
+- Keywords: ${input.existingSeo?.seoKeywords || "(none)"}
+
+Rules:
+- seoTitle: max 60 chars BEFORE template — we apply "${playbook.titleTemplate}" after
+- seoDescription: max 160 chars, include playbook CTA if space allows
+- seoKeywords: page-specific + global playbook keywords
+- faqSuggestions: 2-3 FAQ pairs for AEO
+- internalLinkHint: one sentence for internal linking
+
+Return ONLY valid JSON:
+{
+  "seoTitle": "string",
+  "seoDescription": "string",
+  "seoKeywords": "string",
+  "faqSuggestions": [{ "question": "string", "answer": "string" }],
+  "internalLinkHint": "string"
+}`;
+
+    const responseText = await callGeminiWithFallback([{ text: prompt }], 0.35);
+    const parsed = extractJson(responseText);
+
+    const rawTitle = String(parsed.seoTitle || input.label).slice(0, 60);
+    const seoTitle = applyTitleTemplate(rawTitle, playbook.titleTemplate, playbook.siteName);
+    const seoDescription = String(parsed.seoDescription || parsed.seoDesc || "").slice(0, 160);
+    const seoKeywords = mergeGlobalKeywords(
+      String(parsed.seoKeywords || ""),
+      playbook.globalKeywords,
+      playbook.mergeGlobalKeywords,
+    );
+
+    return {
+      seoTitle,
+      seoDescription,
+      seoKeywords,
+      faqSuggestions: Array.isArray(parsed.faqSuggestions) ? parsed.faqSuggestions.slice(0, 3) : [],
+      internalLinkHint: String(parsed.internalLinkHint || ""),
+    };
+  },
+
+  async generateBlog(input: { topic?: string; targetKeywords?: string; productImageUrl?: string }) {
+    const { pickAutoBlogTopic } = await import("./blogContextService");
+    const playbook = await getSeoPlaybook();
+    const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
+    const keywords = input.targetKeywords || playbook.targetRankKeywords || playbook.globalKeywords;
+    const topic =
+      input.topic?.trim() ||
+      (await pickAutoBlogTopic()) ||
+      `Expert lighting guide targeting keywords: ${keywords.split(",").slice(0, 3).join(", ")}`;
+
+    const prompt = `
+You are an expert content writer for "${playbook.siteName}", a premium Dutch e-commerce lighting store.
+
+${buildPlaybookPromptBlock(playbook)}
+${languageInstruction}
+
+Write a complete SEO + GEO + AEO optimized blog article.
+
+Topic / angle: ${topic}
+Target rank keywords (use naturally in title, headings, body, meta): ${keywords}
+
+Requirements:
+- 800–1200 words of useful, factual content for homeowners in NL/BE
+- Include 3–4 H2 sections, bullet lists where helpful
+- FAQ section at end (2–3 Q&A) for AEO — use <h2>FAQ</h2> and <h3> for questions
+- body: valid HTML only (<p>, <h2>, <h3>, <ul>, <li>, <strong>) — no markdown
+- Optimize for Google Search, ChatGPT/Gemini discovery (GEO), and voice/AI answers (AEO)
+- seoTitle max 60 chars, seoDescription max 160 chars
+- If the topic mentions a product, offer, or sale — weave it in naturally with helpful buyer advice
+
+Return ONLY valid JSON:
+{
+  "title": "string",
+  "slug": "url-friendly-slug",
+  "excerpt": "2 sentence summary",
+  "body": "full HTML article",
+  "author": "Schip & Ster",
+  "seoTitle": "string",
+  "seoDescription": "string",
+  "seoKeywords": "comma separated",
+  "coverImagePrompt": "detailed photorealistic scene description for blog hero image, no text"
+}`;
+
+    const responseText = await callGeminiWithFallback([{ text: prompt }], 0.45);
+    const parsed = extractJson(responseText);
+    const slug = String(parsed.slug || parsed.title || "blog")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      .slice(0, 80);
+
+    const title = String(parsed.title || "Lighting Guide");
+    const coverScene = String(parsed.coverImagePrompt || parsed.coverImageQuery || "modern Scandinavian living room with pendant lighting, warm ambient light, editorial photography");
+    const coverPrompt = `Generate a photorealistic blog hero cover image. Article: "${title}". Scene: ${coverScene}. Professional interior photography, high quality, no text, no watermark, no logos.`;
+
+    let cover: string | null = null;
+    if (input.productImageUrl) {
+      try {
+        const imgPath = input.productImageUrl.startsWith("http")
+          ? input.productImageUrl
+          : path.join(__dirname, "../../public", input.productImageUrl.replace(/^\//, ""));
+        if (fs.existsSync(imgPath)) {
+          const buf = fs.readFileSync(imgPath);
+          const lifestyleBuf = await callGeminiImageGeneration(buf, "image/jpeg", coverPrompt);
+          if (lifestyleBuf) {
+            const aiImagesDir = path.join(__dirname, "../../public/uploads/ai-images");
+            const saved = await saveCompressedBlogCoverToDir(lifestyleBuf, aiImagesDir, "/uploads/ai-images", `blog-cover-${Date.now()}`);
+            cover = saved.publicPath;
+          }
+        }
+      } catch (err: any) {
+        console.warn("Blog cover from product image failed:", err.message);
+      }
+    }
+    if (!cover) {
+      cover = await generateTextToImage(coverPrompt, `blog-cover-${Date.now()}`);
+    }
+
+    return {
+      title,
+      slug,
+      excerpt: String(parsed.excerpt || "").slice(0, 300),
+      body: String(parsed.body || ""),
+      author: String(parsed.author || "Schip & Ster"),
+      seoTitle: applyTitleTemplate(String(parsed.seoTitle || parsed.title || "").slice(0, 60), playbook.titleTemplate, playbook.siteName),
+      seoDescription: String(parsed.seoDescription || parsed.excerpt || "").slice(0, 160),
+      seoKeywords: mergeGlobalKeywords(String(parsed.seoKeywords || ""), keywords, true),
+      cover,
+    };
+  },
+
+  async generateFaqs(input: {
+    focus?: string;
+    mergeWithExisting?: boolean;
+    existingFaqs?: Array<{ q: string; a: string; published?: boolean }>;
+    limit?: number;
+  }) {
+    const { loadCmsContextForAi } = await import("./cmsContextService");
+    const { contextBlock, summary } = await loadCmsContextForAi();
+    const playbook = await getSeoPlaybook();
+    const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
+    const cap = Math.min(Math.max(Number(input.limit) || 12, 5), 20);
+    const keywords = playbook.targetRankKeywords || playbook.globalKeywords;
+    const existing = input.existingFaqs || [];
+    const merge = input.mergeWithExisting !== false;
+
+    const prompt = `
+You are an expert FAQ writer for "${playbook.siteName}", a Dutch lighting e-commerce store.
+
+${buildPlaybookPromptBlock(playbook)}
+${languageInstruction}
+
+Generate ${cap} FAQ question-answer pairs optimized for:
+- **SEO** — natural keywords: ${keywords}
+- **AEO** — direct, factual answers AI assistants (ChatGPT, Gemini, Google AI Overviews) can cite
+- **GEO** — helpful for Dutch/Belgian homeowners shopping for lighting online
+
+${input.focus?.trim() ? `Focus area: ${input.focus.trim()}` : "Cover shipping, returns, warranty, payments, products, and store policies based on the website context below."}
+
+${merge && existing.length ? `Keep these existing FAQs unchanged in your output (include them first):\n${existing.map((f) => `- Q: ${f.q}\n  A: ${f.a}`).join("\n")}\n\nAdd NEW FAQs that fill gaps — do not duplicate topics already covered.` : "Generate a fresh complete FAQ set."}
+
+--- FULL WEBSITE CMS CONTEXT ---
+${contextBlock}
+---
+
+Rules:
+- Answers: 2–4 sentences, plain text (no HTML)
+- Questions: natural language customers would ask
+- Accurate to the store context — do not invent policies not supported by context
+- Include at least 2 product/lighting-specific FAQs
+- Include at least 1 shipping/delivery FAQ for NL/BE
+
+Return ONLY valid JSON:
+{
+  "faqs": [
+    { "q": "question", "a": "answer", "published": true }
+  ]
+}`;
+
+    const responseText = await callGeminiWithFallback([{ text: prompt }], 0.4);
+    const parsed = extractJson(responseText);
+    let faqs = Array.isArray(parsed.faqs)
+      ? parsed.faqs.map((f: any) => ({
+          q: String(f.q || f.question || "").trim(),
+          a: String(f.a || f.answer || "").trim(),
+          published: f.published !== false,
+        }))
+      : [];
+
+    faqs = faqs.filter((f: { q: string; a: string }) => f.q && f.a).slice(0, cap + (merge ? existing.length : 0));
+
+    if (merge && existing.length) {
+      const existingQs = new Set(existing.map((f) => f.q.toLowerCase().trim()));
+      const newOnly = faqs.filter((f: { q: string }) => !existingQs.has(f.q.toLowerCase().trim()));
+      faqs = [...existing, ...newOnly].slice(0, cap + existing.length);
+    }
+
+    return { faqs, contextSummary: summary };
+  },
+
+  async generateBacklinkSuggestions(targetKeywords: string): Promise<string[]> {
+    const playbook = await getSeoPlaybook();
+    const prompt = `
+You are an SEO link-building strategist for "${playbook.siteName}" (Dutch lighting e-commerce).
+
+Target keywords to rank for: ${targetKeywords}
+
+Generate 8 realistic backlink outreach opportunities (NOT spam). Each line format:
+"[Site type] Site name — angle: one sentence pitch for guest post or partnership"
+
+Focus: Dutch/EU home & garden blogs, interior design magazines, sustainable living sites, local NL business directories.
+
+Return ONLY valid JSON: { "suggestions": ["line1", "line2", ...] }`;
+
+    const responseText = await callGeminiWithFallback([{ text: prompt }], 0.4);
+    const parsed = extractJson(responseText);
+    return Array.isArray(parsed.suggestions) ? parsed.suggestions.slice(0, 10).map(String) : [];
   },
 
   async analyzeReturn(input: {

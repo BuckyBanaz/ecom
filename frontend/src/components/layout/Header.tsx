@@ -16,7 +16,6 @@ import { useCmsData } from "@/hooks/useCmsData";
 import { useCmsLabel } from "@/hooks/useCmsLabel";
 import { DefaultAnnouncementBar } from "./TopBar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { LanguageSwitcher } from "./LanguageSwitcher";
 import { labelT } from "@/utils/i18nLabel";
 import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
 

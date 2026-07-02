@@ -34,11 +34,33 @@ try {
 async function startServer() {
   await loadPersistedSettings();
 
+  try {
+    const { recoverSeoJobOnBoot } = await import("./services/seoJobQueueService");
+    await recoverSeoJobOnBoot();
+  } catch (err: any) {
+    console.warn("SEO job recovery skipped:", err?.message || err);
+  }
+
   const server = app.listen(env.PORT, () => {
     const bootMessage = `Server booted on port ${env.PORT} in ${env.NODE_ENV} mode`;
     addLog({ level: "info", type: "system", message: bootMessage });
     console.log(`🚀 ${bootMessage}`);
   });
+
+  // Hourly SEO autopilot check (weekly blog + auto optimize when enabled)
+  if (env.NODE_ENV !== "test") {
+    setInterval(async () => {
+      try {
+        const { getSeoAutopilotConfig } = await import("./services/seoAutopilotService");
+        const { enqueueAutopilotRun } = await import("./services/seoJobQueueService");
+        const cfg = await getSeoAutopilotConfig();
+        if (!cfg.enabled) return;
+        await enqueueAutopilotRun(false);
+      } catch (err: any) {
+        console.warn("SEO autopilot tick skipped:", err?.message || err);
+      }
+    }, 60 * 60 * 1000);
+  }
 
   process.on("unhandledRejection", (reason: Error) => {
     console.error("🚨 UNHANDLED REJECTION! Shutting down gracefully...");

@@ -85,7 +85,8 @@ Base: `/admin`
 | `/admin/cms/:kind` | `CMSLegal` | Privacy, Terms, etc. |
 | `/admin/cms/pages` | `CMSPages` | Custom CMS pages |
 | `/admin/cms/blogs` | `CMSBlogs` | Blog CMS |
-| `/admin/cms/seo` | `CMSSeo` | SEO, sitemap, robots.txt |
+| `/admin/cms/seo` | `CMSSeo` | SEO & AI Expert — audit, playbook, optimize, bulk, autopilot, sitemap, robots.txt |
+| `/admin/ai-seo` | redirect | → `/admin/cms/seo` |
 | `/admin/cms/email-templates` | `AdminEmailTemplates` | Email templates |
 | `/admin/storage` | `MediaLibrary` | File/media library |
 | `/admin/users` | `AdminUsers` | Customer users |

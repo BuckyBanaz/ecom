@@ -1,33 +1,90 @@
-import { useState, useRef, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
-import { Plus, Pencil, Trash2, Upload } from "lucide-react";
+import { SeoJobBanner } from "@/components/admin/seo/SeoJobBanner";
+import { Plus, Pencil, Trash2, Upload, Sparkles, Loader2, Tag, TrendingDown, Gift } from "lucide-react";
 import { toast } from "sonner";
 import { initialBlogs, Blog } from "@/data/blogs";
 import { blogRepository } from "@/client/apiClient";
 import { normalizeUploadedUrl } from "@/utils/image";
+import apiClient from "@/client/apiClient";
+import { ENDPOINTS } from "@/utils/endpoints";
+import { useSeoJobStatus } from "@/hooks/useSeoJobStatus";
+
+type TopicSuggestion = {
+  id: string;
+  type: string;
+  label: string;
+  topic: string;
+};
+
+const TOPIC_ICONS: Record<string, typeof Gift> = {
+  offer: Gift,
+  price_drop: TrendingDown,
+  new_product: Sparkles,
+  new_arrival: Sparkles,
+  best_seller: Tag,
+};
+
+type GeneratedBlog = {
+  title?: string;
+  slug?: string;
+  excerpt?: string;
+  body?: string;
+  cover?: string | null;
+  author?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
+};
 
 const CMSBlogs = () => {
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [edit, setEdit] = useState<Blog | null>(null);
-  const [form, setForm] = useState<Omit<Blog, "id" | "date">>({ title: "", slug: "", excerpt: "", body: "", cover: null, author: "", published: true });
+  const [form, setForm] = useState<Omit<Blog, "id" | "date">>({
+    title: "", slug: "", excerpt: "", body: "", cover: null, author: "", published: true,
+    seoTitle: "", seoDescription: "", seoKeywords: "",
+  });
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [selectedSuggestionId, setSelectedSuggestionId] = useState<string | undefined>();
+  const [aiStarting, setAiStarting] = useState(false);
+  const [aiMode, setAiMode] = useState<"draft" | "publish" | null>(null);
+  const [suggestions, setSuggestions] = useState<TopicSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true);
 
-  const fetchBlogs = async () => {
+  const applyGenerated = useCallback((g: GeneratedBlog, asDraft = true) => {
+    if (!g?.title) return;
+    setForm({
+      title: g.title || "",
+      slug: g.slug || "",
+      excerpt: g.excerpt || "",
+      body: g.body || "",
+      cover: g.cover ? normalizeUploadedUrl(g.cover) : null,
+      author: g.author || "Schip & Ster",
+      published: !asDraft,
+      seoTitle: g.seoTitle || "",
+      seoDescription: g.seoDescription || "",
+      seoKeywords: g.seoKeywords || "",
+    });
+    setEdit(null);
+    setIsEditorOpen(true);
+  }, []);
+
+  const fetchBlogs = useCallback(async () => {
     try {
       const res = await blogRepository.getAll();
       if (res.success && res.blogs) {
         setBlogs(res.blogs);
       }
-    } catch (e) {
-      // Fallback
+    } catch {
       const saved = localStorage.getItem("blogs_data");
       if (saved) {
         try { setBlogs(JSON.parse(saved)); } catch { setBlogs(initialBlogs); }
@@ -36,14 +93,103 @@ const CMSBlogs = () => {
         localStorage.setItem("blogs_data", JSON.stringify(initialBlogs));
       }
     }
+  }, []);
+
+  const refreshJobRef = useRef<(() => void) | null>(null);
+
+  const handleJobComplete = useCallback(async () => {
+    const res = await apiClient.get<{
+      job: {
+        status?: string;
+        type?: string;
+        summary?: string;
+        error?: string;
+        publishIntent?: boolean;
+        result?: { blog?: { published?: boolean; generated?: GeneratedBlog } };
+      };
+    }>(ENDPOINTS.AI_SEO_JOB);
+    const job = res.job;
+    if (job?.status === "completed" && job.type === "blog_generate") {
+      const didPublish = job.publishIntent === true || job.result?.blog?.published === true;
+      if (didPublish) {
+        toast.success(job.summary || "AI blog published live");
+        setIsEditorOpen(false);
+        fetchBlogs();
+        await apiClient.post(ENDPOINTS.AI_SEO_JOB_DISMISS);
+        refreshJobRef.current?.();
+      } else if (job.result?.blog?.generated) {
+        applyGenerated(job.result.blog.generated, true);
+        toast.success("AI draft ready — review and click Create to publish");
+      }
+    } else if (job?.status === "failed" && job.type === "blog_generate") {
+      toast.error(job.error || "Blog generation failed");
+    }
+    setAiMode(null);
+  }, [applyGenerated, fetchBlogs]);
+
+  const { job, isActive, refresh: refreshJob } = useSeoJobStatus(handleJobComplete);
+  refreshJobRef.current = refreshJob;
+
+  const fetchSuggestions = async () => {
+    setLoadingSuggestions(true);
+    try {
+      const res = await apiClient.get<{ suggestions: TopicSuggestion[] }>(ENDPOINTS.AI_BLOG_SUGGESTIONS);
+      setSuggestions(res.suggestions || []);
+    } catch {
+      /* optional */
+    } finally {
+      setLoadingSuggestions(false);
+    }
   };
 
   useEffect(() => {
     fetchBlogs();
-  }, []);
+    fetchSuggestions();
+  }, [fetchBlogs]);
 
-  const openNew = () => { setEdit(null); setForm({ title: "", slug: "", excerpt: "", body: "", cover: null, author: "", published: true }); setIsEditorOpen(true); };
-  const openEdit = (b: Blog) => { setEdit(b); setForm({ title: b.title, slug: b.slug, excerpt: b.excerpt, body: b.body, cover: b.cover, author: b.author, published: b.published }); setIsEditorOpen(true); };
+  // Resume draft editor after page refresh (never for publish jobs)
+  useEffect(() => {
+    if (
+      job?.status === "completed" &&
+      job.type === "blog_generate" &&
+      job.publishIntent !== true &&
+      job.result?.blog?.generated &&
+      job.result?.blog?.published !== true
+    ) {
+      applyGenerated(job.result.blog.generated, true);
+    }
+  }, [job?.id, job?.status, job?.publishIntent]);
+
+  const generateWithAi = async (publish = false) => {
+    setAiMode(publish ? "publish" : "draft");
+    setAiStarting(true);
+    try {
+      const res = await apiClient.post<{ message?: string; alreadyRunning?: boolean; job?: { publishIntent?: boolean } }>(ENDPOINTS.AI_BLOG_GENERATE, {
+        topic: aiTopic || undefined,
+        publish,
+        suggestionId: selectedSuggestionId,
+      });
+      if (res.alreadyRunning) {
+        toast.info(res.message || "A blog job is already running");
+      } else {
+        toast.success(res.message || (publish ? "Publishing when ready…" : "Draft queued…"));
+      }
+      refreshJob();
+    } catch (err: any) {
+      toast.error(err?.message || "AI blog generation failed");
+      setAiMode(null);
+    } finally {
+      setAiStarting(false);
+    }
+  };
+
+  const pickSuggestion = (s: TopicSuggestion) => {
+    setSelectedSuggestionId(s.id);
+    setAiTopic(s.topic);
+  };
+
+  const openNew = () => { setEdit(null); setForm({ title: "", slug: "", excerpt: "", body: "", cover: null, author: "", published: true, seoTitle: "", seoDescription: "", seoKeywords: "" }); setIsEditorOpen(true); };
+  const openEdit = (b: Blog) => { setEdit(b); setForm({ title: b.title, slug: b.slug, excerpt: b.excerpt, body: b.body, cover: b.cover, author: b.author, published: b.published, seoTitle: b.seoTitle || "", seoDescription: b.seoDescription || "", seoKeywords: b.seoKeywords || "" }); setIsEditorOpen(true); };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,8 +204,7 @@ const CMSBlogs = () => {
       }
       fetchBlogs();
       setIsEditorOpen(false);
-    } catch (err) {
-      // Local Storage Fallback
+    } catch {
       let updated: Blog[] = [];
       if (edit) {
         updated = blogs.map((b) => (b.id === edit.id ? { ...b, ...form, date: today } : b));
@@ -80,7 +225,7 @@ const CMSBlogs = () => {
         await blogRepository.delete(id);
         toast.success("Blog deleted successfully");
         fetchBlogs();
-      } catch (err) {
+      } catch {
         const updated = blogs.filter((b) => b.id !== id);
         setBlogs(updated);
         localStorage.setItem("blogs_data", JSON.stringify(updated));
@@ -89,15 +234,66 @@ const CMSBlogs = () => {
     }
   };
 
+  const aiBusy = aiStarting || isActive;
+  const draftBusy = aiBusy && (aiMode === "draft" || (isActive && job?.publishIntent !== true));
+  const publishBusy = aiBusy && (aiMode === "publish" || (isActive && job?.publishIntent === true));
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <SeoJobBanner job={job} onDismiss={refreshJob} />
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Blogs</h1>
-          <p className="text-muted-foreground">Write and manage blog articles</p>
+          <p className="text-muted-foreground">AI writes SEO posts from live offers, new products &amp; price drops</p>
         </div>
-        <Button onClick={openNew} className="gap-2"><Plus className="h-4 w-4" /> New Post</Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="flex gap-2">
+            <Input placeholder="Custom topic (optional)" value={aiTopic} onChange={(e) => { setAiTopic(e.target.value); setSelectedSuggestionId(undefined); }} className="min-w-[200px]" />
+            <Button variant="secondary" onClick={() => generateWithAi(false)} disabled={aiBusy} className="gap-2 shrink-0">
+              {draftBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              AI Draft
+            </Button>
+            <Button onClick={() => generateWithAi(true)} disabled={aiBusy} className="gap-2 shrink-0">
+              {publishBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              AI Publish
+            </Button>
+          </div>
+          <Button onClick={openNew} variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Manual post</Button>
+        </div>
       </div>
+
+      <div className="rounded-xl border bg-card p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Suggested topics from your store</p>
+          <Button variant="ghost" size="sm" onClick={fetchSuggestions} disabled={loadingSuggestions}>Refresh</Button>
+        </div>
+        {loadingSuggestions ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading offers &amp; products…</div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((s) => {
+              const Icon = TOPIC_ICONS[s.type] || Tag;
+              const active = selectedSuggestionId === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => pickSuggestion(s)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${active ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                >
+                  <Icon className="h-3 w-3 shrink-0" />
+                  {s.label}
+                  {s.type === "offer" && <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">Offer</Badge>}
+                  {s.type === "price_drop" && <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">Sale</Badge>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">Pick a topic or leave blank — AI auto-picks the best offer, price drop, or new product. Cover image is generated with Gemini.</p>
+      </div>
+
       {isEditorOpen && (
         <div className="rounded-xl border bg-card p-6">
           <div className="flex items-center justify-between">
@@ -130,6 +326,12 @@ const CMSBlogs = () => {
             </div>
             <div><Label>Author</Label><Input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} className="mt-1" /></div>
             <div><Label>Excerpt</Label><Textarea value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} className="mt-1" rows={2} /></div>
+            <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
+              <p className="text-sm font-semibold">SEO (search &amp; AI engines)</p>
+              <div><Label>SEO title</Label><Input value={form.seoTitle || ""} onChange={(e) => setForm({ ...form, seoTitle: e.target.value })} className="mt-1" maxLength={60} placeholder="Max 60 characters" /></div>
+              <div><Label>SEO description</Label><Textarea value={form.seoDescription || ""} onChange={(e) => setForm({ ...form, seoDescription: e.target.value })} className="mt-1" rows={2} maxLength={160} placeholder="Max 160 characters" /></div>
+              <div><Label>SEO keywords</Label><Input value={form.seoKeywords || ""} onChange={(e) => setForm({ ...form, seoKeywords: e.target.value })} className="mt-1" placeholder="lighting, pendant, LED" /></div>
+            </div>
             <div>
               <Label>Body</Label>
               <div className="mt-1">

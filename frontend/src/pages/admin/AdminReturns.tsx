@@ -37,7 +37,7 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import { returnsRepository, ordersRepository } from "@/client/apiClient";
 import { resolveImgUrl } from "@/utils/image";
 import { getApiV1Url } from "@/utils/endpoints";
-import { toast } from "sonner";
+import { validateReturnShipmentWeight } from "@/utils/returnValidation";
 
 type ReturnRecord = {
   id: string;
@@ -203,12 +203,17 @@ export default function AdminReturns() {
       toast.error(t("admin_returns.toast_select_carrier"));
       return;
     }
+    const weightError = validateReturnShipmentWeight(returnWeight);
+    if (weightError) {
+      toast.error(t(weightError));
+      return;
+    }
     try {
       setActionLoading(true);
       await returnsRepository.createReturnShipment(
         selected.id,
         parseInt(selectedMethodId, 10),
-        parseFloat(returnWeight) || 1,
+        parseFloat(returnWeight),
       );
       toast.success(t("admin_returns.toast_label_created"));
       setSelected(null);

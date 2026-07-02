@@ -66,26 +66,115 @@ export function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** Per-page meta tags (title, OG, canonical) — used on product, category, blog, FAQ pages. */
+/** Central SEO playbook — loaded once from API, applied on every page. */
+export type SeoPlaybookConfig = {
+  siteName: string;
+  titleTemplate: string;
+  globalKeywords: string;
+  descriptionCta: string;
+  mergeGlobalKeywords: boolean;
+};
+
+let cachedPlaybook: SeoPlaybookConfig | null = null;
+
+export function setSeoPlaybookCache(playbook: SeoPlaybookConfig) {
+  cachedPlaybook = playbook;
+}
+
+export function getSeoPlaybookCache(): SeoPlaybookConfig | null {
+  return cachedPlaybook;
+}
+
+function applyTitleTemplate(pageTitle: string, template: string, siteName: string): string {
+  const base = (pageTitle || siteName).trim();
+  if (!base) return siteName.slice(0, 60);
+  if (!template.includes("%s")) return base.slice(0, 60);
+  if (base.includes(siteName) && template.includes(siteName)) return base.slice(0, 60);
+  return template.replace("%s", base).slice(0, 60);
+}
+
+function mergeGlobalKeywords(pageKeywords: string | undefined, globalKeywords: string, merge: boolean): string {
+  if (!merge || !globalKeywords.trim()) return (pageKeywords || "").trim();
+  const parts = new Set<string>();
+  for (const chunk of `${pageKeywords || ""},${globalKeywords}`.split(",")) {
+    const k = chunk.trim();
+    if (k) parts.add(k);
+  }
+  return Array.from(parts).join(", ");
+}
+
+export function resolvePageSeo(
+  page: {
+    title?: string;
+    seoTitle?: string;
+    description?: string;
+    seoDescription?: string;
+    keywords?: string;
+    seoKeywords?: string;
+  },
+  playbook?: SeoPlaybookConfig | null,
+): { title: string; description: string; keywords: string } {
+  const pb = playbook || cachedPlaybook;
+  if (!pb) {
+    return {
+      title: page.seoTitle || page.title || "",
+      description: page.seoDescription || page.description || "",
+      keywords: page.seoKeywords || page.keywords || "",
+    };
+  }
+
+  const rawTitle = (page.seoTitle || page.title || pb.siteName).trim();
+  const title = applyTitleTemplate(rawTitle, pb.titleTemplate, pb.siteName);
+
+  let description = (page.seoDescription || page.description || "").trim();
+  if (description && pb.descriptionCta && !description.includes(pb.descriptionCta.slice(0, 20))) {
+    const combined = `${description} ${pb.descriptionCta}`.trim();
+    description = combined.length <= 160 ? combined : description.slice(0, 160);
+  } else if (!description && pb.descriptionCta) {
+    description = pb.descriptionCta.slice(0, 160);
+  }
+
+  const keywords = mergeGlobalKeywords(
+    page.seoKeywords || page.keywords,
+    pb.globalKeywords,
+    pb.mergeGlobalKeywords,
+  );
+
+  return { title, description, keywords };
+}
+
+/** Per-page meta tags (title, OG, canonical) — uses global playbook when loaded. */
 export function applyPageMeta(opts: {
   title?: string;
+  seoTitle?: string;
   description?: string;
+  seoDescription?: string;
   keywords?: string;
+  seoKeywords?: string;
   canonical?: string;
   ogType?: string;
   ogImage?: string;
   ogTitle?: string;
   ogDescription?: string;
+  skipPlaybook?: boolean;
 }) {
-  if (opts.title) document.title = opts.title;
-  if (opts.description !== undefined) upsertMeta("name", "description", opts.description);
-  if (opts.keywords !== undefined) upsertMeta("name", "keywords", opts.keywords);
+  const resolved = opts.skipPlaybook
+    ? {
+        title: opts.seoTitle || opts.title || "",
+        description: opts.seoDescription || opts.description || "",
+        keywords: opts.seoKeywords || opts.keywords || "",
+      }
+    : resolvePageSeo(opts);
+
+  if (resolved.title) document.title = resolved.title;
+  if (resolved.description !== undefined) upsertMeta("name", "description", resolved.description);
+  if (resolved.keywords !== undefined) upsertMeta("name", "keywords", resolved.keywords);
   if (opts.canonical) {
     upsertLink("canonical", opts.canonical);
     upsertMeta("property", "og:url", opts.canonical);
   }
-  const ogTitle = opts.ogTitle || opts.title;
-  const ogDesc = opts.ogDescription || opts.description;
+  const ogTitle = opts.ogTitle || resolved.title;
+  const ogDesc = opts.ogDescription || resolved.description;
   if (ogTitle) upsertMeta("property", "og:title", ogTitle);
   if (ogDesc) upsertMeta("property", "og:description", ogDesc);
   if (opts.ogType) upsertMeta("property", "og:type", opts.ogType);

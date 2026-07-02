@@ -60,9 +60,11 @@ const BlogDetail = () => {
     const canonical = `${window.location.origin}/blogs/${blog.slug}`;
 
     applyPageMeta({
-      title,
-      description,
-      keywords: blog.seoKeywords || "",
+      seoTitle: blog.seoTitle,
+      title: blog.title,
+      seoDescription: blog.seoDescription,
+      description: blog.excerpt,
+      seoKeywords: blog.seoKeywords,
       canonical,
       ogType: "article",
       ogImage: blog.cover,

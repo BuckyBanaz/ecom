@@ -80,6 +80,9 @@ model Category {
   parent             Category?           @relation("CategoryParent", fields: [parentId], references: [id])
   children           Category[]          @relation("CategoryParent")
   products           Product[]
+  seoTitle           String?             @map("seo_title")
+  seoDescription     String?             @map("seo_description")
+  seoKeywords        String?             @map("seo_keywords")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
 
@@ -273,16 +276,19 @@ model Wishlist {
 
 // 7.5. Blogs Model
 model Blog {
-  id        String   @id @default(uuid())
-  title     String
-  slug      String   @unique
-  excerpt   String   @default("")
-  body      String   @default("")
-  cover     String?
-  author    String   @default("")
-  published Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  title          String
+  slug           String   @unique
+  excerpt        String   @default("")
+  body           String   @default("")
+  cover          String?
+  author         String   @default("")
+  published      Boolean  @default(true)
+  seoTitle       String?  @map("seo_title")
+  seoDescription String?  @map("seo_description")
+  seoKeywords    String?  @map("seo_keywords")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("blogs")
 }

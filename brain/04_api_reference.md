@@ -120,7 +120,9 @@
 
 **Return-related order statuses:** `return_requested` → `returned` (with `paymentStatus: refunded`)
 
-**Return window:** 30 days from `orders.deliveredAt` (enforced on `POST /returns`)
+**Return window:** 30 days from `orders.deliveredAt` (enforced on `POST /returns` — frontend pre-check + backend `assertReturnEligible()`)
+
+**Validation (frontend + backend):** reason (enum), 1–5 photos (JPEG/PNG/WebP/GIF), note ≤2000 chars, delivered + no active return + in window; return label weight 0.01–30 kg. Utils: `backend/src/utils/returnValidation.ts`, `frontend/src/utils/returnValidation.ts`
 
 ---
 
@@ -211,6 +213,16 @@ Uploaded files served at: `/uploads/<filename>`
 | POST | `/ai/products/quick-add` | AI product quick-add (multipart: image + hint) |
 | POST | `/ai/products/bulk-quick-add` | Bulk quick-add (up to `AI_BULK_LIMIT` rows) |
 | PATCH | `/ai/cms/generate` | AI CMS Coder — generate/edit page HTML + SEO |
+| GET | `/ai/seo/audit` | Site-wide SEO audit |
+| GET/PUT | `/ai/seo/playbook` | SEO playbook + target keywords |
+| POST | `/ai/seo/optimize` | AI optimize single entity |
+| POST | `/ai/seo/bulk-optimize` | Bulk SEO optimize (queued) |
+| GET | `/ai/seo/job` | Background SEO job status |
+| GET/PUT | `/ai/seo/autopilot` | Autopilot config |
+| POST | `/ai/seo/autopilot/run` | Run autopilot now |
+| GET | `/ai/blogs/suggestions` | Blog topic suggestions |
+| POST | `/ai/blogs/generate` | AI blog writer (queued) |
+| POST | `/ai/faqs/generate` | AI FAQ writer (queued) |
 
 ---
 
@@ -228,7 +240,7 @@ Uploaded files served at: `/uploads/<filename>`
 | GET | `/returns/:id/label` | Admin | Download return label PDF |
 | PATCH | `/returns/:id/approve` | Admin | Approve return — **no Stripe refund**; order → `return_requested` |
 | PATCH | `/returns/:id/reject` | Admin | Reject (requires `adminNote` in body) |
-| POST | `/returns/:id/return-shipment` | Admin | Create Sendcloud return label; status → `awaiting_return` |
+| POST | `/returns/:id/return-shipment` | Admin | Create Sendcloud return label (optimistic lock + transactional save); status → `awaiting_return` |
 | PATCH | `/returns/:id/receive` | Admin | Mark received + process Stripe refund |
 | PATCH | `/returns/:id/refund` | Admin | Manual Stripe refund (approved / awaiting_return / return_received) |
 
@@ -240,6 +252,7 @@ Terminal: `rejected`, `cancelled` — customer may submit a **new** request afte
 - Service: `backend/src/services/returnRefundService.ts` → `processReturnRefund()`
 - Auto-trigger: Sendcloud webhook on return parcel (`ORD-xxx-RET`) status **11** (delivered to warehouse)
 - Idempotent: reuses existing Stripe refund if PI already refunded
+- Concurrent-safe: row lock (`FOR UPDATE`) + `refund_processing` before Stripe; 409 on duplicate
 - Blocks refund if order has no `stripePaymentId`
 
 ### Sendcloud webhook — `/api/v1/webhooks/sendcloud`

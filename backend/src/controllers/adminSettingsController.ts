@@ -454,22 +454,30 @@ export const getSeoConfig = async (
   }
 };
 
+import { getSeoPlaybook } from "../services/seoPlaybookService";
+
 export const getPublicSeoConfig = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
+    const playbook = await getSeoPlaybook();
     const config = {
-      siteName: process.env.SEO_SITE_NAME || "Schip & Ster",
-      titleTemplate: process.env.SEO_TITLE_TEMPLATE || "%s | Schip & Ster",
+      siteName: playbook.siteName,
+      titleTemplate: playbook.titleTemplate,
       defaultTitle: process.env.SEO_DEFAULT_TITLE || "Schip & Ster — Your Store",
       defaultDescription: process.env.SEO_DEFAULT_DESCRIPTION || "Discover thousands of products at the best prices.",
-      defaultKeywords: process.env.SEO_DEFAULT_KEYWORDS || "ecommerce, shop, online",
+      defaultKeywords: playbook.globalKeywords,
+      globalKeywords: playbook.globalKeywords,
+      descriptionCta: playbook.descriptionCta,
+      mergeGlobalKeywords: playbook.mergeGlobalKeywords,
+      brandVoice: playbook.brandVoice,
+      geoFocus: playbook.geoFocus,
       canonical: process.env.SEO_CANONICAL_URL || "https://schipenster.com",
       twitterHandle: process.env.SEO_TWITTER_HANDLE || "@schipster",
       ogImage: process.env.SEO_OG_IMAGE || "https://schipenster.com/og-image.png",
-      indexable: process.env.SEO_INDEXABLE !== "false", // default true
+      indexable: process.env.SEO_INDEXABLE !== "false",
       ga4: process.env.ANALYTICS_GA4 || "",
       gtm: process.env.ANALYTICS_GTM || "",
       metaPixel: process.env.ANALYTICS_META_PIXEL || "",
@@ -636,7 +644,7 @@ export const generateSitemap = async (
     // Brands
     brands.forEach(b => addUrl(`/brand/${b.id}`, undefined, "weekly", "0.8"));
     // Blogs
-    blogs.forEach(b => addUrl(`/blog/${b.slug}`, b.updatedAt, "monthly", "0.7"));
+    blogs.forEach(b => addUrl(`/blogs/${b.slug}`, b.updatedAt, "monthly", "0.7"));
     // Dynamic CMS Pages
     cmsPages.forEach(p => addUrl(`/${p.slug}`, p.updatedAt, "monthly", "0.6"));
 

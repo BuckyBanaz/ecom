@@ -6,6 +6,7 @@ import {
   buildStructuredData,
   DEFAULT_OG_IMAGE,
   SITE_ORIGIN,
+  setSeoPlaybookCache,
   upsertJsonLd,
   upsertLink,
   upsertMeta,
@@ -21,14 +22,37 @@ const cleanId = (raw: unknown): string => {
 const isValidMetaPixel = (id: string) => /^\d{8,20}$/.test(id);
 const isValidTikTokPixel = (id: string) => /^[A-Z0-9]{10,}$/i.test(id);
 
+const isValidGtm = (id: string) => /^GTM-[A-Z0-9]+$/i.test(id);
+
+const injectGtm = (gtmId: string) => {
+  if (!gtmId || !isValidGtm(gtmId) || document.getElementById("gtm-script")) return;
+
+  const script = document.createElement("script");
+  script.id = "gtm-script";
+  script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${gtmId}');`;
+  document.head.appendChild(script);
+
+  const noscript = document.createElement("noscript");
+  noscript.id = "gtm-noscript";
+  noscript.innerHTML = `<iframe src="https://www.googletagmanager.com/ns.html?id=${gtmId}" height="0" width="0" style="display:none;visibility:hidden"></iframe>`;
+  document.body.prepend(noscript);
+};
+
 const injectTrackingScripts = (cfg: {
   ga4: string;
+  gtm: string;
   metaPixel: string;
   tiktokPixel: string;
 }) => {
-  const { ga4, metaPixel, tiktokPixel } = cfg;
+  const { ga4, gtm, metaPixel, tiktokPixel } = cfg;
 
-  if (ga4 && !document.getElementById("ga4-script")) {
+  if (gtm) {
+    injectGtm(gtm);
+  } else if (ga4 && !document.getElementById("ga4-script")) {
     const script1 = document.createElement("script");
     script1.id = "ga4-script";
     script1.async = true;
@@ -104,8 +128,17 @@ export const SEOInjector = () => {
         const canonical = absoluteUrl(cfg.canonical || SITE_ORIGIN);
         const ogImage = absoluteUrl(cfg.ogImage || DEFAULT_OG_IMAGE);
         const ga4 = cleanId(cfg.ga4);
+        const gtm = cleanId(cfg.gtm);
         const metaPixel = cleanId(cfg.metaPixel);
         const tiktokPixel = cleanId(cfg.tiktokPixel);
+
+        setSeoPlaybookCache({
+          siteName,
+          titleTemplate: cfg.titleTemplate || "%s | Schip & Ster",
+          globalKeywords: cfg.globalKeywords || cfg.defaultKeywords || "",
+          descriptionCta: cfg.descriptionCta || "",
+          mergeGlobalKeywords: cfg.mergeGlobalKeywords !== false,
+        });
 
         document.title = defaultTitle;
         upsertMeta("name", "description", defaultDescription);
@@ -141,7 +174,7 @@ export const SEOInjector = () => {
         upsertJsonLd("website-schema", structured.website);
         upsertJsonLd("navigation-schema", structured.navigation);
 
-        cancelTracking = deferTrackingScripts({ ga4, metaPixel, tiktokPixel });
+        cancelTracking = deferTrackingScripts({ ga4, gtm, metaPixel, tiktokPixel });
       } catch (err) {
         console.error("Failed to load SEO config", err);
       }

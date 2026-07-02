@@ -6,6 +6,10 @@ const MAX_DIMENSION = 1920;
 /** E-commerce product / AI gallery — keep files small for fast LCP. */
 const AI_MAX_DIMENSION = parseInt(process.env.AI_IMAGE_MAX_PX || "1200", 10);
 const AI_WEBP_QUALITY = parseInt(process.env.AI_IMAGE_QUALITY || "75", 10);
+/** Blog hero covers — 16:9, smaller files for listing grids. */
+const BLOG_COVER_MAX_W = parseInt(process.env.BLOG_COVER_MAX_W || "1200", 10);
+const BLOG_COVER_MAX_H = parseInt(process.env.BLOG_COVER_MAX_H || "675", 10);
+const BLOG_COVER_QUALITY = parseInt(process.env.BLOG_COVER_QUALITY || "72", 10);
 const MIN_SAVINGS_BYTES = 8 * 1024;
 const IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
 const SKIP_EXT = new Set([".gif", ".svg", ".ico"]);
@@ -129,6 +133,53 @@ export async function compressImageBuffer(input: Buffer): Promise<Buffer> {
   } catch {
     return pipeline.jpeg({ quality: AI_WEBP_QUALITY, mozjpeg: true }).toBuffer();
   }
+}
+
+/** Compress blog hero cover — 16:9 crop, aggressive WebP. */
+export async function compressBlogCoverBuffer(input: Buffer): Promise<Buffer> {
+  const pipeline = sharp(input)
+    .rotate()
+    .resize({
+      width: BLOG_COVER_MAX_W,
+      height: BLOG_COVER_MAX_H,
+      fit: "cover",
+      position: "centre",
+      withoutEnlargement: true,
+    });
+
+  try {
+    return await pipeline
+      .webp({ quality: BLOG_COVER_QUALITY, effort: 6, smartSubsample: true })
+      .toBuffer();
+  } catch {
+    return pipeline.jpeg({ quality: BLOG_COVER_QUALITY, mozjpeg: true }).toBuffer();
+  }
+}
+
+/** Write compressed blog cover WebP; returns URL path under /uploads/... */
+export async function saveCompressedBlogCoverToDir(
+  input: Buffer,
+  dir: string,
+  urlPrefix: string,
+  namePrefix: string,
+): Promise<SavedCompressedImage> {
+  const beforeBytes = input.length;
+  const compressed = await compressBlogCoverBuffer(input);
+  const filename = `${namePrefix}-${Date.now()}.webp`;
+  const fullPath = path.join(dir, filename);
+  await fs.writeFile(fullPath, compressed);
+
+  const savedPct = beforeBytes > 0 ? Math.round((1 - compressed.length / beforeBytes) * 100) : 0;
+  console.log(
+    `📦 Blog cover: ${Math.round(beforeBytes / 1024)}KB → ${Math.round(compressed.length / 1024)}KB (${savedPct}% smaller) → ${filename}`,
+  );
+
+  return {
+    filename,
+    publicPath: `${urlPrefix}/${filename}`,
+    beforeBytes,
+    afterBytes: compressed.length,
+  };
 }
 
 export type SavedCompressedImage = {

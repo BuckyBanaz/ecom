@@ -79,12 +79,15 @@
 - Sendcloud Integration (Live Labels & Shipping)
 - AI Product Quick Add (Gemini — image + hint → auto-fill product, lifestyle images, drafts)
 - AI CMS Coder (Gemini — generate/edit CMS page HTML, shortcodes & SEO from prompt)
-- Returns & refunds (refund after receive, Sendcloud return labels, AI triage) — see `docs/shipping-and-refund/`
+- Returns & refunds (refund after receive, Sendcloud return labels, AI triage, dual validation) — see `docs/shipping-and-refund/`
+- AI SEO Expert (v0.1) — unified `/admin/cms/seo`, audit, playbook, bulk optimize, autopilot, AI blog/FAQ writers, background job queue
 
 ### ⏳ Pending
 - Guest checkout & login
 - AI Shopping Assistant (storefront RAG chatbot)
-- Meta Pixel & TikTok analytics dashboard
+- Meta Pixel & TikTok live analytics dashboard
+- SEO v0.2+ (Search Console API, rank tracking, hreflang)
+- Deploy v0.1 + run production migrations
 
 ---
 

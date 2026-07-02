@@ -20,6 +20,12 @@ import { ReviewModal } from "@/components/shop/ReviewModal";
 import { ReturnRequestModal } from "@/components/shop/ReturnRequestModal";
 import { ReturnProcessInfo } from "@/components/shop/ReturnProcessInfo";
 import { SectionLoader } from "@/components/ui/PageLoader";
+import {
+  ACTIVE_RETURN_STATUSES,
+  getReturnEligibility,
+  getReturnWindowDeadline,
+  RETURN_WINDOW_DAYS,
+} from "@/utils/returnValidation";
 import { useFcmToken } from "@/hooks/useFcmToken";
 import { PhonePicker } from "@/components/ui/PhonePicker";
 import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
@@ -78,8 +84,6 @@ const getStepIndex = (status: string) => {
   if (s === "delivered") return 3;
   return 0;
 };
-
-const ACTIVE_RETURN_STATUSES = ["pending_review", "approved", "awaiting_return", "return_received"];
 
 const getStatusBadgeClass = (status: string): string => {
   const s = status?.toLowerCase();
@@ -356,10 +360,15 @@ function OrdersTab() {
       (r) => r.orderId === selectedOrder.id && r.status !== "cancelled",
     );
     const orderReturn =
-      returnsForOrder.find((r) => ACTIVE_RETURN_STATUSES.includes(r.status)) ||
+      returnsForOrder.find((r) => (ACTIVE_RETURN_STATUSES as readonly string[]).includes(r.status)) ||
       returnsForOrder.find((r) => ["refunded", "rejected"].includes(r.status));
-    const hasActiveReturn = returnsForOrder.some((r) => ACTIVE_RETURN_STATUSES.includes(r.status));
-    const canRequestReturn = selectedOrder.status === "delivered" && !hasActiveReturn;
+    const hasActiveReturn = returnsForOrder.some((r) =>
+      (ACTIVE_RETURN_STATUSES as readonly string[]).includes(r.status),
+    );
+    const returnEligibility = getReturnEligibility(selectedOrder, hasActiveReturn);
+    const returnWindowDeadline = getReturnWindowDeadline(selectedOrder);
+    const canRequestReturn = returnEligibility.allowed;
+    const returnWindowExpired = returnEligibility.reason === "window_expired";
     const canCancelReturn = orderReturn?.status === "pending_review";
     const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, houseNumber, landmark, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);
     
@@ -414,6 +423,15 @@ function OrdersTab() {
               )}
             </div>
           </div>
+
+          {returnWindowExpired && (
+            <p className="mb-4 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 border">
+              {t("returns.window_expired", {
+                days: RETURN_WINDOW_DAYS,
+                deadline: returnWindowDeadline.toLocaleDateString(),
+              })}
+            </p>
+          )}
 
           {orderReturn && (
             <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50/50 p-4 space-y-2">
@@ -732,6 +750,7 @@ function OrdersTab() {
           onOpenChange={setIsReturnModalOpen}
           orderId={selectedOrder.id}
           orderNumber={selectedOrder.orderNumber}
+          returnEligibility={returnEligibility}
           onSuccess={handleReturnSuccess}
         />
       </>

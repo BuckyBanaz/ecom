@@ -41,7 +41,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/cms/megamenu": "CMS — Mega Menu",
   "/admin/cms/relief": "CMS — Relief Page",
   "/admin/cms/blogs": "CMS — Blogs",
-  "/admin/cms/seo": "CMS — Site SEO & Analytics",
+  "/admin/cms/seo": "CMS — SEO & AI Expert",
   "/admin/cms/email-templates": "CMS — Email Templates",
 };
 

@@ -11,6 +11,7 @@ import { IconPicker } from "@/components/admin/IconPicker";
 import { Trash2, Plus, Loader2, Brain, ImageIcon } from "lucide-react";
 import { cmsFeaturesRepository, adminSettingsRepository, authRepository } from "@/client/apiClient";
 import { useAdmin } from "@/context/AdminContext";
+import { SeoAutopilotPanel } from "@/components/admin/seo/SeoAutopilotPanel";
 
 const AdminSettings = () => {
   const { t } = useTranslation();
@@ -469,7 +470,10 @@ const AdminSettings = () => {
               </>
             )}
             {canManageAi && (
-              <TabsTrigger value="ai" className="text-xs sm:text-sm">AI Brain</TabsTrigger>
+              <>
+                <TabsTrigger value="ai" className="text-xs sm:text-sm">AI Brain</TabsTrigger>
+                <TabsTrigger value="seo-autopilot" className="text-xs sm:text-sm">SEO Autopilot</TabsTrigger>
+              </>
             )}
           </TabsList>
         </div>
@@ -963,6 +967,12 @@ const AdminSettings = () => {
               <Button type="submit" className="rounded-full w-full sm:w-auto mt-4">Save AI Settings</Button>
             </form>
           )}
+        </TabsContent>
+
+        <TabsContent value="seo-autopilot">
+          <div className="mt-4 max-w-2xl">
+            <SeoAutopilotPanel compact />
+          </div>
         </TabsContent>
 
         <TabsContent value="payments">

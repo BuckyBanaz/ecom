@@ -1,20 +1,30 @@
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Plus, Save, Trash2, Sparkles, Loader2, Globe, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { getClientBaseUrl } from "@/utils/siteUrl";
-
 import { cmsFaqsRepository } from "@/client/apiClient";
-
-const FAQ_KEY = "faq_data";
+import apiClient from "@/client/apiClient";
+import { ENDPOINTS } from "@/utils/endpoints";
+import { SeoJobBanner } from "@/components/admin/seo/SeoJobBanner";
+import { useSeoJobStatus } from "@/hooks/useSeoJobStatus";
 
 type FaqItem = { q: string; a: string; published: boolean };
+
+type CmsContextSummary = {
+  pageCount: number;
+  categoryCount: number;
+  productCount: number;
+  blogCount: number;
+  existingFaqCount: number;
+  couponCount: number;
+};
 
 const defaultFaqs: FaqItem[] = [
   { q: "When will my order be delivered?", a: "Orders placed before 22:00 on weekdays are shipped the same day and delivered next day in NL/BE.", published: true },
@@ -24,52 +34,173 @@ const defaultFaqs: FaqItem[] = [
 
 const CMSFaqs = () => {
   const [faqs, setFaqs] = useState<FaqItem[]>(defaultFaqs);
+  const [cmsSummary, setCmsSummary] = useState<CmsContextSummary | null>(null);
+  const [aiFocus, setAiFocus] = useState("");
+  const [mergeExisting, setMergeExisting] = useState(true);
+  const [aiStarting, setAiStarting] = useState(false);
+  const [aiMode, setAiMode] = useState<"draft" | "save" | null>(null);
+  const faqsRef = useRef(faqs);
+  faqsRef.current = faqs;
+
+  const refreshJobRef = useRef<(() => void) | null>(null);
+
+  const handleJobComplete = useCallback(async () => {
+    const res = await apiClient.get<{
+      job: {
+        status?: string;
+        type?: string;
+        summary?: string;
+        error?: string;
+        publishIntent?: boolean;
+        result?: { faqs?: FaqItem[] };
+      };
+    }>(ENDPOINTS.AI_SEO_JOB);
+
+    const job = res.job;
+    if (job?.status === "completed" && job.type === "faq_generate" && job.result?.faqs?.length) {
+      if (job.publishIntent) {
+        setFaqs(job.result.faqs);
+        toast.success(job.summary || "FAQs saved");
+      } else {
+        setFaqs(job.result.faqs);
+        toast.success("AI FAQs ready — review and click Save changes");
+      }
+      await apiClient.post(ENDPOINTS.AI_SEO_JOB_DISMISS);
+      refreshJobRef.current?.();
+    } else if (job?.status === "failed" && job.type === "faq_generate") {
+      toast.error(job.error || "FAQ generation failed");
+    }
+    setAiMode(null);
+  }, []);
+
+  const { job, isActive, refresh: refreshJob } = useSeoJobStatus(handleJobComplete);
+  refreshJobRef.current = refreshJob;
 
   useEffect(() => {
     let active = true;
-    cmsFaqsRepository.get().then(res => {
-      if (active && res.success && res.data) {
-        setFaqs(res.data);
-      }
-    }).catch(err => {
-      console.error("Failed to load FAQs", err);
-      // Fallback to localStorage if API fails during transition
-      const saved = localStorage.getItem(FAQ_KEY);
+    cmsFaqsRepository.get().then((res) => {
+      if (active && res.success && res.data) setFaqs(res.data);
+    }).catch(() => {
+      const saved = localStorage.getItem("faq_data");
       if (saved && active) {
         try { setFaqs(JSON.parse(saved)); } catch { setFaqs(defaultFaqs); }
       }
     });
+    apiClient.get<{ summary: CmsContextSummary }>(ENDPOINTS.AI_CMS_CONTEXT)
+      .then((res) => { if (active) setCmsSummary(res.summary); })
+      .catch(() => undefined);
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (
+      job?.status === "completed" &&
+      job.type === "faq_generate" &&
+      job.result?.faqs?.length &&
+      job.publishIntent !== true
+    ) {
+      setFaqs(job.result.faqs);
+    }
+  }, [job?.id, job?.status]);
+
+  const generateFaqs = async (autoSave = false) => {
+    setAiMode(autoSave ? "save" : "draft");
+    setAiStarting(true);
+    try {
+      const res = await apiClient.post<{ message?: string; alreadyRunning?: boolean }>(ENDPOINTS.AI_FAQ_GENERATE, {
+        focus: aiFocus || undefined,
+        mergeWithExisting: mergeExisting,
+        existingFaqs: faqsRef.current,
+        limit: 12,
+        autoSave,
+      });
+      toast.success(res.message || (autoSave ? "Generating & saving…" : "FAQ draft queued"));
+      refreshJob();
+    } catch (err: any) {
+      toast.error(err?.message || "FAQ generation failed");
+      setAiMode(null);
+    } finally {
+      setAiStarting(false);
+    }
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const res = await cmsFaqsRepository.update(faqs);
-      if (res.success) {
-        toast.success("FAQs saved");
-      } else {
-        toast.error("Failed to save FAQs");
-      }
-    } catch (err) {
+      if (res.success) toast.success("FAQs saved");
+      else toast.error("Failed to save FAQs");
+    } catch {
       toast.error("Network error");
     }
   };
 
+  const aiBusy = aiStarting || isActive;
+  const draftBusy = aiBusy && (aiMode === "draft" || (isActive && job?.type === "faq_generate" && job?.publishIntent !== true));
+  const saveBusy = aiBusy && (aiMode === "save" || (isActive && job?.type === "faq_generate" && job?.publishIntent === true));
+
   return (
     <form onSubmit={save} className="space-y-6">
-      <div className="flex items-center justify-between">
+      <SeoJobBanner job={job} onDismiss={refreshJob} />
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold">FAQs</h1>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-muted-foreground">Manage the questions shown on the customer service page.</p>
-            <a href={`${getClientBaseUrl()}/faqs`} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md transition-colors border flex items-center gap-1">
-              Live URL: {getClientBaseUrl()}/faqs
+          <div className="flex flex-wrap items-center gap-3 mt-1">
+            <p className="text-muted-foreground">SEO, AEO &amp; GEO optimized FAQs from your full CMS.</p>
+            <a href={`${getClientBaseUrl()}/faqs`} target="_blank" rel="noreferrer" className="text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-primary px-2 py-1 rounded-md border">
+              Live: /faqs
             </a>
           </div>
         </div>
-        <Button type="submit" className="gap-2"><Save className="h-4 w-4" /> Save changes</Button>
+        <Button type="submit" className="gap-2 shrink-0"><Save className="h-4 w-4" /> Save changes</Button>
       </div>
+
+      <Alert>
+        <Globe className="h-4 w-4" />
+        <AlertDescription className="text-sm">
+          AI reads your <strong>dynamic CMS pages</strong>, categories, blogs, offers &amp; existing FAQs — same context as the Rich Text Editor AI.
+          {cmsSummary && (
+            <span className="block mt-1 text-xs text-muted-foreground">
+              Loaded: {cmsSummary.pageCount} pages · {cmsSummary.categoryCount} categories · {cmsSummary.blogCount} blogs · {cmsSummary.productCount} products · {cmsSummary.existingFaqCount} existing FAQs
+            </span>
+          )}
+        </AlertDescription>
+      </Alert>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> AI FAQ Writer</CardTitle>
+          <CardDescription>Generate answers Google &amp; AI assistants can cite (FAQ schema on /faqs)</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Focus (optional)</Label>
+            <Textarea
+              value={aiFocus}
+              onChange={(e) => setAiFocus(e.target.value)}
+              placeholder="e.g. shipping to Belgium, LED warranty, business orders, returns process…"
+              rows={2}
+              className="mt-1"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={mergeExisting} onCheckedChange={setMergeExisting} />
+            <Label>Keep existing FAQs and add new ones</Label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" disabled={aiBusy} onClick={() => generateFaqs(false)} className="gap-2">
+              {draftBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              AI Draft
+            </Button>
+            <Button type="button" disabled={aiBusy} onClick={() => generateFaqs(true)} className="gap-2">
+              {saveBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              AI Generate &amp; Save
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">Safe to refresh — job runs in background. Use AI Draft to review first, or Generate &amp; Save to apply directly.</p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>FAQ list</CardTitle></CardHeader>
@@ -90,7 +221,7 @@ const CMSFaqs = () => {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-destructive"
+                  className="text-destructive shrink-0"
                   onClick={() => setFaqs(faqs.filter((_, i) => i !== idx))}
                 >
                   <Trash2 className="h-4 w-4" />

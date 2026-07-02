@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
+import { refreshEnvFromProcess } from "../config/env";
 import { sanitizeRobotsTxt } from "../utils/robotsTxt";
 import { resetStripeClient } from "../utils/stripeClient";
 

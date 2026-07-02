@@ -148,7 +148,7 @@ pending_review → approved → awaiting_return → return_received → refunded
 
 | Who | Action |
 |-----|--------|
-| Customer | Delivered order → Request Return (photo + reason, 30 days from `deliveredAt`) |
+| Customer | Delivered order → Request Return (photo + reason, 30 days from `deliveredAt`; FE + BE validation) |
 | Admin | Approve (no refund) → Create return label → Awaiting Return |
 | Customer | Download label (JWT proxy) → drop at PostNL |
 | System / Admin | Webhook `-RET` delivered OR Mark received OR Manual refund → Stripe → `refunded` |
@@ -189,12 +189,16 @@ node -r dotenv/config scripts/test-return-flow-audit.js <order-uuid>
 ## ❓ Pending Work
 
 1. **Guest checkout** — see `brain/08_future_tasks.md` §1
-2. **AI Shopping Assistant** (storefront RAG chatbot) — see `brain/08_future_tasks.md` §3
-3. **Meta Pixel & TikTok analytics dashboard** — see `brain/08_future_tasks.md` §3
+2. **AI Shopping Assistant** (storefront RAG chatbot) — see `brain/08_future_tasks.md` §2
+3. **Meta Pixel & TikTok live analytics** — see `brain/08_future_tasks.md` §2
+4. **SEO v0.2+** — Search Console API, rank tracking, hreflang — see `brain/08_future_tasks.md` §3
+5. **Deploy v0.1** — commit, migrations on prod — see `brain/08_future_tasks.md` §4
 
 ## ✅ Recently Completed
 
 - **Sendcloud live labels** — carrier label generation, shipment creation, tracking webhooks, admin label download
 - **AI Product Quick Add** — image + hint → Gemini auto-fills product form, lifestyle images, drafts (`/admin/products/quick-add`)
 - **AI CMS Coder** — Rich Text Editor → generates HTML, shortcodes & SEO (`POST /api/v1/ai/cms/generate`)
-- **Returns & Refunds + AI Triage** — refund after receive; Sendcloud return labels; webhook auto-refund on `-RET`; admin manual refund; see `docs/shipping-and-refund/`
+- **Returns & Refunds + AI Triage** — refund after receive; Sendcloud return labels; webhook auto-refund on `-RET`; admin manual refund
+- **Returns polish** — 30-day UI pre-check, dual FE/BE validation, transactional return labels, refund DB lock
+- **AI SEO Expert (v0.1)** — unified `/admin/cms/seo`, job queue, autopilot, AI blog/FAQ writers — see `brain/08_future_tasks.md`

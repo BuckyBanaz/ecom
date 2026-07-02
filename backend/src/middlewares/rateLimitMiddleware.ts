@@ -9,6 +9,8 @@ const limitMessage = {
 };
 
 const createStore = (prefix: string) => {
+  // In-memory store in dev — Redis rate-limit store can hang requests on Windows/Docker
+  if (env.NODE_ENV === "development") return undefined;
   if (env.ENABLE_REDIS !== "true" || !redis) return undefined;
 
   return new RedisStore({

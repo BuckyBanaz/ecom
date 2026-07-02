@@ -10,31 +10,16 @@ import { notificationTriggerService } from "../services/notificationTriggerServi
 import { sendcloudApi } from "../services/sendcloud/api";
 import { getSendcloudAuthHeaders } from "../services/sendcloud/api";
 import { processReturnRefund } from "../services/returnRefundService";
+import {
+  assertReturnEligible,
+  assertReturnNote,
+  assertReturnPhotos,
+  assertReturnReason,
+  parseReturnShipmentWeight,
+} from "../utils/returnValidation";
 
-const RETURN_WINDOW_DAYS = 30;
 const ACTIVE_STATUSES = ["pending_review", "approved", "awaiting_return", "return_received"];
 const REFUND_ETA_DAYS = process.env.REFUND_ETA_DAYS || "5-7";
-
-const VALID_REASONS = [
-  "damaged",
-  "wrong_item",
-  "defective",
-  "not_as_described",
-  "changed_mind",
-  "other",
-] as const;
-
-function getReturnWindowStart(order: { deliveredAt: Date | null; updatedAt: Date; status: string; createdAt: Date }): Date {
-  if (order.deliveredAt) return order.deliveredAt;
-  if (order.status === "delivered") return order.updatedAt;
-  return order.createdAt;
-}
-
-function isWithinReturnWindow(order: { deliveredAt: Date | null; updatedAt: Date; status: string; createdAt: Date }): boolean {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - RETURN_WINDOW_DAYS);
-  return getReturnWindowStart(order) >= cutoff;
-}
 
 function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -74,30 +59,25 @@ export const createReturn = async (req: Request, res: Response, next: NextFuncti
     if (!orderId || !reason) {
       return next(new AppError("Order ID and return reason are required", 400));
     }
-    if (!VALID_REASONS.includes(reason)) {
-      return next(new AppError("Invalid return reason", 400));
-    }
+    assertReturnReason(reason);
+    const note = assertReturnNote(customerNote);
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, userId },
       include: { items: true, returnRequests: true },
     });
     if (!order) return next(new AppError("Order not found", 404));
-    if (order.status !== "delivered") {
-      return next(new AppError("Only delivered orders can be returned", 400));
-    }
-    if (!isWithinReturnWindow(order)) {
-      return next(new AppError(`Return window is ${RETURN_WINDOW_DAYS} days from delivery date`, 400));
-    }
-
-    const activeReturn = order.returnRequests.find((r) => ACTIVE_STATUSES.includes(r.status));
-    if (activeReturn) {
-      return next(new AppError("This order already has an active return request", 400));
+    try {
+      assertReturnEligible(order, order.returnRequests);
+    } catch (err) {
+      return next(err);
     }
 
     const files = (req.files as Express.Multer.File[]) || [];
-    if (files.length === 0) {
-      return next(new AppError("Please upload at least one photo of the product", 400));
+    try {
+      assertReturnPhotos(files);
+    } catch (err) {
+      return next(err);
     }
 
     const returnsDir = path.join(__dirname, "../../public/uploads/returns");
@@ -124,7 +104,7 @@ export const createReturn = async (req: Request, res: Response, next: NextFuncti
     try {
       aiResult = await aiService.analyzeReturn({
         reason,
-        customerNote: customerNote || "",
+        customerNote: note || "",
         orderItems: order.items.map((i) => ({
           productName: i.productName,
           productImage: i.productImage,
@@ -143,7 +123,7 @@ export const createReturn = async (req: Request, res: Response, next: NextFuncti
           orderId: order.id,
           userId,
           reason,
-          customerNote: customerNote?.trim() || null,
+          customerNote: note,
           photos: photoUrls,
           status: "pending_review",
           aiFraudScore: aiResult.aiFraudScore,
@@ -434,24 +414,46 @@ export const rejectReturn = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const createReturnShipment = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
-    const { shippingMethodId, weight } = req.body;
+  const { id } = req.params;
+  const { shippingMethodId, weight } = req.body;
+  let retOrderNumber: string | null = null;
 
+  try {
     if (!shippingMethodId) {
       return next(new AppError("Shipping method is required", 400));
     }
 
-    const existing = await prisma.returnRequest.findUnique({
-      where: { id },
-      include: { order: true },
+    const existing = await prisma.$transaction(async (tx) => {
+      const claim = await tx.returnRequest.updateMany({
+        where: {
+          id,
+          status: "approved",
+          returnParcelId: null,
+          returnLabelUrl: null,
+        },
+        data: { returnShipmentStatus: "creating_label" },
+      });
+
+      if (claim.count === 0) {
+        const current = await tx.returnRequest.findUnique({ where: { id } });
+        if (!current) throw new AppError("Return request not found", 404);
+        if (current.returnParcelId || current.returnLabelUrl) {
+          throw new AppError("Return label has already been created for this request", 409);
+        }
+        throw new AppError("Return label can only be created for approved returns", 400);
+      }
+
+      return tx.returnRequest.findUnique({
+        where: { id },
+        include: { order: true },
+      });
     });
+
     if (!existing) return next(new AppError("Return request not found", 404));
-    if (existing.status !== "approved") {
-      return next(new AppError("Return label can only be created for approved returns", 400));
-    }
 
     const order = existing.order;
+    retOrderNumber = `${order.orderNumber}-RET`;
+
     let addressData: any = {};
     try {
       addressData = JSON.parse(order.shippingAddress);
@@ -468,6 +470,13 @@ export const createReturnShipment = async (req: Request, res: Response, next: Ne
     const rawCountry = (addressData.country || "NL").toLowerCase().trim();
     const country = countryMap[rawCountry] || (addressData.country || "NL").toUpperCase().substring(0, 2);
 
+    let parcelWeight: number;
+    try {
+      parcelWeight = parseReturnShipmentWeight(weight);
+    } catch (err) {
+      return next(err);
+    }
+
     const parcelData: any = {
       name: fullName,
       company_name: "",
@@ -480,11 +489,21 @@ export const createReturnShipment = async (req: Request, res: Response, next: Ne
       email: addressData.email || order.customerEmail,
       request_label: true,
       shipment: { id: shippingMethodId },
-      weight: parseFloat(String(weight || "1")).toFixed(3),
-      order_number: `${order.orderNumber}-RET`,
+      weight: parcelWeight.toFixed(3),
+      order_number: retOrderNumber,
     };
 
-    const result = await sendcloudApi.createParcel(parcelData);
+    let result;
+    try {
+      result = await sendcloudApi.createParcel(parcelData);
+    } catch (sendcloudError) {
+      await prisma.returnRequest.updateMany({
+        where: { id, status: "approved", returnShipmentStatus: "creating_label" },
+        data: { returnShipmentStatus: null },
+      });
+      throw sendcloudError;
+    }
+
     const trackingNumber = result.parcel?.tracking_number || "";
     const trackingUrl = result.parcel?.tracking_url || "";
     let labelUrl = "";
@@ -494,19 +513,46 @@ export const createReturnShipment = async (req: Request, res: Response, next: Ne
     const carrier = result.parcel?.carrier || "Sendcloud";
     const parcelId = result.parcel?.id != null ? String(result.parcel.id) : null;
 
-    const updated = await prisma.returnRequest.update({
-      where: { id },
-      data: {
-        returnCarrier: carrier,
-        returnTrackingNumber: trackingNumber,
-        returnTrackingUrl: trackingUrl,
-        returnLabelUrl: labelUrl,
-        returnShipMethodId: String(shippingMethodId),
-        returnParcelId: parcelId,
-        status: "awaiting_return",
-      },
-      include: returnInclude,
-    });
+    let updated;
+    try {
+      updated = await prisma.$transaction(async (tx) => {
+        const saved = await tx.returnRequest.updateMany({
+          where: {
+            id,
+            status: "approved",
+            returnShipmentStatus: "creating_label",
+          },
+          data: {
+            returnCarrier: carrier,
+            returnTrackingNumber: trackingNumber,
+            returnTrackingUrl: trackingUrl,
+            returnLabelUrl: labelUrl,
+            returnShipMethodId: String(shippingMethodId),
+            returnParcelId: parcelId,
+            returnShipmentStatus: "Label created — awaiting drop-off",
+            status: "awaiting_return",
+          },
+        });
+
+        if (saved.count === 0) {
+          throw new AppError("Return label state changed while saving — please refresh", 409);
+        }
+
+        return tx.returnRequest.findUnique({
+          where: { id },
+          include: returnInclude,
+        });
+      });
+    } catch (dbError) {
+      if (retOrderNumber) {
+        sendcloudApi.cancelParcelByOrderNumber(retOrderNumber).catch((cancelErr) => {
+          console.error("[CreateReturnShipment] Failed to cancel orphan Sendcloud parcel:", cancelErr);
+        });
+      }
+      throw dbError;
+    }
+
+    if (!updated) return next(new AppError("Return request not found after label creation", 500));
 
     notificationTriggerService.triggerReturnNotification(updated.id, "return_label_created").catch((err) => {
       console.error("[CreateReturnShipment] Notification failed:", err.message);

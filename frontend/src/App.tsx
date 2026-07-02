@@ -115,6 +115,7 @@ function App() {
                             <Route path="analytics" element={<AdminAnalytics />} />
                             <Route path="products" element={<AdminProducts />} />
                             <Route path="products/quick-add" element={<AdminProductQuickAdd />} />
+                            <Route path="ai-seo" element={<Navigate to="/admin/cms/seo" replace />} />
                             <Route path="product-drafts" element={<AdminProductDrafts />} />
                             <Route path="products/drafts/:draftId" element={<AdminProductForm />} />
                             <Route path="products/new" element={<AdminProductForm />} />
