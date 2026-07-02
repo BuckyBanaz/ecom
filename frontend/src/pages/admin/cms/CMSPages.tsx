@@ -153,26 +153,34 @@ const CMSPages = () => {
       return;
     }
     
-    const pageData = {
-      title,
-      slug,
-      body: normalizeCmsHtmlForStorage(body),
-      published,
-      seoTitle,
-      seoDesc,
-      seoKeywords,
-      seoImage,
-    };
-
     try {
       if (editId) {
-        // Find existing page slug for updating
         const existingPage = pages.find(p => p.id === editId);
         if (existingPage) {
+          const pageData = {
+            title,
+            newSlug: slug,
+            body: normalizeCmsHtmlForStorage(body),
+            published,
+            seoTitle,
+            seoDesc,
+            seoKeywords,
+            seoImage,
+          };
           await cmsPagesRepository.update(existingPage.slug, pageData);
           toast.success("Page successfully updated");
         }
       } else {
+        const pageData = {
+          title,
+          slug,
+          body: normalizeCmsHtmlForStorage(body),
+          published,
+          seoTitle,
+          seoDesc,
+          seoKeywords,
+          seoImage,
+        };
         await cmsPagesRepository.create(pageData);
         toast.success("New page published");
       }

@@ -204,18 +204,26 @@ export const createPage = async (req: Request, res: Response) => {
 export const updatePage = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
-    const { title, body, published, seoTitle, seoDesc, seoKeywords, seoImage, newSlug } = req.body;
+    const { title, body, published, seoTitle, seoDesc, seoKeywords, seoImage, newSlug, slug: bodySlug } = req.body;
+    const nextSlug = (newSlug || bodySlug || slug)?.trim();
 
     const page = await prisma.cmsPage.findUnique({ where: { slug } });
     if (!page) {
       return res.status(404).json({ success: false, message: "Page not found" });
     }
 
+    if (nextSlug !== slug) {
+      const conflict = await prisma.cmsPage.findUnique({ where: { slug: nextSlug } });
+      if (conflict) {
+        return res.status(400).json({ success: false, message: "A page with this slug already exists" });
+      }
+    }
+
     const updatedPage = await prisma.cmsPage.update({
       where: { slug },
       data: {
         title,
-        slug: newSlug || slug,
+        slug: nextSlug,
         body,
         published,
         seoTitle,
