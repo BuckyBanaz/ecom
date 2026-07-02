@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
+import { HomepageSkeleton } from "@/components/ui/SkeletonLoader";
 import { cmsHomepageRepository, productRepository, categoryRepository, blogRepository } from "@/client/apiClient";
-import { readCachedHomepage, writeCachedHomepage, detectShortcodeBlocks } from "@/utils/cmsLocalStorage";
+import { readCachedHomepage, writeCachedHomepage, detectShortcodeBlocks, extractHomepageLcpImage } from "@/utils/cmsLocalStorage";
+import { resolveImgUrl } from "@/utils/image";
 
 const applyHomepageSeo = (data: { seoTitle?: string; seoDesc?: string; seoKeywords?: string }) => {
   if (data.seoTitle) document.title = data.seoTitle;
@@ -37,6 +39,29 @@ const Index = () => {
   useEffect(() => {
     if (cached) applyHomepageSeo(cached);
   }, []);
+
+  // Preload the LCP hero image as soon as homepage content is known.
+  useEffect(() => {
+    const lcpUrl = extractHomepageLcpImage(content);
+    if (!lcpUrl) return;
+
+    const href = resolveImgUrl(lcpUrl);
+    if (!href) return;
+
+    const existing = document.querySelector(`link[rel="preload"][as="image"][href="${href}"]`);
+    if (existing) return;
+
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "image";
+    link.href = href;
+    link.setAttribute("fetchpriority", "high");
+    document.head.appendChild(link);
+
+    return () => {
+      link.remove();
+    };
+  }, [content]);
 
   useEffect(() => {
     let active = true;
@@ -112,11 +137,7 @@ const Index = () => {
   }, [content]);
 
   if (!content) {
-    return (
-      <div className="container-page py-20 text-center text-muted-foreground animate-pulse">
-        Loading…
-      </div>
-    );
+    return <HomepageSkeleton />;
   }
 
   return (

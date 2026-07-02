@@ -127,7 +127,7 @@ async function test() {
   console.log("SENDCLOUD_ENABLED:", process.env.SENDCLOUD_ENABLED);
   console.log("SENDCLOUD_PUBLIC_KEY:", PUBLIC_KEY ? `${PUBLIC_KEY.slice(0, 8)}...` : "❌ MISSING");
   console.log("SENDCLOUD_SECRET_KEY:", SECRET_KEY ? `${SECRET_KEY.slice(0, 8)}...` : "❌ MISSING");
-  console.log("SENDCLOUD_WEBHOOK_SECRET:", process.env.SENDCLOUD_WEBHOOK_SECRET ? "✅ Set" : "⚠️  EMPTY — set from Sendcloud → Settings → Integrations → Webhooks");
+  console.log("SENDCLOUD_WEBHOOK_SECRET:", process.env.SENDCLOUD_WEBHOOK_SECRET ? "✅ Set (optional override)" : "— not set (uses SENDCLOUD_SECRET_KEY for webhook HMAC)");
   console.log("====================================\n");
 }
 

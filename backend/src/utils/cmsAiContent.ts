@@ -108,3 +108,51 @@ Return ONLY valid JSON (no markdown fences):
   "seoKeywords": "comma, separated, keywords"
 }`;
 }
+
+const CMS_EXISTING_CONTENT_MAX_CHARS = 60_000;
+
+export function buildCmsPageUserMessage(
+  prompt: string,
+  existingContent?: string,
+  existingSeo?: { seoTitle?: string; seoDesc?: string; seoKeywords?: string },
+): string {
+  const trimmedPrompt = prompt.trim();
+  const existing = existingContent?.trim();
+
+  if (!existing) {
+    return `---\nUSER REQUEST:\n${trimmedPrompt}`;
+  }
+
+  let content = existing;
+  let truncatedNote = "";
+  if (content.length > CMS_EXISTING_CONTENT_MAX_CHARS) {
+    content = content.slice(0, CMS_EXISTING_CONTENT_MAX_CHARS);
+    truncatedNote =
+      "\n(Note: existing content was truncated for length — preserve structure and apply changes to the visible portion.)";
+  }
+
+  const seoLines: string[] = [];
+  if (existingSeo?.seoTitle?.trim()) seoLines.push(`seoTitle: ${existingSeo.seoTitle.trim()}`);
+  if (existingSeo?.seoDesc?.trim()) seoLines.push(`seoDesc: ${existingSeo.seoDesc.trim()}`);
+  if (existingSeo?.seoKeywords?.trim()) seoLines.push(`seoKeywords: ${existingSeo.seoKeywords.trim()}`);
+  const seoBlock = seoLines.length
+    ? `\n--- EXISTING SEO (keep unchanged unless the user request affects SEO) ---\n${seoLines.join("\n")}\n`
+    : "";
+
+  return `--- EDIT MODE ---
+You are updating an EXISTING CMS page. Apply the user's requested changes to the content below — do NOT generate a unrelated page from scratch.
+
+Edit-mode rules:
+1. Start from EXISTING PAGE CONTENT below. Keep every section, shortcode, and HTML block the user did not ask to change.
+2. Apply ONLY what USER REQUEST describes (change copy, add/remove/reorder blocks, tweak SEO, etc.).
+3. Return the COMPLETE updated page in htmlContent (full page, not a diff or partial snippet).
+4. Preserve shortcode syntax, inline styles, and /uploads/ paths unless the user asks to replace them.
+5. Do not remove unrelated sections. Do not rewrite the whole page unless the user explicitly asks for a full rewrite.
+${truncatedNote}
+
+--- EXISTING PAGE CONTENT ---
+${content}
+${seoBlock}
+--- USER REQUEST ---
+${trimmedPrompt}`;
+}

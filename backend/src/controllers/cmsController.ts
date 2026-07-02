@@ -256,7 +256,17 @@ export const getHeaderFooter = async (req: Request, res: Response) => {
     });
 
     if (!config) {
-      return res.status(404).json({ success: false, message: "Header & Footer configuration not found" });
+      return res.status(200).json({
+        success: true,
+        data: {
+          topLeft: [],
+          topRight: [],
+          footerAbout: { brandText: "", description: "" },
+          footerSocial: [],
+          footerColumns: [],
+          footerBottom: [],
+        },
+      });
     }
 
     res.status(200).json({
@@ -346,7 +356,7 @@ export const getTestimonials = async (req: Request, res: Response) => {
     });
 
     if (!config) {
-      return res.status(404).json({ success: false, message: "Testimonials not found" });
+      return res.status(200).json({ success: true, data: [] });
     }
 
     res.status(200).json({

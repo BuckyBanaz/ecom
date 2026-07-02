@@ -195,7 +195,87 @@ const DEFAULT_TEMPLATES = [
 <p>Best regards,<br/>The Schip & Ster Team</p>`,
     smsBody: `Hi {{name}}, your order #{{order_id}} has been delivered! Share your review: {{review_url}}`,
     whatsappBody: `Good news, {{name}}! 📦\n\nYour order *#{{order_id}}* has been delivered.\n\nWe hope you love it! Please leave a review here: {{review_url}}`,
-  }
+  },
+  {
+    name: "return_submitted",
+    subject: "Return Request Received — Order #{{order_id}}",
+    body: `<h2>Hello {{name}},</h2>
+<p>We have received your return request for order <strong>#{{order_id}}</strong>.</p>
+<p><strong>Reason:</strong> {{return_reason}}</p>
+<p>Our team will review your request and photos within 1–2 business days. You will receive an email once a decision is made.</p>
+<br/>
+<a href="{{return_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">View Return Status</a>
+<br/><br/>
+<p>Thank you for your patience.</p>`,
+    smsBody: `Hi {{name}}, we received your return request for order #{{order_id}}. Track status: {{return_url}}`,
+    whatsappBody: `Hello {{name}},\n\nWe received your return request for order *#{{order_id}}*.\n\nReason: {{return_reason}}\n\nTrack status: {{return_url}}`,
+  },
+  {
+    name: "return_approved",
+    subject: "Return Approved — Order #{{order_id}}",
+    body: `<h2>Hello {{name}},</h2>
+<p>Good news! Your return request for order <strong>#{{order_id}}</strong> has been <strong style="color:#16a34a;">approved</strong>.</p>
+<p><strong>Refund amount (after we receive your return):</strong> &euro;{{refund_amount}}</p>
+<p>We will email you a return shipping label shortly. Please pack the item securely and drop it off at your nearest {{carrier}} service point once the label is ready.</p>
+{{admin_note_block}}
+<br/>
+<a href="{{return_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">View Return Status</a>
+<br/><br/>
+<p>Thank you for shopping with Schip & Ster.</p>`,
+    smsBody: `Hi {{name}}, return approved for order #{{order_id}}. We will send your return label soon. {{return_url}}`,
+    whatsappBody: `Hello {{name}},\n\nYour return for order *#{{order_id}}* is *approved*.\n\nRefund of €{{refund_amount}} will be processed after we receive your item.\n\nTrack: {{return_url}}`,
+  },
+  {
+    name: "return_rejected",
+    subject: "Return Request Update — Order #{{order_id}}",
+    body: `<h2>Hello {{name}},</h2>
+<p>We have reviewed your return request for order <strong>#{{order_id}}</strong>.</p>
+<p>Unfortunately, we are unable to approve this return at this time.</p>
+<p><strong>Reason:</strong> {{rejection_reason}}</p>
+<p>If you believe this is an error, please contact our support team.</p>
+<br/>
+<a href="{{return_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">View Order</a>`,
+    smsBody: `Hi {{name}}, your return for order #{{order_id}} was not approved. Reason: {{rejection_reason}}`,
+    whatsappBody: `Hello {{name}},\n\nYour return for order *#{{order_id}}* was not approved.\n\nReason: {{rejection_reason}}`,
+  },
+  {
+    name: "return_label_created",
+    subject: "Return Shipping Label Ready — Order #{{order_id}}",
+    body: `<h2>Hello {{name}},</h2>
+<p>Your return shipping label for order <strong>#{{order_id}}</strong> is ready.</p>
+<p><strong>Carrier:</strong> {{carrier}}</p>
+<p><strong>Tracking number:</strong> {{tracking_number}}</p>
+<p><strong>How to return (Netherlands):</strong></p>
+<ol>
+<li>Download and print the return label from your account</li>
+<li>Pack the item securely in the original box if possible</li>
+<li>Attach the label to the outside of the package</li>
+<li>Drop off at your nearest PostNL or {{carrier}} service point</li>
+</ol>
+<p>There is no home pickup — you drop off the parcel yourself at a service point.</p>
+<br/>
+<a href="{{label_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px; margin-right:8px;">Download Label</a>
+<a href="{{tracking_url}}" style="display: inline-block; padding: 10px 20px; background-color: #f4f4f5; color: #000; text-decoration: none; border-radius: 5px;">Track Return</a>
+<br/><br/>
+<p><strong>Refund:</strong> €{{refund_amount}} will be processed within {{refund_eta_days}} business days after we receive and inspect your return.</p>`,
+    smsBody: `Hi {{name}}, return label ready for order #{{order_id}} via {{carrier}}. Drop at service point. Track: {{tracking_url}}`,
+    whatsappBody: `Hello {{name}},\n\nReturn label ready for order *#{{order_id}}*.\n\n1. Print label\n2. Pack item\n3. Drop at {{carrier}} service point\n\nTrack: {{tracking_url}}`,
+  },
+  {
+    name: "return_refund_processed",
+    subject: "Refund Processed — Order #{{order_id}}",
+    body: `<h2>Hello {{name}},</h2>
+<p>We have received your return for order <strong>#{{order_id}}</strong> and processed your refund.</p>
+<p><strong>Refund amount:</strong> &euro;{{refund_amount}}</p>
+<p><strong>Estimated arrival:</strong> {{refund_eta_days}} business days (by {{refund_expected_date}})</p>
+<p>Refunds are sent to your original payment method. Bank processing times may vary.</p>
+<br/>
+<a href="{{return_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">View Order</a>
+<br/><br/>
+<p>Thank you for shopping with Schip & Ster.</p>`,
+    smsBody: `Hi {{name}}, refund of €{{refund_amount}} processed for order #{{order_id}}. ETA {{refund_eta_days}} business days.`,
+    whatsappBody: `Hello {{name}},\n\nRefund of €{{refund_amount}} for order *#{{order_id}}* has been processed.\n\nExpected within {{refund_eta_days}} business days.`,
+  },
 ];
 
 export const seedTemplates = async () => {

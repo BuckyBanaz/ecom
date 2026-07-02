@@ -153,11 +153,20 @@ All colors MUST be HSL.
     width: 100%;
   }
 
+  @font-face {
+    font-family: "Inter Fallback";
+    src: local("Arial");
+    size-adjust: 107%;
+    ascent-override: 90%;
+    descent-override: 22%;
+    line-gap-override: 0%;
+  }
+
   body {
     @apply bg-background text-foreground;
     overflow-x: clip;
     width: 100%;
-    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-family: 'Inter', 'Inter Fallback', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
@@ -295,6 +304,13 @@ All colors MUST be HSL.
   gap: 2rem;
   align-items: center;
   margin: 1.5rem 0;
+}
+
+.cms-html-root .cms-auto-grid-media,
+.cms-rich-html .cms-auto-grid-media {
+  aspect-ratio: 4 / 3;
+  min-height: 220px;
+  overflow: hidden;
 }
 
 .cms-html-root .cms-auto-grid-media img,

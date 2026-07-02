@@ -3,7 +3,11 @@ import fs from "fs";
 import path from "path";
 import { getAiImageCount } from "../utils/aiLimits";
 import { buildAiLanguageInstruction, getAiOutputLanguage } from "../utils/aiLanguage";
-import { buildCmsPageSystemPrompt, sanitizeCmsAiHtml } from "../utils/cmsAiContent";
+import {
+  buildCmsPageSystemPrompt,
+  buildCmsPageUserMessage,
+  sanitizeCmsAiHtml,
+} from "../utils/cmsAiContent";
 import { saveCompressedImageToDir } from "../utils/imageOptimize";
 
 // ---------------------------------------------------------------------------
@@ -395,13 +399,24 @@ export const aiService = {
     }
   },
 
-  async generateCmsPage(prompt: string) {
+  async generateCmsPage(
+    prompt: string,
+    options?: {
+      existingContent?: string;
+      existingSeo?: { seoTitle?: string; seoDesc?: string; seoKeywords?: string };
+    },
+  ) {
     const cmsExtra = process.env.AI_CMS_SYSTEM_PROMPT || process.env.AI_SYSTEM_PROMPT || "";
     const systemPrompt = buildCmsPageSystemPrompt(cmsExtra, getAiOutputLanguage());
+    const userMessage = buildCmsPageUserMessage(
+      prompt,
+      options?.existingContent,
+      options?.existingSeo,
+    );
 
     try {
       const responseText = await callGeminiWithFallback(
-        [{ text: `${systemPrompt}\n\n---\nUSER REQUEST:\n${prompt.trim()}` }],
+        [{ text: `${systemPrompt}\n\n${userMessage}` }],
         0.35
       );
       const parsed = extractJson(responseText);
@@ -426,5 +441,69 @@ export const aiService = {
       console.error("CMS Page AI Generation failed:", error);
       throw new Error("Failed to generate CMS page: " + error.message);
     }
-  }
+  },
+
+  async analyzeReturn(input: {
+    reason: string;
+    customerNote: string;
+    orderItems: Array<{ productName: string; productImage: string; quantity: number }>;
+    customerPhotos: Array<{ buffer: Buffer; mimeType: string }>;
+  }) {
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) {
+      return {
+        aiFraudScore: null,
+        aiSummary: "AI not configured — manual review required.",
+        aiRecommendation: "needs_review",
+      };
+    }
+
+    const itemsSummary = input.orderItems
+      .map((i) => `- ${i.productName} (qty ${i.quantity})`)
+      .join("\n");
+
+    const promptText = `You are a returns fraud-detection assistant for an e-commerce lighting store.
+
+Customer return reason: ${input.reason}
+Customer note: ${input.customerNote || "(none)"}
+
+Ordered items:
+${itemsSummary}
+
+Analyze the attached customer photos against the return claim.
+Return ONLY valid JSON:
+{
+  "fraudScore": number 0-100 (0=legitimate, 100=highly suspicious),
+  "summary": "2-3 sentence assessment for admin",
+  "recommendation": "auto_approve" | "needs_review" | "likely_fraud",
+  "productMatch": boolean,
+  "damageVisible": boolean
+}`;
+
+    const parts: any[] = [];
+    for (const photo of input.customerPhotos.slice(0, 3)) {
+      parts.push({
+        inlineData: {
+          data: photo.buffer.toString("base64"),
+          mimeType: photo.mimeType || "image/jpeg",
+        },
+      });
+    }
+    parts.push({ text: promptText });
+
+    const responseText = await callGeminiWithFallback(parts, 0.2);
+    const parsed = extractJson(responseText);
+
+    const fraudScore = Math.min(100, Math.max(0, Number(parsed.fraudScore) || 50));
+    let recommendation = String(parsed.recommendation || "needs_review");
+    if (!["auto_approve", "needs_review", "likely_fraud"].includes(recommendation)) {
+      recommendation = fraudScore >= 70 ? "likely_fraud" : fraudScore <= 25 ? "auto_approve" : "needs_review";
+    }
+
+    return {
+      aiFraudScore: fraudScore,
+      aiSummary: String(parsed.summary || "AI analysis completed."),
+      aiRecommendation: recommendation,
+    };
+  },
 };

@@ -124,11 +124,60 @@ For non-filterable details (Warranty, Dimensions):
 
 ## Shipping Flow (Sendcloud)
 
-> ⚠️ PARTIALLY IMPLEMENTED — live labels blocked pending Sendcloud billing activation
+> ✅ LIVE — carrier labels, shipment creation, tracking webhooks, and admin label download are fully operational.
 
 - Routes: `/api/v1/shipping`
-- Admin panel: `/admin/orders/labels`
-- Integration docs: `docs/sendcloud_integration.md`
+- Admin panel: `/admin/orders/labels`, `/admin/orders/ready-to-ship`
+- Webhook handler: `backend/src/services/sendcloud/webhook.ts`
+- **Webhook registration:** `POST /api/v1/webhooks/sendcloud` in `app.ts` with `express.raw()` (same pattern as Stripe webhook) — HMAC verifies raw body, not re-serialized JSON
+- Outbound: auto-updates `orders.status`, `deliveredAt`
+- Return parcels (`order_number` ending `-RET`): updates `returnShipmentStatus`; status **11** triggers `processReturnRefund()`
+
+---
+
+## Returns & Refunds Flow
+
+> ✅ LIVE — refund after receive; AI triage on submit; Sendcloud return labels
+
+1. Customer: `POST /api/v1/returns` (delivered order, photo, within 30 days of `deliveredAt`)
+2. Gemini AI triage → `aiFraudScore`, `aiSummary`, `aiRecommendation` on `ReturnRequest`
+3. Admin approves → status `approved`, order → `return_requested` — **no Stripe refund yet**
+4. Admin creates return label → Sendcloud parcel `ORD-xxx-RET` → status `awaiting_return`
+5. Customer downloads label via JWT proxy: `GET /returns/my/:id/label`
+6. Refund triggers (any one):
+   - Sendcloud webhook: return parcel delivered (status 11)
+   - Admin: `PATCH /returns/:id/receive`
+   - Admin: `PATCH /returns/:id/refund` (manual override)
+7. `processReturnRefund()` in `returnRefundService.ts` → Stripe refund → status `refunded`, order → `returned`
+
+**Key files:**
+- Controller: `backend/src/controllers/returnController.ts`
+- Refund service: `backend/src/services/returnRefundService.ts`
+- Customer UI: `frontend/src/pages/shop/UserDashboard.tsx` + `ReturnProcessInfo.tsx`
+- Admin UI: `AdminReturns.tsx`, `AdminPaymentRefunds.tsx`
+- Docs: `docs/shipping-and-refund/`
+
+---
+
+## AI Features (Google Gemini)
+
+> ✅ LIVE — admin-only, requires `GOOGLE_API_KEY` + `AI_ENABLED=true`
+
+### AI Product Quick Add
+1. Admin uploads product photo + optional hint/price/brand at `/admin/products/quick-add`
+2. `POST /api/v1/ai/products/quick-add` → Gemini extracts product JSON (name, desc, attributes, SEO, category)
+3. Gemini image-to-image generates lifestyle gallery photos from the reference image
+4. Result saved as `ProductDraft` → review/publish via `/admin/products/drafts` → `AdminProductForm`
+
+### AI CMS Coder
+1. Admin opens Rich Text Editor (CMS pages, legal pages) → clicks Sparkles (AI) button
+2. Enters prompt (create new page or edit existing content)
+3. `POST /api/v1/ai/cms/generate` → returns HTML fragment (shortcodes + inline styles) + SEO meta
+4. Content sanitized by `cmsAiContent.ts` before insertion into editor
+
+- Config: Admin → Settings → AI (`AI_MODEL`, `AI_IMAGE_COUNT`, `AI_BULK_LIMIT`, `AI_OUTPUT_LANGUAGE`)
+- Service: `backend/src/services/aiService.ts`
+- Routes: `backend/src/routes/aiRoutes.ts`
 
 ---
 

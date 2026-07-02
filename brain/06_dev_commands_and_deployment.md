@@ -214,6 +214,7 @@ See `docs/vps_operations_runbook.md`.
 
 | File | Topic |
 |------|-------|
+| `shipping-and-refund/` | **Returns & refunds** — user/admin flows, customer UI, policies |
 | `api_endpoints.md` | Full API reference |
 | `system_architecture.md` | Scale architecture plan |
 | `vps_operations_runbook.md` | VPS commands (disk, docker, logs) |
@@ -222,5 +223,5 @@ See `docs/vps_operations_runbook.md`.
 | `sendcloud_integration.md` | Sendcloud setup guide |
 | `easy_product_adding_plan.md` | AI-assisted product adding |
 | `ai_powered_ecommerce_plan.md` | AI feature roadmap |
-| `returns-system-architecture.md` | Returns & refunds |
+| `returns-system-architecture.md` | Returns & refunds (legacy — prefer `shipping-and-refund/`) |
 | `analytics_tracking_setup.md` | GA4, Meta, TikTok tracking |

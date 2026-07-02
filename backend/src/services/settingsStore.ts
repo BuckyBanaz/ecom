@@ -198,9 +198,13 @@ function seoFilePath(name: string): string {
 }
 
 const DEFAULT_ROBOTS = `User-agent: *
+Disallow: /admin
+Disallow: /checkout
+Disallow: /dashboard
+Disallow: /account
+Disallow: /cart
 Allow: /
 
-# AI / answer-engine crawlers (AEO)
 User-agent: GPTBot
 Allow: /
 
@@ -220,7 +224,6 @@ User-agent: ClaudeBot
 Allow: /
 
 Sitemap: https://schipenster.com/sitemap.xml
-# LLM context file: https://schipenster.com/llms.txt
 `;
 
 export async function getRobotsTxtContent(): Promise<string> {

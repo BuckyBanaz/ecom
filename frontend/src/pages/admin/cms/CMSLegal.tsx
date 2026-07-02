@@ -194,6 +194,7 @@ const CMSLegal = () => {
                   value={body}
                   onChange={setBody}
                   placeholder={`Start writing your ${preset.title.toLowerCase()}...`}
+                  seoMeta={{ seoTitle, seoDesc, seoKeywords }}
                   onSeoGenerated={(seo) => {
                     if (seo.seoTitle) setSeoTitle(seo.seoTitle);
                     if (seo.seoDesc) setSeoDesc(seo.seoDesc);

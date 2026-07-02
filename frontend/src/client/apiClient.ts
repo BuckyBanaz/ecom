@@ -36,10 +36,16 @@ async function fetchAndParse<T>(url: string, config: RequestInit): Promise<T> {
     if (response.status === 403 && message.toLowerCase().includes("suspended")) {
       window.dispatchEvent(new CustomEvent("admin-suspended", { detail: message }));
     }
-    if (response.status === 401 && (isAdminPanel || localStorage.getItem("admin_token"))) {
-      localStorage.removeItem("admin_token");
-      localStorage.removeItem("admin_user");
-      window.dispatchEvent(new CustomEvent("admin-session-expired"));
+    if (response.status === 401) {
+      if (isAdminPanel || localStorage.getItem("admin_token")) {
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_user");
+        window.dispatchEvent(new CustomEvent("admin-session-expired"));
+      }
+      if (!isAdminPanel && localStorage.getItem("customer_token")) {
+        localStorage.removeItem("customer_token");
+        window.dispatchEvent(new CustomEvent("customer-auth-changed"));
+      }
     }
     throw new Error(message);
   }
@@ -969,10 +975,77 @@ export const logsRepository = {
 
 // 29. AI Repository
 export const aiRepository = {
-  generateCmsPage: async (prompt: string) => {
+  generateCmsPage: async (payload: {
+    prompt: string;
+    existingContent?: string;
+    existingSeo?: { seoTitle?: string; seoDesc?: string; seoKeywords?: string };
+  }) => {
     return request<any>(ENDPOINTS.AI_CMS_GENERATE, {
       method: "POST",
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify(payload),
+    });
+  },
+};
+
+// 21. Returns Repository
+export const returnsRepository = {
+  create: async (formData: FormData) => {
+    const token = localStorage.getItem("customer_token");
+    const response = await fetch(ENDPOINTS.RETURNS, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.message || body.error || `HTTP Error ${response.status}`);
+    }
+    return body;
+  },
+  getMy: async () => {
+    return request<any>(`${ENDPOINTS.RETURNS}/my`, { method: "GET" });
+  },
+  cancel: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}`, { method: "DELETE" });
+  },
+  getAll: async (status?: string) => {
+    const url = status && status !== "all"
+      ? `${ENDPOINTS.RETURNS}?status=${encodeURIComponent(status)}`
+      : ENDPOINTS.RETURNS;
+    return request<any>(url, { method: "GET" });
+  },
+  listRefunds: async () => {
+    return request<any>(`${ENDPOINTS.RETURNS}/refunds`, { method: "GET" });
+  },
+  getById: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}`, { method: "GET" });
+  },
+  approve: async (id: string, adminNote?: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/approve`, {
+      method: "PATCH",
+      body: JSON.stringify({ adminNote }),
+    });
+  },
+  reject: async (id: string, adminNote: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/reject`, {
+      method: "PATCH",
+      body: JSON.stringify({ adminNote }),
+    });
+  },
+  createReturnShipment: async (id: string, shippingMethodId: number, weight?: number) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/return-shipment`, {
+      method: "POST",
+      body: JSON.stringify({ shippingMethodId, weight: weight || 1 }),
+    });
+  },
+  markReceived: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/receive`, {
+      method: "PATCH",
+    });
+  },
+  processRefund: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/refund`, {
+      method: "PATCH",
     });
   },
 };

@@ -92,6 +92,7 @@ const BASE_URL_PERMISSIONS: Record<string, string> = {
   "/api/v1/series": "brands",
   "/api/v1/attributes": "attributes",
   "/api/v1/orders": "orders",
+  "/api/v1/returns": "orders",
   "/api/v1/coupons": "offers",
   "/api/v1/charges": "charges",
   "/api/v1/reviews": "reviews",

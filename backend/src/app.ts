@@ -60,7 +60,9 @@ app.use(globalLimiter);
 
 // Webhook needs raw body to verify Stripe signature
 import { handleStripeWebhook } from "./controllers/paymentController";
+import { sendcloudWebhookHandler } from "./services/sendcloud/webhook";
 app.post("/api/v1/payments/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+app.post("/api/v1/webhooks/sendcloud", express.raw({ type: "application/json" }), sendcloudWebhookHandler);
 
 // Standard HTTP middleware parsers (increased limits for base64 image uploads)
 app.use(express.json({ limit: "50mb" }));
@@ -133,6 +135,7 @@ import chargeRoutes from "./routes/chargeRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import shippingRoutes from "./routes/shippingRoutes";
 import orderRoutes from "./routes/orderRoutes";
+import returnRoutes from "./routes/returnRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import configRoutes from "./routes/configRoutes";
@@ -187,6 +190,7 @@ app.use("/api/v1/charges", chargeRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/shipping", shippingRoutes);
 app.use("/api/v1/orders", orderRoutes);
+app.use("/api/v1/returns", returnRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 

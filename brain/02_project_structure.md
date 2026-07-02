@@ -58,6 +58,8 @@ src/
 │       ├── Dashboard.tsx          # Admin dashboard
 │       ├── AdminProducts.tsx      # Product list
 │       ├── AdminProductForm.tsx   # Create/Edit product
+│       ├── AdminProductQuickAdd.tsx  # AI quick-add (Gemini)
+│       ├── AdminProductDrafts.tsx    # AI-generated product drafts
 │       ├── AdminCategories.tsx
 │       ├── AdminBrands.tsx
 │       ├── AdminAttributes.tsx
@@ -66,6 +68,7 @@ src/
 │       ├── AdminInTransit.tsx
 │       ├── AdminDelivered.tsx
 │       ├── AdminReturns.tsx
+│       ├── AdminPaymentRefunds.tsx
 │       ├── AdminOrderDetails.tsx
 │       ├── AdminLabels.tsx        # Sendcloud shipping labels
 │       ├── AdminUsers.tsx
@@ -97,7 +100,8 @@ src/
 │   │   ├── ScrollToTop.tsx
 │   │   └── SEOInjector.tsx        # Dynamic meta tags
 │   ├── admin/
-│   │   └── AdminLayout.tsx        # Admin shell with sidebar
+│   │   ├── AdminLayout.tsx        # Admin shell with sidebar
+│   │   └── RichTextEditor.tsx     # CMS editor + AI CMS Coder (Sparkles)
 │   ├── ui/                        # shadcn/ui components
 │   │   └── PageLoader.tsx
 │   ├── MaintenanceGuard.tsx       # Maintenance mode gate
@@ -150,6 +154,7 @@ src/
 │   ├── chargeRoutes.ts
 │   ├── paymentRoutes.ts
 │   ├── shippingRoutes.ts
+│   ├── aiRoutes.ts              # AI product quick-add + CMS generate
 │   ├── orderRoutes.ts
 │   ├── webhookRoutes.ts
 │   ├── notificationRoutes.ts
@@ -159,6 +164,8 @@ src/
 │
 ├── controllers/       # Route handler functions
 ├── services/          # Business logic layer
+│   ├── aiService.ts           # Gemini product + CMS generation
+│   └── sendcloud/             # Sendcloud webhook + shipping
 ├── middlewares/
 │   ├── errorMiddleware.ts      # Global error handler (AppError class)
 │   ├── loggerMiddleware.ts     # Winston request logger

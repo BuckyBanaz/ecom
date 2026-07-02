@@ -56,6 +56,8 @@ Base: `/admin`
 | `/admin` (index) | `Dashboard` | Admin dashboard |
 | `/admin/analytics` | `AdminAnalytics` | GA4 analytics view |
 | `/admin/products` | `AdminProducts` | Product list |
+| `/admin/products/quick-add` | `AdminProductQuickAdd` | AI product quick-add (Gemini) |
+| `/admin/products/drafts` | `AdminProductDrafts` | AI-generated product drafts |
 | `/admin/products/new` | `AdminProductForm` | Create new product |
 | `/admin/products/:id/edit` | `AdminProductForm` | Edit product |
 | `/admin/products/:id/reviews` | `AdminReviews` | Product reviews |
@@ -66,7 +68,8 @@ Base: `/admin`
 | `/admin/orders/ready-to-ship` | `AdminReadyToShip` | Ready to ship |
 | `/admin/orders/in-transit` | `AdminInTransit` | In transit |
 | `/admin/orders/delivered` | `AdminDelivered` | Delivered |
-| `/admin/orders/returns` | `AdminReturns` | Returns |
+| `/admin/orders/returns` | `AdminReturns` | Return queue (Pending / Approved / Awaiting / Received / Completed) |
+| `/admin/orders/refunds` | `AdminPaymentRefunds` | Stripe refunds (pending + processed) |
 | `/admin/orders/labels` | `AdminLabels` | Sendcloud labels |
 | `/admin/orders/:id` | `AdminOrderDetails` | Order detail |
 | `/admin/offers` | `AdminOffers` | Discount offers |

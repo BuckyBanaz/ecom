@@ -77,9 +77,14 @@
 - Admin Backups (DB + uploads)
 - i18n (Dutch / English)
 - Sendcloud Integration (Live Labels & Shipping)
+- AI Product Quick Add (Gemini — image + hint → auto-fill product, lifestyle images, drafts)
+- AI CMS Coder (Gemini — generate/edit CMS page HTML, shortcodes & SEO from prompt)
+- Returns & refunds (refund after receive, Sendcloud return labels, AI triage) — see `docs/shipping-and-refund/`
 
 ### ⏳ Pending
-- (No major features pending. Project is live and functional)
+- Guest checkout & login
+- AI Shopping Assistant (storefront RAG chatbot)
+- Meta Pixel & TikTok analytics dashboard
 
 ---
 

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import Index from "./pages/Index.tsx";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,7 +15,7 @@ import { MaintenanceGuard } from "./components/MaintenanceGuard.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { PageLoader } from "./components/ui/PageLoader.tsx";
 
-const Index = lazy(() => import("./pages/Index.tsx"));
+
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const Category = lazy(() => import("./pages/shop/Category.tsx"));
 const AllCategories = lazy(() => import("./pages/shop/AllCategories.tsx"));
@@ -52,6 +53,7 @@ const AdminInTransit = lazy(() => import("./pages/admin/AdminInTransit.tsx"));
 const AdminReadyToShip = lazy(() => import("./pages/admin/AdminReadyToShip.tsx"));
 const AdminDelivered = lazy(() => import("./pages/admin/AdminDelivered.tsx"));
 const AdminReturns = lazy(() => import("./pages/admin/AdminReturns.tsx"));
+const AdminPaymentRefunds = lazy(() => import("./pages/admin/AdminPaymentRefunds.tsx"));
 const AdminOrderDetails = lazy(() => import("./pages/admin/AdminOrderDetails.tsx"));
 const AdminLabels = lazy(() => import("./pages/admin/AdminLabels.tsx"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers.tsx"));
@@ -126,6 +128,7 @@ function App() {
                             <Route path="orders/in-transit" element={<AdminInTransit />} />
                             <Route path="orders/delivered" element={<AdminDelivered />} />
                             <Route path="orders/returns" element={<AdminReturns />} />
+                            <Route path="orders/refunds" element={<AdminPaymentRefunds />} />
                             <Route path="orders/labels" element={<AdminLabels />} />
                             <Route path="orders/:id" element={<AdminOrderDetails />} />
                             <Route path="offers" element={<AdminOffers />} />

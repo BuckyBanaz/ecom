@@ -20,6 +20,7 @@ export const ENDPOINTS = {
   get CMS_RELIEF() { return api("/cms/relief"); },
   get CMS_PRODUCT_PAGE() { return api("/cms/product-page"); },
   get CMS_PAGES() { return api("/cms/pages"); },
+  get CMS() { return api("/cms"); },
   get CMS_PAGE() { return api("/cms"); },
   get CMS_HEADER_FOOTER() { return api("/cms/header-footer"); },
   get MEDIA() { return api("/media"); },
@@ -48,6 +49,7 @@ export const ENDPOINTS = {
   get AI_LIMITS() { return api("/ai/limits"); },
   get AI_QUICK_ADD() { return api("/ai/products/quick-add"); },
   get AI_DRAFTS() { return api("/ai/drafts"); },
+  get RETURNS() { return api("/returns"); },
 };
 
 /** @deprecated use getBaseUrl() */

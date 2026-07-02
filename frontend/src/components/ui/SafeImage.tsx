@@ -4,6 +4,8 @@ import { isMissingImage, resolveImgUrl } from "@/utils/image";
 
 interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fallbackType?: "product" | "category" | "brand" | "series";
+  /** Above-the-fold / LCP images — eager load with high fetch priority. */
+  priority?: boolean;
 }
 
 export function SafeImage({
@@ -13,6 +15,8 @@ export function SafeImage({
   fallbackType,
   loading = "lazy",
   decoding = "async",
+  priority = false,
+  fetchPriority: fetchPriorityProp,
   ...props
 }: SafeImageProps) {
   const [hasError, setHasError] = useState(false);
@@ -48,8 +52,9 @@ export function SafeImage({
       src={resolvedSrc}
       alt={alt}
       className={className}
-      loading={loading}
+      loading={priority ? "eager" : loading}
       decoding={decoding}
+      fetchPriority={priority ? "high" : fetchPriorityProp}
       onError={() => setHasError(true)}
       {...props}
     />

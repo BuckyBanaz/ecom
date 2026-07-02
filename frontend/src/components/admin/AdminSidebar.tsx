@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, FolderTree, ShoppingCart, Users, Settings,
   FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown,
   Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders, Quote, HardDrive, Mail,
-  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw, BarChart3, Terminal
+  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw, BarChart3, Terminal, CreditCard
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ const ordersChildrenBase = [
   { to: "/admin/orders/in-transit", icon: ArrowRight, labelKey: "in_transit" },
   { to: "/admin/orders/delivered", icon: CheckCircle, labelKey: "delivered" },
   { to: "/admin/orders/returns", icon: RotateCcw, labelKey: "returns" },
+  { to: "/admin/orders/refunds", icon: CreditCard, labelKey: "payment_refunds" },
   { to: "/admin/orders/labels", icon: Tag, labelKey: "shipping_labels" }
 ];
 

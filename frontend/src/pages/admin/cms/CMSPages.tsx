@@ -273,6 +273,7 @@ const CMSPages = () => {
                     value={body} 
                     onChange={setBody} 
                     placeholder="Start building your page..." 
+                    seoMeta={{ seoTitle, seoDesc, seoKeywords }}
                     onSeoGenerated={(seoData) => {
                       if (seoData.seoTitle) setSeoTitle(seoData.seoTitle);
                       if (seoData.seoDesc) setSeoDesc(seoData.seoDesc);

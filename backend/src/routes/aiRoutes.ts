@@ -147,12 +147,22 @@ router.post(
 
 router.post("/cms/generate", async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const { prompt, existingContent, existingSeo } = req.body;
     if (!prompt) {
       return res.status(400).json({ success: false, error: "Prompt is required." });
     }
 
-    const { htmlContent, seoTitle, seoDesc, seoKeywords } = await aiService.generateCmsPage(prompt);
+    const { htmlContent, seoTitle, seoDesc, seoKeywords } = await aiService.generateCmsPage(prompt, {
+      existingContent: typeof existingContent === "string" ? existingContent : undefined,
+      existingSeo:
+        existingSeo && typeof existingSeo === "object"
+          ? {
+              seoTitle: existingSeo.seoTitle,
+              seoDesc: existingSeo.seoDesc,
+              seoKeywords: existingSeo.seoKeywords,
+            }
+          : undefined,
+    });
     res.json({ success: true, htmlContent, seoTitle, seoDesc, seoKeywords });
   } catch (error: any) {
     console.error("CMS AI Generation Error:", error);

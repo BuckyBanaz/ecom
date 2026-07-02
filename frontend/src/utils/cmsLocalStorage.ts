@@ -68,3 +68,21 @@ export function detectShortcodeBlocks(content: string): Set<string> {
   }
   return types;
 }
+
+/** Extract the first hero/LCP image URL from homepage CMS content. */
+export function extractHomepageLcpImage(content: string): string | null {
+  if (!content?.trim()) return null;
+
+  const heroBanner = content.match(/\[hero-banner[^\]]*\]/i);
+  if (heroBanner) {
+    const bgMatch =
+      heroBanner[0].match(/background_image_1="([^"]+)"/i) ||
+      heroBanner[0].match(/background_image="([^"]+)"/i);
+    if (bgMatch?.[1]) return bgMatch[1];
+  }
+
+  const imgMatch = content.match(/<img[^>]+src="([^"]+)"/i);
+  if (imgMatch?.[1]) return imgMatch[1];
+
+  return null;
+}

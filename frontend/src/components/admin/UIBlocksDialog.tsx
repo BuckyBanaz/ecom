@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Plus, Trash2, Upload, Link as LinkIcon, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { decodeShortcodeAttribute } from "@/utils/shortcodeAttrs";
 import { categoryRepository } from "@/client/apiClient";
 
 // Import extracted UI components
@@ -90,7 +91,7 @@ export function UIBlocksDialog({ open, onOpenChange, onInsert, editingShortcode 
         const attrRegex = /([a-zA-Z0-9_]+)="([^"]*)"/g;
         let attrMatch;
         while ((attrMatch = attrRegex.exec(attrStr)) !== null) {
-          attributes[attrMatch[1]] = attrMatch[2];
+          attributes[attrMatch[1]] = decodeShortcodeAttribute(attrMatch[2]);
         }
 
         setTitle(attributes.title || "");

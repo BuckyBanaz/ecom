@@ -250,5 +250,74 @@ export const notificationTriggerService = {
     } catch (err: any) {
       console.error("[NotificationTrigger] Error triggering order notification:", err.message);
     }
-  }
+  },
+
+  triggerReturnNotification: async (returnId: string, templateName: string) => {
+    try {
+      const record = await prisma.returnRequest.findUnique({
+        where: { id: returnId },
+        include: { order: { include: { items: true } }, user: true },
+      });
+      if (!record || !record.order) {
+        console.error(`[NotificationTrigger] Return ${returnId} not found.`);
+        return;
+      }
+
+      const order = record.order;
+      let addressData: any = {};
+      try {
+        addressData = JSON.parse(order.shippingAddress);
+      } catch {
+        addressData = {};
+      }
+
+      const clientUrl = process.env.STORE_URL || process.env.CLIENT_URL || "http://localhost:8080";
+      const refundEtaDays = process.env.REFUND_ETA_DAYS || "5-7";
+      const refundExpectedDate = record.refundExpectedAt
+        ? record.refundExpectedAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+        : "";
+
+      const reasonLabels: Record<string, string> = {
+        damaged: "Damaged in shipping",
+        wrong_item: "Wrong item received",
+        defective: "Defective / not working",
+        not_as_described: "Not as described",
+        changed_mind: "Changed my mind",
+        other: "Other",
+      };
+
+      const adminNoteBlock = record.adminNote
+        ? `<p><strong>Note from our team:</strong> ${record.adminNote}</p>`
+        : "";
+
+      const variables: Record<string, string> = {
+        name: order.customerName || record.user?.name || "Customer",
+        order_id: order.orderNumber,
+        return_reason: reasonLabels[record.reason] || record.reason,
+        return_url: `${clientUrl}/dashboard?tab=orders&orderId=${order.orderNumber}`,
+        refund_amount: (record.refundAmount ?? order.total).toFixed(2),
+        refund_eta_days: refundEtaDays,
+        refund_expected_date: refundExpectedDate,
+        rejection_reason: record.adminNote || "",
+        admin_note_block: adminNoteBlock,
+        carrier: record.returnCarrier || "Sendcloud",
+        tracking_number: record.returnTrackingNumber || "",
+        tracking_url: record.returnTrackingUrl || "",
+        label_url: record.returnLabelUrl
+          ? `${clientUrl}/dashboard?tab=orders&orderId=${order.orderNumber}`
+          : "",
+      };
+
+      const phone = addressData.phone || record.user?.phone || null;
+
+      await notificationTriggerService.dispatch(
+        order.customerEmail,
+        phone,
+        templateName,
+        variables,
+      );
+    } catch (err: any) {
+      console.error("[NotificationTrigger] Error triggering return notification:", err.message);
+    }
+  },
 };

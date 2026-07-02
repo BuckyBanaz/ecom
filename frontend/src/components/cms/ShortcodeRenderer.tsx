@@ -17,6 +17,7 @@ import { productRepository, categoryRepository, blogRepository, brandRepository,
 import { SafeImage } from "@/components/ui/SafeImage";
 import { labelT } from "@/utils/i18nLabel";
 import { CmsHtmlContent } from "@/components/cms/CmsHtmlContent";
+import { decodeShortcodeAttribute } from "@/utils/shortcodeAttrs";
 import { extractMegaMenus, readMegaMenusFromStorage } from "@/utils/megaMenu";
 import { detectShortcodeBlocks } from "@/utils/cmsLocalStorage";
 import type { MegaMenu } from "@/data/megaMenu";
@@ -254,7 +255,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
       const attrRegex = /([a-zA-Z0-9_]+)="([^"]*)"/g;
       let attrMatch;
       while ((attrMatch = attrRegex.exec(attrStr)) !== null) {
-        attributes[attrMatch[1]] = attrMatch[2];
+        attributes[attrMatch[1]] = decodeShortcodeAttribute(attrMatch[2]);
       }
       
       partsArray.push({ type: 'shortcode', blockType: type, attributes });
@@ -414,7 +415,16 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                       return (
                       <CarouselItem key={sIndex} className="pl-2 md:pl-4">
                         <div className="relative h-full overflow-hidden" style={{ borderRadius: radius }}>
-                          <SafeImage src={slide.bgImage} alt="Hero" className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]" style={{ borderRadius: radius }} fallbackType="category" />
+                          <SafeImage
+                            src={slide.bgImage}
+                            alt={slide.title ? L(slide.title) : "Hero banner"}
+                            priority={sIndex === 0}
+                            width={1200}
+                            height={440}
+                            className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]"
+                            style={{ borderRadius: radius }}
+                            fallbackType="category"
+                          />
                           <div className="absolute inset-0 bg-black" style={{ opacity: overlay, borderRadius: radius }} />
                           <div className="absolute inset-0 flex flex-col items-center justify-center px-4 py-6 text-center text-white sm:px-6">
                             {slide.title && (

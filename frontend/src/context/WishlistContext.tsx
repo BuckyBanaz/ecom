@@ -58,8 +58,13 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
             setIds(serverProducts.map((p: any) => p.id));
           }
         } catch (error) {
-          console.error("Failed to sync/fetch wishlist from backend:", error);
-          // Fallback to local on error
+          const message = error instanceof Error ? error.message : "";
+          const authExpired =
+            message.toLowerCase().includes("invalid or expired") ||
+            message.toLowerCase().includes("unauthorized");
+          if (!authExpired) {
+            console.warn("Failed to sync/fetch wishlist from backend:", error);
+          }
           await loadLocalWishlist();
         } finally {
           setLoading(false);

@@ -24,13 +24,23 @@ export function CmsHtmlContent({ html, className }: CmsHtmlContentProps) {
   const prepared = useMemo(() => {
     const parsed = parseCmsHtml(normalizeCmsHtmlForStorage(html));
     const doc = new DOMParser().parseFromString(parsed.html, "text/html");
-    doc.querySelectorAll("img").forEach((img) => {
+    doc.querySelectorAll("img").forEach((img, index) => {
       const src = img.getAttribute("src");
       if (src?.includes("/uploads/")) {
         img.setAttribute("src", resolveImgUrl(src));
       }
-      if (!img.getAttribute("loading")) img.setAttribute("loading", "lazy");
+      const isLcp = index === 0;
+      if (!img.getAttribute("loading")) {
+        img.setAttribute("loading", isLcp ? "eager" : "lazy");
+      }
       if (!img.getAttribute("decoding")) img.setAttribute("decoding", "async");
+      if (isLcp && !img.getAttribute("fetchpriority")) {
+        img.setAttribute("fetchpriority", "high");
+      }
+      if (!img.getAttribute("width") && !img.getAttribute("height")) {
+        img.setAttribute("width", "1200");
+        img.setAttribute("height", "800");
+      }
     });
     doc.querySelectorAll("a[href^='/uploads/']").forEach((a) => {
       a.setAttribute("href", resolveImgUrl(a.getAttribute("href")!));

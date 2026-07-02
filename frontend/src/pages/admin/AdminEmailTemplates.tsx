@@ -65,6 +65,38 @@ const TEMPLATE_PARAMETERS: Record<string, { param: string; desc: string }[]> = {
     { param: "{{order_id}}", desc: "Order ID" },
     { param: "{{review_url}}", desc: "Order review URL page" },
   ],
+  return_submitted: [
+    { param: "{{name}}", desc: "Customer name" },
+    { param: "{{order_id}}", desc: "Order number" },
+    { param: "{{return_reason}}", desc: "Return reason" },
+    { param: "{{return_url}}", desc: "Dashboard return status URL" },
+  ],
+  return_approved: [
+    { param: "{{name}}", desc: "Customer name" },
+    { param: "{{order_id}}", desc: "Order number" },
+    { param: "{{refund_amount}}", desc: "Refund amount EUR" },
+    { param: "{{refund_eta_days}}", desc: "Business days e.g. 5-7" },
+    { param: "{{refund_expected_date}}", desc: "Expected refund date" },
+    { param: "{{return_url}}", desc: "Track return URL" },
+    { param: "{{admin_note_block}}", desc: "Optional admin note HTML" },
+  ],
+  return_rejected: [
+    { param: "{{name}}", desc: "Customer name" },
+    { param: "{{order_id}}", desc: "Order number" },
+    { param: "{{rejection_reason}}", desc: "Rejection reason" },
+    { param: "{{return_url}}", desc: "Dashboard URL" },
+  ],
+  return_label_created: [
+    { param: "{{name}}", desc: "Customer name" },
+    { param: "{{order_id}}", desc: "Order number" },
+    { param: "{{carrier}}", desc: "Return carrier" },
+    { param: "{{tracking_number}}", desc: "Return tracking number" },
+    { param: "{{tracking_url}}", desc: "Return tracking URL" },
+    { param: "{{label_url}}", desc: "Return label PDF URL" },
+    { param: "{{refund_amount}}", desc: "Refund amount" },
+    { param: "{{refund_eta_days}}", desc: "Refund ETA days" },
+    { param: "{{refund_expected_date}}", desc: "Expected refund date" },
+  ],
 };
 
 export default function AdminEmailTemplates() {

@@ -26,6 +26,7 @@ model User {
   wishlists    Wishlist[]
   addresses    Address[]
   fcmTokens    String[]   @default([]) @map("fcm_tokens")
+  returnRequests ReturnRequest[]
 
   @@map("users")
 }
@@ -233,9 +234,11 @@ model Order {
   carrier         String?
   shippingCost    Float?      @map("shipping_cost")
   shipmentStatus  String?     @map("shipment_status")
+  deliveredAt     DateTime?   @map("delivered_at")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
   items           OrderItem[]
+  returnRequests  ReturnRequest[]
 
   @@map("orders")
 }
@@ -405,4 +408,41 @@ model ProductDraft {
   @@index([status])
   @@index([batchId])
   @@map("product_drafts")
+}
+
+// 17. Return Requests (customer returns + AI triage)
+model ReturnRequest {
+  id               String    @id @default(uuid())
+  orderId          String    @map("order_id")
+  order            Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId           String?   @map("user_id")
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reason           String
+  customerNote     String?   @map("customer_note")
+  photos           Json      @default("[]")
+  status           String    @default("pending_review") // pending_review | approved | awaiting_return | return_received | refunded | rejected | cancelled
+  aiFraudScore     Float?    @map("ai_fraud_score")
+  aiSummary        String?   @map("ai_summary")
+  aiRecommendation String?   @map("ai_recommendation") // auto_approve | needs_review | likely_fraud
+  adminNote        String?   @map("admin_note")
+  refundAmount     Float?    @map("refund_amount")
+  stripeRefundId   String?   @map("stripe_refund_id")
+  refundProcessedAt DateTime? @map("refund_processed_at")
+  refundExpectedAt DateTime? @map("refund_expected_at")
+  returnCarrier          String?   @map("return_carrier")
+  returnTrackingNumber   String?   @map("return_tracking_number")
+  returnTrackingUrl      String?   @map("return_tracking_url")
+  returnLabelUrl         String?   @map("return_label_url")
+  returnShipMethodId     String?   @map("return_ship_method_id")
+  returnParcelId         String?   @map("return_parcel_id")
+  returnShipmentStatus   String?   @map("return_shipment_status")
+  itemReceivedAt         DateTime? @map("item_received_at")
+  reviewedAt       DateTime? @map("reviewed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@map("return_requests")
 }
