@@ -31,6 +31,7 @@ import {
   fetchSearchConsoleOverview,
   getSearchConsoleStatus,
 } from "../services/searchConsoleService";
+import { getGoogleIntegrationStatus } from "../utils/googleCredentials";
 
 const VALID_TYPES: SeoEntityType[] = ["product", "category", "blog", "cms_page", "homepage"];
 
@@ -302,7 +303,8 @@ export const generateBlogWithAi = async (req: Request, res: Response, next: Next
 export const getSearchConsoleStatusHandler = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const status = await getSearchConsoleStatus();
-    res.json({ success: true, ...status });
+    const integration = getGoogleIntegrationStatus();
+    res.json({ success: true, ...status, integration });
   } catch (error) {
     next(error);
   }

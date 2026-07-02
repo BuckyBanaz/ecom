@@ -19,6 +19,8 @@ import { formatPrice } from "@/context/CartContext";
 import { printInvoice } from "@/utils/printInvoice";
 import { getInvoiceNumber } from "@/utils/invoice";
 import { resolveImgUrl } from "@/utils/image";
+import { useInvoiceVendor } from "@/hooks/useInvoiceVendor";
+import { InvoiceVendorBlock } from "@/components/invoice/InvoiceVendorBlock";
 
 const formatOrderWithShipment = (orderData: any) => {
   if (!orderData) return orderData;
@@ -51,6 +53,7 @@ const formatOrderWithShipment = (orderData: any) => {
 
 export default function AdminOrderDetails() {
   const { t } = useTranslation();
+  const { vendor } = useInvoiceVendor();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [isMounted, setIsMounted] = useState(false);
@@ -590,12 +593,7 @@ export default function AdminOrderDetails() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("admin_order_details.invoice_vendor")}</h4>
-                <p className="mt-1 font-semibold">Schip & Ster BV</p>
-                <p>Keizersgracht 456, Amsterdam</p>
-                <p>billing@schipandster.nl</p>
-              </div>
+              <InvoiceVendorBlock vendor={vendor} title={t("admin_order_details.invoice_vendor")} />
               <div>
                 <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("admin_order_details.invoice_billto")}</h4>
                 <div className="mt-1 space-y-1">

@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IconPicker } from "@/components/admin/IconPicker";
-import { Trash2, Plus, Loader2, Brain, ImageIcon } from "lucide-react";
+import { Trash2, Plus, Loader2, Brain, ImageIcon, ExternalLink } from "lucide-react";
 import { cmsFeaturesRepository, adminSettingsRepository, authRepository } from "@/client/apiClient";
 import { useAdmin } from "@/context/AdminContext";
 import { SeoAutopilotPanel } from "@/components/admin/seo/SeoAutopilotPanel";
@@ -99,6 +99,10 @@ const AdminSettings = () => {
     currency: "EUR",
     maintenanceMode: false,
     maintenanceMessage: "",
+    apiDocsEnabled: true,
+    invoiceVendorName: "",
+    invoiceVendorAddress: "",
+    invoiceVendorEmail: "",
   });
   const [isLoadingGeneral, setIsLoadingGeneral] = useState(true);
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
@@ -283,6 +287,10 @@ const AdminSettings = () => {
             currency: res.data.currency || "EUR",
             maintenanceMode: !!res.data.maintenanceMode,
             maintenanceMessage: res.data.maintenanceMessage || "",
+            apiDocsEnabled: res.data.apiDocsEnabled !== false,
+            invoiceVendorName: res.data.invoiceVendorName || "",
+            invoiceVendorAddress: res.data.invoiceVendorAddress || "",
+            invoiceVendorEmail: res.data.invoiceVendorEmail || "",
           });
         }
       } catch (error) {
@@ -628,6 +636,62 @@ const AdminSettings = () => {
                       </SelectContent>
                     </Select>
                   )}
+                </div>
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+                  <p className="text-sm font-semibold">{t("admin_settings.general_invoice_title")}</p>
+                  <p className="text-xs text-muted-foreground">{t("admin_settings.general_invoice_desc")}</p>
+                  <div>
+                    <Label>{t("admin_settings.general_invoice_name")}</Label>
+                    <Input
+                      value={generalSettings.invoiceVendorName}
+                      onChange={(e) => setGeneralSettings({ ...generalSettings, invoiceVendorName: e.target.value })}
+                      placeholder="Schip & Ster BV"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin_settings.general_invoice_address")}</Label>
+                    <Input
+                      value={generalSettings.invoiceVendorAddress}
+                      onChange={(e) => setGeneralSettings({ ...generalSettings, invoiceVendorAddress: e.target.value })}
+                      placeholder="Keizersgracht 456, Amsterdam"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin_settings.general_invoice_email")}</Label>
+                    <Input
+                      type="email"
+                      value={generalSettings.invoiceVendorEmail}
+                      onChange={(e) => setGeneralSettings({ ...generalSettings, invoiceVendorEmail: e.target.value })}
+                      placeholder="billing@schipandster.nl"
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Label className="text-base">{t("admin_settings.general_api_docs")}</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {t("admin_settings.general_api_docs_desc")}
+                      </p>
+                      {generalSettings.apiDocsEnabled && (
+                        <a
+                          href={`${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "")}/api-docs`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary underline mt-1"
+                        >
+                          {t("admin_settings.general_api_docs_link")} <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                    <Switch
+                      checked={generalSettings.apiDocsEnabled}
+                      onCheckedChange={(val) => setGeneralSettings({ ...generalSettings, apiDocsEnabled: val })}
+                    />
+                  </div>
                 </div>
                 <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">

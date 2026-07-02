@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import {
   RefreshCw,
   Loader2,
@@ -49,11 +51,21 @@ function TrendIcon({ trend }: { trend: RankTrend["trend"] }) {
   return <span className="text-muted-foreground text-xs">—</span>;
 }
 
+type GscStatus = {
+  configured: boolean;
+  connected?: boolean;
+  siteUrl: string | null;
+  hasCredentials?: boolean;
+  hasSiteUrl?: boolean;
+  gscSiteUrlExplicit?: boolean;
+  error?: string | null;
+};
+
 export function SeoGscPanel() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [configured, setConfigured] = useState(false);
-  const [siteUrl, setSiteUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<GscStatus | null>(null);
   const [overview, setOverview] = useState<GscOverview | null>(null);
   const [trends, setTrends] = useState<RankTrend[]>([]);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -65,11 +77,11 @@ export function SeoGscPanel() {
       const res = await apiClient.get<{ overview: GscOverview }>(ENDPOINTS.AI_SEO_GSC_OVERVIEW);
       setOverview(res.overview);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load Search Console data";
+      const msg = err instanceof Error ? err.message : t("cms_seo.gsc_toast_overview_error");
       toast.error(msg);
       setOverview(null);
     }
-  }, []);
+  }, [t]);
 
   const loadRankTracking = useCallback(async () => {
     try {
@@ -91,30 +103,31 @@ export function SeoGscPanel() {
       );
       setLinks(res.suggestions || []);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load link suggestions");
+      toast.error(err instanceof Error ? err.message : t("cms_seo.gsc_toast_links_error"));
     } finally {
       setLinksLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const status = await apiClient.get<{ configured: boolean; siteUrl: string | null }>(
-        ENDPOINTS.AI_SEO_GSC_STATUS,
-      );
-      setConfigured(status.configured);
-      setSiteUrl(status.siteUrl);
+      const gscStatus = await apiClient.get<GscStatus>(ENDPOINTS.AI_SEO_GSC_STATUS);
+      setStatus(gscStatus);
 
-      if (status.configured) {
+      if (gscStatus.connected) {
         await Promise.all([loadOverview(), loadRankTracking(), loadInternalLinks()]);
+      } else {
+        setOverview(null);
+        setTrends([]);
+        setLinks([]);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load Search Console status");
+      toast.error(err instanceof Error ? err.message : t("cms_seo.gsc_toast_status_error"));
     } finally {
       setLoading(false);
     }
-  }, [loadOverview, loadRankTracking, loadInternalLinks]);
+  }, [loadOverview, loadRankTracking, loadInternalLinks, t]);
 
   useEffect(() => {
     loadAll();
@@ -129,9 +142,9 @@ export function SeoGscPanel() {
       );
       setTrends(res.trends || []);
       setLastSyncedAt(res.history?.lastSyncedAt ?? null);
-      toast.success(`Synced ${res.synced} keyword rankings from Search Console`);
+      toast.success(t("cms_seo.gsc_toast_sync_success", { count: res.synced }));
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Rank sync failed");
+      toast.error(err instanceof Error ? err.message : t("cms_seo.gsc_toast_sync_error"));
     } finally {
       setSyncing(false);
     }
@@ -145,52 +158,87 @@ export function SeoGscPanel() {
     );
   }
 
-  if (!configured) {
+  if (!status?.hasCredentials) {
     return (
       <Alert>
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Search Console not configured</AlertTitle>
+        <AlertTitle>{t("cms_seo.gsc_no_credentials_title")}</AlertTitle>
         <AlertDescription className="space-y-2">
           <p>
-            Add your <strong>GSC site URL</strong> and the same <strong>GA4 service account</strong> used in Admin → Analytics
-            under the <strong>Site & Analytics</strong> tab. Grant the service account <em>Full</em> access in Search Console.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Site URL examples: <code>https://schipenster.com/</code> or <code>sc-domain:schipenster.com</code>
+            {t("cms_seo.gsc_no_credentials_desc_before")}
+            <Link to="/admin/analytics" className="font-semibold text-primary underline">{t("cms_seo.gsc_no_credentials_link")}</Link>
+            {t("cms_seo.gsc_no_credentials_desc_after")}
           </p>
         </AlertDescription>
       </Alert>
     );
   }
 
+  if (!status.connected) {
+    const apiDisabled = status.error?.includes("Search Console API has not been used");
+    return (
+      <Alert variant={status.hasSiteUrl ? "destructive" : "default"}>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>
+          {status.hasSiteUrl ? t("cms_seo.gsc_not_connected") : t("cms_seo.gsc_url_missing")}
+        </AlertTitle>
+        <AlertDescription className="space-y-3 text-sm">
+          {status.error && <p className="text-foreground/90">{status.error}</p>}
+          {!status.gscSiteUrlExplicit && status.siteUrl && (
+            <p className="text-muted-foreground">
+              {t("cms_seo.gsc_fallback_canonical", { url: status.siteUrl })}
+            </p>
+          )}
+          {apiDisabled && (
+            <p>
+              {t("cms_seo.gsc_api_disabled_before")}
+              <a
+                href="https://console.developers.google.com/apis/api/searchconsole.googleapis.com/overview?project=452847782141"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-primary underline"
+              >
+                {t("cms_seo.gsc_api_disabled_link")}
+              </a>
+              {t("cms_seo.gsc_api_disabled_after")}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">{t("cms_seo.gsc_url_examples")}</p>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const siteUrl = status.siteUrl;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <CheckCircle2 className="h-4 w-4 text-green-600" />
-          Connected: <span className="font-mono text-foreground">{siteUrl}</span>
+          {t("cms_seo.gsc_connected")} <span className="font-mono text-foreground">{siteUrl}</span>
         </div>
         <Button variant="outline" size="sm" className="gap-2" onClick={loadAll}>
-          <RefreshCw className="h-4 w-4" /> Refresh
+          <RefreshCw className="h-4 w-4" /> {t("cms_seo.gsc_refresh")}
         </Button>
       </div>
 
       {overview && (
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Clicks</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">{t("cms_seo.gsc_clicks")}</CardTitle></CardHeader>
             <CardContent><p className="text-2xl font-bold">{overview.totals.clicks.toLocaleString()}</p></CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Impressions</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">{t("cms_seo.gsc_impressions")}</CardTitle></CardHeader>
             <CardContent><p className="text-2xl font-bold">{overview.totals.impressions.toLocaleString()}</p></CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Avg CTR</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">{t("cms_seo.gsc_avg_ctr")}</CardTitle></CardHeader>
             <CardContent><p className="text-2xl font-bold">{(overview.totals.ctr * 100).toFixed(1)}%</p></CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Avg Position</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">{t("cms_seo.gsc_avg_position")}</CardTitle></CardHeader>
             <CardContent><p className="text-2xl font-bold">{overview.totals.position.toFixed(1)}</p></CardContent>
           </Card>
         </div>
@@ -199,18 +247,18 @@ export function SeoGscPanel() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><Search className="h-4 w-4" /> Top queries</CardTitle>
-            <CardDescription>Last {overview?.period.days ?? 28} days from Search Console</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-base"><Search className="h-4 w-4" /> {t("cms_seo.gsc_top_queries")}</CardTitle>
+            <CardDescription>{t("cms_seo.gsc_top_queries_desc", { days: overview?.period.days ?? 28 })}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 max-h-80 overflow-y-auto">
             {(overview?.topQueries || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No query data yet.</p>
+              <p className="text-sm text-muted-foreground">{t("cms_seo.gsc_no_queries")}</p>
             ) : (
               overview!.topQueries.map((row) => (
                 <div key={row.query} className="flex justify-between gap-2 text-sm border-b pb-2 last:border-0">
                   <span className="font-medium truncate">{row.query}</span>
                   <span className="text-muted-foreground shrink-0">
-                    {row.clicks} clk · pos {row.position.toFixed(1)}
+                    {t("cms_seo.gsc_query_stats", { clicks: row.clicks, position: row.position.toFixed(1) })}
                   </span>
                 </div>
               ))
@@ -221,27 +269,27 @@ export function SeoGscPanel() {
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-2">
             <div>
-              <CardTitle className="text-base">Rank tracking</CardTitle>
+              <CardTitle className="text-base">{t("cms_seo.gsc_rank_tracking")}</CardTitle>
               <CardDescription>
-                Playbook target keywords
-                {lastSyncedAt && ` · last sync ${new Date(lastSyncedAt).toLocaleString()}`}
+                {t("cms_seo.gsc_rank_keywords")}
+                {lastSyncedAt && t("cms_seo.gsc_last_sync", { date: new Date(lastSyncedAt).toLocaleString() })}
               </CardDescription>
             </div>
             <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={handleSyncRanks} disabled={syncing}>
               {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              Sync
+              {t("cms_seo.gsc_sync")}
             </Button>
           </CardHeader>
           <CardContent className="space-y-2 max-h-80 overflow-y-auto">
             {trends.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sync to pull positions for playbook target keywords.</p>
+              <p className="text-sm text-muted-foreground">{t("cms_seo.gsc_rank_empty")}</p>
             ) : (
               trends.map((row) => (
                 <div key={row.keyword} className="flex items-center justify-between gap-2 text-sm border-b pb-2 last:border-0">
                   <span className="font-medium truncate">{row.keyword}</span>
                   <span className="flex items-center gap-2 shrink-0">
                     <TrendIcon trend={row.trend} />
-                    {row.latest?.position ? `pos ${row.latest.position.toFixed(1)}` : "—"}
+                    {row.latest?.position ? t("cms_seo.gsc_rank_position", { position: row.latest.position.toFixed(1) }) : "—"}
                   </span>
                 </div>
               ))
@@ -253,26 +301,28 @@ export function SeoGscPanel() {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-2">
           <div>
-            <CardTitle className="flex items-center gap-2 text-base"><Link2 className="h-4 w-4" /> Internal linking suggestions</CardTitle>
-            <CardDescription>AI-free matches from catalog + playbook keywords + GSC queries (suggestions only — not auto-inserted)</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-base"><Link2 className="h-4 w-4" /> {t("cms_seo.gsc_internal_links")}</CardTitle>
+            <CardDescription>{t("cms_seo.gsc_internal_links_desc")}</CardDescription>
           </div>
           <Button size="sm" variant="outline" onClick={loadInternalLinks} disabled={linksLoading}>
-            {linksLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
+            {linksLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : t("cms_seo.gsc_refresh")}
           </Button>
         </CardHeader>
         <CardContent className="space-y-3 max-h-96 overflow-y-auto">
           {links.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No suggestions yet — add more products/blogs or connect GSC.</p>
+            <p className="text-sm text-muted-foreground">{t("cms_seo.gsc_links_empty")}</p>
           ) : (
             links.map((item, i) => (
               <div key={`${item.sourceUrl}-${item.targetUrl}-${i}`} className="rounded-lg border p-3 text-sm space-y-1">
                 <p>
-                  <span className="text-muted-foreground">From</span>{" "}
+                  <span className="text-muted-foreground">{t("cms_seo.gsc_link_from")}</span>{" "}
                   <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">{item.sourceLabel}</a>
                   {" → "}
                   <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">{item.targetLabel}</a>
                 </p>
-                <p className="text-xs text-muted-foreground">Anchor: &quot;{item.anchorHint}&quot; · {item.reason}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("cms_seo.gsc_link_anchor", { anchor: item.anchorHint, reason: item.reason })}
+                </p>
               </div>
             ))
           )}

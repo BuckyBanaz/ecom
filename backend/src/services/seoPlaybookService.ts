@@ -18,7 +18,7 @@ const DEFAULT_PLAYBOOK: SeoPlaybook = {
   siteName: "Schip & Ster",
   titleTemplate: "%s | Schip & Ster",
   globalKeywords: "verlichting, lighting, lampen, LED, Nederland",
-  targetRankKeywords: "LED verlichting kopen, hanglamp woonkamer, buitenverlichting, smart lighting Nederland",
+  targetRankKeywords: "schip & ster, schipenster, LED verlichting kopen, hanglamp woonkamer, buitenverlichting, smart lighting Nederland",
   descriptionCta: "Ordered before 22:00, delivered next day. 30-day free returns.",
   brandVoice:
     "Premium Dutch lighting store. Friendly, expert tone. Mix NL/EN keywords where natural.",

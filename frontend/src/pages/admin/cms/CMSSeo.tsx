@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ import { SeoAutopilotPanel } from "@/components/admin/seo/SeoAutopilotPanel";
 import { SeoGscPanel } from "@/components/admin/seo/SeoGscPanel";
 
 const CMSSeo = () => {
+  const { t } = useTranslation();
   const [global, setGlobal] = useState({
     siteName: "",
     titleTemplate: "",
@@ -66,13 +68,13 @@ const CMSSeo = () => {
           });
         }
       } catch (err: any) {
-        toast.error(err.message || "Failed to load SEO configuration");
+        toast.error(err.message || t("cms_seo.toast_load_error"));
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, []);
+  }, [t]);
 
   const saveSiteConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,9 +83,9 @@ const CMSSeo = () => {
         apiClient.put(ENDPOINTS.SEO_ROBOTS, { robots }),
         apiClient.put(ENDPOINTS.ADMIN_SEO_CONFIG, { ...global, ...analytics, ...apiKeys }),
       ]);
-      toast.success("Site settings saved");
+      toast.success(t("cms_seo.toast_save_success"));
     } catch (err: any) {
-      toast.error(err.message || "Failed to save");
+      toast.error(err.message || t("cms_seo.toast_save_error"));
     }
   };
 
@@ -91,16 +93,16 @@ const CMSSeo = () => {
     setGenerating(true);
     try {
       const res = await apiClient.post<{ message: string }>(ENDPOINTS.SEO_SITEMAP, {});
-      toast.success(res.message || "sitemap.xml generated");
+      toast.success(res.message || t("cms_seo.toast_sitemap_success"));
     } catch (err: any) {
-      toast.error(err.message || "Failed to generate sitemap");
+      toast.error(err.message || t("cms_seo.toast_sitemap_error"));
     } finally {
       setGenerating(false);
     }
   };
 
   if (loading) {
-    return <div className="py-20 text-center text-muted-foreground text-sm">Loading SEO…</div>;
+    return <div className="py-20 text-center text-muted-foreground text-sm">{t("cms_seo.loading")}</div>;
   }
 
   return (
@@ -108,29 +110,30 @@ const CMSSeo = () => {
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Sparkles className="h-8 w-8 text-primary" />
-          SEO & AI Expert
+          {t("cms_seo.page_title")}
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Global playbook, page audit, autopilot, analytics, and technical SEO — all in one place.
-        </p>
+        <p className="text-muted-foreground mt-1">{t("cms_seo.page_subtitle")}</p>
       </div>
 
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Homepage meta → <Link to="/admin/cms/homepage" className="font-semibold text-primary underline">CMS → Homepage</Link>.
-          After changing site-wide static meta, rebuild & redeploy the frontend for Google.
+          {t("cms_seo.alert_before")}
+          <Link to="/admin/cms/homepage" className="font-semibold text-primary underline">
+            {t("cms_seo.alert_homepage_link")}
+          </Link>
+          {t("cms_seo.alert_after")}
         </AlertDescription>
       </Alert>
 
       <Tabs defaultValue="playbook" className="space-y-4">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
-          <TabsTrigger value="playbook">Playbook & Keywords</TabsTrigger>
-          <TabsTrigger value="audit">Page Audit</TabsTrigger>
-          <TabsTrigger value="autopilot">Autopilot</TabsTrigger>
-          <TabsTrigger value="gsc">Search Console</TabsTrigger>
-          <TabsTrigger value="site">Site & Analytics</TabsTrigger>
-          <TabsTrigger value="technical">Sitemap & Robots</TabsTrigger>
+          <TabsTrigger value="playbook">{t("cms_seo.tab_playbook")}</TabsTrigger>
+          <TabsTrigger value="audit">{t("cms_seo.tab_audit")}</TabsTrigger>
+          <TabsTrigger value="autopilot">{t("cms_seo.tab_autopilot")}</TabsTrigger>
+          <TabsTrigger value="gsc">{t("cms_seo.tab_gsc")}</TabsTrigger>
+          <TabsTrigger value="site">{t("cms_seo.tab_site")}</TabsTrigger>
+          <TabsTrigger value="technical">{t("cms_seo.tab_technical")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="playbook" className="mt-0"><SeoPlaybookPanel /></TabsContent>
@@ -141,45 +144,58 @@ const CMSSeo = () => {
         <TabsContent value="site" className="mt-0">
           <form onSubmit={saveSiteConfig} className="space-y-4">
             <div className="flex justify-end">
-              <Button type="submit" className="gap-2"><Save className="h-4 w-4" /> Save site settings</Button>
+              <Button type="submit" className="gap-2"><Save className="h-4 w-4" /> {t("cms_seo.site_save")}</Button>
             </div>
             <Card>
-              <CardHeader><CardTitle>Global meta (fallback)</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("cms_seo.site_global_meta")}</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div><Label>Site name</Label><Input value={global.siteName} onChange={(e) => setGlobal({ ...global, siteName: e.target.value })} className="mt-1" /></div>
-                  <div><Label>Title template</Label><Input value={global.titleTemplate} onChange={(e) => setGlobal({ ...global, titleTemplate: e.target.value })} className="mt-1" /></div>
+                  <div><Label>{t("cms_seo.site_site_name")}</Label><Input value={global.siteName} onChange={(e) => setGlobal({ ...global, siteName: e.target.value })} className="mt-1" /></div>
+                  <div><Label>{t("cms_seo.site_title_template")}</Label><Input value={global.titleTemplate} onChange={(e) => setGlobal({ ...global, titleTemplate: e.target.value })} className="mt-1" /></div>
                 </div>
-                <div><Label>Default title</Label><Input value={global.defaultTitle} onChange={(e) => setGlobal({ ...global, defaultTitle: e.target.value })} className="mt-1" /></div>
-                <div><Label>Default description</Label><Textarea value={global.defaultDescription} onChange={(e) => setGlobal({ ...global, defaultDescription: e.target.value })} className="mt-1" rows={2} /></div>
-                <div><Label>Default keywords</Label><Input value={global.defaultKeywords} onChange={(e) => setGlobal({ ...global, defaultKeywords: e.target.value })} className="mt-1" /></div>
+                <div><Label>{t("cms_seo.site_default_title")}</Label><Input value={global.defaultTitle} onChange={(e) => setGlobal({ ...global, defaultTitle: e.target.value })} className="mt-1" /></div>
+                <div><Label>{t("cms_seo.site_default_description")}</Label><Textarea value={global.defaultDescription} onChange={(e) => setGlobal({ ...global, defaultDescription: e.target.value })} className="mt-1" rows={2} /></div>
+                <div><Label>{t("cms_seo.site_default_keywords")}</Label><Input value={global.defaultKeywords} onChange={(e) => setGlobal({ ...global, defaultKeywords: e.target.value })} className="mt-1" /></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div><Label>Canonical URL</Label><Input value={global.canonical} onChange={(e) => setGlobal({ ...global, canonical: e.target.value })} className="mt-1" /></div>
-                  <div><Label>Twitter handle</Label><Input value={global.twitterHandle} onChange={(e) => setGlobal({ ...global, twitterHandle: e.target.value })} className="mt-1" /></div>
+                  <div><Label>{t("cms_seo.site_canonical")}</Label><Input value={global.canonical} onChange={(e) => setGlobal({ ...global, canonical: e.target.value })} className="mt-1" /></div>
+                  <div><Label>{t("cms_seo.site_twitter")}</Label><Input value={global.twitterHandle} onChange={(e) => setGlobal({ ...global, twitterHandle: e.target.value })} className="mt-1" /></div>
                 </div>
-                <div><Label>Default OG image URL</Label><Input value={global.ogImage} onChange={(e) => setGlobal({ ...global, ogImage: e.target.value })} className="mt-1" /></div>
+                <div><Label>{t("cms_seo.site_og_image")}</Label><Input value={global.ogImage} onChange={(e) => setGlobal({ ...global, ogImage: e.target.value })} className="mt-1" /></div>
                 <div className="flex items-center gap-2">
                   <Switch checked={global.indexable} onCheckedChange={(v) => setGlobal({ ...global, indexable: v })} />
-                  <Label>Allow search engines to index</Label>
+                  <Label>{t("cms_seo.site_indexable")}</Label>
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle>Analytics & tracking</CardTitle><CardDescription>GTM loads Meta/TikTok/GA4 on the storefront. API keys below power admin dashboards.</CardDescription></CardHeader>
+              <CardHeader>
+                <CardTitle>{t("cms_seo.site_analytics_title")}</CardTitle>
+                <CardDescription>{t("cms_seo.site_analytics_desc")}</CardDescription>
+              </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><Label>GA4 ID</Label><Input value={analytics.ga4} onChange={(e) => setAnalytics({ ...analytics, ga4: e.target.value })} className="mt-1" placeholder="G-XXXXXXXX" /></div>
-                <div><Label>GTM ID</Label><Input value={analytics.gtm} onChange={(e) => setAnalytics({ ...analytics, gtm: e.target.value })} className="mt-1" placeholder="GTM-XXXXXXX" /></div>
-                <div><Label>Meta Pixel (optional — prefer GTM)</Label><Input value={analytics.metaPixel} onChange={(e) => setAnalytics({ ...analytics, metaPixel: e.target.value })} className="mt-1" /></div>
-                <div><Label>TikTok Pixel (optional — prefer GTM)</Label><Input value={analytics.tiktokPixel} onChange={(e) => setAnalytics({ ...analytics, tiktokPixel: e.target.value })} className="mt-1" /></div>
+                <div><Label>{t("cms_seo.site_ga4_id")}</Label><Input value={analytics.ga4} onChange={(e) => setAnalytics({ ...analytics, ga4: e.target.value })} className="mt-1" placeholder="G-XXXXXXXX" /></div>
+                <div><Label>{t("cms_seo.site_gtm_id")}</Label><Input value={analytics.gtm} onChange={(e) => setAnalytics({ ...analytics, gtm: e.target.value })} className="mt-1" placeholder="GTM-XXXXXXX" /></div>
+                <div><Label>{t("cms_seo.site_meta_pixel")}</Label><Input value={analytics.metaPixel} onChange={(e) => setAnalytics({ ...analytics, metaPixel: e.target.value })} className="mt-1" /></div>
+                <div><Label>{t("cms_seo.site_tiktok_pixel")}</Label><Input value={analytics.tiktokPixel} onChange={(e) => setAnalytics({ ...analytics, tiktokPixel: e.target.value })} className="mt-1" /></div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle>Google API credentials</CardTitle><CardDescription>Same service account for Admin Analytics (GA4 Data API) and Search Console.</CardDescription></CardHeader>
+              <CardHeader>
+                <CardTitle>{t("cms_seo.site_credentials_title")}</CardTitle>
+                <CardDescription>
+                  {t("cms_seo.site_credentials_desc_before")}
+                  <Link to="/admin/analytics" className="text-primary underline font-medium">{t("cms_seo.site_credentials_desc_link")}</Link>
+                  {t("cms_seo.site_credentials_desc_after")}
+                </CardDescription>
+              </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><Label>Search Console site URL</Label><Input value={apiKeys.gscSiteUrl} onChange={(e) => setApiKeys({ ...apiKeys, gscSiteUrl: e.target.value })} className="mt-1" placeholder="https://yoursite.com/" /></div>
-                <div><Label>GA4 Property ID</Label><Input value={apiKeys.ga4PropertyId} onChange={(e) => setApiKeys({ ...apiKeys, ga4PropertyId: e.target.value })} className="mt-1" /></div>
-                <div className="sm:col-span-2"><Label>Service account email</Label><Input value={apiKeys.ga4ClientEmail} onChange={(e) => setApiKeys({ ...apiKeys, ga4ClientEmail: e.target.value })} className="mt-1" /></div>
-                <div className="sm:col-span-2"><Label>Service account private key</Label><Textarea value={apiKeys.ga4PrivateKey} onChange={(e) => setApiKeys({ ...apiKeys, ga4PrivateKey: e.target.value })} className="mt-1 font-mono text-xs min-h-[100px]" placeholder="Paste only when changing — leave blank to keep existing" /></div>
+                <div><Label>{t("cms_seo.site_gsc_url")}</Label><Input value={apiKeys.gscSiteUrl} onChange={(e) => setApiKeys({ ...apiKeys, gscSiteUrl: e.target.value })} className="mt-1" placeholder="https://yoursite.com/" /></div>
+                <div><Label>{t("cms_seo.site_ga4_property")}</Label><Input value={apiKeys.ga4PropertyId} onChange={(e) => setApiKeys({ ...apiKeys, ga4PropertyId: e.target.value })} className="mt-1" /></div>
+                <div className="sm:col-span-2"><Label>{t("cms_seo.site_service_email")}</Label><Input value={apiKeys.ga4ClientEmail} onChange={(e) => setApiKeys({ ...apiKeys, ga4ClientEmail: e.target.value })} className="mt-1" /></div>
+                <div className="sm:col-span-2">
+                  <Label>{t("cms_seo.site_service_key")}</Label>
+                  <Textarea value={apiKeys.ga4PrivateKey} onChange={(e) => setApiKeys({ ...apiKeys, ga4PrivateKey: e.target.value })} className="mt-1 font-mono text-xs min-h-[100px]" placeholder={t("cms_seo.site_service_key_placeholder")} />
+                </div>
               </CardContent>
             </Card>
           </form>
@@ -189,13 +205,18 @@ const CMSSeo = () => {
           <form onSubmit={saveSiteConfig}>
             <Card>
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div><CardTitle>Sitemap & robots.txt</CardTitle><CardDescription>Regenerate after adding products or pages.</CardDescription></div>
-                <Button type="button" variant="outline" onClick={generateSitemap} disabled={generating}>{generating ? "Generating…" : "Generate sitemap.xml"}</Button>
+                <div>
+                  <CardTitle>{t("cms_seo.technical_title")}</CardTitle>
+                  <CardDescription>{t("cms_seo.technical_desc")}</CardDescription>
+                </div>
+                <Button type="button" variant="outline" onClick={generateSitemap} disabled={generating}>
+                  {generating ? t("cms_seo.technical_generating") : t("cms_seo.technical_generate")}
+                </Button>
               </CardHeader>
               <CardContent>
-                <Label className="mb-2 block">robots.txt</Label>
+                <Label className="mb-2 block">{t("cms_seo.technical_robots")}</Label>
                 <Textarea value={robots} onChange={(e) => setRobots(e.target.value)} className="font-mono text-sm min-h-[160px]" />
-                <Button type="submit" className="mt-4 gap-2"><Save className="h-4 w-4" /> Save robots.txt</Button>
+                <Button type="submit" className="mt-4 gap-2"><Save className="h-4 w-4" /> {t("cms_seo.technical_save_robots")}</Button>
               </CardContent>
             </Card>
           </form>

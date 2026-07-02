@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Bot, Loader2, Play, Save, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,11 +26,20 @@ type AutopilotConfig = {
   lastBacklinkSuggestions: string[];
 };
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
 type Props = { compact?: boolean };
 
 export function SeoAutopilotPanel({ compact = false }: Props) {
+  const { t } = useTranslation();
+  const dayKeys = [
+    "cms_seo.day_sunday",
+    "cms_seo.day_monday",
+    "cms_seo.day_tuesday",
+    "cms_seo.day_wednesday",
+    "cms_seo.day_thursday",
+    "cms_seo.day_friday",
+    "cms_seo.day_saturday",
+  ] as const;
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
@@ -51,11 +61,11 @@ export function SeoAutopilotPanel({ compact = false }: Props) {
       const res = await apiClient.get<{ config: AutopilotConfig }>(ENDPOINTS.AI_SEO_AUTOPILOT);
       if (res.config) setConfig(res.config);
     } catch {
-      toast.error("Failed to load autopilot settings");
+      toast.error(t("cms_seo.autopilot_toast_load_error"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const { job, isActive, refresh: refreshJob } = useSeoJobStatus(load);
 
@@ -68,9 +78,9 @@ export function SeoAutopilotPanel({ compact = false }: Props) {
     try {
       const res = await apiClient.put<{ config: AutopilotConfig }>(ENDPOINTS.AI_SEO_AUTOPILOT, config);
       setConfig(res.config);
-      toast.success("Autopilot settings saved");
+      toast.success(t("cms_seo.autopilot_toast_save_success"));
     } catch (err: any) {
-      toast.error(err?.message || "Save failed");
+      toast.error(err?.message || t("cms_seo.autopilot_toast_save_error"));
     } finally {
       setSaving(false);
     }
@@ -83,10 +93,10 @@ export function SeoAutopilotPanel({ compact = false }: Props) {
         ENDPOINTS.AI_SEO_AUTOPILOT_RUN,
         { force: true },
       );
-      toast.success(res.summary || res.message || "Autopilot queued");
+      toast.success(res.summary || res.message || t("cms_seo.autopilot_toast_queued"));
       refreshJob();
     } catch (err: any) {
-      toast.error(err?.message || "Autopilot run failed");
+      toast.error(err?.message || t("cms_seo.autopilot_toast_run_error"));
     } finally {
       setRunning(false);
     }
@@ -95,7 +105,7 @@ export function SeoAutopilotPanel({ compact = false }: Props) {
   const runBusy = running || isActive;
 
   if (loading) {
-    return <div className="flex items-center gap-2 text-muted-foreground py-6"><Loader2 className="h-5 w-5 animate-spin" /> Loading…</div>;
+    return <div className="flex items-center gap-2 text-muted-foreground py-6"><Loader2 className="h-5 w-5 animate-spin" /> {t("cms_seo.autopilot_loading")}</div>;
   }
 
   return (
@@ -104,64 +114,72 @@ export function SeoAutopilotPanel({ compact = false }: Props) {
       <Alert>
         <Bot className="h-4 w-4" />
         <AlertDescription>
-          Autopilot runs weekly SEO optimization, publishes AI blog posts, and generates backlink outreach ideas.
-          Actual backlinks require manual outreach — AI cannot create links automatically.
-          {!compact && (
-            <> Configure target keywords in the <strong>Playbook</strong> tab.</>
-          )}
-          {compact && (
-            <> Full SEO controls: <Link to="/admin/cms/seo" className="font-semibold text-primary underline">CMS → SEO</Link></>
+          {t("cms_seo.autopilot_alert")}{" "}
+          {!compact ? (
+            <>{t("cms_seo.autopilot_alert_playbook")}</>
+          ) : (
+            <>
+              {t("cms_seo.autopilot_alert_full")}{" "}
+              <Link to="/admin/cms/seo" className="font-semibold text-primary underline">{t("cms_seo.autopilot_alert_cms_link")}</Link>
+            </>
           )}
         </AlertDescription>
       </Alert>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> SEO Autopilot</CardTitle>
-          <CardDescription>Automate SEO, GEO, AEO, and weekly blog publishing</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> {t("cms_seo.autopilot_title")}</CardTitle>
+          <CardDescription>{t("cms_seo.autopilot_desc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2">
             <Switch checked={config.enabled} onCheckedChange={(v) => setConfig({ ...config, enabled: v })} />
-            <Label>Enable scheduled autopilot</Label>
+            <Label>{t("cms_seo.autopilot_enable")}</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={config.weeklyBlogEnabled} onCheckedChange={(v) => setConfig({ ...config, weeklyBlogEnabled: v })} />
-            <Label>Weekly AI blog post</Label>
+            <Label>{t("cms_seo.autopilot_weekly_blog")}</Label>
           </div>
           {!compact && (
             <div>
-              <Label>Publish day</Label>
+              <Label>{t("cms_seo.autopilot_publish_day")}</Label>
               <Select value={String(config.weeklyBlogDay)} onValueChange={(v) => setConfig({ ...config, weeklyBlogDay: Number(v) })}>
                 <SelectTrigger className="mt-1 w-[200px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {DAYS.map((d, i) => <SelectItem key={d} value={String(i)}>{d}</SelectItem>)}
+                  {dayKeys.map((key, i) => (
+                    <SelectItem key={key} value={String(i)}>{t(key)}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           )}
           <div className="flex items-center gap-2">
             <Switch checked={config.autoSeoOptimizeEnabled} onCheckedChange={(v) => setConfig({ ...config, autoSeoOptimizeEnabled: v })} />
-            <Label>Auto SEO optimize pages with issues ({config.autoSeoOptimizeLimit} per run)</Label>
+            <Label>{t("cms_seo.autopilot_auto_optimize", { limit: config.autoSeoOptimizeLimit })}</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={config.generateBacklinkSuggestions} onCheckedChange={(v) => setConfig({ ...config, generateBacklinkSuggestions: v })} />
-            <Label>Generate backlink outreach suggestions</Label>
+            <Label>{t("cms_seo.autopilot_backlinks")}</Label>
           </div>
           {config.lastRunAt && (
-            <p className="text-xs text-muted-foreground">Last run: {new Date(config.lastRunAt).toLocaleString()} — {config.lastRunSummary}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("cms_seo.autopilot_last_run", {
+                date: new Date(config.lastRunAt).toLocaleString(),
+                summary: config.lastRunSummary || "",
+              })}
+            </p>
           )}
           {config.lastBacklinkSuggestions?.length > 0 && (
             <div className="rounded-lg border p-3 bg-muted/30">
-              <p className="text-sm font-semibold mb-2">Backlink outreach ideas</p>
+              <p className="text-sm font-semibold mb-2">{t("cms_seo.autopilot_backlink_ideas")}</p>
               <ul className="text-xs space-y-1 list-disc pl-4">{config.lastBacklinkSuggestions.map((s, i) => <li key={i}>{s}</li>)}</ul>
             </div>
           )}
           <div className="flex flex-wrap gap-2">
             <Button onClick={save} disabled={saving} className="gap-2">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {t("cms_seo.autopilot_save")}
             </Button>
             <Button variant="secondary" onClick={runNow} disabled={runBusy} className="gap-2">
-              {runBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Run now
+              {runBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} {t("cms_seo.autopilot_run_now")}
             </Button>
           </div>
         </CardContent>

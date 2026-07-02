@@ -96,19 +96,19 @@ export async function translateCmsText(
   const lang = targetLang.split("-")[0].toLowerCase();
   const trimmed = text.trim();
 
-  if (lang === "nl") return text;
-
   if (t) {
-    const fromApp = labelT(t, trimmed, "en");
+    const fromApp = labelT(t, trimmed, lang);
     if (fromApp && fromApp !== trimmed) {
       return replaceTrimmedPreservingEdges(text, trimmed, fromApp);
     }
   }
 
-  const phrase = lookupStaticPhrase(trimmed, "en");
-  if (phrase) return replaceTrimmedPreservingEdges(text, trimmed, phrase);
+  const phrase = lookupStaticPhrase(trimmed, lang);
+  if (phrase && phrase !== trimmed) {
+    return replaceTrimmedPreservingEdges(text, trimmed, phrase);
+  }
 
-  const cacheKey = `en-nl:${trimmed}`;
+  const cacheKey = `${lang}:${trimmed}`;
   if (cache[cacheKey]) return replaceTrimmedPreservingEdges(text, trimmed, cache[cacheKey]);
 
   const localCached = localStorage.getItem(`tr:${cacheKey}`);
@@ -119,15 +119,18 @@ export async function translateCmsText(
 
   try {
     const response = await fetch(
-      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=nl&tl=en&dt=t&q=${encodeURIComponent(trimmed)}`,
+      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(trimmed)}`,
     );
     if (!response.ok) throw new Error("CMS text translation failed");
     const data = await response.json();
     const translation = data[0].map((item: [string]) => item[0]).join("");
 
-    cache[cacheKey] = translation;
-    localStorage.setItem(`tr:${cacheKey}`, translation);
-    return replaceTrimmedPreservingEdges(text, trimmed, translation);
+    if (translation?.trim()) {
+      cache[cacheKey] = translation;
+      localStorage.setItem(`tr:${cacheKey}`, translation);
+      return replaceTrimmedPreservingEdges(text, trimmed, translation);
+    }
+    return text;
   } catch (error) {
     console.warn("CMS text translation failed:", trimmed.slice(0, 48), error);
     return text;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { RefreshCw, Loader2, CheckCircle2, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,14 +25,6 @@ type AuditItem = {
   issues: string[];
 };
 
-const TYPE_LABELS: Record<EntityType, string> = {
-  product: "Product",
-  category: "Category",
-  blog: "Blog",
-  cms_page: "CMS Page",
-  homepage: "Homepage",
-};
-
 const scoreBadge = (score: number) => {
   if (score >= 90) return "bg-green-100 text-green-800";
   if (score >= 70) return "bg-blue-100 text-blue-800";
@@ -40,6 +33,7 @@ const scoreBadge = (score: number) => {
 };
 
 export function SeoAuditPanel() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [bulkStarting, setBulkStarting] = useState(false);
   const [optimizingId, setOptimizingId] = useState<string | null>(null);
@@ -47,6 +41,17 @@ export function SeoAuditPanel() {
   const [onlyIssues, setOnlyIssues] = useState(true);
   const [summary, setSummary] = useState<{ total: number; excellent: number; good: number; needsWork: number; critical: number } | null>(null);
   const [items, setItems] = useState<AuditItem[]>([]);
+
+  const typeLabel = (type: EntityType) => {
+    const map: Record<EntityType, string> = {
+      product: t("cms_seo.audit_type_product"),
+      category: t("cms_seo.audit_type_category"),
+      blog: t("cms_seo.audit_type_blog"),
+      cms_page: t("cms_seo.audit_type_cms"),
+      homepage: t("cms_seo.audit_type_homepage"),
+    };
+    return map[type];
+  };
 
   const fetchAudit = useCallback(async () => {
     setLoading(true);
@@ -58,11 +63,11 @@ export function SeoAuditPanel() {
       setSummary(res.summary);
       setItems(res.items || []);
     } catch (err: any) {
-      toast.error(err?.message || "Audit failed");
+      toast.error(err?.message || t("cms_seo.audit_toast_failed"));
     } finally {
       setLoading(false);
     }
-  }, [entityFilter, onlyIssues]);
+  }, [entityFilter, onlyIssues, t]);
 
   const { job, isActive, refresh: refreshJob } = useSeoJobStatus(fetchAudit);
 
@@ -75,10 +80,10 @@ export function SeoAuditPanel() {
     setOptimizingId(key);
     try {
       await apiClient.post(ENDPOINTS.AI_SEO_OPTIMIZE, { entityType: item.entityType, entityId: item.entityId, save: true });
-      toast.success(`Optimized: ${item.label}`);
+      toast.success(t("cms_seo.audit_toast_optimized", { label: item.label }));
       fetchAudit();
     } catch (err: any) {
-      toast.error(err?.message || "Optimization failed");
+      toast.error(err?.message || t("cms_seo.audit_toast_optimize_error"));
     } finally {
       setOptimizingId(null);
     }
@@ -92,10 +97,10 @@ export function SeoAuditPanel() {
         onlyIssues: true,
         limit: 10,
       });
-      toast.success(res.message || (res.alreadyRunning ? "Job already running" : "Bulk optimize queued"));
+      toast.success(res.message || (res.alreadyRunning ? t("cms_seo.audit_toast_bulk_running") : t("cms_seo.audit_toast_bulk_queued")));
       refreshJob();
     } catch (err: any) {
-      toast.error(err?.message || "Bulk optimize failed");
+      toast.error(err?.message || t("cms_seo.audit_toast_bulk_error"));
     } finally {
       setBulkStarting(false);
     }
@@ -108,21 +113,21 @@ export function SeoAuditPanel() {
       <SeoJobBanner job={job} onDismiss={refreshJob} />
       <div className="flex flex-wrap gap-2 justify-end">
         <Button variant="outline" onClick={fetchAudit} disabled={loading} className="gap-2">
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /> Refresh
+          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /> {t("cms_seo.audit_refresh")}
         </Button>
         <Button onClick={bulkOptimize} disabled={bulkBusy || loading} className="gap-2">
           {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-          AI optimize (10)
+          {t("cms_seo.audit_bulk_optimize")}
         </Button>
       </div>
       {summary && (
         <div className="grid gap-3 sm:grid-cols-5">
           {[
-            ["Total", summary.total, ""],
-            ["Excellent", summary.excellent, "text-green-600"],
-            ["Good", summary.good, "text-blue-600"],
-            ["Needs work", summary.needsWork, "text-amber-600"],
-            ["Critical", summary.critical, "text-red-600"],
+            [t("cms_seo.audit_summary_total"), summary.total, ""],
+            [t("cms_seo.audit_summary_excellent"), summary.excellent, "text-green-600"],
+            [t("cms_seo.audit_summary_good"), summary.good, "text-blue-600"],
+            [t("cms_seo.audit_summary_needs_work"), summary.needsWork, "text-amber-600"],
+            [t("cms_seo.audit_summary_critical"), summary.critical, "text-red-600"],
           ].map(([label, val, cls]) => (
             <Card key={label as string}><CardHeader className="pb-2"><CardDescription>{label}</CardDescription><CardTitle className={cn("text-2xl", cls)}>{val}</CardTitle></CardHeader></Card>
           ))}
@@ -133,32 +138,36 @@ export function SeoAuditPanel() {
           <Select value={entityFilter} onValueChange={setEntityFilter}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              <SelectItem value="product">Products</SelectItem>
-              <SelectItem value="category">Categories</SelectItem>
-              <SelectItem value="blog">Blogs</SelectItem>
-              <SelectItem value="cms_page">CMS pages</SelectItem>
-              <SelectItem value="homepage">Homepage</SelectItem>
+              <SelectItem value="all">{t("cms_seo.audit_filter_all")}</SelectItem>
+              <SelectItem value="product">{t("cms_seo.audit_filter_products")}</SelectItem>
+              <SelectItem value="category">{t("cms_seo.audit_filter_categories")}</SelectItem>
+              <SelectItem value="blog">{t("cms_seo.audit_filter_blogs")}</SelectItem>
+              <SelectItem value="cms_page">{t("cms_seo.audit_filter_cms")}</SelectItem>
+              <SelectItem value="homepage">{t("cms_seo.audit_filter_homepage")}</SelectItem>
             </SelectContent>
           </Select>
           <Button variant={onlyIssues ? "default" : "outline"} size="sm" onClick={() => setOnlyIssues((v) => !v)}>
-            {onlyIssues ? "Issues only" : "All pages"}
+            {onlyIssues ? t("cms_seo.audit_issues_only") : t("cms_seo.audit_all_pages")}
           </Button>
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>Page audit</CardTitle><CardDescription>SEO, GEO & AEO scores per page</CardDescription></CardHeader>
+        <CardHeader><CardTitle>{t("cms_seo.audit_title")}</CardTitle><CardDescription>{t("cms_seo.audit_desc")}</CardDescription></CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center py-12 gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Scanning…</div>
+            <div className="flex justify-center py-12 gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> {t("cms_seo.audit_scanning")}</div>
           ) : items.length === 0 ? (
-            <div className="flex flex-col items-center py-12 text-muted-foreground"><CheckCircle2 className="h-10 w-10 text-green-500 mb-2" />All pages look good</div>
+            <div className="flex flex-col items-center py-12 text-muted-foreground"><CheckCircle2 className="h-10 w-10 text-green-500 mb-2" />{t("cms_seo.audit_all_good")}</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-3 pr-4">Page</th><th className="pb-3 pr-4">Type</th><th className="pb-3 pr-4">Score</th><th className="pb-3 pr-4">Issues</th><th className="pb-3">Action</th>
+                    <th className="pb-3 pr-4">{t("cms_seo.audit_col_page")}</th>
+                    <th className="pb-3 pr-4">{t("cms_seo.audit_col_type")}</th>
+                    <th className="pb-3 pr-4">{t("cms_seo.audit_col_score")}</th>
+                    <th className="pb-3 pr-4">{t("cms_seo.audit_col_issues")}</th>
+                    <th className="pb-3">{t("cms_seo.audit_col_action")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -167,12 +176,12 @@ export function SeoAuditPanel() {
                     return (
                       <tr key={key} className="border-b align-top">
                         <td className="py-3 pr-4"><div className="font-medium">{item.label}</div><div className="text-xs text-muted-foreground">{item.url}</div></td>
-                        <td className="py-3 pr-4"><Badge variant="outline">{TYPE_LABELS[item.entityType]}</Badge></td>
+                        <td className="py-3 pr-4"><Badge variant="outline">{typeLabel(item.entityType)}</Badge></td>
                         <td className="py-3 pr-4"><span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", scoreBadge(item.score))}>{item.score}</span></td>
-                        <td className="py-3 pr-4 text-xs">{item.issues.length ? item.issues.join(", ") : "OK"}</td>
+                        <td className="py-3 pr-4 text-xs">{item.issues.length ? item.issues.join(", ") : t("cms_seo.audit_ok")}</td>
                         <td className="py-3">
                           <Button size="sm" variant="outline" className="gap-1" disabled={optimizingId === key || bulkBusy} onClick={() => optimizeOne(item)}>
-                            {optimizingId === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Optimize
+                            {optimizingId === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {t("cms_seo.audit_optimize")}
                           </Button>
                         </td>
                       </tr>

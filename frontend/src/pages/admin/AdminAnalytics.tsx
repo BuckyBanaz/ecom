@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -64,6 +65,9 @@ const AdminAnalytics = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [hasPrivateKeySaved, setHasPrivateKeySaved] = useState(false);
+  const [credentialsReady, setCredentialsReady] = useState(false);
   const [keys, setKeys] = useState({
     ga4PropertyId: "",
     ga4ClientEmail: "",
@@ -78,19 +82,29 @@ const AdminAnalytics = () => {
     setLoading(true);
     try {
       const [dataRes, configRes] = await Promise.all([
-        apiClient.get<{ ga4Data: Ga4DashboardData | null }>(ENDPOINTS.ADMIN_ANALYTICS_DATA).catch(() => null),
-        apiClient.get<{ data: Record<string, string> }>(ENDPOINTS.ADMIN_SEO_CONFIG).catch(() => null),
+        apiClient.get<{
+          ga4Data: Ga4DashboardData | null;
+          connected?: boolean;
+          error?: string | null;
+          integration?: { ga4Ready?: boolean; hasCredentials?: boolean };
+        }>(ENDPOINTS.ADMIN_ANALYTICS_DATA).catch(() => null),
+        apiClient.get<{ data: Record<string, unknown> }>(ENDPOINTS.ADMIN_SEO_CONFIG).catch(() => null),
       ]);
 
       if (configRes?.data) {
         setKeys({
-          ga4PropertyId: configRes.data.ga4PropertyId || "",
-          ga4ClientEmail: configRes.data.ga4ClientEmail || "",
-          ga4PrivateKey: configRes.data.ga4PrivateKey || "",
+          ga4PropertyId: String(configRes.data.ga4PropertyId || ""),
+          ga4ClientEmail: String(configRes.data.ga4ClientEmail || "").trim(),
+          ga4PrivateKey: "",
         });
+        setHasPrivateKeySaved(Boolean(configRes.data.hasGa4PrivateKey));
       }
 
-      if (dataRes?.ga4Data?.traffic && Array.isArray(dataRes.ga4Data.traffic)) {
+      const integration = dataRes?.integration;
+      setCredentialsReady(Boolean(integration?.ga4Ready || integration?.hasCredentials));
+      setConnectionError(dataRes?.error || null);
+
+      if (dataRes?.connected && dataRes.ga4Data?.traffic && Array.isArray(dataRes.ga4Data.traffic)) {
         setGa4DataLive(dataRes.ga4Data);
         setIsConnected(true);
       } else {
@@ -177,7 +191,7 @@ const AdminAnalytics = () => {
             <div className="space-y-2">
               <Label>GA4 Private Key</Label>
               <Textarea
-                placeholder="-----BEGIN PRIVATE KEY-----\n..."
+                placeholder={hasPrivateKeySaved ? "Private key saved — paste only to replace" : "-----BEGIN PRIVATE KEY-----\n..."}
                 className="font-mono text-xs h-32"
                 value={keys.ga4PrivateKey}
                 onChange={(e) => setKeys({ ...keys, ga4PrivateKey: e.target.value })}
@@ -196,11 +210,22 @@ const AdminAnalytics = () => {
       {!isConnected && (
         <Alert variant="default" className="bg-blue-50/50 text-blue-800 border-blue-200">
           <Info className="h-4 w-4 stroke-blue-600" />
-          <AlertTitle>GA4 API not connected</AlertTitle>
+          <AlertTitle>
+            {credentialsReady ? "Credentials saved — GA4 not connected yet" : "GA4 API not configured"}
+          </AlertTitle>
           <AlertDescription className="space-y-2">
-            <p>
-              Configure the GA4 Data API service account above to see live traffic here. Your storefront can still send events through GTM — that does not automatically populate this admin chart.
-            </p>
+            {credentialsReady ? (
+              <p>
+                Your service account keys are stored (shared with{" "}
+                <Link to="/admin/cms/seo" className="font-semibold underline">CMS → SEO → Site & Analytics</Link>
+                ). {connectionError || "Check Property ID, GA4 property access, and that the Google Analytics Data API is enabled."}
+              </p>
+            ) : (
+              <p>
+                Add Property ID, service account email, and private key via <strong>Configure GA4 API</strong> below or{" "}
+                <Link to="/admin/cms/seo" className="font-semibold underline">CMS → SEO</Link> (same credentials for both pages).
+              </p>
+            )}
             <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowConfig(true)}>
               Configure GA4 API
             </Button>

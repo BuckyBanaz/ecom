@@ -147,8 +147,13 @@ import logsRoutes from "./routes/logsRoutes";
 import backupRoutes from "./routes/backupRoutes";
 import { getRobotsTxtContent, getSitemapXmlContent } from "./services/settingsStore";
 
-app.get("/robots.txt", async (_req, res, next) => {
+app.get("/robots.txt", async (req, res, next) => {
   try {
+    const host = String(req.hostname || req.get("host") || "").toLowerCase();
+    if (host.startsWith("api.")) {
+      res.type("text/plain").send("User-agent: *\nDisallow: /\n");
+      return;
+    }
     const content = await getRobotsTxtContent();
     res.type("text/plain").send(content);
   } catch (error) {

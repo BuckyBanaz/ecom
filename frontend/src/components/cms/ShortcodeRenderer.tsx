@@ -15,10 +15,76 @@ import { productRepository, categoryRepository, blogRepository, brandRepository,
 import { SafeImage } from "@/components/ui/SafeImage";
 import { labelT } from "@/utils/i18nLabel";
 import { CmsHtmlContent } from "@/components/cms/CmsHtmlContent";
+import { CmsLabel } from "@/components/cms/CmsLabel";
+import { useCmsLabel } from "@/hooks/useCmsLabel";
 import { decodeShortcodeAttribute } from "@/utils/shortcodeAttrs";
 import { extractMegaMenus, readMegaMenusFromStorage } from "@/utils/megaMenu";
 import { detectShortcodeBlocks } from "@/utils/cmsLocalStorage";
 import type { MegaMenu } from "@/data/megaMenu";
+
+type HeroBannerSlideData = {
+  title?: string;
+  subtitle?: string;
+  bgImage?: string;
+  btnText?: string;
+  btnLink?: string;
+  titleColor?: string;
+  subtitleColor?: string;
+  overlayOpacity: number;
+  borderRadius: number;
+};
+
+function HeroBannerSlide({ slide, sIndex }: { slide: HeroBannerSlideData; sIndex: number }) {
+  const { t } = useTranslation();
+  const titleAlt = useCmsLabel(slide.title);
+  const radius = slide.borderRadius ?? 12;
+  const overlay = (slide.overlayOpacity ?? 40) / 100;
+
+  return (
+    <CarouselItem className="pl-2 md:pl-4">
+      <div className="relative h-full overflow-hidden" style={{ borderRadius: radius }}>
+        <SafeImage
+          src={slide.bgImage}
+          alt={titleAlt || t("shortcode.hero_banner", { defaultValue: "Hero banner" })}
+          priority={sIndex === 0}
+          responsiveWidths={sIndex === 0 ? [640, 960, 1200] : [640, 960]}
+          sizes="100vw"
+          width={1200}
+          height={440}
+          className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]"
+          style={{ borderRadius: radius }}
+          fallbackType="category"
+        />
+        <div className="absolute inset-0 bg-black" style={{ opacity: overlay, borderRadius: radius }} />
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-4 py-6 text-center text-white sm:px-6">
+          {slide.title && (
+            <CmsLabel
+              as="h1"
+              text={slide.title}
+              className={`max-w-full break-words text-3xl font-black drop-shadow-sm sm:text-4xl md:text-6xl lg:text-7xl ${slide.titleColor ? "" : "text-primary"}`}
+              style={{ fontFamily: "Inter", ...(slide.titleColor ? { color: slide.titleColor } : {}) }}
+            />
+          )}
+          {slide.subtitle && (
+            <CmsLabel
+              as="p"
+              text={slide.subtitle}
+              className={`mt-2 max-w-full break-words text-base font-medium sm:text-lg md:text-2xl ${slide.subtitleColor ? "" : "text-white"}`}
+              style={slide.subtitleColor ? { color: slide.subtitleColor } : undefined}
+            />
+          )}
+          {slide.btnText && slide.btnLink && (
+            <Button asChild size="lg" className="mt-6 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
+              <Link to={slide.btnLink}>
+                <CmsLabel text={slide.btnText} />
+              </Link>
+            </Button>
+          )}
+        </div>
+      </div>
+    </CarouselItem>
+  );
+}
 
 interface ShortcodeRendererProps {
   content: string;
@@ -294,19 +360,25 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                 <div className="relative overflow-hidden rounded-3xl bg-muted p-8 md:p-12 border shadow-xs">
                   <div className="relative z-10 max-w-4xl flex flex-col gap-4">
                     {attributes.title && (
-                      <h1 className="text-3xl font-extrabold md:text-5xl tracking-tight text-foreground">
-                        {L(attributes.title)}
-                      </h1>
+                      <CmsLabel
+                        as="h1"
+                        text={attributes.title}
+                        className="text-3xl font-extrabold md:text-5xl tracking-tight text-foreground"
+                      />
                     )}
                     {attributes.subtitle && (
-                      <p className="text-2xl font-bold text-foreground/90">
-                        {L(attributes.subtitle)}
-                      </p>
+                      <CmsLabel
+                        as="p"
+                        text={attributes.subtitle}
+                        className="text-2xl font-bold text-foreground/90"
+                      />
                     )}
                     {attributes.description && (
-                      <p className="text-lg text-foreground/80 max-w-2xl">
-                        {L(attributes.description)}
-                      </p>
+                      <CmsLabel
+                        as="p"
+                        text={attributes.description}
+                        className="text-lg text-foreground/80 max-w-2xl"
+                      />
                     )}
                   </div>
                   <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-primary/10 to-transparent pointer-events-none" />
@@ -408,51 +480,9 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                   aria-label="Hero banners"
                 >
                   <CarouselContent className="-ml-2 md:-ml-4">
-                    {slides.map((slide, sIndex) => {
-                      const radius = slide.borderRadius ?? 12;
-                      const overlay = (slide.overlayOpacity ?? 40) / 100;
-                      return (
-                      <CarouselItem key={sIndex} className="pl-2 md:pl-4">
-                        <div className="relative h-full overflow-hidden" style={{ borderRadius: radius }}>
-                          <SafeImage
-                            src={slide.bgImage}
-                            alt={slide.title ? L(slide.title) : "Hero banner"}
-                            priority={sIndex === 0}
-                            responsiveWidths={sIndex === 0 ? [640, 960, 1200] : [640, 960]}
-                            sizes="100vw"
-                            width={1200}
-                            height={440}
-                            className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]"
-                            style={{ borderRadius: radius }}
-                            fallbackType="category"
-                          />
-                          <div className="absolute inset-0 bg-black" style={{ opacity: overlay, borderRadius: radius }} />
-                          <div className="absolute inset-0 flex flex-col items-center justify-center px-4 py-6 text-center text-white sm:px-6">
-                            {slide.title && (
-                              <h1
-                                className={`max-w-full break-words text-3xl font-black drop-shadow-sm sm:text-4xl md:text-6xl lg:text-7xl ${slide.titleColor ? "" : "text-primary"}`}
-                                style={{ fontFamily: "Inter", ...(slide.titleColor ? { color: slide.titleColor } : {}) }}
-                              >
-                                {L(slide.title)}
-                              </h1>
-                            )}
-                            {slide.subtitle && (
-                              <p
-                                className={`mt-2 max-w-full break-words text-base font-medium sm:text-lg md:text-2xl ${slide.subtitleColor ? "" : "text-white"}`}
-                                style={slide.subtitleColor ? { color: slide.subtitleColor } : undefined}
-                              >
-                                {L(slide.subtitle)}
-                              </p>
-                            )}
-                            {slide.btnText && slide.btnLink && (
-                              <Button asChild size="lg" className="mt-6 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
-                                <Link to={slide.btnLink}>{L(slide.btnText)}</Link>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CarouselItem>
-                    );})}
+                    {slides.map((slide, sIndex) => (
+                      <HeroBannerSlide key={sIndex} slide={slide} sIndex={sIndex} />
+                    ))}
                   </CarouselContent>
                   {slides.length > 1 && (
                     <>

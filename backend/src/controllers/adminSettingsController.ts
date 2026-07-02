@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { getGA4Data } from "../services/analyticsService";
+import { getGoogleIntegrationStatus } from "../utils/googleCredentials";
 import { AppError } from "../middlewares/errorMiddleware";
 import {
   saveSettings,
@@ -8,8 +9,8 @@ import {
   saveSitemapXmlContent,
 } from "../services/settingsStore";
 import { getRobotsTxtValidationError, sanitizeRobotsTxt } from "../utils/robotsTxt";
-
 import { prisma } from "../config/db";
+import { getInvoiceVendorSettings, isApiDocsEnabled } from "../utils/generalSettings";
 import { clampAiBulkLimit, clampAiImageCount } from "../utils/aiLimits";
 import { getAiOutputLanguage, getAiOutputLanguageLabel } from "../utils/aiLanguage";
 
@@ -356,6 +357,7 @@ export const getGeneralSettings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    const invoice = getInvoiceVendorSettings();
     const settings = {
       storeName: process.env.STORE_NAME || "SCHIP & STER",
       storeUrl: process.env.STORE_URL || "https://schipandster.nl",
@@ -363,6 +365,10 @@ export const getGeneralSettings = async (
       currency: process.env.STORE_CURRENCY || "EUR",
       maintenanceMode: process.env.MAINTENANCE_MODE === "true",
       maintenanceMessage: process.env.MAINTENANCE_MESSAGE || "We're currently performing maintenance. We'll be back shortly!",
+      apiDocsEnabled: isApiDocsEnabled(),
+      invoiceVendorName: invoice.vendorName,
+      invoiceVendorAddress: invoice.vendorAddress,
+      invoiceVendorEmail: invoice.vendorEmail,
     };
 
     res.status(200).json({ success: true, data: settings });
@@ -380,7 +386,18 @@ export const updateGeneralSettings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { storeName, storeUrl, supportEmail, currency, maintenanceMode, maintenanceMessage } = req.body;
+    const {
+      storeName,
+      storeUrl,
+      supportEmail,
+      currency,
+      maintenanceMode,
+      maintenanceMessage,
+      apiDocsEnabled,
+      invoiceVendorName,
+      invoiceVendorAddress,
+      invoiceVendorEmail,
+    } = req.body;
 
     const updates: Record<string, string> = {};
     if (storeName !== undefined) updates.STORE_NAME = storeName;
@@ -389,6 +406,10 @@ export const updateGeneralSettings = async (
     if (currency !== undefined) updates.STORE_CURRENCY = currency;
     if (maintenanceMode !== undefined) updates.MAINTENANCE_MODE = maintenanceMode ? "true" : "false";
     if (maintenanceMessage !== undefined) updates.MAINTENANCE_MESSAGE = maintenanceMessage;
+    if (apiDocsEnabled !== undefined) updates.API_DOCS_ENABLED = apiDocsEnabled ? "true" : "false";
+    if (invoiceVendorName !== undefined) updates.INVOICE_VENDOR_NAME = String(invoiceVendorName).trim();
+    if (invoiceVendorAddress !== undefined) updates.INVOICE_VENDOR_ADDRESS = String(invoiceVendorAddress).trim();
+    if (invoiceVendorEmail !== undefined) updates.INVOICE_VENDOR_EMAIL = String(invoiceVendorEmail).trim();
 
     await saveSettings(updates);
 
@@ -444,9 +465,11 @@ export const getSeoConfig = async (
       metaPixel: process.env.ANALYTICS_META_PIXEL || "",
       tiktokPixel: process.env.ANALYTICS_TIKTOK_PIXEL || "",
       ga4PropertyId: process.env.GA4_PROPERTY_ID || "",
-      ga4ClientEmail: process.env.GA4_CLIENT_EMAIL || "",
+      ga4ClientEmail: (process.env.GA4_CLIENT_EMAIL || "").trim(),
       ga4PrivateKey: process.env.GA4_PRIVATE_KEY ? "••••••••••••••••••••" : "",
+      hasGa4PrivateKey: Boolean(process.env.GA4_PRIVATE_KEY?.trim()),
       gscSiteUrl: process.env.GSC_SITE_URL || "",
+      googleIntegration: getGoogleIntegrationStatus(),
     };
 
     res.status(200).json({ success: true, data: config });
@@ -521,13 +544,16 @@ export const updateSeoConfig = async (
     if (gtm !== undefined) updates.ANALYTICS_GTM = gtm;
     if (metaPixel !== undefined) updates.ANALYTICS_META_PIXEL = metaPixel;
     if (tiktokPixel !== undefined) updates.ANALYTICS_TIKTOK_PIXEL = tiktokPixel;
-    if (ga4PropertyId !== undefined) updates.GA4_PROPERTY_ID = ga4PropertyId;
-    if (ga4ClientEmail !== undefined) updates.GA4_CLIENT_EMAIL = ga4ClientEmail;
+    if (ga4PropertyId !== undefined) updates.GA4_PROPERTY_ID = String(ga4PropertyId).trim();
+    if (ga4ClientEmail !== undefined) updates.GA4_CLIENT_EMAIL = String(ga4ClientEmail).trim();
     
     if (ga4PrivateKey !== undefined && ga4PrivateKey !== "" && !ga4PrivateKey.includes("••")) {
       updates.GA4_PRIVATE_KEY = ga4PrivateKey;
     }
-    if (gscSiteUrl !== undefined) updates.GSC_SITE_URL = gscSiteUrl;
+    if (gscSiteUrl !== undefined) {
+      const trimmed = String(gscSiteUrl).trim();
+      updates.GSC_SITE_URL = trimmed;
+    }
 
     await saveSettings(updates);
 
@@ -546,8 +572,36 @@ export const getAnalyticsDashboardData = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const ga4Data = await getGA4Data();
-    res.status(200).json({ success: true, ga4Data });
+    const integration = getGoogleIntegrationStatus();
+    if (!integration.ga4Ready) {
+      res.status(200).json({
+        success: true,
+        ga4Data: null,
+        integration,
+        connected: false,
+        error: "Add GA4 Property ID, service account email, and private key in CMS → SEO → Site & Analytics (or Analytics → Configure).",
+      });
+      return;
+    }
+
+    try {
+      const ga4Data = await getGA4Data();
+      res.status(200).json({
+        success: true,
+        ga4Data,
+        integration,
+        connected: true,
+        error: ga4Data?.traffic?.length ? null : "GA4 connected — no traffic in the last 7 days yet.",
+      });
+    } catch (error: any) {
+      res.status(200).json({
+        success: true,
+        ga4Data: null,
+        integration,
+        connected: false,
+        error: error?.message || "Failed to fetch GA4 data",
+      });
+    }
   } catch (error: any) {
     next(error);
   }
@@ -604,7 +658,12 @@ export const generateSitemap = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const baseUrl = process.env.CLIENT_URL || process.env.STORE_URL || "http://localhost:8080";
+    const baseUrl = (
+      process.env.SEO_CANONICAL_URL ||
+      process.env.CLIENT_URL ||
+      process.env.STORE_URL ||
+      "http://localhost:8080"
+    ).replace(/\/$/, "");
 
     // Fetch dynamic content
     const products = await prisma.product.findMany({

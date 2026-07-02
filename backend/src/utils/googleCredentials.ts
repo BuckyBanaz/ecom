@@ -30,6 +30,22 @@ export function getGoogleServiceAccountCredentials(): { clientEmail: string; pri
   };
 }
 
+export function getGoogleIntegrationStatus() {
+  const creds = getGoogleServiceAccountCredentials();
+  const siteUrl = getGscSiteUrl();
+  return {
+    hasClientEmail: Boolean(process.env.GA4_CLIENT_EMAIL?.trim()),
+    hasPrivateKey: Boolean(process.env.GA4_PRIVATE_KEY?.trim()),
+    hasPropertyId: Boolean(process.env.GA4_PROPERTY_ID?.trim()),
+    hasCredentials: Boolean(creds && process.env.GA4_PROPERTY_ID?.trim()),
+    siteUrl,
+    hasSiteUrl: Boolean(siteUrl),
+    gscSiteUrlExplicit: Boolean(process.env.GSC_SITE_URL?.trim()),
+    ga4Ready: Boolean(creds && process.env.GA4_PROPERTY_ID?.trim()),
+    gscReady: Boolean(creds && siteUrl),
+  };
+}
+
 export function getGscSiteUrl(): string | null {
   const configured = process.env.GSC_SITE_URL?.trim();
   if (configured) return configured;

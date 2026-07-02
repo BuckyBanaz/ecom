@@ -3,7 +3,7 @@ import { AppError } from "../middlewares/errorMiddleware";
 import {
   getGoogleServiceAccountCredentials,
   getGscSiteUrl,
-  isGoogleApiConfigured,
+  getGoogleIntegrationStatus,
 } from "../utils/googleCredentials";
 
 const GSC_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
@@ -50,11 +50,48 @@ export type GscPageRow = {
 };
 
 export async function getSearchConsoleStatus() {
-  return {
-    configured: isGoogleApiConfigured(),
-    siteUrl: getGscSiteUrl(),
-    hasCredentials: !!getGoogleServiceAccountCredentials(),
+  const integration = getGoogleIntegrationStatus();
+  const base = {
+    configured: integration.gscReady,
+    siteUrl: integration.siteUrl,
+    hasCredentials: integration.hasCredentials,
+    hasSiteUrl: integration.hasSiteUrl,
+    gscSiteUrlExplicit: integration.gscSiteUrlExplicit,
+    connected: false as boolean,
+    error: null as string | null,
   };
+
+  if (!integration.hasCredentials) {
+    return {
+      ...base,
+      error: "Add GA4 service account email and private key in Site & Analytics (same as Admin → Analytics).",
+    };
+  }
+
+  if (!integration.hasSiteUrl) {
+    return {
+      ...base,
+      error: "Set Search Console site URL in Site & Analytics (e.g. https://schipenster.com/ or sc-domain:schipenster.com).",
+    };
+  }
+
+  if (!integration.gscSiteUrlExplicit) {
+    base.error =
+      "Using canonical URL as GSC site — set an explicit Search Console site URL in Site & Analytics if this property does not match.";
+  }
+
+  try {
+    const { client, siteUrl } = getSearchConsoleClient();
+    await client.sites.get({ siteUrl });
+    return { ...base, configured: true, siteUrl, connected: true, error: null };
+  } catch (err: unknown) {
+    let message = err instanceof Error ? err.message : "Search Console connection failed";
+    const creds = getGoogleServiceAccountCredentials();
+    if (message.includes("not a verified Search Console site") && creds?.clientEmail) {
+      message = `${message} Add ${creds.clientEmail} as a Full user on the schipenster.com property in Search Console → Settings → Users and permissions.`;
+    }
+    return { ...base, configured: integration.gscReady, connected: false, error: message };
+  }
 }
 
 export async function fetchSearchConsoleOverview(days = 28) {

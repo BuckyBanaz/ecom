@@ -5,7 +5,7 @@ import { translateCmsText } from "@/utils/translator";
 
 /**
  * Translate CMS / API plain-text labels for the active storefront language.
- * NL: returns source (often Dutch). EN: cmsPhrases → Google nl→en (cached).
+ * Static cmsPhrases/i18n first, then async Google auto-detect → target locale (cached).
  */
 export function useCmsLabel(text: string | undefined | null): string {
   const { t, i18n } = useTranslation();
@@ -25,16 +25,16 @@ export function useCmsLabel(text: string | undefined | null): string {
     const immediate = labelT(t, source, i18n.language);
     setLabel(immediate);
 
-    if (lang !== "en") return;
-
-    let cancelled = false;
-    translateCmsText(source, i18n.language, t).then((translated) => {
-      if (!cancelled && translated) setLabel(translated);
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    // Async Google/cmsPhrases when static lookup did not change the text.
+    if (immediate.trim() === source) {
+      let cancelled = false;
+      translateCmsText(source, lang, t).then((translated) => {
+        if (!cancelled && translated?.trim()) setLabel(translated);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
   }, [source, i18n.language, t]);
 
   return label;
