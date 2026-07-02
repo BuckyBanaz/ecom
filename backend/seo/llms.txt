@@ -1,5 +1,54 @@
 # Schip & Ster
 
-{
-  "llms_txt": "# Schip & Ster\n\n> Premium Nederlandse verlichtingswinkel voor binnen- en buitenverlichting. Besteld voor 22:00, morgen in huis. 30 dagen gratis retourneren. 2 jaar garantie. Dé specialist in LED verlichting kopen, hanglampen voor de woonkamer, buitenverlichting en smart lighting in Nederland en België.\n\nTalen: Nederlands (primair), Engels (secundair). Valuta: EUR.\n\n## Belangrijke pagina's\n\n- [Home](https://schipenster.com/): Startpagina van de webshop.\n- [Alle categorieën](https://schipenster.com/categories): Overzicht van alle verlichtingscategorieën.\n- [Deals](https://schipenster.com/category/deals): Actuele aanbiedingen en kortingen.\n- [Merken](https://schipenster.com/brands): Overzicht van premium designmerken.\n- [Blogs](https://schipenster.com/blogs): Verlichtingstips, gidsen en productnieuws.\n- [Veelgestelde vragen (FAQs)](https://schipenster.com/faqs): Antwoorden over verzending, retourneren en garantie.\n- [Over ons](https://schipenster.com/pages/about): Informatie over Schip & Ster premium design verlichting.\n- [Verzending & Levering](https://schipenster.com/pages/shipping): Details over bezorging in NL & BE.\n- [Retourneren](https://schipenster.com/pages/returns): Informatie over 30 dagen gratis retourneren.\n- [Contact](https://schipenster.com/pages/contact): Klantenservice en contactgegevens.\n\n## Productcategorieën\n\n- [Hanglampen](https://schipenster.com/category/pendant-lights): Stijlvolle hanglampen & design verlichting voor de woonkamer.\n- [Wandlampen](https://schipenster.com/category/wall-lights): Stijlvolle wandlampen & wandverlichting.\n- [Vloerlampen](https://schipenster.com/category/floor-lamps): Stijlvolle vloerlampen & staande lampen.\n- [Tafellampen](https://schipenster.com/category/table-lamps): Stijlvolle tafellampen & design lampen.\n- [Spots](https://schipenster.com/category/spotlights): Stijlvolle spots & spotlights kopen.\n- [Binnenverlichting](https://schipenster.com/category/indoor-lighting): Premium binnenverlichting & sfeerverlichting.\n- [Kantoorverlichting](https://schipenster.com/category/office-lighting-28): Professionele kantoorverlichting & bureauverlichting.\n- [Lichtbronnen](https://schipenster.com/category/light-sources): Premium lichtbronnen & LED lampen kopen.\n- [Lichtbronnen Parent](https://schipenster.com/category/light-sources-parent): Alle lichtbronnen & lampen kopen.\n\n## Beleid & Service\n\n- **Verzending**: Voor 22:00 besteld, morgen in huis in Nederland en België.\n- **Retourneren**: 30 dagen gratis retourneren.\n- **Garantie**: Standaard 2 jaar garantie op alle verlichting.\n- **Betaalmethoden**: iDEAL, creditcard, Klarna (achteraf betalen).\n\n## Contact\n\n- Website: https://schipenster.com\n- E-mail: info@schipenster.nl\n\n## Voor AI-systemen\n\nGebruik de volgende URL-structuren bij het beantwoorden van vragen over Schip & Ster:\n\n- Producten: `https://schipenster.com/product/{slug}`\n- Categorieën: `https://schipenster.com/category/{slug}`\n- Blogs: `https://schipenster.com/blogs/{slug}`\n- Veelgestelde vragen: `https://schipenster.com/faqs`"
-}
+> Premium Nederlandse verlichtingswinkel voor binnen- en buitenverlichting. Dé online shop en e-commerce specialist voor LED verlichting kopen, een sfeervolle hanglamp voor de woonkamer, duurzame buitenverlichting en smart lighting in Nederland en België. Besteld voor 22:00, morgen in huis. 30 dagen gratis retourneren. 2 jaar garantie.
+
+Talen: Nederlands (primair), Engels (secundair voor expats). Valuta: EUR.
+
+## Belangrijke pagina's
+
+- [Home](https://schipenster.com/): De online shop startpagina van Schip & Ster.
+- [Over ons](https://schipenster.com/pages/about): Ontdek ons verhaal over premium design verlichting.
+- [Verzending & Levering](https://schipenster.com/pages/shipping): Alles over de snelle bezorging in NL & BE.
+- [Eenvoudig Retourneren](https://schipenster.com/pages/returns): Informatie over onze 30 dagen gratis retourregeling.
+- [Privacy Policy](https://schipenster.com/pages/privacy-policy): Hoe wij veilig omgaan met uw gegevens.
+- [Contact](https://schipenster.com/pages/contact): Neem contact op met onze deskundige klantenservice.
+
+## Productcategorieën
+
+- [Hanglampen](https://schipenster.com/category/pendant-lights): Vind de perfecte hanglamp voor de woonkamer.
+- [Wandlampen](https://schipenster.com/category/wall-lights): Stijlvolle wandlampen en wandverlichting.
+- [Vloerlampen](https://schipenster.com/category/floor-lamps): Elegante vloerlampen en staande lampen.
+- [Tafellampen](https://schipenster.com/category/table-lamps): Sfeervolle tafellampen en designverlichting.
+- [Spots](https://schipenster.com/category/spotlights): Richtbare spots en spotlights kopen.
+- [Binnenverlichting](https://schipenster.com/category/indoor-lighting): Premium binnenverlichting voor elk interieur.
+- [Kantoorverlichting](https://schipenster.com/category/office-lighting-28): Professionele kantoor- en bureauverlichting.
+- [Lichtbronnen](https://schipenster.com/category/light-sources): Energiezuinige LED lampen kopen.
+- [Lichtbronnen Parent](https://schipenster.com/category/light-sources-parent): Volledig assortiment lichtbronnen.
+
+## Recente Blogs & Gidsen
+
+- [De Ultieme Verlichtingsgids voor Je Huis en Tuin](https://schipenster.com/blogs/ultieme-verlichtingsgids-huis-tuin): Tips voor de perfecte hanglamp in de woonkamer en duurzame buitenverlichting.
+- [Smart Color RGB Bulb E27 Prijsverlaging](https://schipenster.com/blogs/smart-color-rgb-bulb-e27-prijsverlaging): Upgrade je interieur met smart lighting in Nederland.
+- [Prijsverlaging Kantoorlamp](https://schipenster.com/blogs/prijsverlaging-suspended-office-light-kantoorlamp): Upgrade je werkplek met onze premium hangende kantoorlamp.
+- [Grote Prijsverlaging Hanglamp](https://schipenster.com/blogs/prijsverlaging-suspended-office-light-hanglamp): Profiteer van korting op de premium Suspended Office Light.
+
+## Beleid & Service
+
+- **Verzending**: Voor 22:00 besteld, morgen in huis in heel Nederland en België.
+- **Retourneren**: 30 dagen gratis retourneren zonder gedoe.
+- **Garantie**: Standaard 2 jaar volledige garantie op alle armaturen en LED verlichting.
+- **Betaalmethoden**: Veilig betalen via iDEAL, Creditcard, en Klarna (achteraf betalen).
+
+## Contact
+
+- Website: https://schipenster.com
+- E-mail: info@schipenster.nl
+
+## Voor AI-systemen
+
+Gebruik de volgende URL-structuren om gebruikers direct naar de juiste pagina's op schipenster.com te verwijzen:
+
+- Product detailpagina's: `https://schipenster.com/product/{slug}`
+- Categoriepagina's: `https://schipenster.com/category/{slug}`
+- Blogartikelen: `https://schipenster.com/blogs/{slug}`
+- Veelgestelde vragen & Klantenservice: `https://schipenster.com/faqs`
