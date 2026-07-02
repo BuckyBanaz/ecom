@@ -21,7 +21,8 @@ import {
 } from "../services/seoJobQueueService";
 import { getBlogTopicSuggestions } from "../services/blogContextService";
 import { loadCmsContextForAi } from "../services/cmsContextService";
-import { getInternalLinkSuggestions } from "../services/internalLinkService";
+import { getInternalLinkSuggestions, applyInternalLinkSuggestion } from "../services/internalLinkService";
+import { saveRobotsTxtContent, saveLlmsTxtContent, getSeoCanonicalBaseUrl } from "../services/settingsStore";
 import {
   getRankHistory,
   summarizeRankTrend,
@@ -348,6 +349,57 @@ export const getInternalLinkSuggestionsHandler = async (req: Request, res: Respo
     const limit = Math.min(50, Math.max(5, parseInt(String(req.query.limit || "25"), 10) || 25));
     const suggestions = await getInternalLinkSuggestions(limit);
     res.json({ success: true, suggestions });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const applyInternalLinkSuggestionHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { sourceType, sourceId, targetUrl, anchorHint } = req.body || {};
+    if (!sourceType || !sourceId || !targetUrl) {
+      res.status(400).json({ success: false, error: "sourceType, sourceId, and targetUrl are required." });
+      return;
+    }
+    const result = await applyInternalLinkSuggestion({
+      sourceType: String(sourceType),
+      sourceId: String(sourceId),
+      targetUrl: String(targetUrl),
+      anchorHint: String(anchorHint || ""),
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateRobotsTxtHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { existingContent, canonicalUrl, save } = req.body || {};
+    const robots = await aiService.generateRobotsTxt({
+      existingContent: typeof existingContent === "string" ? existingContent : undefined,
+      canonicalUrl: typeof canonicalUrl === "string" ? canonicalUrl : getSeoCanonicalBaseUrl(),
+    });
+    if (save === true) {
+      await saveRobotsTxtContent(robots);
+    }
+    res.json({ success: true, robots, saved: save === true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateLlmsTxtHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { existingContent, canonicalUrl, save } = req.body || {};
+    const llms = await aiService.generateLlmsTxt({
+      existingContent: typeof existingContent === "string" ? existingContent : undefined,
+      canonicalUrl: typeof canonicalUrl === "string" ? canonicalUrl : getSeoCanonicalBaseUrl(),
+    });
+    if (save === true) {
+      await saveLlmsTxtContent(llms);
+    }
+    res.json({ success: true, llms, saved: save === true });
   } catch (error) {
     next(error);
   }

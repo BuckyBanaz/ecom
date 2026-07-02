@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Save, Info, Sparkles } from "lucide-react";
+import { Save, Info, Sparkles, Loader2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { ENDPOINTS } from "@/utils/endpoints";
 import apiClient from "@/client/apiClient";
@@ -34,18 +34,23 @@ const CMSSeo = () => {
   const [analytics, setAnalytics] = useState({ ga4: "", gtm: "", metaPixel: "", tiktokPixel: "" });
   const [apiKeys, setApiKeys] = useState({ ga4PropertyId: "", ga4ClientEmail: "", ga4PrivateKey: "", gscSiteUrl: "" });
   const [robots, setRobots] = useState("");
+  const [llms, setLlms] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [generatingRobots, setGeneratingRobots] = useState(false);
+  const [generatingLlms, setGeneratingLlms] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [robotsRes, configRes] = await Promise.all([
+        const [robotsRes, llmsRes, configRes] = await Promise.all([
           apiClient.get<{ robots: string }>(ENDPOINTS.SEO_ROBOTS),
+          apiClient.get<{ llms: string }>(ENDPOINTS.SEO_LLMS),
           apiClient.get<{ data: any }>(ENDPOINTS.ADMIN_SEO_CONFIG),
         ]);
         if (robotsRes.robots) setRobots(robotsRes.robots);
+        if (llmsRes.llms) setLlms(llmsRes.llms);
         if (configRes.data) {
           const d = configRes.data;
           setGlobal({
@@ -79,11 +84,21 @@ const CMSSeo = () => {
   const saveSiteConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      await apiClient.put(ENDPOINTS.ADMIN_SEO_CONFIG, { ...global, ...analytics, ...apiKeys });
+      toast.success(t("cms_seo.toast_save_success"));
+    } catch (err: any) {
+      toast.error(err.message || t("cms_seo.toast_save_error"));
+    }
+  };
+
+  const saveTechnicalFiles = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
       await Promise.all([
         apiClient.put(ENDPOINTS.SEO_ROBOTS, { robots }),
-        apiClient.put(ENDPOINTS.ADMIN_SEO_CONFIG, { ...global, ...analytics, ...apiKeys }),
+        apiClient.put(ENDPOINTS.SEO_LLMS, { llms }),
       ]);
-      toast.success(t("cms_seo.toast_save_success"));
+      toast.success(t("cms_seo.toast_technical_save_success"));
     } catch (err: any) {
       toast.error(err.message || t("cms_seo.toast_save_error"));
     }
@@ -98,6 +113,40 @@ const CMSSeo = () => {
       toast.error(err.message || t("cms_seo.toast_sitemap_error"));
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const generateRobotsWithAi = async (save = false) => {
+    setGeneratingRobots(true);
+    try {
+      const res = await apiClient.post<{ robots: string; saved?: boolean }>(ENDPOINTS.AI_SEO_GENERATE_ROBOTS, {
+        existingContent: robots,
+        canonicalUrl: global.canonical || undefined,
+        save,
+      });
+      setRobots(res.robots);
+      toast.success(save ? t("cms_seo.toast_robots_ai_saved") : t("cms_seo.toast_robots_ai_done"));
+    } catch (err: any) {
+      toast.error(err.message || t("cms_seo.toast_robots_ai_error"));
+    } finally {
+      setGeneratingRobots(false);
+    }
+  };
+
+  const generateLlmsWithAi = async (save = false) => {
+    setGeneratingLlms(true);
+    try {
+      const res = await apiClient.post<{ llms: string; saved?: boolean }>(ENDPOINTS.AI_SEO_GENERATE_LLMS, {
+        existingContent: llms,
+        canonicalUrl: global.canonical || undefined,
+        save,
+      });
+      setLlms(res.llms);
+      toast.success(save ? t("cms_seo.toast_llms_ai_saved") : t("cms_seo.toast_llms_ai_done"));
+    } catch (err: any) {
+      toast.error(err.message || t("cms_seo.toast_llms_ai_error"));
+    } finally {
+      setGeneratingLlms(false);
     }
   };
 
@@ -201,8 +250,8 @@ const CMSSeo = () => {
           </form>
         </TabsContent>
 
-        <TabsContent value="technical" className="mt-0">
-          <form onSubmit={saveSiteConfig}>
+        <TabsContent value="technical" className="mt-0 space-y-4">
+          <form onSubmit={saveTechnicalFiles}>
             <Card>
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -210,15 +259,59 @@ const CMSSeo = () => {
                   <CardDescription>{t("cms_seo.technical_desc")}</CardDescription>
                 </div>
                 <Button type="button" variant="outline" onClick={generateSitemap} disabled={generating}>
+                  {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   {generating ? t("cms_seo.technical_generating") : t("cms_seo.technical_generate")}
                 </Button>
               </CardHeader>
+            </Card>
+
+            <Card className="mt-4">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">{t("cms_seo.technical_robots")}</CardTitle>
+                  <CardDescription>{t("cms_seo.technical_robots_desc")}</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Button type="button" variant="secondary" size="sm" className="gap-1" disabled={generatingRobots} onClick={() => generateRobotsWithAi(false)}>
+                    {generatingRobots ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                    {t("cms_seo.technical_ai_generate")}
+                  </Button>
+                  <Button type="button" size="sm" className="gap-1" disabled={generatingRobots} onClick={() => generateRobotsWithAi(true)}>
+                    {generatingRobots ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    {t("cms_seo.technical_ai_generate_save")}
+                  </Button>
+                </div>
+              </CardHeader>
               <CardContent>
-                <Label className="mb-2 block">{t("cms_seo.technical_robots")}</Label>
-                <Textarea value={robots} onChange={(e) => setRobots(e.target.value)} className="font-mono text-sm min-h-[160px]" />
-                <Button type="submit" className="mt-4 gap-2"><Save className="h-4 w-4" /> {t("cms_seo.technical_save_robots")}</Button>
+                <Textarea value={robots} onChange={(e) => setRobots(e.target.value)} className="font-mono text-sm min-h-[180px]" />
               </CardContent>
             </Card>
+
+            <Card className="mt-4">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">{t("cms_seo.technical_llms")}</CardTitle>
+                  <CardDescription>{t("cms_seo.technical_llms_desc")}</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Button type="button" variant="secondary" size="sm" className="gap-1" disabled={generatingLlms} onClick={() => generateLlmsWithAi(false)}>
+                    {generatingLlms ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                    {t("cms_seo.technical_ai_generate")}
+                  </Button>
+                  <Button type="button" size="sm" className="gap-1" disabled={generatingLlms} onClick={() => generateLlmsWithAi(true)}>
+                    {generatingLlms ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    {t("cms_seo.technical_ai_generate_save")}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Textarea value={llms} onChange={(e) => setLlms(e.target.value)} className="font-mono text-sm min-h-[220px]" />
+              </CardContent>
+            </Card>
+
+            <Button type="submit" className="mt-4 gap-2">
+              <Save className="h-4 w-4" /> {t("cms_seo.technical_save_all")}
+            </Button>
           </form>
         </TabsContent>
       </Tabs>

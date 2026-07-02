@@ -7,6 +7,8 @@ import {
   getRobotsTxtContent,
   saveRobotsTxtContent,
   saveSitemapXmlContent,
+  getLlmsTxtContent,
+  saveLlmsTxtContent,
 } from "../services/settingsStore";
 import { getRobotsTxtValidationError, sanitizeRobotsTxt } from "../utils/robotsTxt";
 import { prisma } from "../config/db";
@@ -644,6 +646,44 @@ export const updateRobotsTxt = async (
         ? `robots.txt saved. Fixed invalid line(s): ${validationError}`
         : "robots.txt updated successfully",
     });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 11b. GET LLMS.TXT
+// ----------------------------------------------------
+export const getLlmsTxt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const content = await getLlmsTxtContent();
+    res.status(200).json({ success: true, llms: content });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// ----------------------------------------------------
+// 11c. UPDATE LLMS.TXT
+// ----------------------------------------------------
+export const updateLlmsTxt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { llms } = req.body;
+    const content = typeof llms === "string" ? llms.trim() : "";
+    if (!content) {
+      res.status(400).json({ success: false, error: "llms content is required." });
+      return;
+    }
+    await saveLlmsTxtContent(content);
+    res.status(200).json({ success: true, llms: content, message: "llms.txt updated successfully" });
   } catch (error: any) {
     next(error);
   }

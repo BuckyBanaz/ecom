@@ -15,6 +15,8 @@ import {
   sanitizeCmsAiHtml,
 } from "../utils/cmsAiContent";
 import { saveCompressedBlogCoverToDir, saveCompressedImageToDir } from "../utils/imageOptimize";
+import { sanitizeRobotsTxt } from "../utils/robotsTxt";
+import { getSeoCanonicalBaseUrl } from "./settingsStore";
 
 // ---------------------------------------------------------------------------
 // Call Gemini via REST API (same approach as model listing, guaranteed to work)
@@ -261,6 +263,14 @@ function extractJson(raw: string): any {
 
   if (end === -1) throw new SyntaxError("Unterminated JSON object in response");
   return JSON.parse(text.slice(start, end + 1));
+}
+
+function stripPlainAiText(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^```(?:txt|text|markdown|robots)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 }
 
 export const aiService = {
@@ -810,5 +820,86 @@ Return ONLY valid JSON:
       aiSummary: String(parsed.summary || "AI analysis completed."),
       aiRecommendation: recommendation,
     };
+  },
+
+  async generateRobotsTxt(input?: { existingContent?: string; canonicalUrl?: string }) {
+    const { loadCmsContextForAi } = await import("./cmsContextService");
+    const playbook = await getSeoPlaybook();
+    const { contextBlock } = await loadCmsContextForAi();
+    const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
+    const baseUrl = (input?.canonicalUrl || getSeoCanonicalBaseUrl()).replace(/\/$/, "");
+    const existing = input?.existingContent?.trim() || "";
+
+    const prompt = `
+You are an expert technical SEO engineer for "${playbook.siteName}" (${playbook.geoFocus}).
+
+${buildPlaybookPromptBlock(playbook)}
+
+Generate a complete robots.txt for the storefront at ${baseUrl}.
+
+${languageInstruction}
+Comments in robots.txt may use the output language; directives must stay in English (User-agent, Disallow, Allow, Sitemap).
+
+REQUIRED structure:
+1. User-agent: * block — Disallow: /admin/, /cart, /checkout/, /account/, /dashboard, /search, /api/ — Allow: /
+2. Separate Allow blocks for AI crawlers: GPTBot, ChatGPT-User, Google-Extended, anthropic-ai, PerplexityBot, ClaudeBot
+3. Sitemap: ${baseUrl}/sitemap.xml
+4. Final comment line: # LLM context: ${baseUrl}/llms.txt
+
+Use ONLY valid robots.txt syntax. Comments MUST start with #.
+Do NOT use markdown. Return plain robots.txt text only.
+
+${existing ? `Current robots.txt (improve and keep valid parts):\n${existing.slice(0, 2500)}` : ""}
+
+--- Store catalog context (for reference) ---
+${contextBlock.slice(0, 2000)}
+---`;
+
+    const responseText = await callGeminiWithFallback([{ text: prompt }], 0.25);
+    return sanitizeRobotsTxt(stripPlainAiText(responseText));
+  },
+
+  async generateLlmsTxt(input?: { existingContent?: string; canonicalUrl?: string }) {
+    const { loadCmsContextForAi } = await import("./cmsContextService");
+    const playbook = await getSeoPlaybook();
+    const { contextBlock, summary } = await loadCmsContextForAi();
+    const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
+    const baseUrl = (input?.canonicalUrl || getSeoCanonicalBaseUrl()).replace(/\/$/, "");
+    const existing = input?.existingContent?.trim() || "";
+
+    const prompt = `
+You are an expert in GEO (Generative Engine Optimization) and llms.txt files for "${playbook.siteName}".
+
+${buildPlaybookPromptBlock(playbook)}
+
+${languageInstruction}
+
+Write a complete llms.txt file (Markdown-style plain text) for ${baseUrl} so AI assistants (ChatGPT, Gemini, Perplexity, Claude) can accurately cite and recommend this store.
+
+Required sections:
+1. # Site name as H1
+2. > One-paragraph summary (lighting e-commerce, NL/BE, shipping/returns/warranty from playbook)
+3. Languages & currency
+4. ## Key pages — markdown links to real paths: /, /categories, /category/deals, /blogs, /faqs, /brands (full URLs with ${baseUrl})
+5. ## Product categories — list main category slugs from context
+6. ## Policies — shipping, returns, warranty, payment methods
+7. ## Contact — website + email if known
+8. ## For AI systems — routing hints (/product/{slug}, /category/{slug}, /faqs)
+
+Use REAL category/blog/page slugs from the store context below when listing examples.
+Keep under 120 lines. No HTML. No JSON. Plain llms.txt markdown only.
+
+${existing ? `Current llms.txt (refresh and improve):\n${existing.slice(0, 3500)}` : ""}
+
+--- LIVE STORE CONTEXT (${summary.productCount} products, ${summary.categoryCount} categories, ${summary.blogCount} blogs) ---
+${contextBlock.slice(0, 4500)}
+---`;
+
+    const responseText = await callGeminiWithFallback([{ text: prompt }], 0.35);
+    const content = stripPlainAiText(responseText);
+    if (!content.startsWith("#")) {
+      return `# ${playbook.siteName}\n\n${content}`;
+    }
+    return content;
   },
 };

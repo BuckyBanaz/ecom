@@ -13,6 +13,7 @@ import apiClient from "@/client/apiClient";
 import { ENDPOINTS } from "@/utils/endpoints";
 import { useSeoJobStatus } from "@/hooks/useSeoJobStatus";
 import { SeoJobBanner } from "./SeoJobBanner";
+import { SuggestionActions } from "@/components/admin/SuggestionActions";
 
 type AutopilotConfig = {
   enabled: boolean;
@@ -43,6 +44,7 @@ export function SeoAutopilotPanel({ compact = false }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [dismissedBacklinks, setDismissedBacklinks] = useState<Set<number>>(() => new Set());
   const [config, setConfig] = useState<AutopilotConfig>({
     enabled: false,
     weeklyBlogEnabled: true,
@@ -169,9 +171,25 @@ export function SeoAutopilotPanel({ compact = false }: Props) {
             </p>
           )}
           {config.lastBacklinkSuggestions?.length > 0 && (
-            <div className="rounded-lg border p-3 bg-muted/30">
-              <p className="text-sm font-semibold mb-2">{t("cms_seo.autopilot_backlink_ideas")}</p>
-              <ul className="text-xs space-y-1 list-disc pl-4">{config.lastBacklinkSuggestions.map((s, i) => <li key={i}>{s}</li>)}</ul>
+            <div className="rounded-lg border p-3 bg-muted/30 space-y-2">
+              <p className="text-sm font-semibold">{t("cms_seo.autopilot_backlink_ideas")}</p>
+              {config.lastBacklinkSuggestions.map((s, i) => {
+                if (dismissedBacklinks.has(i)) return null;
+                return (
+                  <div key={i} className="flex flex-col gap-2 rounded-md border bg-background p-2 sm:flex-row sm:items-start sm:justify-between">
+                    <p className="text-xs flex-1">{s}</p>
+                    <SuggestionActions
+                      copyLabel={t("cms_seo.suggestion_copy", { defaultValue: "Copy" })}
+                      dismissLabel={t("cms_seo.suggestion_skip", { defaultValue: "Skip" })}
+                      onCopy={() => {
+                        navigator.clipboard.writeText(s);
+                        toast.success(t("cms_seo.suggestion_copied", { defaultValue: "Copied to clipboard" }));
+                      }}
+                      onDismiss={() => setDismissedBacklinks((prev) => new Set(prev).add(i))}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className="flex flex-wrap gap-2">

@@ -18,6 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import apiClient from "@/client/apiClient";
 import { ENDPOINTS } from "@/utils/endpoints";
 import { toast } from "sonner";
+import { SuggestionActions } from "@/components/admin/SuggestionActions";
 
 type GscOverview = {
   siteUrl: string;
@@ -35,8 +36,12 @@ type RankTrend = {
 };
 
 type InternalLinkSuggestion = {
+  sourceType: string;
+  sourceId: string;
   sourceLabel: string;
   sourceUrl: string;
+  targetType: string;
+  targetId: string;
   targetLabel: string;
   targetUrl: string;
   anchorHint: string;
@@ -71,6 +76,8 @@ export function SeoGscPanel() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [links, setLinks] = useState<InternalLinkSuggestion[]>([]);
   const [linksLoading, setLinksLoading] = useState(false);
+  const [dismissedLinkKeys, setDismissedLinkKeys] = useState<Set<string>>(() => new Set());
+  const [applyingLinkKey, setApplyingLinkKey] = useState<string | null>(null);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -102,6 +109,7 @@ export function SeoGscPanel() {
         ENDPOINTS.AI_SEO_INTERNAL_LINKS,
       );
       setLinks(res.suggestions || []);
+      setDismissedLinkKeys(new Set());
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : t("cms_seo.gsc_toast_links_error"));
     } finally {
@@ -132,6 +140,31 @@ export function SeoGscPanel() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  const handleApplyInternalLink = async (item: InternalLinkSuggestion, key: string) => {
+    setApplyingLinkKey(key);
+    try {
+      const res = await apiClient.post<{ applied: boolean; alreadyExists?: boolean }>(
+        ENDPOINTS.AI_SEO_INTERNAL_LINK_APPLY,
+        {
+          sourceType: item.sourceType,
+          sourceId: item.sourceId,
+          targetUrl: item.targetUrl,
+          anchorHint: item.anchorHint,
+        },
+      );
+      if (res.alreadyExists) {
+        toast.info(t("cms_seo.suggestion_link_exists"));
+      } else if (res.applied) {
+        toast.success(t("cms_seo.suggestion_link_added"));
+      }
+      setDismissedLinkKeys((prev) => new Set(prev).add(key));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t("cms_seo.suggestion_link_error"));
+    } finally {
+      setApplyingLinkKey(null);
+    }
+  };
 
   const handleSyncRanks = async () => {
     setSyncing(true);
@@ -312,19 +345,44 @@ export function SeoGscPanel() {
           {links.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("cms_seo.gsc_links_empty")}</p>
           ) : (
-            links.map((item, i) => (
-              <div key={`${item.sourceUrl}-${item.targetUrl}-${i}`} className="rounded-lg border p-3 text-sm space-y-1">
-                <p>
-                  <span className="text-muted-foreground">{t("cms_seo.gsc_link_from")}</span>{" "}
-                  <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">{item.sourceLabel}</a>
-                  {" → "}
-                  <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">{item.targetLabel}</a>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t("cms_seo.gsc_link_anchor", { anchor: item.anchorHint, reason: item.reason })}
-                </p>
+            links.map((item, i) => {
+              const key = `${item.sourceUrl}-${item.targetUrl}-${i}`;
+              if (dismissedLinkKeys.has(key)) return null;
+              const canApply = item.sourceType !== "category";
+              const copyText = `${item.sourceLabel} → ${item.targetLabel}\nAnchor: ${item.anchorHint}\n${item.reason}`;
+              return (
+              <div key={key} className="flex flex-col gap-2 rounded-lg border p-3 text-sm sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1 min-w-0 flex-1">
+                  <p>
+                    <span className="text-muted-foreground">{t("cms_seo.gsc_link_from")}</span>{" "}
+                    <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">{item.sourceLabel}</a>
+                    {" → "}
+                    <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">{item.targetLabel}</a>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("cms_seo.gsc_link_anchor", { anchor: item.anchorHint, reason: item.reason })}
+                  </p>
+                  {!canApply && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400">{t("cms_seo.suggestion_link_category_hint")}</p>
+                  )}
+                </div>
+                <SuggestionActions
+                  addLabel={t("cms_seo.suggestion_add_link", { defaultValue: "Add link" })}
+                  copyLabel={t("cms_seo.suggestion_copy", { defaultValue: "Copy" })}
+                  dismissLabel={t("cms_seo.suggestion_skip", { defaultValue: "Skip" })}
+                  addDisabled={!canApply || applyingLinkKey === key}
+                  onAdd={canApply ? () => handleApplyInternalLink(item, key) : undefined}
+                  onCopy={() => {
+                    navigator.clipboard.writeText(copyText);
+                    toast.success(t("cms_seo.suggestion_copied", { defaultValue: "Copied to clipboard" }));
+                  }}
+                  onDismiss={() => setDismissedLinkKeys((prev) => new Set(prev).add(key))}
+                />
+                {applyingLinkKey === key && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground sm:hidden" />
+                )}
               </div>
-            ))
+            );})
           )}
         </CardContent>
       </Card>

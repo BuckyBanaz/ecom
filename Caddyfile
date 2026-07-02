@@ -19,6 +19,9 @@
   handle /sitemap.xml {
     reverse_proxy backend:5000
   }
+  handle /llms.txt {
+    reverse_proxy backend:5000
+  }
   handle /uploads/* {
     reverse_proxy backend:5000
   }

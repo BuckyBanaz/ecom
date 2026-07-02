@@ -13,6 +13,7 @@ import { cmsFaqsRepository } from "@/client/apiClient";
 import apiClient from "@/client/apiClient";
 import { ENDPOINTS } from "@/utils/endpoints";
 import { SeoJobBanner } from "@/components/admin/seo/SeoJobBanner";
+import { SuggestionActions } from "@/components/admin/SuggestionActions";
 import { useSeoJobStatus } from "@/hooks/useSeoJobStatus";
 
 type FaqItem = { q: string; a: string; published: boolean };
@@ -34,6 +35,7 @@ const defaultFaqs: FaqItem[] = [
 
 const CMSFaqs = () => {
   const [faqs, setFaqs] = useState<FaqItem[]>(defaultFaqs);
+  const [pendingAiFaqs, setPendingAiFaqs] = useState<FaqItem[]>([]);
   const [cmsSummary, setCmsSummary] = useState<CmsContextSummary | null>(null);
   const [aiFocus, setAiFocus] = useState("");
   const [mergeExisting, setMergeExisting] = useState(true);
@@ -60,10 +62,11 @@ const CMSFaqs = () => {
     if (job?.status === "completed" && job.type === "faq_generate" && job.result?.faqs?.length) {
       if (job.publishIntent) {
         setFaqs(job.result.faqs);
+        setPendingAiFaqs([]);
         toast.success(job.summary || "FAQs saved");
       } else {
-        setFaqs(job.result.faqs);
-        toast.success("AI FAQs ready — review and click Save changes");
+        setPendingAiFaqs(job.result.faqs);
+        toast.success("AI FAQ suggestions ready — add the ones you want below");
       }
       await apiClient.post(ENDPOINTS.AI_SEO_JOB_DISMISS);
       refreshJobRef.current?.();
@@ -99,9 +102,27 @@ const CMSFaqs = () => {
       job.result?.faqs?.length &&
       job.publishIntent !== true
     ) {
-      setFaqs(job.result.faqs);
+      setPendingAiFaqs(job.result.faqs);
     }
   }, [job?.id, job?.status]);
+
+  const addPendingFaq = (idx: number) => {
+    const item = pendingAiFaqs[idx];
+    if (!item) return;
+    setFaqs((prev) => [...prev, item]);
+    setPendingAiFaqs((prev) => prev.filter((_, i) => i !== idx));
+    toast.success("FAQ added to list");
+  };
+
+  const dismissPendingFaq = (idx: number) => {
+    setPendingAiFaqs((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const addAllPendingFaqs = () => {
+    setFaqs((prev) => [...prev, ...pendingAiFaqs]);
+    setPendingAiFaqs([]);
+    toast.success("All suggested FAQs added");
+  };
 
   const generateFaqs = async (autoSave = false) => {
     setAiMode(autoSave ? "save" : "draft");
@@ -198,9 +219,35 @@ const CMSFaqs = () => {
               AI Generate &amp; Save
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">Safe to refresh — job runs in background. Use AI Draft to review first, or Generate &amp; Save to apply directly.</p>
+          <p className="text-xs text-muted-foreground">Use AI Draft for suggestions you can add one-by-one, or Generate &amp; Save to apply all at once.</p>
         </CardContent>
       </Card>
+
+      {pendingAiFaqs.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">AI FAQ suggestions</CardTitle>
+                <CardDescription>Add only the FAQs you want — nothing is saved until you click Save changes.</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={addAllPendingFaqs}>Add all</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setPendingAiFaqs([])}>Dismiss all</Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingAiFaqs.map((f, idx) => (
+              <div key={`pending-${idx}-${f.q.slice(0, 24)}`} className="rounded-lg border bg-background p-3 space-y-2">
+                <p className="text-sm font-semibold">{f.q}</p>
+                <p className="text-sm text-muted-foreground">{f.a}</p>
+                <SuggestionActions addLabel="Add to list" dismissLabel="Skip" onAdd={() => addPendingFaq(idx)} onDismiss={() => dismissPendingFaq(idx)} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle>FAQ list</CardTitle></CardHeader>

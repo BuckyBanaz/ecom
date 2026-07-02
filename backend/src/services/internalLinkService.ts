@@ -157,3 +157,78 @@ export async function getInternalLinkSuggestions(limit = 25): Promise<InternalLi
 
   return [...deduped.values()].slice(0, limit);
 }
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildLinkSnippet(targetUrl: string, anchorHint: string): string {
+  const href = escapeHtml(targetUrl);
+  const label = escapeHtml(anchorHint.trim() || targetUrl);
+  return `<p><a href="${href}">${label}</a></p>`;
+}
+
+function contentAlreadyLinksTo(html: string, targetUrl: string): boolean {
+  const normalized = targetUrl.replace(/\/$/, "");
+  return (
+    html.includes(`href="${normalized}"`) ||
+    html.includes(`href="${normalized}/"`) ||
+    html.includes(`href='${normalized}'`) ||
+    html.includes(`href='${normalized}/'`)
+  );
+}
+
+export async function applyInternalLinkSuggestion(input: {
+  sourceType: string;
+  sourceId: string;
+  targetUrl: string;
+  anchorHint: string;
+}): Promise<{ applied: boolean; field: string; alreadyExists?: boolean }> {
+  const { sourceType, sourceId, targetUrl, anchorHint } = input;
+  const snippet = buildLinkSnippet(targetUrl, anchorHint);
+
+  if (sourceType === "product") {
+    const row = await prisma.product.findUnique({ where: { id: sourceId }, select: { description: true } });
+    if (!row) throw new Error("Source product not found");
+    if (contentAlreadyLinksTo(row.description, targetUrl)) {
+      return { applied: false, field: "description", alreadyExists: true };
+    }
+    await prisma.product.update({
+      where: { id: sourceId },
+      data: { description: `${row.description.trim()}\n${snippet}` },
+    });
+    return { applied: true, field: "description" };
+  }
+
+  if (sourceType === "blog") {
+    const row = await prisma.blog.findUnique({ where: { id: sourceId }, select: { body: true } });
+    if (!row) throw new Error("Source blog not found");
+    if (contentAlreadyLinksTo(row.body, targetUrl)) {
+      return { applied: false, field: "body", alreadyExists: true };
+    }
+    await prisma.blog.update({
+      where: { id: sourceId },
+      data: { body: `${row.body.trim()}\n${snippet}` },
+    });
+    return { applied: true, field: "body" };
+  }
+
+  if (sourceType === "cms_page") {
+    const row = await prisma.cmsPage.findUnique({ where: { id: sourceId }, select: { body: true } });
+    if (!row) throw new Error("Source CMS page not found");
+    if (contentAlreadyLinksTo(row.body, targetUrl)) {
+      return { applied: false, field: "body", alreadyExists: true };
+    }
+    await prisma.cmsPage.update({
+      where: { id: sourceId },
+      data: { body: `${row.body.trim()}\n${snippet}` },
+    });
+    return { applied: true, field: "body" };
+  }
+
+  throw new Error("This page type has no editable content — pick a product, blog, or CMS page as the source.");
+}

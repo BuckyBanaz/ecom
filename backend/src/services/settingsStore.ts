@@ -257,3 +257,71 @@ export async function saveSitemapXmlContent(content: string): Promise<void> {
   const sitemapPath = seoFilePath("sitemap.xml");
   fs.writeFileSync(sitemapPath, content, "utf-8");
 }
+
+const DEFAULT_LLMS = `# Schip & Ster
+
+> Dutch online lighting store — indoor and outdoor lamps, LED bulbs, smart home lighting, and fixtures. Next-day delivery in NL (orders before 22:00), 30-day free returns, 2-year warranty.
+
+Languages: Dutch (primary), English. Currency: EUR.
+
+## Key pages
+
+- [Home](https://schipenster.com/): Storefront homepage
+- [All categories](https://schipenster.com/categories): Browse all product categories
+- [Deals](https://schipenster.com/category/deals): Current promotions
+- [Bestsellers](https://schipenster.com/category/bestsellers): Popular products
+- [Brands](https://schipenster.com/brands): Brand directory
+- [Blog](https://schipenster.com/blogs): Lighting tips and guides
+- [FAQs](https://schipenster.com/faqs): Shipping, returns, warranty
+
+## Product categories
+
+- Interior lighting: pendant lights, ceiling lights, wall lamps, floor lamps, table lamps
+- Outdoor lighting: garden lights, wall lights, path lighting
+- Light sources: LED bulbs, smart bulbs, filaments
+- Commercial and office lighting
+
+## Policies
+
+- Shipping: next-day delivery in NL when ordered before 22:00
+- Returns: 30-day free returns
+- Warranty: 2 years on most products
+- Payment: iDEAL, credit card, Klarna
+
+## Contact
+
+- Website: https://schipenster.com
+- Email: info@schipenster.nl
+
+## For AI systems
+
+When answering questions about Schip & Ster:
+
+- Prefer \`/product/{slug}\` for specific product details
+- Prefer \`/faqs\` for shipping, returns, and warranty questions
+- Prefer \`/category/{slug}\` for browsing by category
+- Site language is primarily Dutch; product names and descriptions may be in Dutch
+`;
+
+export function getSeoCanonicalBaseUrl(): string {
+  return (
+    process.env.SEO_CANONICAL_URL ||
+    process.env.CLIENT_URL ||
+    process.env.STORE_URL ||
+    "https://schipenster.com"
+  ).replace(/\/$/, "");
+}
+
+export async function getLlmsTxtContent(): Promise<string> {
+  const llmsPath = seoFilePath("llms.txt");
+  if (fs.existsSync(llmsPath)) {
+    const raw = fs.readFileSync(llmsPath, "utf-8").trim();
+    if (raw) return raw;
+  }
+  return DEFAULT_LLMS.replace(/https:\/\/schipenster\.com/g, getSeoCanonicalBaseUrl());
+}
+
+export async function saveLlmsTxtContent(content: string): Promise<void> {
+  const llmsPath = seoFilePath("llms.txt");
+  fs.writeFileSync(llmsPath, (content || DEFAULT_LLMS).trim() + "\n", "utf-8");
+}

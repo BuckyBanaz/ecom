@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData, getGeneralSettings, updateGeneralSettings, getAiSettings, updateAiSettings, getAiModels } from "../controllers/adminSettingsController";
+import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, getLlmsTxt, updateLlmsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData, getGeneralSettings, updateGeneralSettings, getAiSettings, updateAiSettings, getAiModels } from "../controllers/adminSettingsController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
 const router = Router();
@@ -386,6 +386,9 @@ router.get("/seo/robots", getRobotsTxt);
  *         description: robots.txt updated successfully
  */
 router.put("/seo/robots", updateRobotsTxt);
+
+router.get("/seo/llms", getLlmsTxt);
+router.put("/seo/llms", updateLlmsTxt);
 
 /**
  * @swagger

@@ -36,7 +36,10 @@ export const ENDPOINTS = {
   get CHARGES() { return api("/charges"); },
   get ORDERS() { return api("/orders"); },
   get SEO_ROBOTS() { return api("/admin/settings/seo/robots"); },
+  get SEO_LLMS() { return api("/admin/settings/seo/llms"); },
   get SEO_SITEMAP() { return api("/admin/settings/seo/sitemap"); },
+  get AI_SEO_GENERATE_ROBOTS() { return api("/ai/seo/generate-robots"); },
+  get AI_SEO_GENERATE_LLMS() { return api("/ai/seo/generate-llms"); },
   get ADMIN_SEO_CONFIG() { return api("/admin/settings/seo/config"); },
   get PUBLIC_SEO_CONFIG() { return api("/cms/seo-config"); },
   get ADMIN_ANALYTICS_DATA() { return api("/admin/settings/analytics/data"); },
@@ -67,6 +70,7 @@ export const ENDPOINTS = {
   get AI_SEO_RANK_TRACKING() { return api("/ai/seo/rank-tracking"); },
   get AI_SEO_RANK_SYNC() { return api("/ai/seo/rank-tracking/sync"); },
   get AI_SEO_INTERNAL_LINKS() { return api("/ai/seo/internal-links"); },
+  get AI_SEO_INTERNAL_LINK_APPLY() { return api("/ai/seo/internal-links/apply"); },
   get RETURNS() { return api("/returns"); },
 };
 

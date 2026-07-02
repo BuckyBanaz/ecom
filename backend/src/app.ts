@@ -145,7 +145,7 @@ import notificationRoutes from "./routes/notificationRoutes";
 import configRoutes from "./routes/configRoutes";
 import logsRoutes from "./routes/logsRoutes";
 import backupRoutes from "./routes/backupRoutes";
-import { getRobotsTxtContent, getSitemapXmlContent } from "./services/settingsStore";
+import { getRobotsTxtContent, getSitemapXmlContent, getLlmsTxtContent } from "./services/settingsStore";
 
 app.get("/robots.txt", async (req, res, next) => {
   try {
@@ -169,6 +169,20 @@ app.get("/sitemap.xml", async (_req, res, next) => {
       return;
     }
     res.type("application/xml").send(content);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/llms.txt", async (req, res, next) => {
+  try {
+    const host = String(req.hostname || req.get("host") || "").toLowerCase();
+    if (host.startsWith("api.")) {
+      res.status(404).type("text/plain").send("Not found");
+      return;
+    }
+    const content = await getLlmsTxtContent();
+    res.type("text/plain; charset=utf-8").send(content);
   } catch (error) {
     next(error);
   }

@@ -36,6 +36,7 @@ export const globalLimiter = buildLimiter("global", {
     req.path === "/health" ||
     req.path === "/robots.txt" ||
     req.path === "/sitemap.xml" ||
+    req.path === "/llms.txt" ||
     req.path === "/api/v1/payments/webhook" ||
     req.originalUrl.startsWith("/uploads/"),
 });

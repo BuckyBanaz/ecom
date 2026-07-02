@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { SeoJobBanner } from "@/components/admin/seo/SeoJobBanner";
+import { SuggestionActions } from "@/components/admin/SuggestionActions";
 import { Plus, Pencil, Trash2, Upload, Sparkles, Loader2, Tag, TrendingDown, Gift } from "lucide-react";
 import { toast } from "sonner";
 import { initialBlogs, Blog } from "@/data/blogs";
@@ -58,6 +59,7 @@ const CMSBlogs = () => {
   const [aiStarting, setAiStarting] = useState(false);
   const [aiMode, setAiMode] = useState<"draft" | "publish" | null>(null);
   const [suggestions, setSuggestions] = useState<TopicSuggestion[]>([]);
+  const [dismissedSuggestionIds, setDismissedSuggestionIds] = useState<Set<string>>(() => new Set());
   const [loadingSuggestions, setLoadingSuggestions] = useState(true);
 
   const applyGenerated = useCallback((g: GeneratedBlog, asDraft = true) => {
@@ -160,14 +162,18 @@ const CMSBlogs = () => {
     }
   }, [job?.id, job?.status, job?.publishIntent]);
 
-  const generateWithAi = async (publish = false) => {
+  const generateWithAi = async (publish = false, suggestion?: TopicSuggestion) => {
+    if (suggestion) {
+      setSelectedSuggestionId(suggestion.id);
+      setAiTopic(suggestion.topic);
+    }
     setAiMode(publish ? "publish" : "draft");
     setAiStarting(true);
     try {
       const res = await apiClient.post<{ message?: string; alreadyRunning?: boolean; job?: { publishIntent?: boolean } }>(ENDPOINTS.AI_BLOG_GENERATE, {
-        topic: aiTopic || undefined,
+        topic: (suggestion?.topic || aiTopic) || undefined,
         publish,
-        suggestionId: selectedSuggestionId,
+        suggestionId: suggestion?.id || selectedSuggestionId,
       });
       if (res.alreadyRunning) {
         toast.info(res.message || "A blog job is already running");
@@ -187,6 +193,16 @@ const CMSBlogs = () => {
     setSelectedSuggestionId(s.id);
     setAiTopic(s.topic);
   };
+
+  const dismissSuggestion = (id: string) => {
+    setDismissedSuggestionIds((prev) => new Set(prev).add(id));
+    if (selectedSuggestionId === id) {
+      setSelectedSuggestionId(undefined);
+      setAiTopic("");
+    }
+  };
+
+  const visibleSuggestions = suggestions.filter((s) => !dismissedSuggestionIds.has(s.id));
 
   const openNew = () => { setEdit(null); setForm({ title: "", slug: "", excerpt: "", body: "", cover: null, author: "", published: true, seoTitle: "", seoDescription: "", seoKeywords: "" }); setIsEditorOpen(true); };
   const openEdit = (b: Blog) => { setEdit(b); setForm({ title: b.title, slug: b.slug, excerpt: b.excerpt, body: b.body, cover: b.cover, author: b.author, published: b.published, seoTitle: b.seoTitle || "", seoDescription: b.seoDescription || "", seoKeywords: b.seoKeywords || "" }); setIsEditorOpen(true); };
@@ -270,28 +286,56 @@ const CMSBlogs = () => {
         </div>
         {loadingSuggestions ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading offers &amp; products…</div>
+        ) : visibleSuggestions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No suggestions right now — try Refresh or enter a custom topic.</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {suggestions.map((s) => {
+          <div className="space-y-2">
+            {visibleSuggestions.map((s) => {
               const Icon = TOPIC_ICONS[s.type] || Tag;
               const active = selectedSuggestionId === s.id;
               return (
-                <button
+                <div
                   key={s.id}
-                  type="button"
-                  onClick={() => pickSuggestion(s)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${active ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                  className={`flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between ${active ? "border-primary bg-primary/5" : "bg-muted/20"}`}
                 >
-                  <Icon className="h-3 w-3 shrink-0" />
-                  {s.label}
-                  {s.type === "offer" && <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">Offer</Badge>}
-                  {s.type === "price_drop" && <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">Sale</Badge>}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => pickSuggestion(s)}
+                    className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                  >
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{s.label}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{s.topic}</p>
+                    </div>
+                    {s.type === "offer" && <Badge variant="secondary" className="shrink-0 h-5 text-[10px]">Offer</Badge>}
+                    {s.type === "price_drop" && <Badge variant="secondary" className="shrink-0 h-5 text-[10px]">Sale</Badge>}
+                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                    <SuggestionActions
+                      addLabel="AI Draft"
+                      dismissLabel="Skip"
+                      addDisabled={aiBusy}
+                      onAdd={() => generateWithAi(false, s)}
+                      onDismiss={() => dismissSuggestion(s.id)}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 px-2 text-xs"
+                      disabled={aiBusy}
+                      onClick={() => generateWithAi(true, s)}
+                    >
+                      Publish
+                    </Button>
+                  </div>
+                </div>
               );
             })}
           </div>
         )}
-        <p className="text-xs text-muted-foreground">Pick a topic or leave blank — AI auto-picks the best offer, price drop, or new product. Cover image is generated with Gemini.</p>
+        <p className="text-xs text-muted-foreground">Use <strong>AI Draft</strong> to review first, <strong>Publish</strong> to go live, or <strong>Skip</strong> to hide a suggestion.</p>
       </div>
 
       {isEditorOpen && (

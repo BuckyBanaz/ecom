@@ -12,7 +12,7 @@ import {
   markDraftPublished,
   saveProductDraft,
 } from "../controllers/productDraftController";
-import { bulkOptimizeSeo, dismissSeoJobHandler, generateBlogWithAi, generateFaqsWithAi, getAutopilotConfig, getBlogTopicSuggestionsHandler, getCmsContextSummaryHandler, getInternalLinkSuggestionsHandler, getRankTrackingHandler, getSearchConsoleOverviewHandler, getSearchConsoleStatusHandler, getSeoAudit, getSeoJobStatusHandler, getSeoPlaybookHandler, optimizeSeoEntity, runAutopilotNow, syncPlaybookToAllPages, syncRankTrackingHandler, updateAutopilotConfig, updateSeoPlaybookHandler } from "../controllers/aiSeoController";
+import { bulkOptimizeSeo, dismissSeoJobHandler, generateBlogWithAi, generateFaqsWithAi, getAutopilotConfig, getBlogTopicSuggestionsHandler, getCmsContextSummaryHandler, getInternalLinkSuggestionsHandler, applyInternalLinkSuggestionHandler, generateRobotsTxtHandler, generateLlmsTxtHandler, getRankTrackingHandler, getSearchConsoleOverviewHandler, getSearchConsoleStatusHandler, getSeoAudit, getSeoJobStatusHandler, getSeoPlaybookHandler, optimizeSeoEntity, runAutopilotNow, syncPlaybookToAllPages, syncRankTrackingHandler, updateAutopilotConfig, updateSeoPlaybookHandler } from "../controllers/aiSeoController";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -162,6 +162,9 @@ router.get("/seo/search-console/overview", getSearchConsoleOverviewHandler);
 router.get("/seo/rank-tracking", getRankTrackingHandler);
 router.post("/seo/rank-tracking/sync", syncRankTrackingHandler);
 router.get("/seo/internal-links", getInternalLinkSuggestionsHandler);
+router.post("/seo/internal-links/apply", applyInternalLinkSuggestionHandler);
+router.post("/seo/generate-robots", generateRobotsTxtHandler);
+router.post("/seo/generate-llms", generateLlmsTxtHandler);
 router.get("/blogs/suggestions", getBlogTopicSuggestionsHandler);
 router.post("/blogs/generate", generateBlogWithAi);
 router.get("/cms/context", getCmsContextSummaryHandler);
