@@ -51,7 +51,7 @@ export async function optimizeImageAtPath(fullPath: string): Promise<OptimizeRes
   const beforeBytes = stat.size;
 
   try {
-    const pipeline = sharp(fullPath).rotate().resize({
+    const pipeline = sharp(fullPath, { failOn: "none" }).rotate().resize({
       width: MAX_DIMENSION,
       height: MAX_DIMENSION,
       fit: "inside",
@@ -117,42 +117,52 @@ export async function optimizeImagesInUploads(
 
 /** Compress in-memory image (AI uploads / Gemini output) before writing to disk. */
 export async function compressImageBuffer(input: Buffer): Promise<Buffer> {
-  const pipeline = sharp(input, { failOn: "none" })
-    .rotate()
-    .resize({
-      width: AI_MAX_DIMENSION,
-      height: AI_MAX_DIMENSION,
-      fit: "inside",
-      withoutEnlargement: true,
-    });
-
   try {
-    return await pipeline
-      .webp({ quality: AI_WEBP_QUALITY, effort: 5, smartSubsample: true })
-      .toBuffer();
-  } catch {
-    return pipeline.jpeg({ quality: AI_WEBP_QUALITY, mozjpeg: true }).toBuffer();
+    const pipeline = sharp(input, { failOn: "none" })
+      .rotate()
+      .resize({
+        width: AI_MAX_DIMENSION,
+        height: AI_MAX_DIMENSION,
+        fit: "inside",
+        withoutEnlargement: true,
+      });
+
+    try {
+      return await pipeline
+        .webp({ quality: AI_WEBP_QUALITY, effort: 5, smartSubsample: true })
+        .toBuffer();
+    } catch {
+      return await pipeline.jpeg({ quality: AI_WEBP_QUALITY, mozjpeg: true }).toBuffer();
+    }
+  } catch (error) {
+    console.warn("⚠️  Image optimization failed, falling back to original buffer", error);
+    return input; // Fallback to raw unoptimized buffer to prevent process crash
   }
 }
 
 /** Compress blog hero cover — 16:9 crop, aggressive WebP. */
 export async function compressBlogCoverBuffer(input: Buffer): Promise<Buffer> {
-  const pipeline = sharp(input, { failOn: "none" })
-    .rotate()
-    .resize({
-      width: BLOG_COVER_MAX_W,
-      height: BLOG_COVER_MAX_H,
-      fit: "cover",
-      position: "centre",
-      withoutEnlargement: true,
-    });
-
   try {
-    return await pipeline
-      .webp({ quality: BLOG_COVER_QUALITY, effort: 6, smartSubsample: true })
-      .toBuffer();
-  } catch {
-    return pipeline.jpeg({ quality: BLOG_COVER_QUALITY, mozjpeg: true }).toBuffer();
+    const pipeline = sharp(input, { failOn: "none" })
+      .rotate()
+      .resize({
+        width: BLOG_COVER_MAX_W,
+        height: BLOG_COVER_MAX_H,
+        fit: "cover",
+        position: "centre",
+        withoutEnlargement: true,
+      });
+
+    try {
+      return await pipeline
+        .webp({ quality: BLOG_COVER_QUALITY, effort: 6, smartSubsample: true })
+        .toBuffer();
+    } catch {
+      return await pipeline.jpeg({ quality: BLOG_COVER_QUALITY, mozjpeg: true }).toBuffer();
+    }
+  } catch (error) {
+    console.warn("⚠️  Blog cover optimization failed, falling back to original buffer", error);
+    return input; // Fallback to raw unoptimized buffer
   }
 }
 
