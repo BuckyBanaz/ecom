@@ -402,7 +402,7 @@ export const aiService = {
 
         const scene = finalImageScene;
         const productName = parsedData.name || hint || "lighting product";
-        const lifestylePrompt = buildLifestylePrompt(productName, scene);
+        const lifestylePrompt = `Generate a photorealistic product photo of ${productName}. KEEP THE EXACT SAME PRODUCT DESIGN, SHAPE, AND COLORS AS THE PROVIDED REFERENCE IMAGE. Do not alter the product itself. Just place it in this setting: ${scene}. Professional e-commerce photography, high quality, no text, no watermark.`;
 
         console.log(`🎨 Generating up to ${imageCount} Gemini lifestyle image(s) from reference photo...`);
 
@@ -481,14 +481,160 @@ export const aiService = {
         }
       }
 
-
-
       return parsedData;
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("AI Quick-Add Generation failed:", error);
-      throw new Error("Failed to generate product details from AI: " + error.message);
+      throw error;
     }
+  },
+
+  async regenerateImagesForDraft(draftId: string, overridePrompt?: string, imageIndex?: number): Promise<string[]> {
+    const { prisma } = await import("../config/db");
+    const draft = await prisma.productDraft.findUnique({ where: { id: draftId } });
+    if (!draft) throw new Error("Draft not found");
+    
+    const payload = draft.payload as any;
+    const productName = payload.name || "product";
+    const imageCount = imageIndex !== undefined ? 1 : getAiImageCount();
+    if (imageCount <= 0) return payload.images || [];
+
+    const aiImagesDir = path.join(__dirname, "../../public/uploads/ai-images");
+    const aiImagesUrlPrefix = "/uploads/ai-images";
+    if (!fs.existsSync(aiImagesDir)) fs.mkdirSync(aiImagesDir, { recursive: true });
+
+    let newImages: string[] = [];
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
+
+    let scene = process.env.AI_PRODUCT_SCENE || "A well-lit, modern European interior setting, softly styled, emphasizing quality and design.";
+    if (overridePrompt) {
+        scene = overridePrompt;
+    }
+    const textOnlyPrompt = `Generate a photorealistic product photo of: ${productName}. Setting: ${scene}. Professional e-commerce photography, high quality, no text, no watermark.`;
+
+    let referenceImageBuffer: Buffer | null = null;
+    let referenceMimeType = "image/jpeg";
+
+    if (payload.image) {
+      try {
+        const publicPath = payload.image as string;
+        const relativePath = publicPath.replace(/^\//, ""); 
+        const absolutePath = path.join(__dirname, "../../public", relativePath);
+        if (fs.existsSync(absolutePath)) {
+          referenceImageBuffer = fs.readFileSync(absolutePath);
+          if (absolutePath.toLowerCase().endsWith(".png")) referenceMimeType = "image/png";
+          else if (absolutePath.toLowerCase().endsWith(".webp")) referenceMimeType = "image/webp";
+        }
+      } catch (e) {
+        console.warn("Could not load reference image for regen", e);
+      }
+    }
+
+    let visualDescription = "";
+    if (referenceImageBuffer) {
+      try {
+        const visualPrompt = "Describe the physical product in this image in extreme detail so it can be accurately reproduced. Focus STRICTLY on its shape, structure, materials, colors, and unique design features (e.g., 'A floor lamp with a wavy/squiggly black metal stem, a white fabric cone shade, and a round black flat base'). Do not describe the background or setting. Keep it under 40 words.";
+        const parts = [
+          { inlineData: { data: referenceImageBuffer.toString("base64"), mimeType: referenceMimeType } },
+          { text: visualPrompt }
+        ];
+        // Using callGeminiWithFallback which hits the vision model
+        const res = await callGeminiWithFallback(parts, 0.2);
+        if (res) {
+          visualDescription = res.replace(/\*|#|`|_/g, "").trim();
+          console.log("🎨 Extracted visual description:", visualDescription);
+        }
+      } catch (e) {
+        console.warn("Failed to extract visual description", e);
+      }
+    }
+
+    let lifestylePrompt = `Generate a photorealistic product photo of ${productName}. KEEP THE EXACT SAME PRODUCT DESIGN, SHAPE, AND COLORS AS THE PROVIDED REFERENCE IMAGE. Do not alter the product itself. Just place it in this setting: ${scene}.`;
+    if (visualDescription) {
+        lifestylePrompt = `Generate a photorealistic product photo of a ${visualDescription}. KEEP THE EXACT SAME PRODUCT DESIGN, SHAPE, AND DETAILS AS THE PROVIDED REFERENCE IMAGE. Do not alter the product itself, only change the background. Setting: ${scene}. Professional e-commerce photography, high quality, no text, no watermark.`;
+    }
+
+    const finalPrompt = `${lifestylePrompt} perfectly lit.`;
+
+    if (apiKey) {
+      const configured = process.env.AI_IMAGE_MODEL || "gemini-2.5-flash-image";
+      const modelsToTry = [...new Set([configured, "gemini-2.5-flash-image", "gemini-2.5-flash-image-preview"])];
+
+      for (let i = 0; i < imageCount; i++) {
+        try {
+          let imgBuffer: Buffer | null = null;
+
+          // Use image-to-image with the highly detailed visual description if we have a reference photo
+          if (referenceImageBuffer) {
+            imgBuffer = await callGeminiImageGeneration(referenceImageBuffer, referenceMimeType, finalPrompt);
+          } else {
+            // Fallback to text-to-image if no reference photo
+            for (const model of modelsToTry) {
+              try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const response = await fetch(url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contents: [{ role: "user", parts: [{ text: finalPrompt }] }],
+                    generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+                  }),
+                });
+                if (!response.ok) continue;
+                const result: any = await response.json();
+                const parts = result?.candidates?.[0]?.content?.parts || [];
+                const imgPart = parts.find((p: any) => p.inlineData?.data);
+                if (imgPart) {
+                  imgBuffer = Buffer.from(imgPart.inlineData.data, "base64");
+                  break;
+                }
+              } catch { /* next model */ }
+            }
+          }
+
+          if (imgBuffer) {
+            const saved = await saveCompressedImageToDir(
+              imgBuffer,
+              aiImagesDir,
+              aiImagesUrlPrefix,
+              `gemini-product-regen-${Date.now()}-${i}`,
+            );
+            newImages.push(saved.publicPath);
+          }
+        } catch (e) {
+          console.error("Regen generation error", e);
+        }
+      }
+    }
+
+    if (newImages.length > 0) {
+      const currentImages = payload.images || [];
+      let updatedImages = [...currentImages];
+      
+      if (imageIndex !== undefined && imageIndex >= 0 && imageIndex < currentImages.length) {
+         // Replace specific image
+         updatedImages[imageIndex] = newImages[0];
+      } else {
+         // Append
+         updatedImages = [...currentImages, ...newImages];
+      }
+
+      const updatedPayload = {
+        ...payload,
+        images: updatedImages,
+      };
+      if (!updatedPayload.image || (imageIndex !== undefined && updatedPayload.image === currentImages[imageIndex])) {
+        updatedPayload.image = updatedImages[0];
+      }
+      
+      await prisma.productDraft.update({
+        where: { id: draftId },
+        data: { payload: updatedPayload },
+      });
+      return newImages;
+    }
+    
+    throw new Error("Failed to regenerate images");
   },
 
   async generateCmsPage(

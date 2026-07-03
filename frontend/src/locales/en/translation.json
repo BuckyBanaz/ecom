@@ -598,7 +598,17 @@
     "attrs_no_category": "Select a category above to load filtering options.",
     "action_save": "Save Changes",
     "action_create": "Create Product",
-    "action_cancel": "Cancel"
+    "action_cancel": "Cancel",
+    "regen_ai_images": "Regenerate AI Images",
+    "regen_specific_title": "Regenerate Specific Image",
+    "regen_gallery_title": "Regenerate Gallery Images",
+    "regen_prompt_desc": "Provide an optional prompt to guide the AI generation (e.g., \"minimalist white background\", \"luxurious living room setting\").",
+    "regen_prompt_placeholder": "Enter prompt (optional)...",
+    "regen_generate": "Generate",
+    "regen_toast_start": "Regenerating AI images...",
+    "regen_toast_success_single": "Image regenerated!",
+    "regen_toast_success_multi": "Images regenerated!",
+    "regen_toast_error": "Failed to regenerate images"
   },
   "admin_categories": {
     "count": "{{count}} categories",

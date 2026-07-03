@@ -34,6 +34,18 @@ router.get("/drafts/:id", getProductDraft);
 router.delete("/drafts/:id", deleteProductDraft);
 router.patch("/drafts/:id/published", markDraftPublished);
 
+router.post("/drafts/:id/regenerate-images", async (req, res) => {
+  try {
+    const draftId = req.params.id;
+    const { prompt, index } = req.body || {};
+    const newImages = await aiService.regenerateImagesForDraft(draftId, prompt, index);
+    res.json({ success: true, images: newImages });
+  } catch (error: any) {
+    console.error("Draft image regeneration failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post("/products/quick-add", upload.single("image"), async (req, res) => {
   try {
     const { hint, price, brandName, imagePromptOverride } = req.body;

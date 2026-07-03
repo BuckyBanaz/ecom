@@ -47,8 +47,23 @@ export function saveQuickAddSession(data: Omit<QuickAddSession, "savedAt">) {
       SESSION_KEY,
       JSON.stringify({ ...data, savedAt: Date.now() }),
     );
-  } catch {
-    /* quota — ignore */
+  } catch (err: any) {
+    if (err.name === "QuotaExceededError" || err.message.includes("quota")) {
+      // If quota exceeded (due to large base64 images), try saving without images
+      // to prevent restoring stale/wrong images on refresh.
+      try {
+        const textOnlyData = {
+          ...data,
+          rows: data.rows.map(r => ({ ...r, imagePreview: null }))
+        };
+        sessionStorage.setItem(
+          SESSION_KEY,
+          JSON.stringify({ ...textOnlyData, savedAt: Date.now() }),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 

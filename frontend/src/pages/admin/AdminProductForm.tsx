@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2 } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
@@ -40,6 +41,14 @@ const AdminProductForm = () => {
 
   // Mount guard for portal-based components
   const [isMounted, setIsMounted] = useState(false);
+  const [isDraftModeState, setIsDraftModeState] = useState(isDraftMode);
+
+  // Regeneration prompt state
+  const [regenPromptOpen, setRegenPromptOpen] = useState(false);
+  const [regenPromptText, setRegenPromptText] = useState("");
+  const [regenTargetIndex, setRegenTargetIndex] = useState<number | null>(null);
+  const [isGlobalRegenerating, setIsGlobalRegenerating] = useState(false);
+  const [regeneratingIndexes, setRegeneratingIndexes] = useState<number[]>([]);
 
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
@@ -991,17 +1000,36 @@ const AdminProductForm = () => {
 
                   {/* Slider Gallery Grid */}
                   <div className="md:col-span-2 space-y-2">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-wrap items-center justify-between pb-1 gap-2">
                       <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_gallery")}</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-[10px] font-bold text-primary gap-1 px-2 hover:bg-primary/10 transition-colors"
-                        onClick={() => setMediaDialogTarget("gallery")}
-                      >
-                        <Plus className="h-3 w-3" /> {t("admin_product_form.add_images")}
-                      </Button>
+                      <div className="flex gap-2">
+                        {isDraftMode && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isGlobalRegenerating}
+                            className="h-6 text-[10px] font-bold text-amber-600 border-amber-600/30 gap-1 px-2 hover:bg-amber-600/10 transition-colors"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setRegenTargetIndex(null);
+                              setRegenPromptText("");
+                              setRegenPromptOpen(true);
+                            }}
+                          >
+                            {isGlobalRegenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {t("admin_product_form.regen_ai_images")}
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] font-bold text-primary gap-1 px-2 hover:bg-primary/10 transition-colors"
+                          onClick={() => setMediaDialogTarget("gallery")}
+                        >
+                          <Plus className="h-3 w-3" /> {t("admin_product_form.add_images")}
+                        </Button>
+                      </div>
                     </div>
 
                     {galleryImages.length === 0 ? (
@@ -1026,9 +1054,24 @@ const AdminProductForm = () => {
                               >
                                 {t("admin_product_form.set_cover")}
                               </button>
+                              {isDraftMode && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRegenTargetIndex(i);
+                                    setRegenPromptText("");
+                                    setRegenPromptOpen(true);
+                                  }}
+                                  className="absolute top-1 right-6 rounded-full bg-background/90 text-amber-500 p-0.5 hover:bg-amber-500 hover:text-white transition-colors"
+                                  title="Regenerate this image"
+                                >
+                                  <Sparkles className="h-2.5 w-2.5" />
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => removeGalleryImage(i)}
+                                onClick={(e) => { e.stopPropagation(); removeGalleryImage(i); }}
                                 className="absolute top-1 right-1 rounded-full bg-background/90 p-0.5 hover:bg-destructive hover:text-white transition-colors"
                               >
                                 <X className="h-2.5 w-2.5" />
@@ -1037,6 +1080,11 @@ const AdminProductForm = () => {
                             {thumbnail === src && (
                               <div className="absolute bottom-1 left-1 rounded-md text-[8px] font-extrabold bg-primary text-primary-foreground px-1 py-0.2 shadow-sm">
                                 {t("admin_product_form.cover_badge")}
+                              </div>
+                            )}
+                            {regeneratingIndexes.includes(i) && (
+                              <div className="absolute inset-0 bg-background/80 backdrop-blur-[2px] flex items-center justify-center z-10 transition-all rounded-xl">
+                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
                               </div>
                             )}
                           </div>
@@ -1393,6 +1441,90 @@ const AdminProductForm = () => {
           setMediaDialogTarget(null);
         }}
       />
+      {/* Regeneration Prompt Dialog */}
+      <Dialog open={regenPromptOpen} onOpenChange={setRegenPromptOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              {regenTargetIndex !== null ? t("admin_product_form.regen_specific_title") : t("admin_product_form.regen_gallery_title")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("admin_product_form.regen_prompt_desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <textarea
+              className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              placeholder={t("admin_product_form.regen_prompt_placeholder")}
+              value={regenPromptText}
+              onChange={(e) => setRegenPromptText(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenPromptOpen(false)}>{t("admin_product_form.action_cancel")}</Button>
+            <Button
+              className="gap-2"
+              onClick={async () => {
+                setRegenPromptOpen(false);
+                const toastId = regenTargetIndex !== null ? `regen-${regenTargetIndex}` : "regen-all";
+                toast.info(t("admin_product_form.regen_toast_start"), { id: toastId });
+                
+                if (regenTargetIndex !== null) {
+                  setRegeneratingIndexes(prev => [...prev, regenTargetIndex]);
+                } else {
+                  setIsGlobalRegenerating(true);
+                }
+
+                try {
+                  const apiUrl = getApiV1Url();
+                  const res = await fetch(`${apiUrl}/ai/drafts/${draftId}/regenerate-images`, {
+                    method: "POST",
+                    headers: { 
+                      Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
+                      "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ 
+                      prompt: regenPromptText, 
+                      index: regenTargetIndex !== null ? regenTargetIndex : undefined 
+                    })
+                  });
+                  
+                  const data = await res.json();
+                  if (data.success && data.images) {
+                    setGalleryImages(prev => {
+                      if (regenTargetIndex !== null) {
+                        const next = [...prev];
+                        next[regenTargetIndex] = data.images[0];
+                        if (thumbnail === prev[regenTargetIndex]) setThumbnail(data.images[0]);
+                        return next;
+                      } else {
+                        const merged = [...prev, ...data.images];
+                        if (!thumbnail && merged.length > 0) setThumbnail(merged[0]);
+                        return merged;
+                      }
+                    });
+                    toast.success(regenTargetIndex !== null ? t("admin_product_form.regen_toast_success_single") : t("admin_product_form.regen_toast_success_multi"), { id: toastId });
+                  } else {
+                    throw new Error(data.error);
+                  }
+                } catch (err: any) {
+                  toast.error(t("admin_product_form.regen_toast_error"), { id: toastId });
+                } finally {
+                  if (regenTargetIndex !== null) {
+                    setRegeneratingIndexes(prev => prev.filter(idx => idx !== regenTargetIndex));
+                  } else {
+                    setIsGlobalRegenerating(false);
+                  }
+                }
+              }}
+            >
+              <Sparkles className="h-4 w-4" />
+              {t("admin_product_form.regen_generate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

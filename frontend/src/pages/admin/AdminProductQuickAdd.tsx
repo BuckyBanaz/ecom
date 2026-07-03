@@ -576,6 +576,24 @@ const AdminProductQuickAdd = () => {
                         className="min-h-[72px] text-sm resize-none"
                         disabled={isGenerating}
                       />
+                      {!isGenerating && (
+                        <div className="flex flex-wrap gap-1.5 pb-1">
+                          {["Modern", "Industrieel", "Rotan", "Vintage", "Zwart", "Hout", "Koper"].map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => {
+                                const current = row.hint.trim();
+                                const separator = current && !current.endsWith(",") ? ", " : current ? " " : "";
+                                updateRow(row.key, { hint: current + separator + tag.toLowerCase() });
+                              }}
+                              className="text-[10px] px-2 py-0.5 rounded-full border border-border/60 bg-muted/20 hover:bg-primary/10 hover:border-primary/30 text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              + {tag}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-2">
                         <div className="relative">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>

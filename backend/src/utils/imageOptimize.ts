@@ -117,7 +117,7 @@ export async function optimizeImagesInUploads(
 
 /** Compress in-memory image (AI uploads / Gemini output) before writing to disk. */
 export async function compressImageBuffer(input: Buffer): Promise<Buffer> {
-  const pipeline = sharp(input)
+  const pipeline = sharp(input, { failOn: "none" })
     .rotate()
     .resize({
       width: AI_MAX_DIMENSION,
@@ -137,7 +137,7 @@ export async function compressImageBuffer(input: Buffer): Promise<Buffer> {
 
 /** Compress blog hero cover — 16:9 crop, aggressive WebP. */
 export async function compressBlogCoverBuffer(input: Buffer): Promise<Buffer> {
-  const pipeline = sharp(input)
+  const pipeline = sharp(input, { failOn: "none" })
     .rotate()
     .resize({
       width: BLOG_COVER_MAX_W,

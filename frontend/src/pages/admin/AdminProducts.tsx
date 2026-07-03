@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plus, Pencil, Trash2, Search, MessageSquare } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, MessageSquare, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -202,6 +202,15 @@ const AdminProducts = () => {
                           onClick={() => navigate(`/admin/products/${p.id}/edit`)}
                         >
                           <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title={t("admin_products.action_view", { defaultValue: "View Product" })}
+                          className="h-8 w-8 text-green-600 hover:bg-green-50"
+                          onClick={() => window.open(`/product/${p.slug || p.id}`, '_blank')}
+                        >
+                          <Eye className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"

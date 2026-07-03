@@ -606,7 +606,17 @@
     "attrs_no_category": "Selecteer hierboven een categorie om filteropties te laden.",
     "action_save": "Wijzigingen opslaan",
     "action_create": "Product aanmaken",
-    "action_cancel": "Annuleren"
+    "action_cancel": "Annuleren",
+    "regen_ai_images": "AI-afbeeldingen regenereren",
+    "regen_specific_title": "Specifieke afbeelding regenereren",
+    "regen_gallery_title": "Galerij-afbeeldingen regenereren",
+    "regen_prompt_desc": "Geef een optionele prompt om de AI-generatie te sturen (bijv. \"minimalistische witte achtergrond\", \"luxe woonkamer\").",
+    "regen_prompt_placeholder": "Voer prompt in (optioneel)...",
+    "regen_generate": "Genereren",
+    "regen_toast_start": "AI-afbeeldingen regenereren...",
+    "regen_toast_success_single": "Afbeelding geregenereerd!",
+    "regen_toast_success_multi": "Afbeeldingen geregenereerd!",
+    "regen_toast_error": "Mislukt om afbeeldingen te regenereren"
   },
   "admin_categories": {
     "count": "{{count}} categorieën",
