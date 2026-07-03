@@ -732,8 +732,8 @@ export const generateSitemap = async (
 
     // Static Pages
     addUrl("/", new Date(), "daily", "1.0");
-    addUrl("/shop", new Date(), "daily", "0.9");
-    addUrl("/brands", new Date(), "weekly", "0.8");
+    addUrl("/categories", new Date(), "daily", "0.9");
+    addUrl("/faqs", new Date(), "weekly", "0.8");
     addUrl("/blogs", new Date(), "weekly", "0.8");
     addUrl("/account", undefined, "monthly", "0.5");
     addUrl("/relief", undefined, "monthly", "0.6");
@@ -742,8 +742,6 @@ export const generateSitemap = async (
     products.forEach(p => addUrl(`/product/${p.slug}`, p.updatedAt, "daily", "0.9"));
     // Categories
     categories.forEach(c => addUrl(`/category/${c.slug}`, undefined, "weekly", "0.8"));
-    // Brands
-    brands.forEach(b => addUrl(`/brand/${b.id}`, undefined, "weekly", "0.8"));
     // Blogs
     blogs.forEach(b => addUrl(`/blogs/${b.slug}`, b.updatedAt, "monthly", "0.7"));
     // Dynamic CMS Pages
