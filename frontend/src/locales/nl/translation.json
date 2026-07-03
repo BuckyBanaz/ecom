@@ -2296,7 +2296,16 @@
     "signing_in": "Inloggen...",
     "sign_in": "Inloggen",
     "toast_welcome": "Welkom terug!",
-    "toast_invalid": "Ongeldige inloggegevens."
+    "toast_invalid": "Ongeldige inloggegevens.",
+    "forgot_password": "Wachtwoord vergeten?",
+    "forgot_password_title": "Beheerderswachtwoord resetten",
+    "reset_password_title": "Voer OTP in",
+    "otp_code": "OTP Code",
+    "new_password": "Nieuw wachtwoord",
+    "submit": "Indienen",
+    "toast_otp_sent": "OTP verzonden naar je e-mail",
+    "toast_password_reset": "Wachtwoord succesvol gereset",
+    "toast_error": "Er is een fout opgetreden"
   },
   "admin_dashboard": {
     "page_title": "Winkelstatistieken Dashboard",

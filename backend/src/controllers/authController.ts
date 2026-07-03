@@ -10,6 +10,8 @@ import { emailService } from "../services/emailService";
 import { twilioService } from "../services/twilioService";
 import { parseAndValidateFullPhone } from "../utils/phoneValidation";
 
+const memoryCache = new Map<string, string>();
+
 // Helper to sign JWT Token
 const signToken = (id: string, email: string, role: string): string => {
   return jwt.sign({ id, email, role }, env.JWT_SECRET, {
@@ -715,10 +717,17 @@ export const forgotPassword = async (
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const redisKey = `reset_otp:${email.toLowerCase()}`;
-    await redis.set(redisKey, otp, "EX", 10 * 60); // 10 mins
+    
+    if (redis) {
+      await redis.set(redisKey, otp, "EX", 10 * 60); // 10 mins
+    } else {
+      memoryCache.set(redisKey, otp);
+      setTimeout(() => memoryCache.delete(redisKey), 10 * 60 * 1000);
+    }
 
     // Send Forgot Password OTP
-    await emailService.sendTemplateEmail(user.email, "forgot_password", {
+    const templateName = (user.role === "admin" || user.role === "superadmin") ? "admin_forgot_password" : "forgot_password";
+    await emailService.sendTemplateEmail(user.email, templateName, {
       name: user.firstName,
       otp: otp
     });
@@ -751,7 +760,13 @@ export const resetPassword = async (
 
     const { email, otp, newPassword } = parsed.data;
     const redisKey = `reset_otp:${email.toLowerCase()}`;
-    const storedOtp = await redis.get(redisKey);
+    
+    let storedOtp: string | null = null;
+    if (redis) {
+      storedOtp = await redis.get(redisKey);
+    } else {
+      storedOtp = memoryCache.get(redisKey) || null;
+    }
 
     if (!storedOtp || storedOtp !== otp) {
       return next(new AppError("Invalid or expired OTP", 400));
@@ -770,10 +785,15 @@ export const resetPassword = async (
       data: { passwordHash }
     });
 
-    await redis.del(redisKey);
+    if (redis) {
+      await redis.del(redisKey);
+    } else {
+      memoryCache.delete(redisKey);
+    }
 
     // Send Reset Password Confirmation
-    await emailService.sendTemplateEmail(user.email, "reset_password", {
+    const templateName = (user.role === "admin" || user.role === "superadmin") ? "admin_reset_password" : "reset_password";
+    await emailService.sendTemplateEmail(user.email, templateName, {
       name: user.firstName
     });
 

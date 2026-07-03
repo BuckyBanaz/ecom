@@ -2288,7 +2288,16 @@
     "signing_in": "Signing in...",
     "sign_in": "Sign in",
     "toast_welcome": "Welcome back!",
-    "toast_invalid": "Invalid credentials."
+    "toast_invalid": "Invalid credentials.",
+    "forgot_password": "Forgot password?",
+    "forgot_password_title": "Reset Admin Password",
+    "reset_password_title": "Enter OTP",
+    "otp_code": "OTP Code",
+    "new_password": "New Password",
+    "submit": "Submit",
+    "toast_otp_sent": "OTP sent to your email",
+    "toast_password_reset": "Password reset successfully",
+    "toast_error": "An error occurred"
   },
   "admin_dashboard": {
     "page_title": "Store Analytics Dashboard",

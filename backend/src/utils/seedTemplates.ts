@@ -96,6 +96,25 @@ const DEFAULT_TEMPLATES = [
     whatsappBody: `Hello {{name}},\n\nYour *Schip & Ster* password was recently changed from your account settings. If this wasn't you, please secure your account immediately.`,
   },
   {
+    name: "admin_forgot_password",
+    subject: "Admin Password Reset Request",
+    body: `<h2>Hello Admin {{name}},</h2>
+<p>We received a request to reset your admin password. If you didn't make this request, please contact IT support immediately.</p>
+<p>Your password reset OTP is: <strong style="font-size: 20px; color: #dc2626;">{{otp}}</strong></p>
+<p>This code will expire in 10 minutes.</p>`,
+    smsBody: `Your Schip & Ster admin password reset OTP is {{otp}}. Valid for 10 minutes.`,
+    whatsappBody: `Hello Admin {{name}},\n\nYour *Schip & Ster* admin password reset OTP is: *{{otp}}*\n\nThis code will expire in 10 minutes.`,
+  },
+  {
+    name: "admin_reset_password",
+    subject: "Admin Password Has Been Reset",
+    body: `<h2>Hello Admin {{name}},</h2>
+<p>This is a confirmation that the password for your Schip & Ster admin account has just been successfully reset.</p>
+<p>If you did not authorize this change, please contact superadmin or IT support immediately.</p>`,
+    smsBody: `Hi Admin {{name}}, your Schip & Ster admin password has been reset.`,
+    whatsappBody: `Hello Admin {{name}},\n\nYour *Schip & Ster* admin password has been successfully reset. If this wasn't you, please contact support.`,
+  },
+  {
     name: "order_status_update",
     subject: "Update on Your Order #{{order_id}}",
     body: `<h2>Hello {{name}},</h2>

@@ -246,7 +246,7 @@ const AdminManageUsers = () => {
         </div>
         {user?.role === "superadmin" && (
           <Button
-            onClick={() => setOpenCreateModal(true)}
+            onClick={() => setOpenModal(true)}
             className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl gap-2 shadow-sm self-start sm:self-auto shrink-0"
           >
             <Plus className="h-4 w-4" /> {t("admin_manage_users.button_add")}
