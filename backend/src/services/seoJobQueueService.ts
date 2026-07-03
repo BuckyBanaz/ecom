@@ -104,7 +104,7 @@ async function runBulkOptimizeJob(payload: {
   items?: Array<{ entityType: SeoEntityType; entityId: string }>;
   customPrompt?: string;
 }) {
-  const cap = Math.min(Math.max(Number(payload.limit) || 10, 1), 25);
+  const cap = Math.min(Math.max(Number(payload.limit) || 10, 1), 100);
   let targets: Array<{ entityType: SeoEntityType; entityId: string; label?: string }> = [];
 
   if (Array.isArray(payload.items) && payload.items.length > 0) {

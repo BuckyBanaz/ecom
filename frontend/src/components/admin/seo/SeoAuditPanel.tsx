@@ -96,7 +96,7 @@ export function SeoAuditPanel() {
       const res = await apiClient.post<{ message?: string; alreadyRunning?: boolean }>(ENDPOINTS.AI_SEO_BULK_OPTIMIZE, {
         entityType: entityFilter !== "all" ? entityFilter : undefined,
         onlyIssues: onlyIssues,
-        limit: 10,
+        limit: items.length > 0 ? items.length : 10,
         customPrompt: customPrompt || undefined,
       });
       toast.success(res.message || (res.alreadyRunning ? t("cms_seo.audit_toast_bulk_running") : t("cms_seo.audit_toast_bulk_queued")));
@@ -117,9 +117,9 @@ export function SeoAuditPanel() {
         <Button variant="outline" onClick={fetchAudit} disabled={loading} className="gap-2">
           <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /> {t("cms_seo.audit_refresh")}
         </Button>
-        <Button onClick={bulkOptimize} disabled={bulkBusy || loading} className="gap-2">
+        <Button onClick={bulkOptimize} disabled={bulkBusy || loading || items.length === 0} className="gap-2">
           {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-          {t("cms_seo.audit_bulk_optimize")}
+          {t("cms_seo.audit_bulk_optimize")} ({items.length})
         </Button>
       </div>
       {summary && (

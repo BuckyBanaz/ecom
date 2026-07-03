@@ -172,7 +172,8 @@ function buildLinkSnippet(targetUrl: string, anchorHint: string): string {
   return `<p><a href="${href}">${label}</a></p>`;
 }
 
-function contentAlreadyLinksTo(html: string, targetUrl: string): boolean {
+function contentAlreadyLinksTo(html: string | null, targetUrl: string): boolean {
+  if (!html) return false;
   const normalized = targetUrl.replace(/\/$/, "");
   return (
     html.includes(`href="${normalized}"`) ||
@@ -199,7 +200,7 @@ export async function applyInternalLinkSuggestion(input: {
     }
     await prisma.product.update({
       where: { id: sourceId },
-      data: { description: `${row.description.trim()}\n${snippet}` },
+      data: { description: `${(row.description || "").trim()}\n${snippet}` },
     });
     return { applied: true, field: "description" };
   }
@@ -212,7 +213,7 @@ export async function applyInternalLinkSuggestion(input: {
     }
     await prisma.blog.update({
       where: { id: sourceId },
-      data: { body: `${row.body.trim()}\n${snippet}` },
+      data: { body: `${(row.body || "").trim()}\n${snippet}` },
     });
     return { applied: true, field: "body" };
   }
@@ -225,7 +226,7 @@ export async function applyInternalLinkSuggestion(input: {
     }
     await prisma.cmsPage.update({
       where: { id: sourceId },
-      data: { body: `${row.body.trim()}\n${snippet}` },
+      data: { body: `${(row.body || "").trim()}\n${snippet}` },
     });
     return { applied: true, field: "body" };
   }
