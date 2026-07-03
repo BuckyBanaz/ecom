@@ -102,6 +102,7 @@ async function runBulkOptimizeJob(payload: {
   onlyIssues?: boolean;
   limit?: number;
   items?: Array<{ entityType: SeoEntityType; entityId: string }>;
+  customPrompt?: string;
 }) {
   const cap = Math.min(Math.max(Number(payload.limit) || 10, 1), 25);
   let targets: Array<{ entityType: SeoEntityType; entityId: string; label?: string }> = [];
@@ -138,6 +139,7 @@ async function runBulkOptimizeJob(payload: {
         url: ctx.url,
         content: ctx.content,
         existingSeo: ctx.existingSeo,
+        customPrompt: payload.customPrompt,
       });
       await saveSeoFields(target.entityType, target.entityId, {
         seoTitle: optimized.seoTitle,
@@ -325,6 +327,7 @@ export async function enqueueBulkOptimize(payload: {
   onlyIssues?: boolean;
   limit?: number;
   items?: Array<{ entityType: SeoEntityType; entityId: string }>;
+  customPrompt?: string;
 }): Promise<{ job: SeoJobState; alreadyRunning: boolean }> {
   const current = await loadJobState();
   if (current.status === "running" || current.status === "queued") {

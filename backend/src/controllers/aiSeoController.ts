@@ -105,10 +105,11 @@ export const getSeoAudit = async (req: Request, res: Response, next: NextFunctio
 
 export const optimizeSeoEntity = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { entityType, entityId, save = true } = req.body as {
+    const { entityType, entityId, save = true, customPrompt } = req.body as {
       entityType: SeoEntityType;
       entityId: string;
       save?: boolean;
+      customPrompt?: string;
     };
 
     if (!entityType || !entityId || !VALID_TYPES.includes(entityType)) {
@@ -123,6 +124,7 @@ export const optimizeSeoEntity = async (req: Request, res: Response, next: NextF
       url: ctx.url,
       content: ctx.content,
       existingSeo: ctx.existingSeo,
+      customPrompt,
     });
 
     if (save) {
@@ -141,11 +143,12 @@ export const optimizeSeoEntity = async (req: Request, res: Response, next: NextF
 
 export const bulkOptimizeSeo = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { items, entityType, onlyIssues = true, limit = 10 } = req.body as {
+    const { items, entityType, onlyIssues = true, limit = 10, customPrompt } = req.body as {
       items?: Array<{ entityType: SeoEntityType; entityId: string }>;
       entityType?: SeoEntityType;
       onlyIssues?: boolean;
       limit?: number;
+      customPrompt?: string;
     };
 
     const { job, alreadyRunning } = await enqueueBulkOptimize({
@@ -153,6 +156,7 @@ export const bulkOptimizeSeo = async (req: Request, res: Response, next: NextFun
       entityType,
       onlyIssues,
       limit,
+      customPrompt,
     });
 
     res.json({

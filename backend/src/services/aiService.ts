@@ -547,6 +547,7 @@ ${userMessage}`;
     url: string;
     content: string;
     existingSeo?: { seoTitle?: string | null; seoDescription?: string | null; seoKeywords?: string | null };
+    customPrompt?: string;
   }) {
     const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
     const playbook = await getSeoPlaybook();
@@ -558,6 +559,12 @@ ${buildAiStoreRoleLine(playbook.siteName)}
 ${playbookBlock}
 
 ${languageInstruction}
+
+${input.customPrompt ? `CUSTOM INSTRUCTIONS FROM USER FOR THIS SEO OPTIMIZATION:
+---
+${input.customPrompt}
+---
+(You MUST strictly follow these custom instructions if they dictate specific keywords, tone, or structure.)` : ""}
 
 Optimize meta tags for this page:
 - Page type: ${input.entityType}

@@ -39,6 +39,7 @@ export function SeoAuditPanel() {
   const [optimizingId, setOptimizingId] = useState<string | null>(null);
   const [entityFilter, setEntityFilter] = useState("all");
   const [onlyIssues, setOnlyIssues] = useState(true);
+  const [customPrompt, setCustomPrompt] = useState("");
   const [summary, setSummary] = useState<{ total: number; excellent: number; good: number; needsWork: number; critical: number } | null>(null);
   const [items, setItems] = useState<AuditItem[]>([]);
 
@@ -79,7 +80,7 @@ export function SeoAuditPanel() {
     const key = `${item.entityType}:${item.entityId}`;
     setOptimizingId(key);
     try {
-      await apiClient.post(ENDPOINTS.AI_SEO_OPTIMIZE, { entityType: item.entityType, entityId: item.entityId, save: true });
+      await apiClient.post(ENDPOINTS.AI_SEO_OPTIMIZE, { entityType: item.entityType, entityId: item.entityId, save: true, customPrompt: customPrompt || undefined });
       toast.success(t("cms_seo.audit_toast_optimized", { label: item.label }));
       fetchAudit();
     } catch (err: any) {
@@ -96,6 +97,7 @@ export function SeoAuditPanel() {
         entityType: entityFilter !== "all" ? entityFilter : undefined,
         onlyIssues: true,
         limit: 10,
+        customPrompt: customPrompt || undefined,
       });
       toast.success(res.message || (res.alreadyRunning ? t("cms_seo.audit_toast_bulk_running") : t("cms_seo.audit_toast_bulk_queued")));
       refreshJob();
@@ -134,21 +136,35 @@ export function SeoAuditPanel() {
         </div>
       )}
       <Card>
-        <CardContent className="pt-6 flex flex-wrap gap-3">
-          <Select value={entityFilter} onValueChange={setEntityFilter}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("cms_seo.audit_filter_all")}</SelectItem>
-              <SelectItem value="product">{t("cms_seo.audit_filter_products")}</SelectItem>
-              <SelectItem value="category">{t("cms_seo.audit_filter_categories")}</SelectItem>
-              <SelectItem value="blog">{t("cms_seo.audit_filter_blogs")}</SelectItem>
-              <SelectItem value="cms_page">{t("cms_seo.audit_filter_cms")}</SelectItem>
-              <SelectItem value="homepage">{t("cms_seo.audit_filter_homepage")}</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant={onlyIssues ? "default" : "outline"} size="sm" onClick={() => setOnlyIssues((v) => !v)}>
-            {onlyIssues ? t("cms_seo.audit_issues_only") : t("cms_seo.audit_all_pages")}
-          </Button>
+        <CardContent className="pt-6 flex flex-col gap-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <Select value={entityFilter} onValueChange={setEntityFilter}>
+              <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("cms_seo.audit_filter_all")}</SelectItem>
+                <SelectItem value="product">{t("cms_seo.audit_filter_products")}</SelectItem>
+                <SelectItem value="category">{t("cms_seo.audit_filter_categories")}</SelectItem>
+                <SelectItem value="blog">{t("cms_seo.audit_filter_blogs")}</SelectItem>
+                <SelectItem value="cms_page">{t("cms_seo.audit_filter_cms")}</SelectItem>
+                <SelectItem value="homepage">{t("cms_seo.audit_filter_homepage")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant={onlyIssues ? "default" : "outline"} size="sm" onClick={() => setOnlyIssues((v) => !v)}>
+              {onlyIssues ? t("cms_seo.audit_issues_only") : t("cms_seo.audit_all_pages")}
+            </Button>
+          </div>
+          
+          <div className="w-full">
+            <label className="text-sm font-medium mb-1 block text-muted-foreground">
+              Custom AI Prompt / Instructions (Optional)
+            </label>
+            <textarea
+              className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="E.g., Focus specifically on long-tail keywords about modern pendant lights, keep the tone luxurious..."
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+            />
+          </div>
         </CardContent>
       </Card>
       <Card>
