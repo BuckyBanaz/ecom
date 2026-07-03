@@ -25,6 +25,24 @@
   handle /uploads/* {
     reverse_proxy backend:5000
   }
+
+  @bots {
+    header User-Agent *Googlebot*
+    header User-Agent *bingbot*
+    header User-Agent *facebookexternalhit*
+    header User-Agent *Twitterbot*
+    header User-Agent *LinkedInBot*
+    header User-Agent *Slackbot*
+    header User-Agent *WhatsApp*
+    header User-Agent *YandexBot*
+    header User-Agent *Discordbot*
+    header User-Agent *Baiduspider*
+  }
+  handle @bots {
+    rewrite * /seo-proxy{uri}
+    reverse_proxy backend:5000
+  }
+
   handle {
     reverse_proxy frontend:80
   }

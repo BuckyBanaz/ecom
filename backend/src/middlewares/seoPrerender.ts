@@ -1,0 +1,86 @@
+import { Request, Response } from "express";
+import fs from "fs";
+import path from "path";
+import { prisma } from "../config/db";
+
+const DEFAULT_TITLE = "Schip & Ster — Light up your moment";
+const DEFAULT_DESC = "Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns.";
+const DEFAULT_IMAGE = "https://schipenster.com/og-image.png";
+
+export const seoPrerender = async (req: Request, res: Response) => {
+  // Extract real path by removing the /seo-proxy prefix if present
+  let originalUrl = req.originalUrl.replace(/^\/seo-proxy/, "") || "/";
+  if (originalUrl === "") originalUrl = "/";
+  const urlParts = originalUrl.split("?")[0].split("/").filter(Boolean);
+  
+  let title = process.env.SEO_DEFAULT_TITLE || DEFAULT_TITLE;
+  let description = process.env.SEO_DEFAULT_DESCRIPTION || DEFAULT_DESC;
+  let image = process.env.SEO_OG_IMAGE || DEFAULT_IMAGE;
+  
+  try {
+    // Determine route and fetch dynamic SEO data from DB
+    if (urlParts[0] === "product" && urlParts[1]) {
+      const slug = urlParts[1];
+      const product = await prisma.product.findFirst({ where: { slug } });
+      if (product) {
+        title = product.seoTitle || `${product.name} | Schip & Ster`;
+        description = product.seoDescription || product.shortDescription || description;
+        image = product.image ? `https://api.schipenster.com${product.image}` : image;
+      }
+    } else if (urlParts[0] === "category" && urlParts[1]) {
+      const slug = urlParts[1];
+      const category = await prisma.category.findUnique({ where: { slug } });
+      if (category) {
+        title = category.seoTitle || `${category.name} | Schip & Ster`;
+        description = category.seoDescription || category.description || description;
+      }
+    } else if (urlParts[0] === "blogs" && urlParts[1]) {
+      const slug = urlParts[1];
+      const blog = await prisma.blog.findUnique({ where: { slug } });
+      if (blog) {
+        title = blog.seoTitle || `${blog.title} | Schip & Ster`;
+        description = blog.seoDescription || blog.excerpt || description;
+        image = blog.coverImage ? `https://api.schipenster.com${blog.coverImage}` : image;
+      }
+    } else if (urlParts.length > 0) {
+      // Potentially a CMS page (like /relief or /about)
+      const slug = urlParts[urlParts.length - 1];
+      const cmsPage = await prisma.cmsPage.findUnique({ where: { slug } });
+      if (cmsPage) {
+        title = cmsPage.seoTitle || `${cmsPage.title} | Schip & Ster`;
+        description = cmsPage.seoDescription || description;
+      }
+    }
+    
+    // Read the built frontend HTML (or fallback to source)
+    let indexPath = path.resolve(__dirname, "../../../frontend/dist/index.html");
+    if (!fs.existsSync(indexPath)) {
+      indexPath = path.resolve(__dirname, "../../../frontend/index.html");
+    }
+    
+    let html = fs.readFileSync(indexPath, "utf-8");
+    
+    // Inject dynamic Meta Tags by replacing hardcoded values
+    html = html.replace(/<title>.*?<\/title>/g, `<title>${title}</title>`);
+    html = html.replace(/<meta name="description" content="[^"]*"/g, `<meta name="description" content="${description}"`);
+    html = html.replace(/<meta property="og:title" content="[^"]*"/g, `<meta property="og:title" content="${title}"`);
+    html = html.replace(/<meta property="og:description" content="[^"]*"/g, `<meta property="og:description" content="${description}"`);
+    html = html.replace(/<meta property="og:image" content="[^"]*"/g, `<meta property="og:image" content="${image}"`);
+    html = html.replace(/<meta name="twitter:title" content="[^"]*"/g, `<meta name="twitter:title" content="${title}"`);
+    html = html.replace(/<meta name="twitter:description" content="[^"]*"/g, `<meta name="twitter:description" content="${description}"`);
+    html = html.replace(/<meta name="twitter:image" content="[^"]*"/g, `<meta name="twitter:image" content="${image}"`);
+    
+    res.send(html);
+  } catch (error) {
+    console.error("SEO Prerender Error:", error);
+    let indexPath = path.resolve(__dirname, "../../../frontend/dist/index.html");
+    if (!fs.existsSync(indexPath)) {
+      indexPath = path.resolve(__dirname, "../../../frontend/index.html");
+    }
+    if (fs.existsSync(indexPath)) {
+       res.sendFile(indexPath);
+    } else {
+       res.status(500).send("SEO Prerender Error: index.html not found");
+    }
+  }
+};

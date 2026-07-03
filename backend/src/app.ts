@@ -146,6 +146,9 @@ import configRoutes from "./routes/configRoutes";
 import logsRoutes from "./routes/logsRoutes";
 import backupRoutes from "./routes/backupRoutes";
 import { getRobotsTxtContent, getSitemapXmlContent, getLlmsTxtContent } from "./services/settingsStore";
+import { seoPrerender } from "./middlewares/seoPrerender";
+
+app.get("/seo-proxy*", seoPrerender);
 
 app.get("/robots.txt", async (req, res, next) => {
   try {
