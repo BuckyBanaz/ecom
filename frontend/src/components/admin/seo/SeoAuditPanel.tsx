@@ -95,7 +95,7 @@ export function SeoAuditPanel() {
     try {
       const res = await apiClient.post<{ message?: string; alreadyRunning?: boolean }>(ENDPOINTS.AI_SEO_BULK_OPTIMIZE, {
         entityType: entityFilter !== "all" ? entityFilter : undefined,
-        onlyIssues: true,
+        onlyIssues: onlyIssues,
         limit: 10,
         customPrompt: customPrompt || undefined,
       });
