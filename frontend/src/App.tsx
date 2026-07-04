@@ -53,6 +53,7 @@ const AdminInTransit = lazy(() => import("./pages/admin/AdminInTransit.tsx"));
 const AdminReadyToShip = lazy(() => import("./pages/admin/AdminReadyToShip.tsx"));
 const AdminDelivered = lazy(() => import("./pages/admin/AdminDelivered.tsx"));
 const AdminReturns = lazy(() => import("./pages/admin/AdminReturns.tsx"));
+const AdminReplacements = lazy(() => import("./pages/admin/AdminReplacements.tsx"));
 const AdminPaymentRefunds = lazy(() => import("./pages/admin/AdminPaymentRefunds.tsx"));
 const AdminOrderDetails = lazy(() => import("./pages/admin/AdminOrderDetails.tsx"));
 const AdminLabels = lazy(() => import("./pages/admin/AdminLabels.tsx"));
@@ -129,6 +130,7 @@ function App() {
                             <Route path="orders/in-transit" element={<AdminInTransit />} />
                             <Route path="orders/delivered" element={<AdminDelivered />} />
                             <Route path="orders/returns" element={<AdminReturns />} />
+                            <Route path="orders/replacements" element={<AdminReplacements />} />
                             <Route path="orders/refunds" element={<AdminPaymentRefunds />} />
                             <Route path="orders/labels" element={<AdminLabels />} />
                             <Route path="orders/:id" element={<AdminOrderDetails />} />

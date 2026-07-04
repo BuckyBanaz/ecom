@@ -48,6 +48,7 @@ export const ENDPOINTS = {
   get CONFIG_APP() { return api("/config/app"); },
   get ADMIN_LOGS() { return api("/admin/logs"); },
   get ADMIN_BACKUPS() { return api("/admin/backups"); },
+  get AI() { return api("/ai"); },
   get AI_CMS_GENERATE() { return api("/ai/cms/generate"); },
   get AI_LIMITS() { return api("/ai/limits"); },
   get AI_QUICK_ADD() { return api("/ai/products/quick-add"); },

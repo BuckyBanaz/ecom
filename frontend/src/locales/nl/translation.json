@@ -914,6 +914,8 @@
   },
   "admin_returns": {
     "resolution_action": "Oplossingsactie",
+    "carrier": "Vervoerder",
+    "carrier_select": "Selecteer vervoerder",
     "resolution_refund": "Terugbetaling",
     "resolution_replacement": "Vervanging",
     "refund_customer": "Klant Terugbetalen",
@@ -1383,6 +1385,7 @@
     "in_transit": "In Transit",
     "delivered": "Bezorgd",
     "returns": "Retouren",
+    "replacements": "Vervangingen",
     "payment_refunds": "Terugbetalingen",
     "shipping_labels": "Verzendlabels",
     "cms": "CMS",

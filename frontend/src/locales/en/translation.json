@@ -906,6 +906,8 @@
   },
   "admin_returns": {
     "resolution_action": "Resolution Action",
+    "carrier": "Carrier",
+    "carrier_select": "Select Carrier",
     "resolution_refund": "Refund",
     "resolution_replacement": "Replacement",
     "refund_customer": "Refund Customer",
@@ -1375,6 +1377,7 @@
     "in_transit": "In Transit",
     "delivered": "Delivered",
     "returns": "Returns",
+    "replacements": "Replacements",
     "payment_refunds": "Payment Refunds",
     "shipping_labels": "Shipping Labels",
     "cms": "CMS",

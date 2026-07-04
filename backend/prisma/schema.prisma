@@ -446,6 +446,7 @@ model ReturnRequest {
   reviewedAt             DateTime? @map("reviewed_at")
   resolutionType         String?   @map("resolution_type") // refund | replacement
   resolutionNote         String?   @map("resolution_note")
+  replacementOrderId     String?   @map("replacement_order_id")
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 

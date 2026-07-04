@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AdminTrackingDialog } from "@/components/admin/AdminTrackingDialog";
 import { toast } from "sonner";
 import { SectionLoader } from "@/components/ui/PageLoader";
@@ -751,23 +752,22 @@ export default function AdminOrderDetails() {
                 <div className="space-y-1.5 relative">
                   <Label htmlFor="carrier" className="text-xs font-semibold">{t("admin_order_details.shipment_carrier")}</Label>
                   
-                  <div 
-                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                    onClick={() => {
-                      setIsCarrierOpen(!isCarrierOpen);
-                      setCarrierSearch("");
-                    }}
-                  >
-                    <span className="truncate">
-                      {selectedCarrier 
-                        ? shippingMethods.find(m => m.id.toString() === selectedCarrier)?.name || t("admin_order_details.shipment_select")
-                        : t("admin_order_details.shipment_select")}
-                    </span>
-                    <ArrowRight className="h-3 w-3 opacity-50 rotate-90" />
-                  </div>
+                  <Popover open={isCarrierOpen} onOpenChange={setIsCarrierOpen}>
+                    <PopoverTrigger asChild>
+                      <div 
+                        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                        onClick={() => setCarrierSearch("")}
+                      >
+                        <span className="truncate">
+                          {selectedCarrier 
+                            ? shippingMethods.find(m => m.id.toString() === selectedCarrier)?.name || t("admin_order_details.shipment_select")
+                            : t("admin_order_details.shipment_select")}
+                        </span>
+                        <ArrowRight className="h-3 w-3 opacity-50 rotate-90" />
+                      </div>
+                    </PopoverTrigger>
 
-                  {isCarrierOpen && (
-                    <div className="absolute z-50 w-full top-full mt-1 bg-white dark:bg-popover border shadow-md rounded-md overflow-hidden">
+                    <PopoverContent className="w-[350px] p-0" align="start">
                       <div className="p-2 border-b bg-muted/20">
                         <Input 
                           placeholder="Search carriers..." 
@@ -821,8 +821,8 @@ export default function AdminOrderDetails() {
                             })
                         )}
                       </div>
-                    </div>
-                  )}
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
 

@@ -452,12 +452,14 @@ function OrdersTab() {
               {orderReturn.status === "approved" && (
                 <p className="text-xs text-purple-700 bg-white/60 rounded-lg p-2 border">{t("returns.approved_message")}</p>
               )}
-              {orderReturn.status === "awaiting_return" && orderReturn.refundAmount != null && (
+              {orderReturn.status === "awaiting_return" && (
                 <p className="text-xs text-purple-700">
-                  {t("returns.awaiting_refund_message", {
-                    amount: orderReturn.refundAmount.toFixed(2),
-                    days: orderReturn.refundEtaDays || "5-7",
-                  })}
+                  {orderReturn.resolutionType === "replacement"
+                    ? "Your replacement order will be shipped within 1-2 business days after we receive and inspect your return."
+                    : orderReturn.refundAmount != null && t("returns.awaiting_refund_message", {
+                        amount: orderReturn.refundAmount.toFixed(2),
+                        days: orderReturn.refundEtaDays || "5-7",
+                      })}
                 </p>
               )}
               {orderReturn.status === "return_received" && (
@@ -472,9 +474,11 @@ function OrdersTab() {
                   })}
                 </p>
               )}
-              {orderReturn.status === "refunded" && orderReturn.refundAmount != null && (
+              {orderReturn.status === "refunded" && (
                 <p className="text-xs text-green-700 font-medium">
-                  {t("returns.refund_completed", { amount: orderReturn.refundAmount.toFixed(2) })}
+                  {orderReturn.resolutionType === "replacement"
+                    ? "Replacement order has been created and will be shipped shortly."
+                    : orderReturn.refundAmount != null && t("returns.refund_completed", { amount: orderReturn.refundAmount.toFixed(2) })}
                 </p>
               )}
               {(orderReturn.status === "awaiting_return" ||

@@ -1027,9 +1027,14 @@ export const returnsRepository = {
     });
   },
   generateReturnEmail: async (payload: { prompt: string; resolutionType: string; customerName?: string; orderNumber?: string; reason?: string }) => {
-    return request<any>(`${API_PREFIX}/ai/generate-return-email`, {
+    return request<any>(`${ENDPOINTS.AI}/generate-return-email`, {
       method: "POST",
       body: JSON.stringify(payload),
+    });
+  },
+  createReplacementOrder: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/replacement-order`, {
+      method: "POST",
     });
   },
   reject: async (id: string, adminNote: string) => {

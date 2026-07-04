@@ -1136,19 +1136,4 @@ ${contextBlock.slice(0, 9000)}
     return normalizeLlmsTxtOutput(responseText, playbook.siteName);
   },
 
-  generateReturnEmail: async (params: { prompt: string; resolutionType: string; customerName?: string; orderNumber?: string; reason?: string }) => {
-    const { prompt, resolutionType, customerName, orderNumber, reason } = params;
-    const systemInstruction = `You are a professional and empathetic customer support agent for an eCommerce store. 
-Your task is to draft a short, polite email to a customer regarding their return request.
-Return Reason: ${reason || "Not specified"}
-Resolution Action: ${resolutionType === "replacement" ? "Sending a replacement item" : "Issuing a refund"}
-Customer Name: ${customerName || "Customer"}
-Order Number: ${orderNumber || "Unknown"}
-Specific Instruction from Admin: "${prompt}"
-
-Write ONLY the email body. Do not include subject lines. Do not wrap in quotes or code blocks. Keep it concise, friendly, and professional. Use the language specified by the admin's instruction, or default to the store's primary language.`;
-
-    const response = await callGeminiWithFallback([{ text: systemInstruction }], 0.7);
-    return response || "Hello,\n\nWe have processed your request. Please contact support if you have any questions.\n\nBest regards,\nCustomer Support";
-  },
 };

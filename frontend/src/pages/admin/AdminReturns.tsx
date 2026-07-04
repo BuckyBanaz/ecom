@@ -13,7 +13,9 @@ import {
   AlertTriangle,
   Truck,
   CreditCard,
+  ChevronDown,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -89,6 +92,7 @@ export default function AdminReturns() {
   const [tab, setTab] = useState("pending_review");
   const [search, setSearch] = useState("");
   const [returns, setReturns] = useState<ReturnRecord[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ReturnRecord | null>(null);
   const [adminNote, setAdminNote] = useState("");
@@ -98,8 +102,10 @@ export default function AdminReturns() {
   const [selectedMethodId, setSelectedMethodId] = useState("");
   const [returnWeight, setReturnWeight] = useState("1");
   const [loadingMethods, setLoadingMethods] = useState(false);
+  const [isCarrierOpen, setIsCarrierOpen] = useState(false);
+  const [carrierSearch, setCarrierSearch] = useState("");
 
-  const [resolutionType, setResolutionType] = useState("refund");
+  const [resolutionType, setResolutionType] = useState<"refund" | "replacement">("replacement");
   const [resolutionNote, setResolutionNote] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -109,6 +115,7 @@ export default function AdminReturns() {
       setLoading(true);
       const res = await returnsRepository.getAll(tab);
       setReturns(res.data || []);
+      if ((res as any).counts) setCounts((res as any).counts);
     } catch (err) {
       console.error(err);
       toast.error(t("admin_returns.toast_load_failed"));
@@ -324,27 +331,34 @@ export default function AdminReturns() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="rounded-full">
-          <TabsTrigger value="pending_review" className="rounded-full text-xs">
+        <TabsList className="rounded-2xl sm:rounded-full h-auto flex flex-wrap justify-start sm:flex-nowrap sm:overflow-x-auto w-full p-1 gap-1">
+          <TabsTrigger value="pending_review" className="rounded-full text-xs gap-1.5">
             {t("admin_returns.tab_pending")}
+            {counts["pending_review"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["pending_review"]}</span> : null}
           </TabsTrigger>
-          <TabsTrigger value="approved" className="rounded-full text-xs">
+          <TabsTrigger value="approved" className="rounded-full text-xs gap-1.5">
             {t("admin_returns.tab_approved")}
+            {counts["approved"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["approved"]}</span> : null}
           </TabsTrigger>
-          <TabsTrigger value="awaiting_return" className="rounded-full text-xs">
+          <TabsTrigger value="awaiting_return" className="rounded-full text-xs gap-1.5">
             {t("admin_returns.tab_awaiting")}
+            {counts["awaiting_return"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["awaiting_return"]}</span> : null}
           </TabsTrigger>
-          <TabsTrigger value="return_received" className="rounded-full text-xs">
+          <TabsTrigger value="return_received" className="rounded-full text-xs gap-1.5">
             {t("admin_returns.tab_received")}
+            {counts["return_received"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["return_received"]}</span> : null}
           </TabsTrigger>
-          <TabsTrigger value="refunded" className="rounded-full text-xs">
+          <TabsTrigger value="refunded" className="rounded-full text-xs gap-1.5">
             {t("admin_returns.tab_completed")}
+            {counts["refunded"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["refunded"]}</span> : null}
           </TabsTrigger>
-          <TabsTrigger value="rejected" className="rounded-full text-xs">
+          <TabsTrigger value="rejected" className="rounded-full text-xs gap-1.5">
             {t("admin_returns.tab_rejected")}
+            {counts["rejected"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["rejected"]}</span> : null}
           </TabsTrigger>
-          <TabsTrigger value="all" className="rounded-full text-xs">
+          <TabsTrigger value="all" className="rounded-full text-xs gap-1.5">
             {t("admin_returns.tab_all")}
+            {counts["all"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["all"]}</span> : null}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -380,7 +394,7 @@ export default function AdminReturns() {
                   onClick={() => {
                     setSelected(r);
                     setAdminNote("");
-                    setResolutionType("refund");
+                    setResolutionType("replacement");
                     setResolutionNote("");
                     setAiPrompt("");
                   }}
@@ -537,7 +551,7 @@ export default function AdminReturns() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>{t("admin_returns.resolution_action")}</Label>
-                        <Select value={resolutionType} onValueChange={setResolutionType}>
+                        <Select value={resolutionType} onValueChange={(v: "refund" | "replacement") => setResolutionType(v)}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
@@ -620,9 +634,11 @@ export default function AdminReturns() {
                     <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm">
                       <p className="font-semibold text-green-800">{t("admin_returns.approved_banner")}</p>
                       <p className="text-green-700 text-xs mt-1">
-                        {t("admin_returns.refund_pending", {
-                          amount: (selected.refundAmount ?? selected.order?.total ?? 0).toFixed(2),
-                        })}
+                        {selected.resolutionType === "replacement"
+                          ? "Replacement order pending until item is received"
+                          : t("admin_returns.refund_pending", {
+                              amount: (selected.refundAmount ?? selected.order?.total ?? 0).toFixed(2),
+                            })}
                       </p>
                     </div>
 
@@ -642,27 +658,78 @@ export default function AdminReturns() {
                               onChange={(e) => setReturnWeight(e.target.value)}
                             />
                           </div>
-                          <div className="space-y-2">
-                            <Label>{t("admin_returns.carrier_label")}</Label>
-                            <Select value={selectedMethodId} onValueChange={setSelectedMethodId}>
-                              <SelectTrigger>
-                                <SelectValue placeholder={loadingMethods ? t("admin_returns.loading_methods") : t("admin_returns.select_carrier")} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.isArray(shippingMethods) && shippingMethods.length > 0 ? (
-                                  shippingMethods.map((m: any) => (
-                                    <SelectItem key={m.id} value={String(m.id)}>
-                                      {m.name}
-                                      {m.carrier ? ` — ${m.carrier}` : ""}
-                                    </SelectItem>
-                                  ))
-                                ) : (
-                                  <SelectItem value="__none" disabled>
-                                    {loadingMethods ? t("admin_returns.loading_methods") : t("admin_returns.no_carriers")}
-                                  </SelectItem>
-                                )}
-                              </SelectContent>
-                            </Select>
+                          <div className="space-y-1.5 relative w-full">
+                            <Label className="text-xs text-muted-foreground">{t("admin_returns.carrier")}</Label>
+                            
+                            <Popover open={isCarrierOpen} onOpenChange={setIsCarrierOpen}>
+                              <PopoverTrigger asChild>
+                                <div 
+                                  className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                  onClick={() => setCarrierSearch("")}
+                                >
+                                  <span className="truncate">
+                                    {selectedMethodId 
+                                      ? shippingMethods.find(m => String(m.id) === selectedMethodId)?.name || t("admin_returns.carrier_select")
+                                      : t("admin_returns.carrier_select")}
+                                  </span>
+                                  <ChevronDown className="h-4 w-4 opacity-50" />
+                                </div>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[300px] p-0" align="start">
+                                <div className="p-2 border-b bg-muted/20">
+                                  <Input 
+                                    placeholder="Search carriers..." 
+                                    value={carrierSearch}
+                                    onChange={(e) => setCarrierSearch(e.target.value)}
+                                    className="h-8 text-xs"
+                                    autoFocus
+                                  />
+                                </div>
+                                <div className="max-h-48 overflow-y-auto p-1">
+                                  {loadingMethods ? (
+                                    <div className="p-4 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                      <span className="text-xs">Loading carriers...</span>
+                                    </div>
+                                  ) : Array.isArray(shippingMethods) && shippingMethods.filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase())).length === 0 ? (
+                                    <div className="p-2 text-xs text-center text-muted-foreground">No carriers found</div>
+                                  ) : (
+                                    Array.isArray(shippingMethods) && shippingMethods
+                                      .filter(m => m.name.toLowerCase().includes(carrierSearch.toLowerCase()))
+                                      .map(method => {
+                                        const w = parseFloat(returnWeight) || 0;
+                                        const n = method.name.toLowerCase();
+                                        const isSuggested = (w < 2 && n.includes("mailbox")) || 
+                                                            (w >= 2 && n.includes("standard")) || 
+                                                            n.includes("postnl standard");
+                                                            
+                                        const isDomestic = n.includes("postnl") || n.includes("dhl for you") || (!n.includes("global") && !n.includes("connect") && !n.includes("international"));
+                                        const isInternational = n.includes("global") || n.includes("connect") || n.includes("international") || n.includes("dhl parcel connect");
+
+                                        return (
+                                          <div 
+                                            key={method.id}
+                                            onClick={() => { setSelectedMethodId(String(method.id)); setIsCarrierOpen(false); setCarrierSearch(""); }}
+                                            className={`flex items-center justify-between p-2 text-xs rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${selectedMethodId === String(method.id) ? 'bg-accent/50 font-bold' : ''}`}
+                                          >
+                                            <div className="flex flex-col gap-0.5">
+                                              <span>{method.name}</span>
+                                              <div className="flex items-center gap-1">
+                                                {isDomestic ? (
+                                                  <span className="text-[9px] text-blue-600 bg-blue-100 px-1 rounded">Domestic</span>
+                                                ) : isInternational ? (
+                                                  <span className="text-[9px] text-orange-600 bg-orange-100 px-1 rounded">International</span>
+                                                ) : null}
+                                              </div>
+                                            </div>
+                                            {isSuggested && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-green-100 text-green-700 hover:bg-green-100 shrink-0">Suggested</Badge>}
+                                          </div>
+                                        );
+                                      })
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           </div>
                         </div>
                         <Button
@@ -673,15 +740,17 @@ export default function AdminReturns() {
                           {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
                           {t("admin_returns.create_label_btn")}
                         </Button>
-                        <Button
-                          variant="outline"
-                          className="rounded-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
-                          onClick={handleManualRefund}
-                          disabled={actionLoading}
-                        >
-                          {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                          {t("admin_returns.manual_refund_btn")}
-                        </Button>
+                        {selected.resolutionType !== "replacement" && (
+                          <Button
+                            variant="outline"
+                            className="rounded-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
+                            onClick={handleManualRefund}
+                            disabled={actionLoading}
+                          >
+                            {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                            {t("admin_returns.manual_refund_btn")}
+                          </Button>
+                        )}
                       </>
                     ) : (
                       <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
@@ -739,24 +808,32 @@ export default function AdminReturns() {
                       disabled={actionLoading}
                     >
                       {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                      {t("admin_returns.mark_received_btn")}
+                      {selected.resolutionType === "replacement" 
+                        ? "Mark received & process replacement" 
+                        : t("admin_returns.mark_received_btn")}
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="rounded-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
-                      onClick={handleManualRefund}
-                      disabled={actionLoading}
-                    >
-                      {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                      {t("admin_returns.manual_refund_btn")}
-                    </Button>
+                    {selected.resolutionType !== "replacement" && (
+                      <Button
+                        variant="outline"
+                        className="rounded-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
+                        onClick={handleManualRefund}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                        {t("admin_returns.manual_refund_btn")}
+                      </Button>
+                    )}
                   </div>
                 )}
 
                 {selected.status === "return_received" && (
                   <div className="border-t pt-4 space-y-4">
                     <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
-                      <p className="font-semibold text-blue-900">{t("admin_returns.received_pending_refund")}</p>
+                      <p className="font-semibold text-blue-900">
+                        {selected.resolutionType === "replacement"
+                          ? "Item Received - Replacement pending"
+                          : t("admin_returns.received_pending_refund")}
+                      </p>
                       {selected.itemReceivedAt && (
                         <p className="text-blue-800 text-xs mt-1">
                           {t("admin_returns.item_received_at", {
@@ -768,14 +845,16 @@ export default function AdminReturns() {
                         <p className="text-blue-700 text-xs mt-1">{selected.returnShipmentStatus}</p>
                       )}
                     </div>
-                    <Button
-                      className="rounded-full gap-2"
-                      onClick={handleManualRefund}
-                      disabled={actionLoading}
-                    >
-                      {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                      {t("admin_returns.retry_refund_btn")}
-                    </Button>
+                    {selected.resolutionType !== "replacement" && (
+                      <Button
+                        className="rounded-full gap-2"
+                        onClick={handleManualRefund}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                        {t("admin_returns.retry_refund_btn")}
+                      </Button>
+                    )}
                   </div>
                 )}
 

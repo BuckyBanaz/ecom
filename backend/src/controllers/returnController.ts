@@ -213,13 +213,25 @@ export const listReturns = async (req: Request, res: Response, next: NextFunctio
       where.status = status;
     }
 
-    const returns = await prisma.returnRequest.findMany({
-      where,
-      include: returnInclude,
-      orderBy: { createdAt: "desc" },
-    });
+    const [returns, countsGroup] = await Promise.all([
+      prisma.returnRequest.findMany({
+        where,
+        include: returnInclude,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.returnRequest.groupBy({
+        by: ['status'],
+        _count: { id: true }
+      })
+    ]);
 
-    res.status(200).json({ success: true, data: returns.map(formatReturn) });
+    const counts = countsGroup.reduce((acc, curr) => {
+      acc[curr.status] = curr._count.id;
+      return acc;
+    }, {} as Record<string, number>);
+    counts['all'] = Object.values(counts).reduce((a, b) => a + b, 0);
+
+    res.status(200).json({ success: true, data: returns.map(formatReturn), counts });
   } catch (error) {
     next(error);
   }
@@ -231,6 +243,7 @@ export const listRefunds = async (_req: Request, res: Response, next: NextFuncti
       prisma.returnRequest.findMany({
         where: {
           status: "refunded",
+          resolutionType: { not: "replacement" },
           OR: [
             { stripeRefundId: { not: null } },
             { refundProcessedAt: { not: null } },
@@ -242,6 +255,7 @@ export const listRefunds = async (_req: Request, res: Response, next: NextFuncti
       prisma.returnRequest.findMany({
         where: {
           status: { in: ["approved", "awaiting_return", "return_received"] },
+          resolutionType: { not: "replacement" },
           stripeRefundId: null,
         },
         include: returnInclude,
@@ -329,7 +343,9 @@ export const markReturnReceived = async (req: Request, res: Response, next: Next
     const { id } = req.params;
     const existing = await prisma.returnRequest.findUnique({ where: { id } });
     if (!existing) return next(new AppError("Return request not found", 404));
-    if (existing.status !== "awaiting_return") {
+    const isAwaiting = existing.status === "awaiting_return";
+    const isFailedReplacement = existing.status === "return_received" && existing.resolutionType === "replacement" && !existing.replacementOrderId;
+    if (!isAwaiting && !isFailedReplacement) {
       return next(new AppError("Only returns awaiting shipment can be marked as received", 400));
     }
 
@@ -337,6 +353,55 @@ export const markReturnReceived = async (req: Request, res: Response, next: Next
       where: { id },
       data: { itemReceivedAt: new Date(), status: "return_received" },
     });
+
+    if (existing.resolutionType === "replacement" && !existing.replacementOrderId) {
+      const returnRequest = await prisma.returnRequest.findUnique({
+        where: { id },
+        include: { order: { include: { items: true } } },
+      });
+      if (returnRequest) {
+        const origOrder = returnRequest.order;
+        const replacementOrder = await prisma.order.create({
+          data: {
+            orderNumber: `REP-${origOrder.orderNumber}`,
+            userId: origOrder.userId,
+            customerName: origOrder.customerName,
+            customerEmail: origOrder.customerEmail,
+            shippingAddress: origOrder.shippingAddress || {},
+            subtotal: 0,
+            shipping: 0,
+            total: 0,
+            status: "paid", // Must be paid to show in Ready to Ship
+            paymentMethod: "replacement",
+            paymentStatus: "paid",
+            items: {
+              create: origOrder.items.map((item) => ({
+                productId: item.productId,
+                variantId: item.variantId,
+                productName: item.productName,
+                sku: item.sku,
+                quantity: item.quantity,
+                price: 0,
+                variant: item.variant || null,
+                productImage: item.productImage,
+              })),
+            },
+          },
+        });
+        const updatedReturn = await prisma.returnRequest.update({
+          where: { id },
+          data: { 
+            replacementOrderId: replacementOrder.id,
+            status: "refunded", // Marks as completed in UI
+            itemReceivedAt: new Date(),
+            returnShipmentStatus: "Replacement order created"
+          },
+          include: returnInclude
+        });
+        
+        return res.status(200).json({ success: true, data: formatReturn(updatedReturn) });
+      }
+    }
 
     const updated = await processReturnRefund(id);
     res.status(200).json({ success: true, data: formatReturn(updated) });
@@ -646,6 +711,75 @@ export const downloadReturnLabel = async (req: Request, res: Response, next: Nex
     if (!record) return next(new AppError("Return request not found", 404));
 
     await proxyReturnLabelPdf(record, res, next);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createReplacementOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const returnRequest = await prisma.returnRequest.findUnique({
+      where: { id },
+      include: {
+        order: {
+          include: { items: true },
+        },
+      },
+    });
+
+    if (!returnRequest) return next(new AppError("Return request not found", 404));
+    if (returnRequest.status !== "return_received") {
+      return next(new AppError("Cannot create replacement until return is received", 400));
+    }
+    if (returnRequest.resolutionType !== "replacement") {
+      return next(new AppError("Return resolution is not replacement", 400));
+    }
+    if (returnRequest.replacementOrderId) {
+      return next(new AppError("Replacement order already exists", 400));
+    }
+
+    const origOrder = returnRequest.order;
+
+    // Create a new order with 0 subtotal, 0 shipping, 0 total
+    const replacementOrder = await prisma.order.create({
+      data: {
+        orderNumber: `REP-${origOrder.orderNumber}`,
+        userId: origOrder.userId,
+        customerName: origOrder.customerName,
+        customerEmail: origOrder.customerEmail,
+        shippingAddress: origOrder.shippingAddress,
+        subtotal: 0,
+        shipping: 0,
+        total: 0,
+        status: "pending",
+        paymentMethod: "replacement",
+        paymentStatus: "paid",
+        items: {
+          create: origOrder.items.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            price: 0, // 0 cost for replacement
+            variant: item.variant,
+            imageUrl: item.imageUrl,
+          })),
+        },
+      },
+    });
+
+    const updated = await prisma.returnRequest.update({
+      where: { id },
+      data: { replacementOrderId: replacementOrder.id },
+      include: returnInclude,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: formatReturn(updated),
+    });
   } catch (error) {
     next(error);
   }

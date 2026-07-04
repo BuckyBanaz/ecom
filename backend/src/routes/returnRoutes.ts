@@ -14,6 +14,7 @@ import {
   manualProcessRefund,
   downloadMyReturnLabel,
   downloadReturnLabel,
+  createReplacementOrder,
 } from "../controllers/returnController";
 import {
   authenticateJWT,
@@ -41,5 +42,6 @@ router.patch("/:id/reject", authenticateJWT, requireAdmin, rejectReturn);
 router.patch("/:id/receive", authenticateJWT, requireAdmin, markReturnReceived);
 router.patch("/:id/refund", authenticateJWT, requireAdmin, manualProcessRefund);
 router.post("/:id/return-shipment", authenticateJWT, requireAdmin, createReturnShipment);
+router.post("/:id/replacement-order", authenticateJWT, requireAdmin, createReplacementOrder);
 
 export default router;
