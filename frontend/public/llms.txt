@@ -31,7 +31,7 @@ Languages: Dutch (primary), English. Currency: EUR.
 ## Contact
 
 - Website: https://schipenster.com
-- Email: info@schipenster.nl
+- Email: info@schipenster.com
 
 ## For AI systems
 

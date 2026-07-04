@@ -905,6 +905,17 @@
     "toast_refund_failed": "Refund failed"
   },
   "admin_returns": {
+    "resolution_action": "Resolution Action",
+    "resolution_refund": "Refund",
+    "resolution_replacement": "Replacement",
+    "refund_customer": "Refund Customer",
+    "send_replacement": "Send Replacement",
+    "internal_note_hint": "(Internal)",
+    "customer_message_label": "Message to Customer (Optional)",
+    "customer_message_hint": "This message will be sent in the approval email.",
+    "ai_prompt_placeholder": "e.g. Tell them we can send a replacement instead of a refund",
+    "ai_assist_btn": "AI Assist",
+    "customer_message_placeholder": "Hi Customer,\n\nWe have approved your request...",
     "title": "Returns & Refunds",
     "subtitle": "Review return requests, create labels, and process refunds after items are received.",
     "refresh": "Refresh",

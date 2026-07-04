@@ -1020,10 +1020,16 @@ export const returnsRepository = {
   getById: async (id: string) => {
     return request<any>(`${ENDPOINTS.RETURNS}/${id}`, { method: "GET" });
   },
-  approve: async (id: string, adminNote?: string) => {
+  approve: async (id: string, adminNote?: string, resolutionType?: string, resolutionNote?: string) => {
     return request<any>(`${ENDPOINTS.RETURNS}/${id}/approve`, {
       method: "PATCH",
-      body: JSON.stringify({ adminNote }),
+      body: JSON.stringify({ adminNote, resolutionType, resolutionNote }),
+    });
+  },
+  generateReturnEmail: async (payload: { prompt: string; resolutionType: string; customerName?: string; orderNumber?: string; reason?: string }) => {
+    return request<any>(`${API_PREFIX}/ai/generate-return-email`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
   reject: async (id: string, adminNote: string) => {

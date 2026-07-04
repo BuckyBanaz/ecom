@@ -59,12 +59,12 @@ export const updateSmtpSettings = async (
     if (port !== undefined) updates.SMTP_PORT = port.toString();
     if (encryption !== undefined) updates.SMTP_ENCRYPTION = encryption;
     if (username !== undefined) updates.SMTP_USER = username;
-    
+
     // Only update password if it's provided and not the masked placeholder
     if (password !== undefined && password !== "" && password !== "••••••••") {
       updates.SMTP_PASS = password;
     }
-    
+
     if (fromName !== undefined) updates.SMTP_FROM_NAME = fromName;
     if (fromEmail !== undefined) updates.SMTP_FROM_EMAIL = fromEmail;
     if (enabled !== undefined) updates.SMTP_ENABLE = enabled ? "true" : "false";
@@ -161,7 +161,7 @@ export const updatePaymentSettings = async (
     if (klarna !== undefined) updates.PAYMENT_ENABLE_KLARNA = klarna ? "true" : "false";
     if (bancontact !== undefined) updates.PAYMENT_ENABLE_BANCONTACT = bancontact ? "true" : "false";
     if (stripePublishableKey !== undefined) updates.STRIPE_PUBLISHABLE_KEY = stripePublishableKey;
-    
+
     // Only update Stripe Secret Key if it's not the masked placeholder
     if (stripeSecretKey !== undefined && stripeSecretKey !== "" && !stripeSecretKey.includes("••")) {
       updates.STRIPE_SECRET_KEY = stripeSecretKey;
@@ -242,11 +242,11 @@ export const getAiSettings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-      const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
-      const settings = {
-        enabled: process.env.AI_ENABLED === "true",
-        googleApiKey: apiKey ? "••••••••••••••••••••" : "",
-        systemPrompt: process.env.AI_SYSTEM_PROMPT || "",
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
+    const settings = {
+      enabled: process.env.AI_ENABLED === "true",
+      googleApiKey: apiKey ? "••••••••••••••••••••" : "",
+      systemPrompt: process.env.AI_SYSTEM_PROMPT || "",
       model: process.env.AI_MODEL || "llama-3.3-70b-versatile",
       imageGenerationCount: clampAiImageCount(parseInt(process.env.AI_IMAGE_COUNT || "1", 10)),
       bulkProductLimit: clampAiBulkLimit(parseInt(process.env.AI_BULK_LIMIT || "5", 10)),
@@ -327,13 +327,13 @@ export const getAiModels = async (
     }
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch models from Gemini API: ${response.statusText}`);
     }
 
     const result = await response.json();
-    
+
     // Filter for gemini models
     const models = (result.models || [])
       .filter((m: any) => m.name.includes("gemini"))
@@ -362,8 +362,8 @@ export const getGeneralSettings = async (
     const invoice = getInvoiceVendorSettings();
     const settings = {
       storeName: process.env.STORE_NAME || "SCHIP & STER",
-      storeUrl: process.env.STORE_URL || "https://schipandster.nl",
-      supportEmail: process.env.SUPPORT_EMAIL || "support@schipandster.nl",
+      storeUrl: process.env.STORE_URL || "https://schipandster.com",
+      supportEmail: process.env.SUPPORT_EMAIL || "support@schipandster.com",
       currency: process.env.STORE_CURRENCY || "EUR",
       maintenanceMode: process.env.MAINTENANCE_MODE === "true",
       maintenanceMessage: process.env.MAINTENANCE_MESSAGE || "We're currently performing maintenance. We'll be back shortly!",
@@ -371,6 +371,7 @@ export const getGeneralSettings = async (
       invoiceVendorName: invoice.vendorName,
       invoiceVendorAddress: invoice.vendorAddress,
       invoiceVendorEmail: invoice.vendorEmail,
+      returnWindowDays: parseInt(process.env.RETURN_WINDOW_DAYS || "30", 10),
     };
 
     res.status(200).json({ success: true, data: settings });
@@ -399,6 +400,7 @@ export const updateGeneralSettings = async (
       invoiceVendorName,
       invoiceVendorAddress,
       invoiceVendorEmail,
+      returnWindowDays,
     } = req.body;
 
     const updates: Record<string, string> = {};
@@ -412,6 +414,7 @@ export const updateGeneralSettings = async (
     if (invoiceVendorName !== undefined) updates.INVOICE_VENDOR_NAME = String(invoiceVendorName).trim();
     if (invoiceVendorAddress !== undefined) updates.INVOICE_VENDOR_ADDRESS = String(invoiceVendorAddress).trim();
     if (invoiceVendorEmail !== undefined) updates.INVOICE_VENDOR_EMAIL = String(invoiceVendorEmail).trim();
+    if (returnWindowDays !== undefined) updates.RETURN_WINDOW_DAYS = String(returnWindowDays);
 
     await saveSettings(updates);
 
@@ -436,6 +439,7 @@ export const getMaintenanceStatus = async (
         maintenanceMode: process.env.MAINTENANCE_MODE === "true",
         maintenanceMessage: process.env.MAINTENANCE_MESSAGE || "We're currently performing maintenance. We'll be back shortly!",
         storeName: process.env.STORE_NAME || "SCHIP & STER",
+        returnWindowDays: parseInt(process.env.RETURN_WINDOW_DAYS || "30", 10),
       },
     });
   } catch (error: any) {
@@ -525,9 +529,9 @@ export const updateSeoConfig = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { 
-      siteName, titleTemplate, defaultTitle, defaultDescription, defaultKeywords, 
-      canonical, twitterHandle, ogImage, indexable, 
+    const {
+      siteName, titleTemplate, defaultTitle, defaultDescription, defaultKeywords,
+      canonical, twitterHandle, ogImage, indexable,
       ga4, gtm, metaPixel, tiktokPixel,
       ga4PropertyId, ga4ClientEmail, ga4PrivateKey, gscSiteUrl
     } = req.body;
@@ -548,7 +552,7 @@ export const updateSeoConfig = async (
     if (tiktokPixel !== undefined) updates.ANALYTICS_TIKTOK_PIXEL = tiktokPixel;
     if (ga4PropertyId !== undefined) updates.GA4_PROPERTY_ID = String(ga4PropertyId).trim();
     if (ga4ClientEmail !== undefined) updates.GA4_CLIENT_EMAIL = String(ga4ClientEmail).trim();
-    
+
     if (ga4PrivateKey !== undefined && ga4PrivateKey !== "" && !ga4PrivateKey.includes("••")) {
       updates.GA4_PRIVATE_KEY = ga4PrivateKey;
     }

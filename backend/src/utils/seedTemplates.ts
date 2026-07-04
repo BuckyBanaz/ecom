@@ -237,12 +237,28 @@ const DEFAULT_TEMPLATES = [
 <p><strong>Refund amount (after we receive your return):</strong> &euro;{{refund_amount}}</p>
 <p>We will email you a return shipping label shortly. Please pack the item securely and drop it off at your nearest {{carrier}} service point once the label is ready.</p>
 {{admin_note_block}}
+{{resolution_note_block}}
 <br/>
 <a href="{{return_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">View Return Status</a>
 <br/><br/>
 <p>Thank you for shopping with Schip & Ster.</p>`,
     smsBody: `Hi {{name}}, return approved for order #{{order_id}}. We will send your return label soon. {{return_url}}`,
     whatsappBody: `Hello {{name}},\n\nYour return for order *#{{order_id}}* is *approved*.\n\nRefund of €{{refund_amount}} will be processed after we receive your item.\n\nTrack: {{return_url}}`,
+  },
+  {
+    name: "return_replacement",
+    subject: "Replacement Approved — Order #{{order_id}}",
+    body: `<h2>Hello {{name}},</h2>
+<p>Good news! We have processed a replacement for your return request on order <strong>#{{order_id}}</strong>.</p>
+<p>We will email you a return shipping label shortly so you can send the original item back. At the same time, we are preparing your replacement for shipment.</p>
+{{admin_note_block}}
+{{resolution_note_block}}
+<br/>
+<a href="{{return_url}}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">View Return Status</a>
+<br/><br/>
+<p>Thank you for shopping with Schip & Ster.</p>`,
+    smsBody: `Hi {{name}}, replacement approved for order #{{order_id}}. We will send your return label soon. {{return_url}}`,
+    whatsappBody: `Hello {{name}},\n\nYour replacement for order *#{{order_id}}* is *approved*.\n\nTrack: {{return_url}}`,
   },
   {
     name: "return_rejected",
@@ -330,6 +346,14 @@ export const seedTemplates = async () => {
           }
         });
         console.log(`[Seed] Updated order_confirmed template to include payment_summary`);
+      } else if ((tpl.name === "return_approved" || tpl.name === "return_replacement") && !existing.body.includes("resolution_note_block")) {
+        await prisma.emailTemplate.update({
+          where: { name: tpl.name },
+          data: {
+            body: tpl.body
+          }
+        });
+        console.log(`[Seed] Updated ${tpl.name} template to include resolution_note_block`);
       }
     }
   } catch (error) {

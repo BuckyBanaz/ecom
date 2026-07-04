@@ -37,7 +37,7 @@ const AdminSettings = () => {
       }
     }
   }, [window.location.search, isSuperAdmin]);
-  
+
   const [featureItems, setFeatureItems] = useState([
     { id: 1, icon: "truck-fast", title: "Fast delivery", description: "Order before 22:00, delivered next day" },
     { id: 2, icon: "arrow-rotate-left", title: "30-day returns", description: "Not happy? Send it back for free" },
@@ -89,7 +89,8 @@ const AdminSettings = () => {
     smsProvider: "twilio",
     twilioAccountSid: "",
     twilioAuthToken: "",
-    twilioSenderNumber: "",  });
+    twilioSenderNumber: "",
+  });
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   const [generalSettings, setGeneralSettings] = useState({
@@ -103,6 +104,7 @@ const AdminSettings = () => {
     invoiceVendorName: "",
     invoiceVendorAddress: "",
     invoiceVendorEmail: "",
+    returnWindowDays: 30,
   });
   const [isLoadingGeneral, setIsLoadingGeneral] = useState(true);
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
@@ -291,6 +293,7 @@ const AdminSettings = () => {
             invoiceVendorName: res.data.invoiceVendorName || "",
             invoiceVendorAddress: res.data.invoiceVendorAddress || "",
             invoiceVendorEmail: res.data.invoiceVendorEmail || "",
+            returnWindowDays: res.data.returnWindowDays !== undefined ? Number(res.data.returnWindowDays) : 30,
           });
         }
       } catch (error) {
@@ -305,7 +308,7 @@ const AdminSettings = () => {
         if (res.success && res.data) {
           setAiSettings(res.data);
         }
-        
+
         // Also try to fetch available models if key exists
         if (res.data?.googleApiKey) {
           try {
@@ -330,7 +333,7 @@ const AdminSettings = () => {
     fetchAuthSettings();
     fetchGeneralSettings();
     fetchAiSettings();
-  }, [isSuperAdmin]);  const handleSaveFeatures = async () => {
+  }, [isSuperAdmin]); const handleSaveFeatures = async () => {
     try {
       const res = await cmsFeaturesRepository.update(featureItems);
       if (res.success) {
@@ -497,45 +500,45 @@ const AdminSettings = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label>First Name</Label>
-                    <Input 
-                      value={profileData.firstName} 
-                      onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })} 
-                      className="mt-1 bg-background" 
+                    <Input
+                      value={profileData.firstName}
+                      onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
+                      className="mt-1 bg-background"
                     />
                   </div>
                   <div>
                     <Label>Last Name</Label>
-                    <Input 
-                      value={profileData.lastName} 
-                      onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })} 
-                      className="mt-1 bg-background" 
+                    <Input
+                      value={profileData.lastName}
+                      onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })}
+                      className="mt-1 bg-background"
                     />
                   </div>
                 </div>
                 <div>
                   <Label>Email</Label>
-                  <Input 
-                    value={profileData.email} 
-                    disabled 
-                    className="mt-1 bg-muted cursor-not-allowed text-muted-foreground" 
-                    title="Email cannot be changed" 
+                  <Input
+                    value={profileData.email}
+                    disabled
+                    className="mt-1 bg-muted cursor-not-allowed text-muted-foreground"
+                    title="Email cannot be changed"
                   />
                 </div>
                 <div>
                   <Label>Phone Number</Label>
-                  <Input 
-                    value={profileData.phone} 
-                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} 
-                    className="mt-1 bg-background" 
+                  <Input
+                    value={profileData.phone}
+                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                    className="mt-1 bg-background"
                   />
                 </div>
                 <div>
                   <Label>Role</Label>
-                  <Input 
-                    value={profileData.role.toUpperCase()} 
-                    disabled 
-                    className="mt-1 bg-muted cursor-not-allowed text-muted-foreground font-semibold" 
-                    title="Role cannot be changed" 
+                  <Input
+                    value={profileData.role.toUpperCase()}
+                    disabled
+                    className="mt-1 bg-muted cursor-not-allowed text-muted-foreground font-semibold"
+                    title="Role cannot be changed"
                   />
                 </div>
                 <Button type="submit" disabled={isSavingProfile} className="rounded-full w-full sm:w-auto">
@@ -549,33 +552,33 @@ const AdminSettings = () => {
               <h3 className="font-semibold text-lg text-foreground">{t("admin_settings.password_title")}</h3>
               <div>
                 <Label>{t("admin_settings.password_label_current")}</Label>
-                <Input 
-                  type="password" 
-                  value={passwordData.currentPassword} 
-                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} 
-                  className="mt-1 bg-background" 
-                  required 
+                <Input
+                  type="password"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                  className="mt-1 bg-background"
+                  required
                 />
               </div>
               <div>
                 <Label>{t("admin_settings.password_label_new")}</Label>
-                <Input 
-                  type="password" 
-                  value={passwordData.newPassword} 
-                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} 
-                  className="mt-1 bg-background" 
-                  required 
+                <Input
+                  type="password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  className="mt-1 bg-background"
+                  required
                   minLength={6}
                 />
               </div>
               <div>
                 <Label>{t("admin_settings.password_label_confirm")}</Label>
-                <Input 
-                  type="password" 
-                  value={passwordData.confirmPassword} 
-                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} 
-                  className="mt-1 bg-background" 
-                  required 
+                <Input
+                  type="password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  className="mt-1 bg-background"
+                  required
                   minLength={6}
                 />
               </div>
@@ -606,7 +609,7 @@ const AdminSettings = () => {
                   <Input
                     value={generalSettings.storeUrl}
                     onChange={(e) => setGeneralSettings({ ...generalSettings, storeUrl: e.target.value })}
-                    placeholder="https://schipandster.nl"
+                    placeholder="https://schipandster.com"
                     className="mt-1"
                   />
                 </div>
@@ -616,7 +619,7 @@ const AdminSettings = () => {
                     type="email"
                     value={generalSettings.supportEmail}
                     onChange={(e) => setGeneralSettings({ ...generalSettings, supportEmail: e.target.value })}
-                    placeholder="support@schipandster.nl"
+                    placeholder="support@schipandster.com"
                     className="mt-1"
                   />
                 </div>
@@ -664,8 +667,23 @@ const AdminSettings = () => {
                       type="email"
                       value={generalSettings.invoiceVendorEmail}
                       onChange={(e) => setGeneralSettings({ ...generalSettings, invoiceVendorEmail: e.target.value })}
-                      placeholder="billing@schipandster.nl"
+                      placeholder="billing@schipandster.com"
                       className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+                  <div>
+                    <Label className="text-base">Return Window (Days)</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+                      Number of days customers have to request a return after delivery.
+                    </p>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={generalSettings.returnWindowDays}
+                      onChange={(e) => setGeneralSettings({ ...generalSettings, returnWindowDays: parseInt(e.target.value) || 0 })}
+                      className="max-w-[150px]"
                     />
                   </div>
                 </div>
@@ -730,16 +748,16 @@ const AdminSettings = () => {
           <div className="mt-4 w-full space-y-4 rounded-xl border bg-card p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-lg">Features Items</h3>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setFeatureItems([...featureItems, { id: Date.now(), icon: "star", title: "", description: "" }])}
                 className="gap-2"
               >
                 <Plus size={16} /> Add Item
               </Button>
             </div>
-            
+
             <div className="space-y-4">
               {/* Desktop header */}
               <div className="hidden sm:grid grid-cols-[1fr_2fr_3fr_auto] gap-4 mb-2 text-sm font-medium text-muted-foreground">
@@ -748,38 +766,38 @@ const AdminSettings = () => {
                 <div>Description</div>
                 <div className="w-8"></div>
               </div>
-              
+
               {featureItems.map((item, index) => (
                 <div key={item.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_2fr_3fr_auto] sm:gap-4 sm:items-start">
-                  <IconPicker 
-                    value={item.icon} 
+                  <IconPicker
+                    value={item.icon}
                     onChange={(val) => {
                       const newItems = [...featureItems];
                       newItems[index].icon = val;
                       setFeatureItems(newItems);
-                    }} 
+                    }}
                   />
-                  <Input 
-                    value={item.title} 
+                  <Input
+                    value={item.title}
                     onChange={(e) => {
                       const newItems = [...featureItems];
                       newItems[index].title = e.target.value;
                       setFeatureItems(newItems);
-                    }} 
-                    placeholder="E.g. Fast delivery" 
+                    }}
+                    placeholder="E.g. Fast delivery"
                   />
-                  <Input 
-                    value={item.description} 
+                  <Input
+                    value={item.description}
                     onChange={(e) => {
                       const newItems = [...featureItems];
                       newItems[index].description = e.target.value;
                       setFeatureItems(newItems);
-                    }} 
-                    placeholder="E.g. Order before 22:00..." 
+                    }}
+                    placeholder="E.g. Order before 22:00..."
                   />
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="text-destructive hover:text-destructive hover:bg-destructive/10 self-end sm:self-auto"
                     onClick={() => setFeatureItems(featureItems.filter(i => i.id !== item.id))}
                   >
@@ -788,7 +806,7 @@ const AdminSettings = () => {
                 </div>
               ))}
             </div>
-            
+
             <div className="pt-4 border-t mt-6">
               <Button onClick={handleSaveFeatures} className="rounded-full w-full sm:w-auto">
                 Save Features
@@ -802,20 +820,20 @@ const AdminSettings = () => {
             <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
           ) : (
             <form onSubmit={handleSaveSmtp} className="mt-4 w-full max-w-xl space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-              <div><Label>SMTP Host</Label><Input value={smtpSettings.host} onChange={(e) => setSmtpSettings({...smtpSettings, host: e.target.value})} className="mt-1" /></div>
+              <div><Label>SMTP Host</Label><Input value={smtpSettings.host} onChange={(e) => setSmtpSettings({ ...smtpSettings, host: e.target.value })} className="mt-1" /></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><Label>Port</Label><Input value={smtpSettings.port} onChange={(e) => setSmtpSettings({...smtpSettings, port: e.target.value})} className="mt-1" /></div>
+                <div><Label>Port</Label><Input value={smtpSettings.port} onChange={(e) => setSmtpSettings({ ...smtpSettings, port: e.target.value })} className="mt-1" /></div>
                 <div><Label>Encryption</Label>
                   {isMounted && (
-                    <Select value={smtpSettings.encryption} onValueChange={(v) => setSmtpSettings({...smtpSettings, encryption: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tls">TLS</SelectItem><SelectItem value="ssl">SSL</SelectItem><SelectItem value="none">None</SelectItem></SelectContent></Select>
+                    <Select value={smtpSettings.encryption} onValueChange={(v) => setSmtpSettings({ ...smtpSettings, encryption: v })}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tls">TLS</SelectItem><SelectItem value="ssl">SSL</SelectItem><SelectItem value="none">None</SelectItem></SelectContent></Select>
                   )}
                 </div>
               </div>
-              <div><Label>Username</Label><Input value={smtpSettings.username} onChange={(e) => setSmtpSettings({...smtpSettings, username: e.target.value})} className="mt-1" /></div>
-              <div><Label>Password</Label><Input type="password" value={smtpSettings.password} onChange={(e) => setSmtpSettings({...smtpSettings, password: e.target.value})} className="mt-1" /></div>
-              <div><Label>From Name</Label><Input value={smtpSettings.fromName} onChange={(e) => setSmtpSettings({...smtpSettings, fromName: e.target.value})} className="mt-1" /></div>
-              <div><Label>From Email</Label><Input value={smtpSettings.fromEmail} onChange={(e) => setSmtpSettings({...smtpSettings, fromEmail: e.target.value})} className="mt-1" /></div>
-              <div className="flex items-center gap-2"><Switch checked={smtpSettings.enabled} onCheckedChange={(checked) => setSmtpSettings({...smtpSettings, enabled: checked})} /><Label>Enable Email Notifications</Label></div>
+              <div><Label>Username</Label><Input value={smtpSettings.username} onChange={(e) => setSmtpSettings({ ...smtpSettings, username: e.target.value })} className="mt-1" /></div>
+              <div><Label>Password</Label><Input type="password" value={smtpSettings.password} onChange={(e) => setSmtpSettings({ ...smtpSettings, password: e.target.value })} className="mt-1" /></div>
+              <div><Label>From Name</Label><Input value={smtpSettings.fromName} onChange={(e) => setSmtpSettings({ ...smtpSettings, fromName: e.target.value })} className="mt-1" /></div>
+              <div><Label>From Email</Label><Input value={smtpSettings.fromEmail} onChange={(e) => setSmtpSettings({ ...smtpSettings, fromEmail: e.target.value })} className="mt-1" /></div>
+              <div className="flex items-center gap-2"><Switch checked={smtpSettings.enabled} onCheckedChange={(checked) => setSmtpSettings({ ...smtpSettings, enabled: checked })} /><Label>Enable Email Notifications</Label></div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button type="submit" className="rounded-full w-full sm:w-auto">Save SMTP</Button>
                 <Button type="button" variant="outline" className="rounded-full w-full sm:w-auto" onClick={handleSendTestEmail}>Send Test Email</Button>
@@ -833,20 +851,20 @@ const AdminSettings = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">Email / Password</p><p className="text-xs text-muted-foreground">Standard email login</p></div>
-                  <Switch checked={authSettings.emailLogin} onCheckedChange={c => setAuthSettings({...authSettings, emailLogin: c})} />
+                  <Switch checked={authSettings.emailLogin} onCheckedChange={c => setAuthSettings({ ...authSettings, emailLogin: c })} />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">Phone (SMS OTP)</p><p className="text-xs text-muted-foreground">Login via SMS code</p></div>
-                  <Switch checked={authSettings.phoneLogin} onCheckedChange={c => setAuthSettings({...authSettings, phoneLogin: c})} />
+                  <Switch checked={authSettings.phoneLogin} onCheckedChange={c => setAuthSettings({ ...authSettings, phoneLogin: c })} />
                 </div>
               </div>
-              
+
               <h3 className="font-semibold text-lg mt-6">Registration Setting</h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">Sign Up Method</p><p className="text-xs text-muted-foreground">What details are required at sign up?</p></div>
                   {isMounted && (
-                    <Select value={authSettings.registerMethod} onValueChange={v => setAuthSettings({...authSettings, registerMethod: v})}>
+                    <Select value={authSettings.registerMethod} onValueChange={v => setAuthSettings({ ...authSettings, registerMethod: v })}>
                       <SelectTrigger className="w-[180px]">
                         <SelectValue />
                       </SelectTrigger>
@@ -859,22 +877,22 @@ const AdminSettings = () => {
                   )}
                 </div>
               </div>
-              
+
               <h3 className="font-semibold text-lg mt-6">Phone / SMS Settings</h3>
               <div><Label>SMS Provider</Label>
                 {isMounted && (
-                  <Select value={authSettings.smsProvider} onValueChange={v => setAuthSettings({...authSettings, smsProvider: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="twilio">Twilio</SelectItem><SelectItem value="messagebird">MessageBird</SelectItem><SelectItem value="vonage">Vonage</SelectItem></SelectContent></Select>
+                  <Select value={authSettings.smsProvider} onValueChange={v => setAuthSettings({ ...authSettings, smsProvider: v })}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="twilio">Twilio</SelectItem><SelectItem value="messagebird">MessageBird</SelectItem><SelectItem value="vonage">Vonage</SelectItem></SelectContent></Select>
                 )}
               </div>
-              
+
               {authSettings.smsProvider === "twilio" && (
                 <>
-                  <div><Label>Twilio Account SID</Label><Input value={authSettings.twilioAccountSid} onChange={e => setAuthSettings({...authSettings, twilioAccountSid: e.target.value})} className="mt-1" placeholder="Enter Account SID" /></div>
-                  <div><Label>Twilio Auth Token</Label><Input type="password" value={authSettings.twilioAuthToken} onChange={e => setAuthSettings({...authSettings, twilioAuthToken: e.target.value})} className="mt-1" placeholder="Enter auth token" /></div>
-                  <div><Label>Twilio Sender Phone Number</Label><Input value={authSettings.twilioSenderNumber} onChange={e => setAuthSettings({...authSettings, twilioSenderNumber: e.target.value})} className="mt-1" placeholder="+31612345678" /></div>
+                  <div><Label>Twilio Account SID</Label><Input value={authSettings.twilioAccountSid} onChange={e => setAuthSettings({ ...authSettings, twilioAccountSid: e.target.value })} className="mt-1" placeholder="Enter Account SID" /></div>
+                  <div><Label>Twilio Auth Token</Label><Input type="password" value={authSettings.twilioAuthToken} onChange={e => setAuthSettings({ ...authSettings, twilioAuthToken: e.target.value })} className="mt-1" placeholder="Enter auth token" /></div>
+                  <div><Label>Twilio Sender Phone Number</Label><Input value={authSettings.twilioSenderNumber} onChange={e => setAuthSettings({ ...authSettings, twilioSenderNumber: e.target.value })} className="mt-1" placeholder="+31612345678" /></div>
                 </>
               )}
-              
+
               <Button type="submit" className="rounded-full w-full sm:w-auto mt-4">Save Auth Settings</Button>
             </form>
           )}
@@ -891,27 +909,27 @@ const AdminSettings = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 Configure your AI models (Gemini) used for quick product generation and insights.
               </p>
-              
+
               <div className="space-y-4">
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-semibold">Enable AI Features</p>
                     <p className="text-xs text-muted-foreground">Turn on/off AI features site-wide</p>
                   </div>
-                  <Switch 
-                    checked={aiSettings.enabled} 
-                    onCheckedChange={c => setAiSettings({...aiSettings, enabled: c})} 
+                  <Switch
+                    checked={aiSettings.enabled}
+                    onCheckedChange={c => setAiSettings({ ...aiSettings, enabled: c })}
                   />
                 </div>
-                
+
                 <div>
                   <Label>Google Gemini API Key</Label>
-                  <Input 
-                    type="password" 
-                    value={aiSettings.googleApiKey} 
-                    onChange={e => setAiSettings({...aiSettings, googleApiKey: e.target.value})} 
-                    placeholder="AIza..." 
-                    className="mt-1" 
+                  <Input
+                    type="password"
+                    value={aiSettings.googleApiKey}
+                    onChange={e => setAiSettings({ ...aiSettings, googleApiKey: e.target.value })}
+                    placeholder="AIza..."
+                    className="mt-1"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Get your free key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Google AI Studio</a>. Required for text and vision capabilities.
@@ -921,7 +939,7 @@ const AdminSettings = () => {
                 <div>
                   <Label>AI Model</Label>
                   {isMounted && (
-                    <Select value={aiSettings.model} onValueChange={v => setAiSettings({...aiSettings, model: v})}>
+                    <Select value={aiSettings.model} onValueChange={v => setAiSettings({ ...aiSettings, model: v })}>
                       <SelectTrigger className="mt-1">
                         <SelectValue placeholder="Select a model" />
                       </SelectTrigger>
@@ -968,14 +986,14 @@ const AdminSettings = () => {
                     Product titles, descriptions, SEO fields, and CMS page text will be generated in this language.
                   </p>
                 </div>
-                
+
                 <div>
                   <Label>System Prompt (Optional)</Label>
-                  <textarea 
-                    value={aiSettings.systemPrompt} 
-                    onChange={e => setAiSettings({...aiSettings, systemPrompt: e.target.value})} 
-                    className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 mt-1" 
-                    placeholder="You are an expert e-commerce catalog manager..." 
+                  <textarea
+                    value={aiSettings.systemPrompt}
+                    onChange={e => setAiSettings({ ...aiSettings, systemPrompt: e.target.value })}
+                    className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 mt-1"
+                    placeholder="You are an expert e-commerce catalog manager..."
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Custom instructions for the AI on how to format or generate the product details. Leave blank to use the default.
@@ -986,7 +1004,7 @@ const AdminSettings = () => {
                   <h4 className="text-sm font-bold flex items-center gap-2">
                     <ImageIcon className="h-4 w-4 text-primary" /> Image Processing & Vision
                   </h4>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-foreground/80">Gallery images per product (0–5)</Label>
@@ -1013,7 +1031,7 @@ const AdminSettings = () => {
                       />
                       <p className="text-[10px] text-muted-foreground">Max products per AI batch on Quick Add page.</p>
                     </div>
-                    
+
                     <div className="space-y-1.5 md:col-span-1">
                       <Label className="text-xs font-bold text-foreground/80">Default Background/Scene</Label>
                       <Input
@@ -1027,7 +1045,7 @@ const AdminSettings = () => {
                 </div>
 
               </div>
-              
+
               <Button type="submit" className="rounded-full w-full sm:w-auto mt-4">Save AI Settings</Button>
             </form>
           )}
@@ -1047,42 +1065,42 @@ const AdminSettings = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">iDEAL</p><p className="text-xs text-muted-foreground">Dutch bank transfer</p></div>
-                  <Switch checked={paymentSettings.ideal} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, ideal: c})} />
+                  <Switch checked={paymentSettings.ideal} onCheckedChange={(c) => setPaymentSettings({ ...paymentSettings, ideal: c })} />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">Credit Card</p><p className="text-xs text-muted-foreground">Visa, Mastercard, Amex</p></div>
-                  <Switch checked={paymentSettings.card} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, card: c})} />
+                  <Switch checked={paymentSettings.card} onCheckedChange={(c) => setPaymentSettings({ ...paymentSettings, card: c })} />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">PayPal</p><p className="text-xs text-muted-foreground">PayPal checkout</p></div>
-                  <Switch checked={paymentSettings.paypal} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, paypal: c})} />
+                  <Switch checked={paymentSettings.paypal} onCheckedChange={(c) => setPaymentSettings({ ...paymentSettings, paypal: c })} />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">Klarna</p><p className="text-xs text-muted-foreground">Buy now, pay later</p></div>
-                  <Switch checked={paymentSettings.klarna} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, klarna: c})} />
+                  <Switch checked={paymentSettings.klarna} onCheckedChange={(c) => setPaymentSettings({ ...paymentSettings, klarna: c })} />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div><p className="font-semibold">Bancontact</p><p className="text-xs text-muted-foreground">Belgian payments</p></div>
-                  <Switch checked={paymentSettings.bancontact} onCheckedChange={(c) => setPaymentSettings({...paymentSettings, bancontact: c})} />
+                  <Switch checked={paymentSettings.bancontact} onCheckedChange={(c) => setPaymentSettings({ ...paymentSettings, bancontact: c })} />
                 </div>
               </div>
               <div>
                 <Label>Stripe Secret Key</Label>
-                <Input 
-                  type="password" 
-                  value={paymentSettings.stripeSecretKey} 
-                  onChange={(e) => setPaymentSettings({...paymentSettings, stripeSecretKey: e.target.value})} 
-                  className="mt-1" 
-                  placeholder="sk_live_..." 
+                <Input
+                  type="password"
+                  value={paymentSettings.stripeSecretKey}
+                  onChange={(e) => setPaymentSettings({ ...paymentSettings, stripeSecretKey: e.target.value })}
+                  className="mt-1"
+                  placeholder="sk_live_..."
                 />
               </div>
               <div>
                 <Label>Stripe Publishable Key</Label>
-                <Input 
-                  value={paymentSettings.stripePublishableKey} 
-                  onChange={(e) => setPaymentSettings({...paymentSettings, stripePublishableKey: e.target.value})} 
-                  className="mt-1" 
-                  placeholder="pk_live_..." 
+                <Input
+                  value={paymentSettings.stripePublishableKey}
+                  onChange={(e) => setPaymentSettings({ ...paymentSettings, stripePublishableKey: e.target.value })}
+                  className="mt-1"
+                  placeholder="pk_live_..."
                 />
               </div>
               <Button type="submit" className="rounded-full w-full sm:w-auto">Save Payment Settings</Button>
@@ -1096,11 +1114,11 @@ const AdminSettings = () => {
           ) : (
             <form onSubmit={handleSaveShipping} className="mt-4 w-full max-w-xl space-y-6 rounded-xl border bg-card p-4 sm:p-6">
               <div className="space-y-4">
-                <div><Label>Free Shipping Threshold (€)</Label><Input type="number" value={shippingSettings.freeShippingThreshold} onChange={e => setShippingSettings({...shippingSettings, freeShippingThreshold: Number(e.target.value)})} className="mt-1" /></div>
-                <div><Label>Standard Shipping Fee (€)</Label><Input type="number" step="0.01" value={shippingSettings.standardShippingFee} onChange={e => setShippingSettings({...shippingSettings, standardShippingFee: Number(e.target.value)})} className="mt-1" /></div>
-                <div><Label>Express Shipping Fee (€)</Label><Input type="number" step="0.01" value={shippingSettings.expressShippingFee} onChange={e => setShippingSettings({...shippingSettings, expressShippingFee: Number(e.target.value)})} className="mt-1" /></div>
-                <div className="flex items-center gap-2"><Switch checked={shippingSettings.sameDayDelivery} onCheckedChange={c => setShippingSettings({...shippingSettings, sameDayDelivery: c})} /><Label>Same-day delivery available</Label></div>
-                <div><Label>Delivery Cutoff Time</Label><Input value={shippingSettings.deliveryCutoffTime} onChange={e => setShippingSettings({...shippingSettings, deliveryCutoffTime: e.target.value})} className="mt-1" /></div>
+                <div><Label>Free Shipping Threshold (€)</Label><Input type="number" value={shippingSettings.freeShippingThreshold} onChange={e => setShippingSettings({ ...shippingSettings, freeShippingThreshold: Number(e.target.value) })} className="mt-1" /></div>
+                <div><Label>Standard Shipping Fee (€)</Label><Input type="number" step="0.01" value={shippingSettings.standardShippingFee} onChange={e => setShippingSettings({ ...shippingSettings, standardShippingFee: Number(e.target.value) })} className="mt-1" /></div>
+                <div><Label>Express Shipping Fee (€)</Label><Input type="number" step="0.01" value={shippingSettings.expressShippingFee} onChange={e => setShippingSettings({ ...shippingSettings, expressShippingFee: Number(e.target.value) })} className="mt-1" /></div>
+                <div className="flex items-center gap-2"><Switch checked={shippingSettings.sameDayDelivery} onCheckedChange={c => setShippingSettings({ ...shippingSettings, sameDayDelivery: c })} /><Label>Same-day delivery available</Label></div>
+                <div><Label>Delivery Cutoff Time</Label><Input value={shippingSettings.deliveryCutoffTime} onChange={e => setShippingSettings({ ...shippingSettings, deliveryCutoffTime: e.target.value })} className="mt-1" /></div>
               </div>
 
               <div className="border-t pt-6 space-y-4">
@@ -1109,17 +1127,17 @@ const AdminSettings = () => {
                     <h3 className="font-semibold text-lg">Sendcloud Integration</h3>
                     <p className="text-xs text-muted-foreground mt-1">Connect your Sendcloud account for automated label generation.</p>
                   </div>
-                  <Switch checked={shippingSettings.sendcloudEnabled} onCheckedChange={c => setShippingSettings({...shippingSettings, sendcloudEnabled: c})} />
+                  <Switch checked={shippingSettings.sendcloudEnabled} onCheckedChange={c => setShippingSettings({ ...shippingSettings, sendcloudEnabled: c })} />
                 </div>
-                
+
                 <div>
                   <Label>Public API Key</Label>
-                  <Input value={shippingSettings.sendcloudPublicKey} onChange={e => setShippingSettings({...shippingSettings, sendcloudPublicKey: e.target.value})} placeholder="Enter Sendcloud Public Key" className="mt-1" />
+                  <Input value={shippingSettings.sendcloudPublicKey} onChange={e => setShippingSettings({ ...shippingSettings, sendcloudPublicKey: e.target.value })} placeholder="Enter Sendcloud Public Key" className="mt-1" />
                 </div>
-                
+
                 <div>
                   <Label>Secret API Key</Label>
-                  <Input type="password" value={shippingSettings.sendcloudSecretKey} onChange={e => setShippingSettings({...shippingSettings, sendcloudSecretKey: e.target.value})} placeholder="Enter Sendcloud Secret Key" className="mt-1" />
+                  <Input type="password" value={shippingSettings.sendcloudSecretKey} onChange={e => setShippingSettings({ ...shippingSettings, sendcloudSecretKey: e.target.value })} placeholder="Enter Sendcloud Secret Key" className="mt-1" />
                 </div>
               </div>
 

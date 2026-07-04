@@ -290,6 +290,10 @@ export const notificationTriggerService = {
         ? `<p><strong>Note from our team:</strong> ${record.adminNote}</p>`
         : "";
 
+      const resolutionNoteBlock = record.resolutionNote
+        ? `<div style="padding: 15px; border-left: 4px solid #16a34a; background: #f0fdf4; margin: 15px 0;"><strong>Message from Support:</strong><br/><br/>${record.resolutionNote.replace(/\n/g, "<br/>")}</div>`
+        : "";
+
       const variables: Record<string, string> = {
         name: order.customerName || record.user?.name || "Customer",
         order_id: order.orderNumber,
@@ -300,6 +304,7 @@ export const notificationTriggerService = {
         refund_expected_date: refundExpectedDate,
         rejection_reason: record.adminNote || "",
         admin_note_block: adminNoteBlock,
+        resolution_note_block: resolutionNoteBlock,
         carrier: record.returnCarrier || "Sendcloud",
         tracking_number: record.returnTrackingNumber || "",
         tracking_url: record.returnTrackingUrl || "",

@@ -50,7 +50,7 @@ async function lockReturnRequestInTx(tx: PrismaTx, returnId: string): Promise<Lo
       return_shipment_status,
       order_id
     FROM return_requests
-    WHERE id = ${returnId}::uuid
+    WHERE id = ${returnId}
     FOR UPDATE
   `;
   return rows[0] ?? null;

@@ -6,6 +6,7 @@ import { AppError } from "../middlewares/errorMiddleware";
 import { saveCompressedImageToDir } from "../utils/imageOptimize";
 import { aiService } from "../services/aiService";
 import { AuthenticatedRequest } from "../middlewares/authMiddleware";
+import { emailService } from "../services/emailService";
 import { notificationTriggerService } from "../services/notificationTriggerService";
 import { sendcloudApi } from "../services/sendcloud/api";
 import { getSendcloudAuthHeaders } from "../services/sendcloud/api";
@@ -275,11 +276,11 @@ export const getReturnById = async (req: Request, res: Response, next: NextFunct
 export const approveReturn = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const { adminNote } = req.body || {};
+    const { adminNote, resolutionType, resolutionNote } = req.body || {};
 
     const existing = await prisma.returnRequest.findUnique({
       where: { id },
-      include: { order: true },
+      include: { order: true, user: true },
     });
     if (!existing) return next(new AppError("Return request not found", 404));
     if (existing.status !== "pending_review") {
@@ -296,6 +297,8 @@ export const approveReturn = async (req: Request, res: Response, next: NextFunct
         data: {
           status: "approved",
           adminNote: adminNote?.trim() || null,
+          resolutionType: resolutionType || "refund",
+          resolutionNote: resolutionNote?.trim() || null,
           refundAmount,
           reviewedAt: now,
         },
@@ -310,7 +313,8 @@ export const approveReturn = async (req: Request, res: Response, next: NextFunct
       return record;
     });
 
-    notificationTriggerService.triggerReturnNotification(updated.id, "return_approved").catch((err) => {
+    const templateName = resolutionType === "replacement" ? "return_replacement" : "return_approved";
+    notificationTriggerService.triggerReturnNotification(updated.id, templateName).catch((err) => {
       console.error("[ApproveReturn] Notification failed:", err.message);
     });
 

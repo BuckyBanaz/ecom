@@ -2,78 +2,81 @@
 
 <html lang="nl" translate="no" class="notranslate app-i18n-controlled">
 
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="google" content="notranslate" />
-    <meta name="application-name" content="Schip & Ster" />
-    
-    <title>Schip & Ster — Light up your moment</title>
-    <meta name="description" content="Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns.">
-    <meta name="author" content="Schip & Ster" />
-    <link rel="canonical" href="https://schipenster.com/" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="google" content="notranslate" />
+  <meta name="application-name" content="Schip & Ster" />
 
-    <!-- Favicons -->
-    <link rel="icon" href="/favicon.ico" sizes="48x48" />
-    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
+  <title>Schip & Ster — Light up your moment</title>
+  <meta name="description"
+    content="Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns.">
+  <meta name="author" content="Schip & Ster" />
+  <link rel="canonical" href="https://schipenster.com/" />
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Schip & Ster" />
-    <meta property="og:url" content="https://schipenster.com/" />
-    <meta property="og:title" content="Schip & Ster — Light up your moment" />
-    <meta property="og:description" content="Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns." />
-    <meta property="og:image" content="https://schipenster.com/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+  <!-- Favicons -->
+  <link rel="icon" href="/favicon.ico" sizes="48x48" />
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Schip & Ster — Light up your moment" />
-    <meta name="twitter:description" content="Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns." />
-    <meta name="twitter:image" content="https://schipenster.com/og-image.png" />
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Schip & Ster" />
+  <meta property="og:url" content="https://schipenster.com/" />
+  <meta property="og:title" content="Schip & Ster — Light up your moment" />
+  <meta property="og:description"
+    content="Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns." />
+  <meta property="og:image" content="https://schipenster.com/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
 
-    <!-- Scripts -->
-    <script>
-      (function() {
-        try {
-          var pref = (navigator.languages && navigator.languages[0]) || navigator.language;
-          if (pref) {
-            document.documentElement.lang = pref.split('-')[0];
-          }
-        } catch (e) {}
-      })();
-    </script>
-    <script>
-      (function () {
-        try {
-          var raw = localStorage.getItem("cms_homepage_data");
-          if (!raw) return;
-          var data = JSON.parse(raw);
-          if (!data || !data.content) return;
-          var content = data.content;
-          var m =
-            content.match(/background_image_1="([^"]+)"/i) ||
-            content.match(/background_image="([^"]+)"/i) ||
-            content.match(/<img[^>]+src="([^"]+)"/i);
-          if (!m || !m[1] || m[1].indexOf("/uploads/") === -1) return;
-          var path = m[1].slice(m[1].indexOf("/uploads/"));
-          var href = path + (path.indexOf("?") >= 0 ? "&" : "?") + "w=960";
-          var link = document.createElement("link");
-          link.rel = "preload";
-          link.as = "image";
-          link.href = href;
-          link.setAttribute("fetchpriority", "high");
-          document.head.appendChild(link);
-        } catch (e) {}
-      })();
-    </script>
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Schip & Ster — Light up your moment" />
+  <meta name="twitter:description"
+    content="Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns." />
+  <meta name="twitter:image" content="https://schipenster.com/og-image.png" />
 
-    <script type="application/ld+json" id="organization-schema">
+  <!-- Scripts -->
+  <script>
+    (function () {
+      try {
+        var pref = (navigator.languages && navigator.languages[0]) || navigator.language;
+        if (pref) {
+          document.documentElement.lang = pref.split('-')[0];
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem("cms_homepage_data");
+        if (!raw) return;
+        var data = JSON.parse(raw);
+        if (!data || !data.content) return;
+        var content = data.content;
+        var m =
+          content.match(/background_image_1="([^"]+)"/i) ||
+          content.match(/background_image="([^"]+)"/i) ||
+          content.match(/<img[^>]+src="([^"]+)"/i);
+        if (!m || !m[1] || m[1].indexOf("/uploads/") === -1) return;
+        var path = m[1].slice(m[1].indexOf("/uploads/"));
+        var href = path + (path.indexOf("?") >= 0 ? "&" : "?") + "w=960";
+        var link = document.createElement("link");
+        link.rel = "preload";
+        link.as = "image";
+        link.href = href;
+        link.setAttribute("fetchpriority", "high");
+        document.head.appendChild(link);
+      } catch (e) { }
+    })();
+  </script>
+
+  <script type="application/ld+json" id="organization-schema">
 
 
     {
@@ -110,7 +113,7 @@
 
         "contactType": "customer service",
 
-        "email": "info@schipenster.nl",
+        "email": "info@schipenster.com",
 
         "availableLanguage": ["Dutch", "English"]
 
@@ -122,7 +125,7 @@
 
     </script>
 
-    <script type="application/ld+json" id="website-schema">
+  <script type="application/ld+json" id="website-schema">
 
     {
 
@@ -160,7 +163,7 @@
 
     </script>
 
-    <script type="application/ld+json" id="navigation-schema">
+  <script type="application/ld+json" id="navigation-schema">
 
     {
 
@@ -190,30 +193,25 @@
 
 
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
 
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <link rel="preconnect" href="https://api.schipenster.com" crossorigin />
+  <link rel="preconnect" href="https://api.schipenster.com" crossorigin />
 
-    <link rel="dns-prefetch" href="https://api.schipenster.com" />
+  <link rel="dns-prefetch" href="https://api.schipenster.com" />
 
-    <link
-      rel="preload"
-      as="style"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-      onload="this.onload=null;this.rel='stylesheet'"
-    />
-    <noscript>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-    </noscript>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+    onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  </noscript>
 
 
 
   <!-- Hide browser Google Translate UI only when app TAAL controls EN/NL -->
 
   <style>
-
     html.app-i18n-controlled .goog-te-banner-frame,
 
     html.app-i18n-controlled .goog-te-banner-frame.skiptranslate,
@@ -261,21 +259,18 @@
       translate: no;
 
     }
-
   </style>
 
 </head>
 
 
 
-  <body class="notranslate" translate="no">
+<body class="notranslate" translate="no">
 
-    <div id="root"></div>
+  <div id="root"></div>
 
-    <script type="module" src="/src/main.tsx"></script>
+  <script type="module" src="/src/main.tsx"></script>
 
-  </body>
+</body>
 
 </html>
-
-

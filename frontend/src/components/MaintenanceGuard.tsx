@@ -11,6 +11,7 @@ interface MaintenanceStatus {
   maintenanceMode: boolean;
   maintenanceMessage: string;
   storeName: string;
+  returnWindowDays?: number;
 }
 
 const readCachedMaintenanceStatus = (): MaintenanceStatus => {
@@ -22,13 +23,14 @@ const readCachedMaintenanceStatus = (): MaintenanceStatus => {
       maintenanceMode: !!parsed.maintenanceMode,
       maintenanceMessage: parsed.maintenanceMessage || "",
       storeName: parsed.storeName || "",
+      returnWindowDays: parsed.returnWindowDays,
     };
   } catch {
     return { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
   }
 };
 
-const MAINTENANCE_REFETCH_MS = 5 * 60_000;
+const MAINTENANCE_REFETCH_MS = 0; // Disable cache for dev
 const MAINTENANCE_FETCHED_AT_KEY = "maintenance_status_fetched_at";
 
 export const MaintenanceGuard = ({ children }: MaintenanceGuardProps) => {
@@ -49,6 +51,7 @@ export const MaintenanceGuard = ({ children }: MaintenanceGuardProps) => {
               maintenanceMode: !!res.data.maintenanceMode,
               maintenanceMessage: res.data.maintenanceMessage || "",
               storeName: res.data.storeName || "",
+              returnWindowDays: res.data.returnWindowDays,
             }
           : { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
         setStatus(nextStatus);

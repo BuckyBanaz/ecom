@@ -33,6 +33,22 @@ try {
 
 async function startServer() {
   await loadPersistedSettings();
+  
+  try {
+    const { seedTemplates } = await import("./utils/seedTemplates");
+    await seedTemplates();
+    console.log("✅ Templates seeded on boot!");
+  } catch (err: any) {
+    console.warn("Template seeding failed:", err?.message || err);
+  }
+
+  try {
+    const { prisma } = await import("./config/db");
+    const result = await prisma.$executeRawUnsafe(`UPDATE orders SET delivered_at = created_at WHERE status = 'delivered'`);
+    console.log(`✅ SET deliveredAt = createdAt for orders! Result:`, result);
+  } catch (err: any) {
+    console.warn("Failed to update DB:", err?.message || err);
+  }
 
   try {
     const { recoverSeoJobOnBoot } = await import("./services/seoJobQueueService");

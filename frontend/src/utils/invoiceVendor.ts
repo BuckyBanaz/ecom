@@ -7,7 +7,7 @@ export type InvoiceVendor = {
 export const DEFAULT_INVOICE_VENDOR: InvoiceVendor = {
   vendorName: "Schip & Ster BV",
   vendorAddress: "Keizersgracht 456, Amsterdam",
-  vendorEmail: "billing@schipandster.nl",
+  vendorEmail: "billing@schipandster.com",
 };
 
 export function normalizeInvoiceVendor(raw?: Partial<InvoiceVendor> | null): InvoiceVendor {

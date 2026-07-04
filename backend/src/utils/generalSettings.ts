@@ -17,7 +17,7 @@ export function getInvoiceVendorSettings(): InvoiceVendorSettings {
     vendorEmail:
       process.env.INVOICE_VENDOR_EMAIL?.trim() ||
       process.env.SUPPORT_EMAIL?.trim() ||
-      "billing@schipandster.nl",
+      "billing@schipandster.com",
   };
 }
 

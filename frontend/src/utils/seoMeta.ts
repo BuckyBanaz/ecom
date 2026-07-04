@@ -192,10 +192,10 @@ export function applyPageMeta(opts: {
 }) {
   const resolved = opts.skipPlaybook
     ? {
-        title: opts.seoTitle || opts.title || "",
-        description: opts.seoDescription || opts.description || "",
-        keywords: opts.seoKeywords || opts.keywords || "",
-      }
+      title: opts.seoTitle || opts.title || "",
+      description: opts.seoDescription || opts.description || "",
+      keywords: opts.seoKeywords || opts.keywords || "",
+    }
     : resolvePageSeo(opts);
 
   if (resolved.title) document.title = resolved.title;
@@ -401,7 +401,7 @@ export function buildStructuredData(opts: {
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer service",
-      email: opts.supportEmail || "info@schipenster.nl",
+      email: opts.supportEmail || "info@schipenster.com",
       availableLanguage: ["Dutch", "English"],
     },
     areaServed: { "@type": "Country", name: "Netherlands" },

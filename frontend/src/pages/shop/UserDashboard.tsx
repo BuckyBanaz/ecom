@@ -24,8 +24,8 @@ import {
   ACTIVE_RETURN_STATUSES,
   getReturnEligibility,
   getReturnWindowDeadline,
-  RETURN_WINDOW_DAYS,
 } from "@/utils/returnValidation";
+import { getReturnWindowDays, getReturnWindowStart, getReturnWindowDeadline as getDeadline } from "@/utils/returnWindow";
 import { useFcmToken } from "@/hooks/useFcmToken";
 import { PhonePicker } from "@/components/ui/PhonePicker";
 import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
@@ -424,14 +424,7 @@ function OrdersTab() {
             </div>
           </div>
 
-          {returnWindowExpired && (
-            <p className="mb-4 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 border">
-              {t("returns.window_expired", {
-                days: RETURN_WINDOW_DAYS,
-                deadline: returnWindowDeadline.toLocaleDateString(),
-              })}
-            </p>
-          )}
+
 
           {orderReturn && (
             <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50/50 p-4 space-y-2">
@@ -734,6 +727,7 @@ function OrdersTab() {
               </div>
             )}
           </div>
+          
         </div>
         </div>
         <ReviewModal 

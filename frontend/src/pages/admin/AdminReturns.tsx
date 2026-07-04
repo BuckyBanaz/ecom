@@ -38,6 +38,7 @@ import { returnsRepository, ordersRepository } from "@/client/apiClient";
 import { resolveImgUrl } from "@/utils/image";
 import { getApiV1Url } from "@/utils/endpoints";
 import { validateReturnShipmentWeight } from "@/utils/returnValidation";
+import { toast } from "sonner";
 
 type ReturnRecord = {
   id: string;
@@ -98,6 +99,11 @@ export default function AdminReturns() {
   const [returnWeight, setReturnWeight] = useState("1");
   const [loadingMethods, setLoadingMethods] = useState(false);
 
+  const [resolutionType, setResolutionType] = useState("refund");
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
   const loadReturns = useCallback(async () => {
     try {
       setLoading(true);
@@ -148,10 +154,12 @@ export default function AdminReturns() {
     if (!selected) return;
     try {
       setActionLoading(true);
-      await returnsRepository.approve(selected.id, adminNote.trim() || undefined);
+      await returnsRepository.approve(selected.id, adminNote.trim() || undefined, resolutionType, resolutionNote.trim() || undefined);
       toast.success(t("admin_returns.toast_approved"));
       setSelected(null);
       setAdminNote("");
+      setResolutionNote("");
+      setAiPrompt("");
       loadReturns();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : t("admin_returns.toast_action_failed"));
@@ -159,6 +167,45 @@ export default function AdminReturns() {
       setActionLoading(false);
     }
   };
+
+  const handleGenerateAiEmail = async () => {
+    if (!selected || !aiPrompt.trim()) return;
+    try {
+      setAiLoading(true);
+      const res = await returnsRepository.generateReturnEmail({
+        prompt: aiPrompt,
+        resolutionType,
+        customerName: selected.user?.name || selected.order?.customerName || "Customer",
+        orderNumber: selected.order?.orderNumber || "Unknown",
+        reason: selected.reason
+      });
+      setResolutionNote(res.email);
+    } catch (err: any) {
+      toast.error(err.message || t("admin_returns.toast_action_failed"));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleGenerateRejectAiEmail = async () => {
+    if (!selected || !aiPrompt.trim()) return;
+    try {
+      setAiLoading(true);
+      const res = await returnsRepository.generateReturnEmail({
+        prompt: aiPrompt,
+        resolutionType: "reject",
+        customerName: selected.user?.name || selected.order?.customerName || "Customer",
+        orderNumber: selected.order?.orderNumber || "Unknown",
+        reason: selected.reason
+      });
+      setAdminNote(res.email);
+    } catch (err: any) {
+      toast.error(err.message || t("admin_returns.toast_action_failed"));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
 
   const handleReject = async () => {
     if (!selected || !adminNote.trim()) {
@@ -333,6 +380,9 @@ export default function AdminReturns() {
                   onClick={() => {
                     setSelected(r);
                     setAdminNote("");
+                    setResolutionType("refund");
+                    setResolutionNote("");
+                    setAiPrompt("");
                   }}
                   className={`w-full text-left rounded-xl border p-4 transition ${
                     isActive ? "border-primary bg-primary/5 shadow-sm" : "bg-card hover:bg-muted/30"
@@ -349,7 +399,18 @@ export default function AdminReturns() {
                       {badge.label}
                     </span>
                   </div>
-                  <p className="text-xs mt-2">{t(`returns.reasons.${r.reason}`)}</p>
+                  <div className="flex items-center justify-between gap-2 mt-2">
+                    <p className="text-xs">{t(`returns.reasons.${r.reason}`)}</p>
+                    {r.resolutionType && (
+                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium border ${
+                        r.resolutionType === "replacement" 
+                          ? "bg-purple-50 text-purple-700 border-purple-200" 
+                          : "bg-green-50 text-green-700 border-green-200"
+                      }`}>
+                        {t(`admin_returns.resolution_${r.resolutionType}`)}
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             })
@@ -388,7 +449,18 @@ export default function AdminReturns() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">{t("admin_returns.label_status")}</p>
-                    <p className="font-medium">{t(`returns.statuses.${selected.status}`, { defaultValue: selected.status })}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{t(`returns.statuses.${selected.status}`, { defaultValue: selected.status })}</p>
+                      {selected.resolutionType && (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                          selected.resolutionType === "replacement"
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : "bg-green-50 text-green-700 border-green-200"
+                        }`}>
+                          {t(`admin_returns.resolution_${selected.resolutionType}`)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -462,16 +534,62 @@ export default function AdminReturns() {
 
                 {selected.status === "pending_review" && (
                   <div className="border-t pt-4 space-y-3">
-                    <div className="space-y-2">
-                      <Label>{t("admin_returns.admin_note_label")}</Label>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>{t("admin_returns.resolution_action")}</Label>
+                        <Select value={resolutionType} onValueChange={setResolutionType}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="refund">{t("admin_returns.refund_customer")}</SelectItem>
+                            <SelectItem value="replacement">{t("admin_returns.send_replacement")}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("admin_returns.admin_note_label")} {t("admin_returns.internal_note_hint")}</Label>
+                        <Input
+                          value={adminNote}
+                          onChange={(e) => setAdminNote(e.target.value)}
+                          placeholder={t("admin_returns.admin_note_placeholder")}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 rounded-xl bg-primary/5 border border-primary/20 p-4 mt-4">
+                      <p className="text-sm font-semibold flex items-center gap-2 text-primary">
+                        <Sparkles className="h-4 w-4" /> {t("admin_returns.customer_message_label")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{t("admin_returns.customer_message_hint")}</p>
+                      <div className="flex gap-2 items-center">
+                        <Input 
+                          placeholder={t("admin_returns.ai_prompt_placeholder")}
+                          className="text-xs h-8"
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                        />
+                        <Button 
+                          size="sm" 
+                          variant="secondary" 
+                          onClick={handleGenerateAiEmail} 
+                          disabled={aiLoading || !aiPrompt.trim()}
+                          className="h-8 gap-1 text-xs shrink-0"
+                        >
+                          {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-primary" />}
+                          {t("admin_returns.ai_assist_btn")}
+                        </Button>
+                      </div>
                       <Textarea
-                        value={adminNote}
-                        onChange={(e) => setAdminNote(e.target.value)}
-                        placeholder={t("admin_returns.admin_note_placeholder")}
-                        rows={2}
+                        value={resolutionNote}
+                        onChange={(e) => setResolutionNote(e.target.value)}
+                        placeholder={t("admin_returns.customer_message_placeholder")}
+                        rows={4}
+                        className="text-xs mt-2"
                       />
                     </div>
-                    <div className="flex flex-wrap gap-2">
+
+                    <div className="flex flex-wrap gap-2 pt-2">
                       <Button
                         className="rounded-full gap-2"
                         onClick={handleApprove}
@@ -715,14 +833,39 @@ export default function AdminReturns() {
           <DialogHeader>
             <DialogTitle>{t("admin_returns.reject_title")}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label>{t("admin_returns.reject_note_label")}</Label>
-            <Textarea
-              value={adminNote}
-              onChange={(e) => setAdminNote(e.target.value)}
-              placeholder={t("admin_returns.reject_note_placeholder")}
-              rows={3}
-            />
+          <div className="space-y-4 py-2">
+            <div className="space-y-2 rounded-xl bg-primary/5 border border-primary/20 p-4">
+              <p className="text-sm font-semibold flex items-center gap-2 text-primary">
+                <Sparkles className="h-4 w-4" /> {t("admin_returns.customer_message_label")}
+              </p>
+              <p className="text-xs text-muted-foreground">{t("admin_returns.customer_message_hint")}</p>
+              <div className="flex gap-2 items-center">
+                <Input 
+                  placeholder={t("admin_returns.ai_prompt_placeholder")}
+                  className="text-xs h-8"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                />
+                <Button 
+                  size="sm" 
+                  variant="secondary" 
+                  onClick={handleGenerateRejectAiEmail} 
+                  disabled={aiLoading || !aiPrompt.trim()}
+                  className="h-8 gap-1 text-xs shrink-0"
+                >
+                  {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-primary" />}
+                  {t("admin_returns.ai_assist_btn")}
+                </Button>
+              </div>
+              <Label className="mt-4 block">{t("admin_returns.reject_note_label")}</Label>
+              <Textarea
+                value={adminNote}
+                onChange={(e) => setAdminNote(e.target.value)}
+                placeholder={t("admin_returns.reject_note_placeholder")}
+                rows={5}
+                className="text-xs mt-2"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectDialogOpen(false)} disabled={actionLoading}>

@@ -380,7 +380,7 @@ async function main() {
           oldPrice,
           rating: +(4 + ((counter % 10) / 10)).toFixed(1),
           reviewCount: 12 + counter * 7,
-                  image: `/assets/cat-${imgShorthand}.jpg`,
+          image: `/assets/cat-${imgShorthand}.jpg`,
           inStock: counter % 11 !== 0,
           isNewArrival: counter % 4 === 0,
           isBestSelling: counter % 3 === 0,
@@ -511,15 +511,15 @@ async function main() {
       },
       ...(qty2
         ? [
-            {
-              productName: p2.name,
-              productImage: p2.image,
-              quantity: 1,
-              price: p2.price,
-              variant: "Default",
-              productId: p2.id,
-            },
-          ]
+          {
+            productName: p2.name,
+            productImage: p2.image,
+            quantity: 1,
+            price: p2.price,
+            variant: "Default",
+            productId: p2.id,
+          },
+        ]
         : []),
     ];
 
@@ -955,7 +955,7 @@ async function main() {
 
   // 12. CMS Configuration
   console.log("Creating CMS configs...");
-  
+
   const defaultReliefContent = `[text-hero title="Relief" subtitle="Buying lighting? Choose a category"][/text-hero]
 <p>We are spending more and more time at home. Many people also still work from home, so you want your home to feel comfortable. A pleasant living environment inspires, energizes, and provides peace! Therefore, pay more attention to lighting. Make the interior even cozier by bringing new lamps into your home. Not just a large lamp above the dining table and one above the seating area, but also a desk lamp on the cabinet, a floor lamp next to the sofa, and a few candles on the coffee table.</p><br/>
 [menu-category menu_slug="interior-lighting"][/menu-category]
@@ -994,7 +994,7 @@ async function main() {
         questionTitle: "Do you have a question about this product?",
         questionSubtitle: "Our employee is happy to help you find the right product",
         questionButtonText: "Send mail",
-        questionEmail: "info@schipenster.nl",
+        questionEmail: "info@schipenster.com",
         questionImage: "/uploads/employee.png"
       }
     }

@@ -1,4 +1,15 @@
-export const RETURN_WINDOW_DAYS = 30;
+export function getReturnWindowDays(): number {
+  try {
+    const raw = localStorage.getItem("maintenance_status");
+    if (!raw) return 30;
+    const parsed = JSON.parse(raw);
+    return parsed.returnWindowDays !== undefined ? Number(parsed.returnWindowDays) : 30;
+  } catch {
+    return 30;
+  }
+}
+
+export const RETURN_WINDOW_DAYS = 30; // Deprecated, use getReturnWindowDays() where possible.
 
 export type ReturnWindowOrder = {
   deliveredAt?: string | null;
@@ -26,7 +37,7 @@ export function getReturnWindowStart(order: ReturnWindowOrder): Date {
 
 export function getReturnWindowDeadline(order: ReturnWindowOrder): Date {
   const deadline = new Date(getReturnWindowStart(order));
-  deadline.setDate(deadline.getDate() + RETURN_WINDOW_DAYS);
+  deadline.setDate(deadline.getDate() + getReturnWindowDays());
   return deadline;
 }
 

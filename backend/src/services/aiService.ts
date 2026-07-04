@@ -36,10 +36,13 @@ async function callGeminiRest(
     contents: [{ role: "user", parts }],
     generationConfig: {
       temperature,
-      responseMimeType: "application/json"
     }
   };
 
+  // If the prompt explicitly asks for JSON, or it's a known JSON function, we could pass responseMimeType: "application/json".
+  // But many of our prompts (llms.txt, email generation, blog generation) ask for Markdown or plain text.
+  // We'll let the prompt handle the format request, removing the hardcoded responseMimeType constraint.
+  
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1009,6 +1012,39 @@ Return ONLY valid JSON:
     };
   },
 
+  async generateReturnEmail(input: {
+    prompt: string;
+    resolutionType: string;
+    customerName?: string;
+    orderNumber?: string;
+    reason?: string;
+  }) {
+    const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
+    const aiPrompt = `
+You are an expert customer service representative for an e-commerce lighting store.
+Write a professional, polite, and empathetic email to a customer regarding their return request.
+
+Customer Name: ${input.customerName || "Customer"}
+Order Number: ${input.orderNumber || "Unknown"}
+Original Return Reason: ${input.reason || "Not specified"}
+Resolution Action: ${input.resolutionType === "replacement" ? "We are offering a replacement product." : "We are processing a refund."}
+
+Admin Instructions / Context for the email:
+"${input.prompt}"
+
+${languageInstruction}
+
+REQUIREMENTS:
+- Write ONLY the body of the email.
+- Do NOT include subject lines.
+- Do NOT include greetings like "Dear Customer" or sign-offs like "Best regards" (these will be added by our email template).
+- Keep it concise, professional, and empathetic to any inconvenience caused.
+- Format it as plain text with newlines (no markdown, no HTML).
+`;
+    const responseText = await callGeminiWithFallback([{ text: aiPrompt }], 0.6);
+    return unwrapAiPlainTextPayload(responseText);
+  },
+
   async generateRobotsTxt(input?: { existingContent?: string; canonicalUrl?: string }) {
     const { loadCmsContextForAi } = await import("./cmsContextService");
     const playbook = await getSeoPlaybook();
@@ -1098,5 +1134,21 @@ ${contextBlock.slice(0, 9000)}
 
     const responseText = await callGeminiWithFallback([{ text: prompt }], 0.35);
     return normalizeLlmsTxtOutput(responseText, playbook.siteName);
+  },
+
+  generateReturnEmail: async (params: { prompt: string; resolutionType: string; customerName?: string; orderNumber?: string; reason?: string }) => {
+    const { prompt, resolutionType, customerName, orderNumber, reason } = params;
+    const systemInstruction = `You are a professional and empathetic customer support agent for an eCommerce store. 
+Your task is to draft a short, polite email to a customer regarding their return request.
+Return Reason: ${reason || "Not specified"}
+Resolution Action: ${resolutionType === "replacement" ? "Sending a replacement item" : "Issuing a refund"}
+Customer Name: ${customerName || "Customer"}
+Order Number: ${orderNumber || "Unknown"}
+Specific Instruction from Admin: "${prompt}"
+
+Write ONLY the email body. Do not include subject lines. Do not wrap in quotes or code blocks. Keep it concise, friendly, and professional. Use the language specified by the admin's instruction, or default to the store's primary language.`;
+
+    const response = await callGeminiWithFallback([{ text: systemInstruction }], 0.7);
+    return response || "Hello,\n\nWe have processed your request. Please contact support if you have any questions.\n\nBest regards,\nCustomer Support";
   },
 };

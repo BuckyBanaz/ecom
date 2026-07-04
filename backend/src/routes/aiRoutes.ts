@@ -182,6 +182,26 @@ router.post("/blogs/generate", generateBlogWithAi);
 router.get("/cms/context", getCmsContextSummaryHandler);
 router.post("/faqs/generate", generateFaqsWithAi);
 
+router.post("/generate-return-email", async (req, res) => {
+  try {
+    const { prompt, resolutionType, customerName, orderNumber, reason } = req.body;
+    if (!prompt || !resolutionType) {
+      return res.status(400).json({ success: false, error: "Prompt and resolutionType are required." });
+    }
+    const generatedEmail = await aiService.generateReturnEmail({
+      prompt,
+      resolutionType,
+      customerName,
+      orderNumber,
+      reason
+    });
+    res.json({ success: true, email: generatedEmail });
+  } catch (error: any) {
+    console.error("AI Return Email Generation Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post("/cms/generate", async (req, res) => {
   try {
     const { prompt, existingContent, existingSeo } = req.body;
