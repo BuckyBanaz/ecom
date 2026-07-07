@@ -53,12 +53,25 @@ export const seoPrerender = async (req: Request, res: Response) => {
     }
     
     // Read the built frontend HTML (or fallback to source)
+    let html = "";
     let indexPath = path.resolve(__dirname, "../../../frontend/dist/index.html");
     if (!fs.existsSync(indexPath)) {
       indexPath = path.resolve(__dirname, "../../../frontend/index.html");
     }
     
-    let html = fs.readFileSync(indexPath, "utf-8");
+    if (fs.existsSync(indexPath)) {
+      html = fs.readFileSync(indexPath, "utf-8");
+    } else {
+      // In production Docker, backend cannot access frontend files. Fetch from frontend container.
+      const targetUrl = process.env.NODE_ENV === "production" ? "http://frontend" : "http://localhost:5173";
+      try {
+        const response = await fetch(targetUrl);
+        if (!response.ok) throw new Error("Failed to fetch from frontend container");
+        html = await response.text();
+      } catch (fetchErr) {
+        throw new Error("index.html not found and fetch failed: " + (fetchErr as Error).message);
+      }
+    }
     
     // Inject dynamic Meta Tags by replacing hardcoded values
     html = html.replace(/<title>.*?<\/title>/gi, `<title>${title}</title>`);
@@ -87,7 +100,16 @@ export const seoPrerender = async (req: Request, res: Response) => {
     if (fs.existsSync(indexPath)) {
        res.sendFile(indexPath);
     } else {
-       res.status(500).send("SEO Prerender Error: index.html not found");
+       // In Docker, fetch from frontend container
+       const targetUrl = process.env.NODE_ENV === "production" ? "http://frontend" : "http://localhost:5173";
+       try {
+         const response = await fetch(targetUrl);
+         if (!response.ok) throw new Error("Failed to fetch");
+         const html = await response.text();
+         res.send(html);
+       } catch (err) {
+         res.status(500).send("SEO Prerender Error: index.html not found and fetch failed");
+       }
     }
   }
 };
