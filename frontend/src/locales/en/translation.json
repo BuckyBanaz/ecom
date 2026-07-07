@@ -847,7 +847,7 @@
       "awaiting_return": "Ship Your Return",
       "return_received": "Return Received",
       "rejected": "Rejected",
-      "refunded": "Refund Processed",
+      "refunded": "Completed",
       "cancelled": "Cancelled"
     },
     "approved_message": "Your return is approved. We are preparing your return shipping label — you will receive an email when it is ready.",

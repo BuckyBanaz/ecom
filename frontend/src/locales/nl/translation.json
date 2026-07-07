@@ -855,7 +855,7 @@
       "awaiting_return": "Retour verzenden",
       "return_received": "Retour ontvangen",
       "rejected": "Afgewezen",
-      "refunded": "Terugbetaling verwerkt",
+      "refunded": "Afgerond",
       "cancelled": "Geannuleerd"
     },
     "approved_message": "Je retour is goedgekeurd. We bereiden je retourlabel voor — je ontvangt een e-mail zodra het klaar is.",

@@ -42,6 +42,7 @@ import { resolveImgUrl } from "@/utils/image";
 import { getApiV1Url } from "@/utils/endpoints";
 import { validateReturnShipmentWeight } from "@/utils/returnValidation";
 import { toast } from "sonner";
+import { isRefundsSystemEnabled } from "@/utils/returnWindow";
 
 type ReturnRecord = {
   id: string;
@@ -348,10 +349,12 @@ export default function AdminReturns() {
             {t("admin_returns.tab_received")}
             {counts["return_received"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["return_received"]}</span> : null}
           </TabsTrigger>
-          <TabsTrigger value="refunded" className="rounded-full text-xs gap-1.5">
-            {t("admin_returns.tab_completed")}
-            {counts["refunded"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["refunded"]}</span> : null}
-          </TabsTrigger>
+          {isRefundsSystemEnabled() && (
+            <TabsTrigger value="refunded" className="rounded-full text-xs gap-1.5">
+              {t("admin_returns.tab_completed")}
+              {counts["refunded"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["refunded"]}</span> : null}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="rejected" className="rounded-full text-xs gap-1.5">
             {t("admin_returns.tab_rejected")}
             {counts["rejected"] ? <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{counts["rejected"]}</span> : null}
@@ -374,7 +377,7 @@ export default function AdminReturns() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-2 space-y-2">
+        <div className={`lg:col-span-2 space-y-2 ${selected ? 'hidden lg:block' : ''}`}>
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -431,13 +434,17 @@ export default function AdminReturns() {
           )}
         </div>
 
-        <div className="lg:col-span-3">
+        <div className={`lg:col-span-3 ${!selected ? 'hidden lg:block' : ''}`}>
           {!selected ? (
             <div className="rounded-xl border border-dashed bg-muted/20 p-12 text-center text-muted-foreground text-sm">
               {t("admin_returns.select_hint")}
             </div>
           ) : (
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <>
+              <Button variant="ghost" size="sm" onClick={() => setSelected(null)} className="lg:hidden mb-4 -ml-2 text-muted-foreground">
+                &larr; Back to list
+              </Button>
+              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
               <div className="border-b bg-muted/30 px-5 py-4 flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <p className="font-semibold">{selected.order?.orderNumber}</p>
@@ -556,7 +563,9 @@ export default function AdminReturns() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="refund">{t("admin_returns.refund_customer")}</SelectItem>
+                            {isRefundsSystemEnabled() && (
+                              <SelectItem value="refund">{t("admin_returns.refund_customer")}</SelectItem>
+                            )}
                             <SelectItem value="replacement">{t("admin_returns.send_replacement")}</SelectItem>
                           </SelectContent>
                         </Select>
@@ -903,6 +912,7 @@ export default function AdminReturns() {
                 )}
               </div>
             </div>
+            </>
           )}
         </div>
       </div>

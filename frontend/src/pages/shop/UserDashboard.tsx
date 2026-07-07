@@ -25,7 +25,7 @@ import {
   getReturnEligibility,
   getReturnWindowDeadline,
 } from "@/utils/returnValidation";
-import { getReturnWindowDays, getReturnWindowStart, getReturnWindowDeadline as getDeadline } from "@/utils/returnWindow";
+import { getReturnWindowDays, getReturnWindowStart, getReturnWindowDeadline as getDeadline, isReturnsSystemEnabled } from "@/utils/returnWindow";
 import { useFcmToken } from "@/hooks/useFcmToken";
 import { PhonePicker } from "@/components/ui/PhonePicker";
 import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
@@ -367,7 +367,7 @@ function OrdersTab() {
     );
     const returnEligibility = getReturnEligibility(selectedOrder, hasActiveReturn);
     const returnWindowDeadline = getReturnWindowDeadline(selectedOrder);
-    const canRequestReturn = returnEligibility.allowed;
+    const canRequestReturn = returnEligibility.allowed && isReturnsSystemEnabled();
     const returnWindowExpired = returnEligibility.reason === "window_expired";
     const canCancelReturn = orderReturn?.status === "pending_review";
     const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, houseNumber, landmark, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);

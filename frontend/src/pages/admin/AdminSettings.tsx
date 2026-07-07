@@ -105,6 +105,8 @@ const AdminSettings = () => {
     invoiceVendorAddress: "",
     invoiceVendorEmail: "",
     returnWindowDays: 30,
+    returnsSystemEnabled: true,
+    refundsSystemEnabled: true,
   });
   const [isLoadingGeneral, setIsLoadingGeneral] = useState(true);
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
@@ -294,6 +296,8 @@ const AdminSettings = () => {
             invoiceVendorAddress: res.data.invoiceVendorAddress || "",
             invoiceVendorEmail: res.data.invoiceVendorEmail || "",
             returnWindowDays: res.data.returnWindowDays !== undefined ? Number(res.data.returnWindowDays) : 30,
+            returnsSystemEnabled: res.data.returnsSystemEnabled !== false,
+            refundsSystemEnabled: res.data.refundsSystemEnabled !== false,
           });
         }
       } catch (error) {
@@ -672,20 +676,49 @@ const AdminSettings = () => {
                     />
                   </div>
                 </div>
-                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
-                  <div>
-                    <Label className="text-base">Return Window (Days)</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5 mb-2">
-                      Number of days customers have to request a return after delivery.
-                    </p>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={generalSettings.returnWindowDays}
-                      onChange={(e) => setGeneralSettings({ ...generalSettings, returnWindowDays: parseInt(e.target.value) || 0 })}
-                      className="max-w-[150px]"
-                    />
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-4">
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold">Order Resolutions (Returns & Refunds)</p>
+                    <div className="flex items-center justify-between gap-2 border-b pb-3">
+                      <div>
+                        <Label className="text-base">Returns System</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          When disabled, customers cannot request returns and the return window is hidden.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={generalSettings.returnsSystemEnabled}
+                        onCheckedChange={(val) => setGeneralSettings({ ...generalSettings, returnsSystemEnabled: val })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 border-b pb-3">
+                      <div>
+                        <Label className="text-base">Refunds System</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          When disabled, the refund resolution option is removed from the admin panel.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={generalSettings.refundsSystemEnabled}
+                        onCheckedChange={(val) => setGeneralSettings({ ...generalSettings, refundsSystemEnabled: val })}
+                      />
+                    </div>
                   </div>
+                  {generalSettings.returnsSystemEnabled && (
+                    <div>
+                      <Label className="text-base">Return Window (Days)</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+                        Number of days customers have to request a return after delivery.
+                      </p>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={generalSettings.returnWindowDays}
+                        onChange={(e) => setGeneralSettings({ ...generalSettings, returnWindowDays: parseInt(e.target.value) || 0 })}
+                        className="max-w-[150px]"
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">

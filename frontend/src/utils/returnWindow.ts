@@ -9,6 +9,28 @@ export function getReturnWindowDays(): number {
   }
 }
 
+export function isReturnsSystemEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem("maintenance_status");
+    if (!raw) return true;
+    const parsed = JSON.parse(raw);
+    return parsed.returnsSystemEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+export function isRefundsSystemEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem("maintenance_status");
+    if (!raw) return true;
+    const parsed = JSON.parse(raw);
+    return parsed.refundsSystemEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
 export const RETURN_WINDOW_DAYS = 30; // Deprecated, use getReturnWindowDays() where possible.
 
 export type ReturnWindowOrder = {

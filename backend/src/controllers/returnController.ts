@@ -313,7 +313,7 @@ export const approveReturn = async (req: Request, res: Response, next: NextFunct
           adminNote: adminNote?.trim() || null,
           resolutionType: resolutionType || "refund",
           resolutionNote: resolutionNote?.trim() || null,
-          refundAmount,
+          refundAmount: resolutionType === "replacement" ? null : refundAmount,
           reviewedAt: now,
         },
         include: returnInclude,

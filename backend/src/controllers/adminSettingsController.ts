@@ -372,6 +372,8 @@ export const getGeneralSettings = async (
       invoiceVendorAddress: invoice.vendorAddress,
       invoiceVendorEmail: invoice.vendorEmail,
       returnWindowDays: parseInt(process.env.RETURN_WINDOW_DAYS || "30", 10),
+      returnsSystemEnabled: process.env.RETURNS_SYSTEM_ENABLED !== "false",
+      refundsSystemEnabled: process.env.REFUNDS_SYSTEM_ENABLED !== "false",
     };
 
     res.status(200).json({ success: true, data: settings });
@@ -401,6 +403,8 @@ export const updateGeneralSettings = async (
       invoiceVendorAddress,
       invoiceVendorEmail,
       returnWindowDays,
+      returnsSystemEnabled,
+      refundsSystemEnabled,
     } = req.body;
 
     const updates: Record<string, string> = {};
@@ -415,6 +419,8 @@ export const updateGeneralSettings = async (
     if (invoiceVendorAddress !== undefined) updates.INVOICE_VENDOR_ADDRESS = String(invoiceVendorAddress).trim();
     if (invoiceVendorEmail !== undefined) updates.INVOICE_VENDOR_EMAIL = String(invoiceVendorEmail).trim();
     if (returnWindowDays !== undefined) updates.RETURN_WINDOW_DAYS = String(returnWindowDays);
+    if (returnsSystemEnabled !== undefined) updates.RETURNS_SYSTEM_ENABLED = returnsSystemEnabled ? "true" : "false";
+    if (refundsSystemEnabled !== undefined) updates.REFUNDS_SYSTEM_ENABLED = refundsSystemEnabled ? "true" : "false";
 
     await saveSettings(updates);
 
@@ -440,6 +446,8 @@ export const getMaintenanceStatus = async (
         maintenanceMessage: process.env.MAINTENANCE_MESSAGE || "We're currently performing maintenance. We'll be back shortly!",
         storeName: process.env.STORE_NAME || "SCHIP & STER",
         returnWindowDays: parseInt(process.env.RETURN_WINDOW_DAYS || "30", 10),
+        returnsSystemEnabled: process.env.RETURNS_SYSTEM_ENABLED !== "false",
+        refundsSystemEnabled: process.env.REFUNDS_SYSTEM_ENABLED !== "false",
       },
     });
   } catch (error: any) {

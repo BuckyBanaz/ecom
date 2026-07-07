@@ -421,7 +421,7 @@ export const getProductPageConfig = async (req: Request, res: Response) => {
       questionTitle: "Do you have a question about this product?",
       questionSubtitle: "Our employee is happy to help you find the right product",
       questionButtonText: "Send mail",
-      questionEmail: "info@schipenster.nl",
+      questionEmail: "info@schipenster.com",
       questionImage: "/uploads/employee.png"
     };
 

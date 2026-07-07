@@ -26,6 +26,13 @@
     reverse_proxy backend:5000
   }
 
+  @staticFiles {
+    path *.ico *.png *.jpg *.jpeg *.gif *.svg *.css *.js *.webmanifest *.json *.woff *.woff2 *.txt *.xml
+  }
+  handle @staticFiles {
+    reverse_proxy frontend:80
+  }
+
   @bots {
     header User-Agent *Googlebot*
     header User-Agent *bingbot*

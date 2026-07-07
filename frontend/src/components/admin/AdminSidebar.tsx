@@ -10,6 +10,7 @@ import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { isReturnsSystemEnabled, isRefundsSystemEnabled } from "@/utils/returnWindow";
 
 const navItemsBase = [
   { to: "/admin", icon: LayoutDashboard, labelKey: "dashboard", permission: "dashboard" },
@@ -64,7 +65,13 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
 
   // Create translated menu items - use full key path with admin_sidebar namespace
   const navItems = navItemsBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
-  const ordersChildren = ordersChildrenBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
+  const ordersChildren = ordersChildrenBase
+    .filter(item => {
+      if (item.labelKey === "returns" && !isReturnsSystemEnabled()) return false;
+      if (item.labelKey === "payment_refunds" && !isRefundsSystemEnabled()) return false;
+      return true;
+    })
+    .map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
   const cmsChildren = cmsChildrenBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
 
   useEffect(() => {

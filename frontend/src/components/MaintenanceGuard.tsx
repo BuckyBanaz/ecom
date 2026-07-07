@@ -12,6 +12,8 @@ interface MaintenanceStatus {
   maintenanceMessage: string;
   storeName: string;
   returnWindowDays?: number;
+  returnsSystemEnabled?: boolean;
+  refundsSystemEnabled?: boolean;
 }
 
 const readCachedMaintenanceStatus = (): MaintenanceStatus => {
@@ -24,6 +26,8 @@ const readCachedMaintenanceStatus = (): MaintenanceStatus => {
       maintenanceMessage: parsed.maintenanceMessage || "",
       storeName: parsed.storeName || "",
       returnWindowDays: parsed.returnWindowDays,
+      returnsSystemEnabled: parsed.returnsSystemEnabled,
+      refundsSystemEnabled: parsed.refundsSystemEnabled,
     };
   } catch {
     return { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
@@ -52,6 +56,8 @@ export const MaintenanceGuard = ({ children }: MaintenanceGuardProps) => {
               maintenanceMessage: res.data.maintenanceMessage || "",
               storeName: res.data.storeName || "",
               returnWindowDays: res.data.returnWindowDays,
+              returnsSystemEnabled: res.data.returnsSystemEnabled,
+              refundsSystemEnabled: res.data.refundsSystemEnabled,
             }
           : { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
         setStatus(nextStatus);

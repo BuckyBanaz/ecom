@@ -61,14 +61,21 @@ export const seoPrerender = async (req: Request, res: Response) => {
     let html = fs.readFileSync(indexPath, "utf-8");
     
     // Inject dynamic Meta Tags by replacing hardcoded values
-    html = html.replace(/<title>.*?<\/title>/g, `<title>${title}</title>`);
-    html = html.replace(/<meta name="description" content="[^"]*"/g, `<meta name="description" content="${description}"`);
-    html = html.replace(/<meta property="og:title" content="[^"]*"/g, `<meta property="og:title" content="${title}"`);
-    html = html.replace(/<meta property="og:description" content="[^"]*"/g, `<meta property="og:description" content="${description}"`);
-    html = html.replace(/<meta property="og:image" content="[^"]*"/g, `<meta property="og:image" content="${image}"`);
-    html = html.replace(/<meta name="twitter:title" content="[^"]*"/g, `<meta name="twitter:title" content="${title}"`);
-    html = html.replace(/<meta name="twitter:description" content="[^"]*"/g, `<meta name="twitter:description" content="${description}"`);
-    html = html.replace(/<meta name="twitter:image" content="[^"]*"/g, `<meta name="twitter:image" content="${image}"`);
+    html = html.replace(/<title>.*?<\/title>/gi, `<title>${title}</title>`);
+    html = html.replace(/<meta\s+name="description"\s+content="[^"]*"/gi, `<meta name="description" content="${description}"`);
+    
+    // Inject OG and Twitter tags just before </head>
+    const injectedMeta = `
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:image" content="${image}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${image}" />
+</head>`;
+    html = html.replace(/<\/head>/i, injectedMeta);
     
     res.send(html);
   } catch (error) {
