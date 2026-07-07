@@ -1129,7 +1129,7 @@ CRITICAL OUTPUT FORMAT:
 ${existing ? `Current llms.txt (refresh and improve):\n${existing.slice(0, 3500)}` : ""}
 
 --- LIVE STORE CONTEXT (${summary.productCount} products, ${summary.pageCount} CMS pages, ${summary.categoryCount} categories, ${summary.blogCount} blogs) ---
-${contextBlock.slice(0, 9000)}
+${contextBlock.slice(0, 50000)}
 ---`;
 
     const responseText = await callGeminiWithFallback([{ text: prompt }], 0.35);

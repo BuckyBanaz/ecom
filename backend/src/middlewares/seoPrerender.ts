@@ -17,6 +17,8 @@ export const seoPrerender = async (req: Request, res: Response) => {
   let description = process.env.SEO_DEFAULT_DESCRIPTION || DEFAULT_DESC;
   let image = process.env.SEO_OG_IMAGE || DEFAULT_IMAGE;
   
+  let isNotFound = false;
+
   try {
     // Determine route and fetch dynamic SEO data from DB
     if (urlParts[0] === "product" && urlParts[1]) {
@@ -26,6 +28,8 @@ export const seoPrerender = async (req: Request, res: Response) => {
         title = product.seoTitle || `${product.name} | Schip & Ster`;
         description = product.seoDescription || product.shortDescription || description;
         image = product.image ? `https://api.schipenster.com${product.image}` : image;
+      } else {
+        isNotFound = true;
       }
     } else if (urlParts[0] === "category" && urlParts[1]) {
       const slug = urlParts[1];
@@ -33,6 +37,8 @@ export const seoPrerender = async (req: Request, res: Response) => {
       if (category) {
         title = category.seoTitle || `${category.name} | Schip & Ster`;
         description = category.seoDescription || category.description || description;
+      } else {
+        isNotFound = true;
       }
     } else if (urlParts[0] === "blogs" && urlParts[1]) {
       const slug = urlParts[1];
@@ -41,6 +47,8 @@ export const seoPrerender = async (req: Request, res: Response) => {
         title = blog.seoTitle || `${blog.title} | Schip & Ster`;
         description = blog.seoDescription || blog.excerpt || description;
         image = blog.coverImage ? `https://api.schipenster.com${blog.coverImage}` : image;
+      } else {
+        isNotFound = true;
       }
     } else if (urlParts.length > 0) {
       // Potentially a CMS page (like /relief or /about)
@@ -49,6 +57,15 @@ export const seoPrerender = async (req: Request, res: Response) => {
       if (cmsPage) {
         title = cmsPage.seoTitle || `${cmsPage.title} | Schip & Ster`;
         description = cmsPage.seoDescription || description;
+      } else {
+        // If it's not in the database and not a known static page, it's a 404!
+        const STATIC_ROUTES = new Set([
+          "relief", "categories", "category", "deals", "product", "cart", "checkout", "search", 
+          "account", "forgot-password", "reset-password", "dashboard", "faqs", "blogs", "wishlist", "404", "invoice"
+        ]);
+        if (urlParts.length === 1 && !STATIC_ROUTES.has(urlParts[0])) {
+          isNotFound = true;
+        }
       }
     }
     
@@ -90,6 +107,9 @@ export const seoPrerender = async (req: Request, res: Response) => {
 </head>`;
     html = html.replace(/<\/head>/i, injectedMeta);
     
+    if (isNotFound) {
+      res.status(404);
+    }
     res.send(html);
   } catch (error) {
     console.error("SEO Prerender Error:", error);

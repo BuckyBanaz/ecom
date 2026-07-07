@@ -747,7 +747,6 @@ export const generateSitemap = async (
     addUrl("/categories", new Date(), "daily", "0.9");
     addUrl("/faqs", new Date(), "weekly", "0.8");
     addUrl("/blogs", new Date(), "weekly", "0.8");
-    addUrl("/account", undefined, "monthly", "0.5");
     addUrl("/relief", undefined, "monthly", "0.6");
 
     // Products

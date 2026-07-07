@@ -42,7 +42,12 @@ function tryRegexExtract(raw: string, keys: string[]): string | null {
     const re = new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, "s");
     const match = raw.match(re);
     if (match?.[1]) {
-      return unescapeJsonString(match[1]);
+      const extracted = unescapeJsonString(match[1]);
+      // Safety check: if the extracted content is less than 50% of the raw response,
+      // it is likely a false positive matching inline text, so ignore it.
+      if (extracted.length >= raw.length * 0.5) {
+        return extracted;
+      }
     }
   }
   return null;
