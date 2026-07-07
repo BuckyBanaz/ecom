@@ -95,7 +95,9 @@ export const seoPrerender = async (req: Request, res: Response) => {
     html = html.replace(/<meta\s+name="description"\s+content="[^"]*"/gi, `<meta name="description" content="${description}"`);
     
     // Inject OG and Twitter tags just before </head>
+    const siteName = process.env.SEO_SITE_NAME || "Schip & Ster";
     const injectedMeta = `
+  <meta property="og:site_name" content="${siteName}" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
