@@ -174,7 +174,7 @@ const Category = () => {
   // Load products for the active category (server-filtered when possible)
   useEffect(() => {
     const targetCategory = landingPage?.categorySlug || slug;
-    if (!targetCategory) return;
+    const searchQuery = searchParams.get("search");
 
     const loadProducts = async () => {
       setProductsLoading(true);
@@ -182,10 +182,14 @@ const Category = () => {
         const filters: Record<string, string | number | boolean> = { limit: 120 };
         if (targetCategory === "bestsellers") {
           filters.isBestSelling = true;
-        } else if (targetCategory !== "deals" && !GROUP_CATEGORY_SLUGS.has(targetCategory)) {
+        } else if (targetCategory && targetCategory !== "deals" && !GROUP_CATEGORY_SLUGS.has(targetCategory)) {
           filters.category = targetCategory;
         } else {
           filters.limit = 180;
+        }
+
+        if (searchQuery) {
+          filters.search = searchQuery;
         }
 
         const prodData = await productRepository.getAll(filters).catch(() => null);
@@ -207,7 +211,7 @@ const Category = () => {
     };
 
     loadProducts();
-  }, [slug, landingPage?.categorySlug]);
+  }, [slug, landingPage?.categorySlug, searchParams.get("search")]);
 
   // Sync CMS Landing Pages details
   useEffect(() => {
@@ -507,7 +511,7 @@ const Category = () => {
       case "rating": list = [...list].sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
     }
     return list;
-  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes]);
+  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes, searchParams]);
 
   const getDealsTitle = () => {
     const priceMax = searchParams.get("price-max");
