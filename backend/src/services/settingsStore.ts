@@ -206,7 +206,6 @@ Disallow: /checkout/
 Disallow: /account/
 Disallow: /dashboard
 Disallow: /search
-Disallow: /api/
 Allow: /
 
 User-agent: GPTBot
