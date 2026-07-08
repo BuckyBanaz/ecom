@@ -94,6 +94,10 @@ export const seoPrerender = async (req: Request, res: Response) => {
     html = html.replace(/<title>.*?<\/title>/gi, `<title>${title}</title>`);
     html = html.replace(/<meta\s+name="description"\s+content="[^"]*"/gi, `<meta name="description" content="${description}"`);
     
+    // Replace hardcoded canonical URL with the actual page URL
+    const canonicalUrl = `https://schipenster.com${originalUrl === "/" ? "" : originalUrl}`;
+    html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/gi, `<link rel="canonical" href="${canonicalUrl}" />`);
+    
     // Inject OG and Twitter tags just before </head>
     const siteName = process.env.SEO_SITE_NAME || "Schip & Ster";
     const injectedMeta = `
