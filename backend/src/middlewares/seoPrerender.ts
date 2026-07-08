@@ -64,15 +64,29 @@ export const seoPrerender = async (req: Request, res: Response) => {
       const cmsPage = await prisma.cmsPage.findUnique({ where: { slug } });
       if (cmsPage) {
         title = cmsPage.seoTitle || `${cmsPage.title} | Schip & Ster`;
-        description = cmsPage.seoDescription || description;
+        description = cmsPage.seoDesc || description;
       } else {
-        // If it's not in the database and not a known static page, it's a 404!
-        const STATIC_ROUTES = new Set([
-          "relief", "categories", "category", "deals", "product", "cart", "checkout", "search", 
-          "account", "forgot-password", "reset-password", "dashboard", "faqs", "blogs", "wishlist", "404", "invoice"
-        ]);
-        if (urlParts.length === 1 && !STATIC_ROUTES.has(urlParts[0])) {
-          isNotFound = true;
+        // Look up in landing_pages_data config (for dynamic relief category pages)
+        const config = await prisma.cmsConfig.findUnique({ where: { key: "landing_pages_data" } });
+        let isLandingPage = false;
+        if (config && typeof config.value === "object" && config.value !== null) {
+          const pageData = (config.value as Record<string, any>)[slug];
+          if (pageData) {
+            isLandingPage = true;
+            title = pageData.seoTitle || pageData.title || pageData.name || title;
+            description = pageData.seoDescription || description;
+          }
+        }
+
+        if (!isLandingPage) {
+          // If it's not in the database and not a known static page, it's a 404!
+          const STATIC_ROUTES = new Set([
+            "relief", "categories", "category", "deals", "product", "cart", "checkout", "search", 
+            "account", "forgot-password", "reset-password", "dashboard", "faqs", "blogs", "wishlist", "404", "invoice"
+          ]);
+          if (urlParts.length === 1 && !STATIC_ROUTES.has(urlParts[0])) {
+            isNotFound = true;
+          }
         }
       }
     }

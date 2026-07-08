@@ -724,6 +724,12 @@ export const rebuildSitemap = async (): Promise<void> => {
   const blogs = await prisma.blog.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
   const cmsPages = await prisma.cmsPage.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
 
+  // Fetch landing pages slugs from config
+  const config = await prisma.cmsConfig.findUnique({ where: { key: "landing_pages_data" } });
+  const landingPagesSlugs = (config && typeof config.value === "object" && config.value !== null)
+    ? Object.keys(config.value as object)
+    : [];
+
   // Build XML
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
   xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
@@ -752,6 +758,8 @@ export const rebuildSitemap = async (): Promise<void> => {
   blogs.forEach(b => addUrl(`/blogs/${b.slug}`, b.updatedAt, "monthly", "0.7"));
   // Dynamic CMS Pages
   cmsPages.forEach(p => addUrl(`/${p.slug}`, p.updatedAt, "monthly", "0.6"));
+  // Dynamic Relief Category Landing Pages
+  landingPagesSlugs.forEach(slug => addUrl(`/relief/${slug}`, undefined, "weekly", "0.7"));
 
   xml += `</urlset>`;
 
