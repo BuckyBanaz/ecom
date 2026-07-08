@@ -86,6 +86,15 @@ export default function DynamicPage() {
       }
       metaKeywords.setAttribute("content", page.seoKeywords);
     }
+
+    // Set canonical tag dynamically for Lighthouse and client-side routers
+    let canonicalLink = document.querySelector('link[rel="canonical"]');
+    if (!canonicalLink) {
+      canonicalLink = document.createElement("link");
+      canonicalLink.setAttribute("rel", "canonical");
+      document.head.appendChild(canonicalLink);
+    }
+    canonicalLink.setAttribute("href", window.location.origin + window.location.pathname);
   }, [page]);
 
   if (isLoading && !page) {
