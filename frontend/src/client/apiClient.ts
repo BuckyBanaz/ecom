@@ -629,6 +629,10 @@ export const mediaRepository = {
       body: JSON.stringify({ paths, destination }),
     });
   },
+
+  deleteDuplicates: async () => {
+    return request<any>(`${ENDPOINTS.MEDIA}/duplicates`, { method: "DELETE" });
+  },
 };
 
 // 11. Blogs Repository

@@ -2819,5 +2819,12 @@
     "refresh": "Verversen",
     "new_quick_add": "Snel Toevoegen",
     "batch_filter": "Batch {{id}}…"
+  },
+  "media": {
+    "delete_duplicates": "Duplicaatfoto's verwijderen",
+    "delete_duplicates_confirm": "Weet u zeker dat u wilt zoeken naar en duplicaatfoto's wilt verwijderen? Dit zal recursief zoeken naar alle geüploade afbeeldingen, de oudste behouden, duplicaten van de serverschijf opschonen en alle product-/categorie-/blog-/beoordelingsreferenties in de database veilig bijwerken.",
+    "deleting_duplicates": "Duplicaten opschonen...",
+    "duplicates_deleted_success": "Met succes {{count}} duplicaatbestanden verwijderd en {{mb}} MB schijfruimte vrijgemaakt. {{refs}} databasereferenties bijgewerkt.",
+    "no_duplicates_found": "Geen duplicaatfoto's gevonden. Uw mediabibliotheek is al geoptimaliseerd!"
   }
 }

@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import fs from "fs/promises";
 import path from "path";
 import multer from "multer";
+import crypto from "crypto";
+import { prisma } from "../config/db";
 import { toPublicMediaUrl } from "../utils/mediaUrl";
 import { optimizeImagesInUploads } from "../utils/imageOptimize";
 
@@ -305,7 +307,188 @@ export const optimizeMedia = async (req: Request, res: Response) => {
       results,
     });
   } catch (error: any) {
-    console.error("Error optimizing media:", error);
+    res.status(500).json({ success: false, message: error?.message || "Server error" });
+  }
+};
+
+// Helper to get hash of file
+const getFileHash = async (filePath: string): Promise<string> => {
+  const content = await fs.readFile(filePath);
+  return crypto.createHash("md5").update(content).digest("hex");
+};
+
+// Recursive helper to list all file paths in a directory
+const getAllFiles = async (dir: string): Promise<string[]> => {
+  const results: string[] = [];
+  const list = await fs.readdir(dir, { withFileTypes: true });
+  for (const file of list) {
+    const full = path.join(dir, file.name);
+    if (file.isDirectory()) {
+      results.push(...(await getAllFiles(full)));
+    } else {
+      results.push(full);
+    }
+  }
+  return results;
+};
+
+// Helper to get corresponding original variation URL
+const getMatchingOrig = (dupVar: string, origFilename: string): string => {
+  if (dupVar.startsWith("http://") || dupVar.startsWith("https://")) {
+    return toPublicMediaUrl(`/uploads/${origFilename}`) || `/uploads/${origFilename}`;
+  }
+  if (dupVar.startsWith("uploads/")) {
+    return `uploads/${origFilename}`;
+  }
+  return `/uploads/${origFilename}`;
+};
+
+// Delete duplicate files and update database references safely
+export const deleteDuplicates = async (req: Request, res: Response) => {
+  try {
+    const allFiles = await getAllFiles(UPLOADS_DIR);
+    
+    // Group files by md5 hash
+    const hashMap: Record<string, Array<{ fullPath: string; stat: any }>> = {};
+    for (const filePath of allFiles) {
+      try {
+        const stat = await fs.stat(filePath);
+        if (!stat.isFile()) continue;
+        const hash = await getFileHash(filePath);
+        if (!hashMap[hash]) {
+          hashMap[hash] = [];
+        }
+        hashMap[hash].push({ fullPath: filePath, stat });
+      } catch (err) {
+        // Skip unreadable files
+      }
+    }
+    
+    let deletedCount = 0;
+    let bytesSaved = 0;
+    let dbUpdatedCount = 0;
+    const details: Array<{ original: string; duplicatesDeleted: string[] }> = [];
+
+    for (const [hash, fileList] of Object.entries(hashMap)) {
+      if (fileList.length <= 1) continue;
+      
+      // Sort by modification time ascending to keep the oldest file (original)
+      fileList.sort((a, b) => a.stat.mtimeMs - b.stat.mtimeMs);
+      
+      const original = fileList[0];
+      const duplicates = fileList.slice(1);
+      
+      const origBasename = path.basename(original.fullPath);
+      const dupBasenames: string[] = [];
+
+      for (const dup of duplicates) {
+        const dupBasename = path.basename(dup.fullPath);
+        dupBasenames.push(dupBasename);
+        
+        // Compile variations of the duplicate URL
+        const dupVariations = [
+          `/uploads/${dupBasename}`,
+          `uploads/${dupBasename}`,
+          toPublicMediaUrl(`/uploads/${dupBasename}`)
+        ].filter((v): v is string => typeof v === "string");
+
+        // Update database references for each variation
+        for (const v of dupVariations) {
+          const origVal = getMatchingOrig(v, origBasename);
+
+          // Update Category
+          const catUpdates = await prisma.category.updateMany({
+            where: { image: v },
+            data: { image: origVal },
+          });
+          dbUpdatedCount += catUpdates.count;
+
+          // Update Product image
+          const prodUpdates = await prisma.product.updateMany({
+            where: { image: v },
+            data: { image: origVal },
+          });
+          dbUpdatedCount += prodUpdates.count;
+
+          // Update Product images array
+          const productsWithImages = await prisma.product.findMany({
+            where: { images: { has: v } },
+            select: { id: true, images: true }
+          });
+          for (const prod of productsWithImages) {
+            const updatedImages = prod.images.map(img => img === v ? origVal : img);
+            await prisma.product.update({
+              where: { id: prod.id },
+              data: { images: updatedImages }
+            });
+            dbUpdatedCount++;
+          }
+
+          // Update Blog cover
+          const blogUpdates = await prisma.blog.updateMany({
+            where: { cover: v },
+            data: { cover: origVal },
+          });
+          dbUpdatedCount += blogUpdates.count;
+
+          // Update CmsPage seoImage
+          const cmsUpdates = await prisma.cmsPage.updateMany({
+            where: { seoImage: v },
+            data: { seoImage: origVal },
+          });
+          dbUpdatedCount += cmsUpdates.count;
+
+          // Update User avatar
+          const userUpdates = await prisma.user.updateMany({
+            where: { avatar: v },
+            data: { avatar: origVal },
+          });
+          dbUpdatedCount += userUpdates.count;
+
+          // Update Review images array
+          const reviewsWithImages = await prisma.review.findMany({
+            where: { images: { has: v } },
+            select: { id: true, images: true }
+          });
+          for (const rev of reviewsWithImages) {
+            const updatedImages = rev.images.map(img => img === v ? origVal : img);
+            await prisma.review.update({
+              where: { id: rev.id },
+              data: { images: updatedImages }
+            });
+            dbUpdatedCount++;
+          }
+        }
+
+        // Delete duplicate file
+        try {
+          await fs.unlink(dup.fullPath);
+          deletedCount++;
+          bytesSaved += dup.stat.size;
+        } catch (err) {
+          console.error(`Failed to delete duplicate file: ${dup.fullPath}`, err);
+        }
+      }
+
+      details.push({
+        original: path.relative(UPLOADS_DIR, original.fullPath).replace(/\\/g, '/'),
+        duplicatesDeleted: dupBasenames
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Deleted ${deletedCount} duplicate file(s) and freed ${Number((bytesSaved / (1024 * 1024)).toFixed(2))} MB.`,
+      summary: {
+        duplicatesFound: deletedCount,
+        bytesSaved,
+        mbSaved: Number((bytesSaved / (1024 * 1024)).toFixed(2)),
+        dbReferencesUpdated: dbUpdatedCount
+      },
+      details
+    });
+  } catch (error: any) {
+    console.error("Error deleting duplicates:", error);
     res.status(500).json({ success: false, message: error?.message || "Server error" });
   }
 };

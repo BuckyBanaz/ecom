@@ -2901,5 +2901,12 @@
     "refresh": "Refresh",
     "new_quick_add": "Quick Add",
     "batch_filter": "Showing batch {{id}}…"
+  },
+  "media": {
+    "delete_duplicates": "Delete Duplicate Photos",
+    "delete_duplicates_confirm": "Are you sure you want to scan for and delete duplicate photos? This will recursively search all uploaded images, keep the oldest ones, clean up duplicates from the server disk, and update all product/category/blog/review references in the database safely.",
+    "deleting_duplicates": "Cleaning up duplicates...",
+    "duplicates_deleted_success": "Successfully deleted {{count}} duplicate files and freed {{mb}} MB of disk space. Updated {{refs}} database references.",
+    "no_duplicates_found": "No duplicate photos found. Your media library is already optimized!"
   }
 }

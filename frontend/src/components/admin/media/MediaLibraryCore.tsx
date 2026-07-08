@@ -414,6 +414,37 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
     if (ok > 0) { toast.success(`Deleted ${ok} item(s)`); setSelectedItems(new Set()); loadMedia(currentPath); }
   };
 
+  const handleDeleteDuplicates = async () => {
+    if (!confirm(t("media.delete_duplicates_confirm"))) return;
+    try {
+      setLoading(true);
+      toast.loading(t("media.deleting_duplicates"));
+      const res = await mediaRepository.deleteDuplicates();
+      toast.dismiss();
+      if (res.success) {
+        if (res.summary.duplicatesFound > 0) {
+          toast.success(
+            t("media.duplicates_deleted_success", {
+              count: res.summary.duplicatesFound,
+              mb: res.summary.mbSaved,
+              refs: res.summary.dbReferencesUpdated,
+            })
+          );
+          loadMedia(currentPath);
+        } else {
+          toast.success(t("media.no_duplicates_found"));
+        }
+      } else {
+        toast.error(res.message || "Failed to delete duplicate photos");
+      }
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.message || "Failed to delete duplicate photos");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRename = async () => {
     if (!itemToRename || !newName.trim() || newName === itemToRename.name) { setIsRenameDialogOpen(false); return; }
     try {
@@ -559,6 +590,9 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled={optimizing} onSelect={(e) => { e.preventDefault(); handleOptimizeAll(); }}>
                     <Minimize2 className="mr-2 h-4 w-4" /> Compress entire library
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleDeleteDuplicates(); }}>
+                    <Trash2 className="mr-2 h-4 w-4" /> {t("media.delete_duplicates")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem disabled={selectedItems.size === 0} onSelect={(e) => { e.preventDefault(); handleCopyToClipboard("copy"); }}>

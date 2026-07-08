@@ -2,7 +2,7 @@ import { Router } from "express";
 import path from "path";
 import { toPublicMediaUrl } from "../utils/mediaUrl";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
-import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia, optimizeMedia } from "../controllers/mediaController";
+import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia, optimizeMedia, deleteDuplicates } from "../controllers/mediaController";
 
 const UPLOADS_DIR = path.join(__dirname, "../../public/uploads");
 
@@ -92,6 +92,7 @@ router.post("/folder", createFolder);
  *         description: Not found
  */
 router.delete("/", deleteMedia);
+router.delete("/duplicates", deleteDuplicates);
 
 /**
  * @swagger

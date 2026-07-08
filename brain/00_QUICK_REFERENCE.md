@@ -203,3 +203,5 @@ node -r dotenv/config scripts/test-return-flow-audit.js <order-uuid>
 - **Returns polish** — 30-day UI pre-check, dual FE/BE validation, transactional return labels, refund DB lock
 - **AI SEO Expert (v0.1)** — unified `/admin/cms/seo`, job queue, autopilot, AI blog/FAQ writers — pushed `origin/v0.1`
 - **Analytics loading fix (v0.2)** — skeleton on load, no dummy chart flash; GTM handles storefront pixels
+- **SEO proxy & sitemap fix (v0.6)** — Fixed Caddyfile crawler matching and asset routing, normalized meta descriptions, resolved sitemap generation and added startup boot hook. Included dynamic relief pages in sitemap and dynamic preview metadata.
+- **Duplicate photo cleanup & Admin Lightbox (v0.6)** — Added system to recursively scan media uploads for duplicate files, update database references (Products, Categories, Blogs, Users, Reviews), delete redundant files from server, and localized keys in locales (`en`, `nl`). Built fullscreen zoomable lightbox preview modal for Cover and Gallery images.

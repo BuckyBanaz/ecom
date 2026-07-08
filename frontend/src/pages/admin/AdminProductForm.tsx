@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +54,27 @@ const AdminProductForm = () => {
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
   const [isProductLoading, setIsProductLoading] = useState(isEdit || isDraftMode);
   const [mediaDialogTarget, setMediaDialogTarget] = useState<"thumbnail" | "gallery" | null>(null);
+
+  // Lightbox & Zoom states
+  const [zoomScale, setZoomScale] = useState(1);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  const openLightbox = (url: string) => {
+    setLightboxImage(url);
+    setZoomScale(1);
+  };
+
+  const handleZoomIn = () => {
+    setZoomScale((prev) => Math.min(prev + 0.25, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoomScale((prev) => Math.max(prev - 0.25, 0.5));
+  };
+
+  const handleResetZoom = () => {
+    setZoomScale(1);
+  };
 
   // Data states
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -982,6 +1003,14 @@ const AdminProductForm = () => {
                           </div>
                           <button
                             type="button"
+                            onClick={(e) => { e.stopPropagation(); openLightbox(thumbnail); }}
+                            className="absolute left-2 top-2 rounded-full bg-background/90 p-1 hover:bg-primary hover:text-white shadow-sm border border-border z-10 transition-colors"
+                            title="Zoom Image"
+                          >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); setThumbnail(null); }}
                             className="absolute right-2 top-2 rounded-full bg-background/90 p-1 hover:bg-destructive hover:text-white shadow-sm border border-border z-10 transition-colors"
                           >
@@ -1069,6 +1098,14 @@ const AdminProductForm = () => {
                                   <Sparkles className="h-2.5 w-2.5" />
                                 </button>
                               )}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openLightbox(src); }}
+                                className="absolute top-1 left-1 rounded-full bg-background/90 p-0.5 hover:bg-primary hover:text-white transition-colors text-foreground"
+                                title="Zoom Image"
+                              >
+                                <Maximize2 className="h-2.5 w-2.5" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); removeGalleryImage(i); }}
@@ -1523,6 +1560,65 @@ const AdminProductForm = () => {
               {t("admin_product_form.regen_generate")}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox Modal with Zoom */}
+      <Dialog open={Boolean(lightboxImage)} onOpenChange={(open) => !open && setLightboxImage(null)}>
+        <DialogContent className="max-w-[90vw] md:max-w-[70vw] lg:max-w-[50vw] max-h-[85vh] p-0 overflow-hidden bg-black/95 border-none shadow-2xl rounded-2xl flex flex-col items-center justify-between">
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-50">
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 border-none text-white transition-colors"
+              onClick={handleZoomIn}
+              title="Zoom In"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 border-none text-white transition-colors"
+              onClick={handleZoomOut}
+              title="Zoom Out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 border-none text-white transition-colors"
+              onClick={handleResetZoom}
+              title="Reset Zoom"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 border-none text-white transition-colors"
+              onClick={() => setLightboxImage(null)}
+              title="Close"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="flex-1 w-full flex items-center justify-center p-6 overflow-auto">
+            {lightboxImage && (
+              <img
+                src={resolveImgUrl(lightboxImage)}
+                alt="Enlarged preview"
+                className="max-w-full max-h-[70vh] object-contain transition-transform duration-200 select-none rounded-lg"
+                style={{ transform: `scale(${zoomScale})` }}
+              />
+            )}
+          </div>
+
+          <div className="pb-4 text-xs text-white/60 select-none">
+            Zoom: {Math.round(zoomScale * 100)}%
+          </div>
         </DialogContent>
       </Dialog>
     </div>
