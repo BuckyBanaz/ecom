@@ -50,6 +50,21 @@ async function startServer() {
     console.warn("SEO job recovery skipped:", err?.message || err);
   }
 
+  try {
+    const { getSitemapXmlContent } = await import("./services/settingsStore");
+    const sitemap = await getSitemapXmlContent();
+    if (!sitemap) {
+      console.log("🔄 No sitemap.xml found, generating on boot...");
+      const { rebuildSitemap } = await import("./controllers/adminSettingsController");
+      await rebuildSitemap();
+      console.log("✅ sitemap.xml generated on boot!");
+    } else {
+      console.log("✅ sitemap.xml exists.");
+    }
+  } catch (err: any) {
+    console.warn("Sitemap generation on boot skipped/failed:", err?.message || err);
+  }
+
   const server = app.listen(env.PORT, () => {
     const bootMessage = `Server booted on port ${env.PORT} in ${env.NODE_ENV} mode`;
     addLog({ level: "info", type: "system", message: bootMessage });

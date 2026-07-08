@@ -7,6 +7,14 @@ const DEFAULT_TITLE = "Schip & Ster — Light up your moment";
 const DEFAULT_DESC = "Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns.";
 const DEFAULT_IMAGE = "https://schipenster.com/og-image.png";
 
+function escAttr(value: string): string {
+  return (value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export const seoPrerender = async (req: Request, res: Response) => {
   // Extract real path by removing the /seo-proxy prefix if present
   let originalUrl = req.originalUrl.replace(/^\/seo-proxy/, "") || "/";
@@ -90,26 +98,39 @@ export const seoPrerender = async (req: Request, res: Response) => {
       }
     }
     
+    const baseCanonical = (
+      process.env.SEO_CANONICAL_URL ||
+      process.env.CLIENT_URL ||
+      process.env.STORE_URL ||
+      "https://schipenster.com"
+    ).replace(/\/$/, "");
+    const canonicalUrl = `${baseCanonical}${originalUrl === "/" ? "" : originalUrl}`;
+
+    const siteName = process.env.SEO_SITE_NAME || "Schip & Ster";
+    const escTitle = escAttr(title);
+    const escDescription = escAttr(description);
+    const escImage = escAttr(image);
+    const escSiteName = escAttr(siteName);
+    const escCanonical = escAttr(canonicalUrl);
+
     // Inject dynamic Meta Tags by replacing hardcoded values
-    html = html.replace(/<title>.*?<\/title>/gi, `<title>${title}</title>`);
-    html = html.replace(/<meta\s+name="description"\s+content="[^"]*"/gi, `<meta name="description" content="${description}"`);
+    html = html.replace(/<title>.*?<\/title>/gi, `<title>${escTitle}</title>`);
+    html = html.replace(/<meta\s+name="description"\s+content="[^"]*"/gi, `<meta name="description" content="${escDescription}"`);
     
     // Replace hardcoded canonical URL with the actual page URL
-    const canonicalUrl = `https://schipenster.com${originalUrl === "/" ? "" : originalUrl}`;
-    html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/gi, `<link rel="canonical" href="${canonicalUrl}" />`);
+    html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/gi, `<link rel="canonical" href="${escCanonical}" />`);
     
     // Inject OG and Twitter tags just before </head>
-    const siteName = process.env.SEO_SITE_NAME || "Schip & Ster";
     const injectedMeta = `
-  <meta property="og:site_name" content="${siteName}" />
+  <meta property="og:site_name" content="${escSiteName}" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="${title}" />
-  <meta property="og:description" content="${description}" />
-  <meta property="og:image" content="${image}" />
+  <meta property="og:title" content="${escTitle}" />
+  <meta property="og:description" content="${escDescription}" />
+  <meta property="og:image" content="${escImage}" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="${title}" />
-  <meta name="twitter:description" content="${description}" />
-  <meta name="twitter:image" content="${image}" />
+  <meta name="twitter:title" content="${escTitle}" />
+  <meta name="twitter:description" content="${escDescription}" />
+  <meta name="twitter:image" content="${escImage}" />
 </head>`;
     html = html.replace(/<\/head>/i, injectedMeta);
     

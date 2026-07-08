@@ -43,7 +43,7 @@ export function injectSeoHtml(): Plugin {
       let out = html;
       out = out.replace(/<title>[^<]*<\/title>/, `<title>${escAttr(title)}</title>`);
       out = out.replace(
-        /(<meta name="description" content=")[^"]*(")/,
+        /(<meta\s+name="description"\s+content=")[^"]*(")/i,
         `$1${escAttr(description)}$2`,
       );
       out = out.replace(

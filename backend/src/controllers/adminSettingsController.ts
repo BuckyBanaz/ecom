@@ -704,64 +704,67 @@ export const updateLlmsTxt = async (
 // ----------------------------------------------------
 // 10. GENERATE SITEMAP
 // ----------------------------------------------------
+export const rebuildSitemap = async (): Promise<void> => {
+  const baseUrl = (
+    process.env.SEO_CANONICAL_URL ||
+    process.env.CLIENT_URL ||
+    process.env.STORE_URL ||
+    "https://schipenster.com"
+  ).replace(/\/$/, "");
+
+  // Fetch dynamic content
+  const products = await prisma.product.findMany({
+    select: {
+      slug: true,
+      updatedAt: true
+    }
+  });
+  const categories = await prisma.category.findMany({ select: { slug: true } });
+  const brands = await prisma.brand.findMany({ select: { id: true } });
+  const blogs = await prisma.blog.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
+  const cmsPages = await prisma.cmsPage.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
+
+  // Build XML
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+  xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+  const addUrl = (loc: string, lastmod?: Date, changefreq = "weekly", priority = "0.8") => {
+    xml += `  <url>\n`;
+    xml += `    <loc>${baseUrl}${loc}</loc>\n`;
+    if (lastmod) xml += `    <lastmod>${lastmod.toISOString()}</lastmod>\n`;
+    xml += `    <changefreq>${changefreq}</changefreq>\n`;
+    xml += `    <priority>${priority}</priority>\n`;
+    xml += `  </url>\n`;
+  };
+
+  // Static Pages
+  addUrl("/", new Date(), "daily", "1.0");
+  addUrl("/categories", new Date(), "daily", "0.9");
+  addUrl("/faqs", new Date(), "weekly", "0.8");
+  addUrl("/blogs", new Date(), "weekly", "0.8");
+  addUrl("/relief", undefined, "monthly", "0.6");
+
+  // Products
+  products.forEach(p => addUrl(`/product/${p.slug}`, p.updatedAt, "daily", "0.9"));
+  // Categories
+  categories.forEach(c => addUrl(`/category/${c.slug}`, undefined, "weekly", "0.8"));
+  // Blogs
+  blogs.forEach(b => addUrl(`/blogs/${b.slug}`, b.updatedAt, "monthly", "0.7"));
+  // Dynamic CMS Pages
+  cmsPages.forEach(p => addUrl(`/${p.slug}`, p.updatedAt, "monthly", "0.6"));
+
+  xml += `</urlset>`;
+
+  await saveSitemapXmlContent(xml);
+};
+
 export const generateSitemap = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const baseUrl = (
-      process.env.SEO_CANONICAL_URL ||
-      process.env.CLIENT_URL ||
-      process.env.STORE_URL ||
-      "http://localhost:8080"
-    ).replace(/\/$/, "");
-
-    // Fetch dynamic content
-    const products = await prisma.product.findMany({
-      select: {
-        slug: true,
-        updatedAt: true
-      }
-    });
-    const categories = await prisma.category.findMany({ select: { slug: true } });
-    const brands = await prisma.brand.findMany({ select: { id: true } });
-    const blogs = await prisma.blog.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
-    const cmsPages = await prisma.cmsPage.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
-
-    // Build XML
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-
-    const addUrl = (loc: string, lastmod?: Date, changefreq = "weekly", priority = "0.8") => {
-      xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}${loc}</loc>\n`;
-      if (lastmod) xml += `    <lastmod>${lastmod.toISOString()}</lastmod>\n`;
-      xml += `    <changefreq>${changefreq}</changefreq>\n`;
-      xml += `    <priority>${priority}</priority>\n`;
-      xml += `  </url>\n`;
-    };
-
-    // Static Pages
-    addUrl("/", new Date(), "daily", "1.0");
-    addUrl("/categories", new Date(), "daily", "0.9");
-    addUrl("/faqs", new Date(), "weekly", "0.8");
-    addUrl("/blogs", new Date(), "weekly", "0.8");
-    addUrl("/relief", undefined, "monthly", "0.6");
-
-    // Products
-    products.forEach(p => addUrl(`/product/${p.slug}`, p.updatedAt, "daily", "0.9"));
-    // Categories
-    categories.forEach(c => addUrl(`/category/${c.slug}`, undefined, "weekly", "0.8"));
-    // Blogs
-    blogs.forEach(b => addUrl(`/blogs/${b.slug}`, b.updatedAt, "monthly", "0.7"));
-    // Dynamic CMS Pages
-    cmsPages.forEach(p => addUrl(`/${p.slug}`, p.updatedAt, "monthly", "0.6"));
-
-    xml += `</urlset>`;
-
-    await saveSitemapXmlContent(xml);
-
+    await rebuildSitemap();
     res.status(200).json({ success: true, message: "sitemap.xml generated successfully" });
   } catch (error: any) {
     next(error);
