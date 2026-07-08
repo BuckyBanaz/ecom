@@ -154,7 +154,7 @@ app.get("/robots.txt", async (req, res, next) => {
   try {
     const host = String(req.hostname || req.get("host") || "").toLowerCase();
     if (host.startsWith("api.")) {
-      res.type("text/plain").send("User-agent: *\nDisallow: /\n");
+      res.type("text/plain").send("User-agent: *\nAllow: /\n");
       return;
     }
     const content = await getRobotsTxtContent();
