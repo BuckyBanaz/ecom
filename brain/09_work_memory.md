@@ -22,6 +22,7 @@ This file documents the technical memory, files changed, and integration details
 5. **[locales/nl/translation.json](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/locales/nl/translation.json)**: Added Dutch translation keys for media duplicate cleanup.
 6. **[MediaLibraryCore.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/components/admin/media/MediaLibraryCore.tsx)**: Added Delete Duplicates action item under the Actions dropdown toolbar.
 7. **[AdminProductForm.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductForm.tsx)**: Implemented fullscreen zoomable lightbox preview modal using Lucide icons (`Maximize2`, `ZoomIn`, `ZoomOut`, `RotateCcw`) and Radix Dialog.
+8. **[AdminProductQuickAdd.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductQuickAdd.tsx)**: Integrated the MediaLibraryDialog picker to let users select product images from the storage library.
 
 ---
 
@@ -74,3 +75,7 @@ This file documents the technical memory, files changed, and integration details
 ### Zoomable Lightbox
 - Go to Admin -> Products -> Edit Product.
 - Click the top-left Zoom button on the Cover Image or any Gallery thumbnail to verify scale rendering.
+
+### AI Quick Add Media Selector
+- Go to Admin -> Products -> Quick Add.
+- Click the "Media Library" button in any row, select an image, and verify it is successfully loaded into the row and previewed correctly.

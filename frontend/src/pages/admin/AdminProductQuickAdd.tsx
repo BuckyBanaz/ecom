@@ -32,6 +32,8 @@ import {
   saveQuickAddSession,
 } from "@/utils/quickAddSession";
 import { getApiV1Url } from "@/utils/endpoints";
+import { resolveImgUrl } from "@/utils/image";
+import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 
 interface ProductRow {
   key: string;
@@ -94,6 +96,39 @@ const AdminProductQuickAdd = () => {
   const [batchSummary, setBatchSummary] = useState<{ ok: number; failed: number; total: number } | null>(
     restoredSession?.batchSummary || null,
   );
+  
+  // Media Picker states for specific rows
+  const [mediaPickerRowKey, setMediaPickerRowKey] = useState<string | null>(null);
+
+  const openMediaSelectorForRow = (key: string) => {
+    setMediaPickerRowKey(key);
+  };
+
+  const handleSelectMediaImage = async (url: string) => {
+    if (!mediaPickerRowKey) return;
+    const rowKey = mediaPickerRowKey;
+    setMediaPickerRowKey(null);
+
+    const toastId = toast.loading("Loading image from media library...");
+    try {
+      const resolvedUrl = resolveImgUrl(url);
+      const filename = url.split("/").pop() || "media-image.jpg";
+      
+      const response = await fetch(resolvedUrl);
+      if (!response.ok) throw new Error("Failed to fetch image");
+      const blob = await response.blob();
+      const file = new File([blob], filename, { type: blob.type });
+
+      updateRow(rowKey, {
+        imageFile: file,
+        imagePreview: resolvedUrl,
+      });
+      toast.success("Image selected from media library", { id: toastId });
+    } catch (error) {
+      console.error("Failed to load image from media library:", error);
+      toast.error("Failed to select image from media library", { id: toastId });
+    }
+  };
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
   const imagePhaseTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const generatingRef = useRef(false);
@@ -551,11 +586,23 @@ const AdminProductQuickAdd = () => {
                   <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4">
                     <div>
                       {!row.imagePreview ? (
-                        <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg ${isGenerating ? "opacity-50 pointer-events-none" : "cursor-pointer hover:bg-muted/30"}`}>
-                          <ImageIcon className="h-6 w-6 text-muted-foreground mb-1" />
-                          <span className="text-[10px] text-muted-foreground">{t("admin_quick_add.upload_click")}</span>
-                          <input type="file" accept="image/*" className="hidden" disabled={isGenerating} onChange={(e) => handleImageChange(row.key, e.target.files?.[0] || null)} />
-                        </label>
+                        <div className="flex flex-col gap-2">
+                          <label className={`flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-lg ${isGenerating ? "opacity-50 pointer-events-none" : "cursor-pointer hover:bg-muted/30"}`}>
+                            <ImageIcon className="h-5 w-5 text-muted-foreground mb-0.5" />
+                            <span className="text-[9px] text-muted-foreground text-center px-1 leading-tight">{t("admin_quick_add.upload_click")}</span>
+                            <input type="file" accept="image/*" className="hidden" disabled={isGenerating} onChange={(e) => handleImageChange(row.key, e.target.files?.[0] || null)} />
+                          </label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10px] rounded-lg gap-1 border-border/80"
+                            disabled={isGenerating}
+                            onClick={() => openMediaSelectorForRow(row.key)}
+                          >
+                            <ImageIcon className="h-3 w-3 text-primary/80" /> Media Library
+                          </Button>
+                        </div>
                       ) : (
                         <div className="relative h-32 border rounded-lg overflow-hidden">
                           <img src={row.imagePreview} alt="" className="h-full w-full object-contain bg-muted/20" />
@@ -657,6 +704,14 @@ const AdminProductQuickAdd = () => {
           </CardFooter>
         </form>
       </Card>
+
+      {mediaPickerRowKey && (
+        <MediaLibraryDialog
+          open={Boolean(mediaPickerRowKey)}
+          onClose={() => setMediaPickerRowKey(null)}
+          onSelect={handleSelectMediaImage}
+        />
+      )}
     </div>
   );
 };
