@@ -46,6 +46,18 @@ router.post("/drafts/:id/regenerate-images", async (req, res) => {
   }
 });
 
+router.post("/products/:id/regenerate-images", async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const { prompt, index } = req.body || {};
+    const newImages = await aiService.regenerateImagesForProduct(productId, prompt, index);
+    res.json({ success: true, images: newImages });
+  } catch (error: any) {
+    console.error("Product image regeneration failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post("/products/quick-add", upload.single("image"), async (req, res) => {
   try {
     const { hint, price, brandName, imagePromptOverride } = req.body;

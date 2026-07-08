@@ -13,6 +13,8 @@ This file documents the technical memory, files changed, and integration details
 4. **[index.ts](file:///c:/Users/Parikshit/Desktop/workspace/ecom/backend/src/index.ts)**: Hooked `rebuildSitemap()` on boot.
 5. **[mediaController.ts](file:///c:/Users/Parikshit/Desktop/workspace/ecom/backend/src/controllers/mediaController.ts)**: Added recursive MD5 hash duplicate finder and database references updater.
 6. **[mediaRoutes.ts](file:///c:/Users/Parikshit/Desktop/workspace/ecom/backend/src/routes/mediaRoutes.ts)**: Registered `DELETE /api/v1/media/duplicates` route.
+7. **[aiService.ts](file:///c:/Users/Parikshit/Desktop/workspace/ecom/backend/src/services/aiService.ts)**: Added `regenerateImagesForProduct` to support AI image regeneration for saved products.
+8. **[aiRoutes.ts](file:///c:/Users/Parikshit/Desktop/workspace/ecom/backend/src/routes/aiRoutes.ts)**: Added `POST /api/v1/ai/products/:id/regenerate-images` route.
 
 ### Frontend:
 1. **[index.html](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/index.html)**: Added default social metadata and normalized description tag.
@@ -21,7 +23,7 @@ This file documents the technical memory, files changed, and integration details
 4. **[locales/en/translation.json](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/locales/en/translation.json)**: Added English translation keys for media duplicate cleanup.
 5. **[locales/nl/translation.json](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/locales/nl/translation.json)**: Added Dutch translation keys for media duplicate cleanup.
 6. **[MediaLibraryCore.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/components/admin/media/MediaLibraryCore.tsx)**: Added Delete Duplicates action item under the Actions dropdown toolbar.
-7. **[AdminProductForm.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductForm.tsx)**: Implemented fullscreen zoomable lightbox preview modal using Lucide icons (`Maximize2`, `ZoomIn`, `ZoomOut`, `RotateCcw`) and Radix Dialog.
+7. **[AdminProductForm.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductForm.tsx)**: Implemented fullscreen zoomable lightbox preview modal, and enabled Sparkles regenerate buttons on both draft and saved product pages (canRegenerate condition).
 8. **[AdminProductQuickAdd.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductQuickAdd.tsx)**: Integrated the MediaLibraryDialog picker to let users select product images from the storage library.
 
 ---
@@ -79,3 +81,8 @@ This file documents the technical memory, files changed, and integration details
 ### AI Quick Add Media Selector
 - Go to Admin -> Products -> Quick Add.
 - Click the "Media Library" button in any row, select an image, and verify it is successfully loaded into the row and previewed correctly.
+
+### Saved Product Image Regeneration
+- Go to Admin -> Products -> Edit Product (on a saved/published product page).
+- Verify the **Regenerate AI Images** button is visible in the Gallery header, and **Sparkles** icons are visible on hover over gallery images.
+- Click the regenerate icon, provide an AI prompt, and confirm the new AI photo is generated and instantly loaded/saved.

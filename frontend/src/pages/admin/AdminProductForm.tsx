@@ -38,6 +38,7 @@ const AdminProductForm = () => {
 
   const isDraftMode = Boolean(draftId);
   const isEdit = id !== undefined && id !== "new" && !isDraftMode;
+  const canRegenerate = Boolean(draftId || (id && id !== "new"));
 
   // Mount guard for portal-based components
   const [isMounted, setIsMounted] = useState(false);
@@ -1032,7 +1033,7 @@ const AdminProductForm = () => {
                     <div className="flex flex-wrap items-center justify-between pb-1 gap-2">
                       <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_gallery")}</Label>
                       <div className="flex gap-2">
-                        {isDraftMode && (
+                        {canRegenerate && (
                           <Button
                             type="button"
                             variant="outline"
@@ -1083,7 +1084,7 @@ const AdminProductForm = () => {
                               >
                                 {t("admin_product_form.set_cover")}
                               </button>
-                              {isDraftMode && (
+                              {canRegenerate && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1515,7 +1516,10 @@ const AdminProductForm = () => {
 
                 try {
                   const apiUrl = getApiV1Url();
-                  const res = await fetch(`${apiUrl}/ai/drafts/${draftId}/regenerate-images`, {
+                  const targetUrl = draftId 
+                    ? `${apiUrl}/ai/drafts/${draftId}/regenerate-images`
+                    : `${apiUrl}/ai/products/${id}/regenerate-images`;
+                  const res = await fetch(targetUrl, {
                     method: "POST",
                     headers: { 
                       Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
