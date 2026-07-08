@@ -20,6 +20,15 @@ const app = express();
 // Behind Caddy reverse proxy in production (fixes express-rate-limit X-Forwarded-For warning)
 app.set("trust proxy", 1);
 
+// Prevent Google from indexing raw API responses, while allowing them to be fetched
+app.use((req, res, next) => {
+  const host = String(req.hostname || req.get("host") || "").toLowerCase();
+  if (host.startsWith("api.") || req.path.startsWith("/api/")) {
+    res.setHeader("X-Robots-Tag", "noindex");
+  }
+  next();
+});
+
 const allowedOrigins = new Set(
   [
     env.CLIENT_URL,
