@@ -126,7 +126,7 @@ export const SEOInjector = () => {
         const defaultDescription =
           cfg.defaultDescription ||
           "Shop indoor & outdoor lighting, light bulbs, smart home and more. Ordered before 22:00, delivered next day. 30-day returns.";
-        const canonical = absoluteUrl(cfg.canonical || SITE_ORIGIN);
+        const canonical = absoluteUrl(window.location.pathname + window.location.search);
         const ogImage = absoluteUrl(cfg.ogImage || DEFAULT_OG_IMAGE);
         const ga4 = cleanId(cfg.ga4);
         const gtm = cleanId(cfg.gtm);

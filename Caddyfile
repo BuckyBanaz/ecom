@@ -27,7 +27,7 @@
   }
 
   @staticFiles {
-    path *.ico *.png *.jpg *.jpeg *.gif *.svg *.css *.js *.webmanifest *.json *.woff *.woff2 *.txt *.xml
+    path *.ico *.png *.jpg *.jpeg *.gif *.svg *.css *.js *.webmanifest *.json *.woff *.woff2
   }
   handle @staticFiles {
     reverse_proxy frontend:80

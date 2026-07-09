@@ -744,7 +744,7 @@ export const rebuildSitemap = async (): Promise<void> => {
 
   // Static Pages
   addUrl("/", new Date(), "daily", "1.0");
-  addUrl("/categories", new Date(), "daily", "0.9");
+  addUrl("/category", new Date(), "daily", "0.9");
   addUrl("/faqs", new Date(), "weekly", "0.8");
   addUrl("/blogs", new Date(), "weekly", "0.8");
   addUrl("/relief", undefined, "monthly", "0.6");
