@@ -720,7 +720,6 @@ export const rebuildSitemap = async (): Promise<void> => {
     }
   });
   const categories = await prisma.category.findMany({ select: { slug: true } });
-  const brands = await prisma.brand.findMany({ select: { id: true } });
   const blogs = await prisma.blog.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
   const cmsPages = await prisma.cmsPage.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } });
 
