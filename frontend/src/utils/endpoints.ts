@@ -58,6 +58,7 @@ export const ENDPOINTS = {
   get AI_SEO_PLAYBOOK_SYNC() { return api("/ai/seo/playbook/sync-all"); },
   get AI_SEO_OPTIMIZE() { return api("/ai/seo/optimize"); },
   get AI_SEO_BULK_OPTIMIZE() { return api("/ai/seo/bulk-optimize"); },
+  get AI_SEO_PRODUCT_OPTIMIZE() { return api("/ai/seo/product-optimize"); },
   get AI_SEO_JOB() { return api("/ai/seo/job"); },
   get AI_SEO_JOB_DISMISS() { return api("/ai/seo/job/dismiss"); },
   get AI_SEO_AUTOPILOT() { return api("/ai/seo/autopilot"); },

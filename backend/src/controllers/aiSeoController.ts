@@ -17,6 +17,7 @@ import {
   enqueueBlogGenerate,
   enqueueBulkOptimize,
   enqueueFaqGenerate,
+  enqueueProductOptimize,
   getSeoJobStatus,
 } from "../services/seoJobQueueService";
 import { getBlogTopicSuggestions } from "../services/blogContextService";
@@ -166,6 +167,32 @@ export const bulkOptimizeSeo = async (req: Request, res: Response, next: NextFun
       message: alreadyRunning
         ? "A SEO job is already running — progress continues in the background."
         : "Bulk SEO optimization queued — safe to refresh the page.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const enqueueProductOptimizeHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { productId, customPrompt } = req.body as { productId: string; customPrompt?: string };
+    if (!productId) {
+      res.status(400).json({ success: false, error: "Missing productId" });
+      return;
+    }
+
+    const { job, alreadyRunning } = await enqueueProductOptimize({
+      productId,
+      customPrompt
+    });
+
+    res.json({
+      success: true,
+      job,
+      alreadyRunning,
+      message: alreadyRunning
+        ? "An AI job is already running in the background."
+        : "Product content optimization job queued.",
     });
   } catch (error) {
     next(error);

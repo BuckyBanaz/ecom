@@ -780,6 +780,81 @@ export const aiService = {
     throw new Error("Failed to regenerate images");
   },
 
+  async optimizeProductContent(input: {
+    product: any;
+    customPrompt?: string;
+  }) {
+    const { product, customPrompt } = input;
+    const userSystemPrompt = process.env.AI_SYSTEM_PROMPT || "You are an expert e-commerce catalog manager.";
+    
+    const promptText = `
+      ${userSystemPrompt}
+
+      You are optimizing the details of an existing product in our e-commerce store.
+      
+      Current Product details:
+      - Name: "${product.name}"
+      - Category: "${product.category?.name || 'none'}"
+      - Current Description (Fallback): "${product.description || ''}"
+      - Current Description (NL): "${product.descriptionNl || ''}"
+      - Current Description (EN): "${product.descriptionEn || ''}"
+      - Current Specifications: ${JSON.stringify(product.specifications || [])}
+      - Current SEO Title: "${product.seoTitle || ''}"
+      - Current SEO Description: "${product.seoDesc || ''}"
+      - Current SEO Keywords: "${product.seoKeywords || ''}"
+
+      ${customPrompt ? `USER CUSTOM OPTIMIZATION REQUEST:
+      ---
+      ${customPrompt}
+      ---
+      (Strictly apply this instruction while optimizing)` : "Provide general optimization to make descriptions highly professional and compelling. Translate/write high-quality descriptions in Dutch (NL) and English (EN), write clean and complete specifications, and optimize meta tag fields for SEO."}
+
+      Please return ONLY a valid JSON object with the following schema:
+      {
+        "description": "Optimized general/fallback description",
+        "descriptionNl": "Optimized detailed description in Dutch",
+        "descriptionEn": "Optimized detailed description in English",
+        "seoTitle": "catchy SEO title (max 60 characters)",
+        "seoDescription": "compelling meta description (max 160 characters)",
+        "seoKeywords": "comma, separated, keywords",
+        "specifications": [
+          { "key": "Technical specs parameter name in English (e.g., 'Voltage', 'Fitting', 'Material', 'Dimmable')", "value": "value" }
+        ]
+      }
+    `;
+
+    const parts: any[] = [];
+    
+    if (product.image) {
+      try {
+        const publicPath = product.image;
+        const relativePath = publicPath.replace(/^\//, "");
+        const absolutePath = path.join(__dirname, "../../public", relativePath);
+        if (fs.existsSync(absolutePath)) {
+          const buffer = fs.readFileSync(absolutePath);
+          let mimeType = "image/jpeg";
+          if (absolutePath.toLowerCase().endsWith(".png")) mimeType = "image/png";
+          else if (absolutePath.toLowerCase().endsWith(".webp")) mimeType = "image/webp";
+          
+          parts.push({
+            inlineData: {
+              data: buffer.toString("base64"),
+              mimeType
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("Could not load product photo for vision-based optimization", e);
+      }
+    }
+
+    parts.push({ text: promptText });
+
+    const responseText = await callGeminiWithFallback(parts, 0.4);
+    const parsedData = extractJson(responseText);
+    return parsedData;
+  },
+
   async generateCmsPage(
     prompt: string,
     options?: {

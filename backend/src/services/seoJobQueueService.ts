@@ -5,7 +5,7 @@ import { runSeoAutopilot } from "./seoAutopilotService";
 
 export const SEO_JOB_KEY = "seo_job_state";
 
-export type SeoJobType = "bulk_optimize" | "autopilot" | "blog_generate" | "faq_generate";
+export type SeoJobType = "bulk_optimize" | "autopilot" | "blog_generate" | "faq_generate" | "product_optimize";
 
 export type SeoJobStatus = "idle" | "queued" | "running" | "completed" | "failed";
 
@@ -32,6 +32,7 @@ export interface SeoJobState {
   result?: SeoJobResult | null;
   /** Set when blog_generate is queued — survives until job completes. */
   publishIntent?: boolean;
+  targetEntityId?: string | null;
 }
 
 const DEFAULT_JOB: SeoJobState = {
@@ -47,6 +48,7 @@ const DEFAULT_JOB: SeoJobState = {
   failed: 0,
   result: null,
   publishIntent: undefined,
+  targetEntityId: null,
 };
 
 let processing = false;
@@ -289,6 +291,51 @@ async function runFaqGenerateJob(payload: {
   });
 }
 
+async function runProductOptimizeJob(payload: { productId: string; customPrompt?: string }) {
+  const { productId, customPrompt } = payload;
+  await patchJob({
+    progress: { current: 0, total: 3, label: "Loading product details..." }
+  });
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { category: true }
+  });
+  if (!product) throw new Error("Product not found");
+
+  await patchJob({
+    progress: { current: 1, total: 3, label: "Optimizing product content with AI..." }
+  });
+
+  const optimized = await aiService.optimizeProductContent({
+    product,
+    customPrompt
+  });
+
+  await patchJob({
+    progress: { current: 2, total: 3, label: "Saving optimized content to database..." }
+  });
+
+  await prisma.product.update({
+    where: { id: productId },
+    data: {
+      description: optimized.description || product.description,
+      descriptionNl: optimized.descriptionNl || product.descriptionNl,
+      descriptionEn: optimized.descriptionEn || product.descriptionEn,
+      specifications: optimized.specifications || product.specifications,
+      seoTitle: optimized.seoTitle || product.seoTitle,
+      seoDesc: optimized.seoDescription || product.seoDesc,
+    }
+  });
+
+  await patchJob({
+    status: "completed",
+    finishedAt: new Date().toISOString(),
+    summary: `Successfully optimized content for product "${product.name}"`,
+    progress: { current: 3, total: 3, label: null }
+  });
+}
+
 async function processJob(type: SeoJobType, payload: Record<string, unknown>) {
   if (processing) return;
   processing = true;
@@ -308,6 +355,8 @@ async function processJob(type: SeoJobType, payload: Record<string, unknown>) {
       await runBlogGenerateJob(payload as Parameters<typeof runBlogGenerateJob>[0]);
     } else if (type === "faq_generate") {
       await runFaqGenerateJob(payload as Parameters<typeof runFaqGenerateJob>[0]);
+    } else if (type === "product_optimize") {
+      await runProductOptimizeJob(payload as { productId: string; customPrompt?: string });
     } else {
       await runAutopilotJob(payload.force !== false);
     }
@@ -428,6 +477,33 @@ export async function enqueueFaqGenerate(payload: {
 
   setImmediate(() => {
     processJob("faq_generate", payload as Record<string, unknown>).catch(console.error);
+  });
+
+  return { job, alreadyRunning: false };
+}
+
+export async function enqueueProductOptimize(payload: {
+  productId: string;
+  customPrompt?: string;
+}): Promise<{ job: SeoJobState; alreadyRunning: boolean }> {
+  const current = await loadJobState();
+  if (current.status === "running" || current.status === "queued") {
+    return { job: current, alreadyRunning: true };
+  }
+
+  const job: SeoJobState = {
+    ...DEFAULT_JOB,
+    id: newJobId(),
+    type: "product_optimize",
+    status: "queued",
+    startedAt: new Date().toISOString(),
+    progress: { current: 0, total: 3, label: "Queued…" },
+    targetEntityId: payload.productId,
+  };
+  await saveJobState(job);
+
+  setImmediate(() => {
+    processJob("product_optimize", payload as Record<string, unknown>).catch(console.error);
   });
 
   return { job, alreadyRunning: false };

@@ -23,8 +23,10 @@ This file documents the technical memory, files changed, and integration details
 4. **[locales/en/translation.json](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/locales/en/translation.json)**: Added English translation keys for media duplicate cleanup.
 5. **[locales/nl/translation.json](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/locales/nl/translation.json)**: Added Dutch translation keys for media duplicate cleanup.
 6. **[MediaLibraryCore.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/components/admin/media/MediaLibraryCore.tsx)**: Added Delete Duplicates action item under the Actions dropdown toolbar.
-7. **[AdminProductForm.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductForm.tsx)**: Implemented fullscreen zoomable lightbox preview modal, and enabled Sparkles regenerate buttons on both draft and saved product pages (canRegenerate condition).
-8. **[AdminProductQuickAdd.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductQuickAdd.tsx)**: Integrated the MediaLibraryDialog picker to let users select product images from the storage library.
+7. **[AdminProductForm.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductForm.tsx)**: Implemented lightbox modal, enabled Sparkles regenerate buttons, added active regeneration task recovery & concurrent task blocking, and added a background "Optimize with AI" button with polling status updates.
+8. **[endpoints.ts](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/utils/endpoints.ts)**: Added `AI_SEO_PRODUCT_OPTIMIZE` endpoint.
+9. **[translation.json (en/nl)](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/locales/en/translation.json)**: Added localization strings for product optimization tasks.
+10. **[AdminProductQuickAdd.tsx](file:///c:/Users/Parikshit/Desktop/workspace/ecom/frontend/src/pages/admin/AdminProductQuickAdd.tsx)**: Integrated the MediaLibraryDialog picker to let users select product images from the storage library.
 
 ---
 
@@ -82,7 +84,17 @@ This file documents the technical memory, files changed, and integration details
 - Go to Admin -> Products -> Quick Add.
 - Click the "Media Library" button in any row, select an image, and verify it is successfully loaded into the row and previewed correctly.
 
-### Saved Product Image Regeneration
+### Saved Product Image Regeneration & Task Blocking
 - Go to Admin -> Products -> Edit Product (on a saved/published product page).
 - Verify the **Regenerate AI Images** button is visible in the Gallery header, and **Sparkles** icons are visible on hover over gallery images.
 - Click the regenerate icon, provide an AI prompt, and confirm the new AI photo is generated and instantly loaded/saved.
+- Trigger a regeneration, and verify that while it is running, other Sparkles buttons are hidden/disabled to prevent double execution.
+- Refresh the page during regeneration, and verify that the loading state/loader spinner on the target image is successfully recovered and keeps polling until it finishes.
+
+### Background Product Content Optimization
+- Go to Admin -> Products -> Edit Product (on a saved product).
+- Click the **Optimize with AI** button inside the Actions Card.
+- Enter an optional prompt, and click Generate.
+- Verify that a toast loader appears showing progress steps (`AI Optimization: Loading product details...`, `Optimizing...`, `Saving...`).
+- Refresh the page during optimization, and verify that the page recovery hook automatically restores the loading toast and finishes the task in the background.
+- Once completed, check that the optimized description, specifications, and SEO keywords/meta tags are updated and automatically reloaded in the form.

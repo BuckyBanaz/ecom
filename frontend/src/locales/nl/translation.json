@@ -616,7 +616,14 @@
     "regen_toast_start": "AI-afbeeldingen regenereren...",
     "regen_toast_success_single": "Afbeelding geregenereerd!",
     "regen_toast_success_multi": "Afbeeldingen geregenereerd!",
-    "regen_toast_error": "Mislukt om afbeeldingen te regenereren"
+    "regen_toast_error": "Mislukt om afbeeldingen te regenereren",
+    "action_optimize": "Optimaliseren met AI",
+    "optimize_prompt_title": "Productinhoud optimaliseren",
+    "optimize_prompt_desc": "Geef een optionele prompt of aangepaste instructies om de AI-catalogusoptimalisatie te sturen.",
+    "optimize_toast_start": "Productoptimalisatietaak in de wachtrij plaatsen...",
+    "optimize_toast_queued": "Productoptimalisatie in de wachtrij geplaatst! Status vernieuwen...",
+    "optimize_toast_success": "Productinhoud succesvol geoptimaliseerd!",
+    "optimize_toast_error": "Mislukt om productinhoud te optimaliseren"
   },
   "admin_categories": {
     "count": "{{count}} categorieën",

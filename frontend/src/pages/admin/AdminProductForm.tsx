@@ -51,6 +51,11 @@ const AdminProductForm = () => {
   const [isGlobalRegenerating, setIsGlobalRegenerating] = useState(false);
   const [regeneratingIndexes, setRegeneratingIndexes] = useState<number[]>([]);
 
+  // Optimization states
+  const [optimizePromptOpen, setOptimizePromptOpen] = useState(false);
+  const [optimizePromptText, setOptimizePromptText] = useState("");
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
   const [isProductLoading, setIsProductLoading] = useState(isEdit || isDraftMode);
@@ -111,6 +116,252 @@ const AdminProductForm = () => {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const reloadProductDetails = async () => {
+    if (isDraftMode && draftId) {
+      try {
+        const apiUrl = getApiV1Url();
+        const res = await fetch(`${apiUrl}/ai/drafts/${draftId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+        });
+        const data = await res.json();
+        if (data.success && data.draft?.payload) {
+          applyDraftToForm(data.draft.payload);
+        }
+      } catch (err) {
+        console.error("Failed to reload draft details:", err);
+      }
+    } else if (id && id !== "new") {
+      try {
+        const data = await productRepository.getByIdOrSlug(id);
+        if (data.success && data.product) {
+          const p = data.product;
+          setName(p.title || p.name || "");
+          setPrice(String(p.price || ""));
+          setOldPrice(p.oldPrice ? String(p.oldPrice) : "");
+          setThumbnail(p.image || null);
+          setGalleryImages(p.images || (p.image ? [p.image] : []));
+          setDescription(p.description || "");
+          setShortDescription(p.shortDescription || "");
+          setSeoTitle(p.seoTitle || "");
+          setSeoDescription(p.seoDesc || p.seoDescription || "");
+          setSeoKeywords(p.seoKeywords || "");
+          setInStock(p.inStock ?? true);
+          setIsNewArrival(p.isNewArrival ?? false);
+          setIsBestSelling(p.isBestSelling ?? false);
+          setSelectedCategory(p.category?.slug || "");
+          setSelectedBrand(typeof p.brand === "string" ? p.brand : (p.brand?.name || ""));
+
+          const initialAttrVals: Record<string, string[]> = {};
+          if (p.productAttributeValues) {
+            p.productAttributeValues.forEach((pav: any) => {
+              const slug = pav.attribute.slug;
+              const value = pav.attributeValue.value;
+              if (!initialAttrVals[slug]) {
+                initialAttrVals[slug] = [];
+              }
+              initialAttrVals[slug].push(value);
+            });
+          }
+          setSelectedAttributeValues(initialAttrVals);
+
+          let foundNumLights = "";
+          let foundSeries = "";
+          if (Array.isArray(p.specs)) {
+            p.specs.forEach((s: any) => {
+              if (s && s.key === "Number of lights") foundNumLights = String(s.value);
+              if (s && s.key === "Series") foundSeries = String(s.value);
+            });
+          }
+          setNumberOfLights(foundNumLights);
+          setSelectedSeries(foundSeries || "none");
+
+          const parsed = parseSpecs(p.specs || {});
+          setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+        }
+      } catch (err) {
+        console.error("Failed to reload product details:", err);
+      }
+    }
+  };
+
+  // Recover active AI image regeneration on refresh/mount
+  useEffect(() => {
+    const activeRegenStr = localStorage.getItem("active_regen");
+    if (!activeRegenStr) return;
+    try {
+      const activeRegen = JSON.parse(activeRegenStr);
+      const currentId = draftId || id;
+      if (activeRegen.id === currentId) {
+        if (activeRegen.targetIndex !== null) {
+          setRegeneratingIndexes([activeRegen.targetIndex]);
+        } else {
+          setIsGlobalRegenerating(true);
+        }
+
+        let attempts = 0;
+        const intervalId = setInterval(async () => {
+          attempts += 1;
+          if (attempts > 20) { // 60s timeout
+            clearInterval(intervalId);
+            localStorage.removeItem("active_regen");
+            setIsGlobalRegenerating(false);
+            setRegeneratingIndexes([]);
+            return;
+          }
+
+          try {
+            const apiUrl = getApiV1Url();
+            const fetchUrl = draftId
+              ? `${apiUrl}/ai/drafts/${draftId}`
+              : `${apiUrl}/products/${id}`;
+            const res = await fetch(fetchUrl, {
+              headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            let serverImages: string[] = [];
+            if (draftId && data.success && data.draft) {
+              serverImages = data.draft.payload?.images || [];
+            } else if (!draftId && data.success && data.product) {
+              serverImages = data.product.images || [];
+            }
+
+            const starting = activeRegen.startingImages || [];
+            const hasChanged = serverImages.length !== starting.length ||
+              serverImages.some((img, idx) => img !== starting[idx]);
+
+            if (hasChanged && serverImages.length > 0) {
+              clearInterval(intervalId);
+              localStorage.removeItem("active_regen");
+              setGalleryImages(serverImages);
+              if (serverImages[0]) {
+                setThumbnail(prev => {
+                  if (activeRegen.targetIndex === 0 || !prev || prev === starting[0]) {
+                    return serverImages[0];
+                  }
+                  return prev;
+                });
+              }
+              setIsGlobalRegenerating(false);
+              setRegeneratingIndexes([]);
+              toast.success("AI images regenerated successfully!");
+            }
+          } catch (e) {
+            console.error("Error polling AI image regen status:", e);
+          }
+        }, 3000);
+
+        return () => clearInterval(intervalId);
+      }
+    } catch (e) {
+      console.error("Failed to recover AI image regeneration session:", e);
+    }
+  }, [id, draftId]);
+
+  // Poll background optimization job status
+  useEffect(() => {
+    if (!id || id === "new") return;
+    
+    let intervalId: any;
+    let toastId: string | null = null;
+
+    const checkJobStatus = async () => {
+      try {
+        const apiUrl = getApiV1Url();
+        const res = await fetch(`${apiUrl}/ai/seo/job`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data.success && data.job) {
+          const { type, status, progress, targetEntityId, error } = data.job;
+          
+          if (type === "product_optimize" && targetEntityId === id) {
+            if (status === "queued" || status === "running") {
+              setIsOptimizing(true);
+              const label = progress.label || "Optimizing content with AI...";
+              
+              if (!toastId) {
+                toastId = "product-optimize-toast";
+                toast.loading(`AI Optimization: ${label}`, { id: toastId });
+              } else {
+                toast.loading(`AI Optimization: ${label}`, { id: toastId });
+              }
+            } else if (status === "completed") {
+              setIsOptimizing(false);
+              if (toastId) {
+                toast.success(t("admin_product_form.optimize_toast_success"), { id: toastId });
+                toastId = null;
+              }
+              await fetch(`${apiUrl}/ai/seo/job/dismiss`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` }
+              });
+              await reloadProductDetails();
+              if (intervalId) clearInterval(intervalId);
+            } else if (status === "failed") {
+              setIsOptimizing(false);
+              if (toastId) {
+                toast.error(error || t("admin_product_form.optimize_toast_error"), { id: toastId });
+                toastId = null;
+              }
+              await fetch(`${apiUrl}/ai/seo/job/dismiss`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` }
+              });
+              if (intervalId) clearInterval(intervalId);
+            }
+          } else {
+            setIsOptimizing(false);
+            if (intervalId) clearInterval(intervalId);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check background AI job status:", err);
+      }
+    };
+
+    checkJobStatus();
+    intervalId = setInterval(checkJobStatus, 3000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [id, draftId]);
+
+  const handleTriggerOptimize = async () => {
+    setOptimizePromptOpen(false);
+    setIsOptimizing(true);
+    const toastId = "product-optimize-toast";
+    toast.loading(t("admin_product_form.optimize_toast_start"), { id: toastId });
+    
+    try {
+      const apiUrl = getApiV1Url();
+      const res = await fetch(`${apiUrl}/ai/seo/product-optimize`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          productId: id,
+          customPrompt: optimizePromptText
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.info(t("admin_product_form.optimize_toast_queued"), { id: toastId });
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      setIsOptimizing(false);
+      toast.error(err.message || t("admin_product_form.optimize_toast_error"), { id: toastId });
+    }
+  };
 
   // Load brands, categories, attributes, series
   useEffect(() => {
@@ -1038,7 +1289,7 @@ const AdminProductForm = () => {
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={isGlobalRegenerating}
+                            disabled={isGlobalRegenerating || regeneratingIndexes.length > 0}
                             className="h-6 text-[10px] font-bold text-amber-600 border-amber-600/30 gap-1 px-2 hover:bg-amber-600/10 transition-colors"
                             onClick={(e) => {
                               e.preventDefault();
@@ -1084,7 +1335,7 @@ const AdminProductForm = () => {
                               >
                                 {t("admin_product_form.set_cover")}
                               </button>
-                              {canRegenerate && (
+                              {canRegenerate && !isGlobalRegenerating && regeneratingIndexes.length === 0 && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1438,12 +1689,27 @@ const AdminProductForm = () => {
               </CardContent>
             </Card>
 
-            {/* Actions Card */}
+             {/* Actions Card */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl p-6 space-y-3">
               <Button type="submit" className="w-full gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300">
                 <Save className="h-4 w-4" />
                 {isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}
               </Button>
+              {canRegenerate && (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setOptimizePromptOpen(true);
+                  }}
+                  variant="outline"
+                  className="w-full gap-2 h-10 text-xs font-bold rounded-lg border-amber-600/30 text-amber-700 bg-amber-600/5 hover:bg-amber-600/15 hover:text-amber-800 transition-all duration-300"
+                  disabled={isGlobalRegenerating || regeneratingIndexes.length > 0 || isOptimizing}
+                >
+                  {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 animate-bounce" />}
+                  {t("admin_product_form.action_optimize")}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -1572,57 +1838,73 @@ const AdminProductForm = () => {
         <DialogContent className="max-w-[90vw] md:max-w-[70vw] lg:max-w-[50vw] max-h-[85vh] p-0 overflow-hidden bg-black/95 border-none shadow-2xl rounded-2xl flex flex-col items-center justify-between">
           <div className="absolute top-4 right-4 flex items-center gap-2 z-50">
             <Button
+              variant="outline"
               size="icon"
-              variant="secondary"
-              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 border-none text-white transition-colors"
-              onClick={handleZoomIn}
-              title="Zoom In"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 border-none text-white transition-colors"
+              className="h-8 w-8 rounded-full border-white/20 bg-black/40 hover:bg-black/60 text-white hover:text-white backdrop-blur-md"
               onClick={handleZoomOut}
-              title="Zoom Out"
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
             <Button
+              variant="outline"
               size="icon"
-              variant="secondary"
-              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 border-none text-white transition-colors"
+              className="h-8 w-8 rounded-full border-white/20 bg-black/40 hover:bg-black/60 text-white hover:text-white backdrop-blur-md"
+              onClick={handleZoomIn}
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full border-white/20 bg-black/40 hover:bg-black/60 text-white hover:text-white backdrop-blur-md"
               onClick={handleResetZoom}
-              title="Reset Zoom"
             >
               <RotateCcw className="h-4 w-4" />
             </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 border-none text-white transition-colors"
-              onClick={() => setLightboxImage(null)}
-              title="Close"
-            >
-              <X className="h-4 w-4" />
-            </Button>
           </div>
-
-          <div className="flex-1 w-full flex items-center justify-center p-6 overflow-auto">
+          <div className="flex-1 w-full flex items-center justify-center p-6 overflow-hidden">
             {lightboxImage && (
               <img
                 src={resolveImgUrl(lightboxImage)}
-                alt="Enlarged preview"
-                className="max-w-full max-h-[70vh] object-contain transition-transform duration-200 select-none rounded-lg"
+                alt=""
+                className="max-w-full max-h-[60vh] md:max-h-[70vh] object-contain transition-transform duration-200 ease-out"
                 style={{ transform: `scale(${zoomScale})` }}
               />
             )}
           </div>
+        </DialogContent>
+      </Dialog>
 
-          <div className="pb-4 text-xs text-white/60 select-none">
-            Zoom: {Math.round(zoomScale * 100)}%
+      {/* Optimization Prompt Dialog */}
+      <Dialog open={optimizePromptOpen} onOpenChange={setOptimizePromptOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
+              {t("admin_product_form.optimize_prompt_title")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("admin_product_form.optimize_prompt_desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <textarea
+              className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              placeholder='e.g. "Focus on wooden textures", "Translate description to clear Dutch"'
+              value={optimizePromptText}
+              onChange={(e) => setOptimizePromptText(e.target.value)}
+            />
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOptimizePromptOpen(false)}>{t("admin_product_form.action_cancel")}</Button>
+            <Button
+              className="gap-2"
+              onClick={handleTriggerOptimize}
+            >
+              <Sparkles className="h-4 w-4" />
+              {t("admin_product_form.regen_generate")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

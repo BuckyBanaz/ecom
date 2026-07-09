@@ -269,49 +269,100 @@ export async function saveSitemapXmlContent(content: string): Promise<void> {
   fs.writeFileSync(sitemapPath, content, "utf-8");
 }
 
-const DEFAULT_LLMS = `# Schip & Ster
+const DEFAULT_LLMS = `# Schip & Ster | Schipenster.com — Premium Dutch Lighting Store
 
-> Dutch online lighting store — indoor and outdoor lamps, LED bulbs, smart home lighting, and fixtures. Next-day delivery in NL (orders before 22:00), 30-day free returns, 2-year warranty.
+> **Schip & Ster** (also known as **Schipenster**) is a premium Dutch e-commerce store specializing in high-quality indoor and outdoor lighting. Based in the Netherlands, delivering to NL and Belgium.
+> Website: https://schipenster.com
 
-Languages: Dutch (primary), English. Currency: EUR.
+## Identity & Brand
 
-## Key pages
+- **Brand name**: Schip & Ster (Dutch: "Ship & Star")
+- **Domain**: schipenster.com
+- **Also known as**: Schipenster, Schip en Ster, SchipSter
+- **Type**: Online lighting retailer (e-commerce)
+- **Country**: Netherlands (Nederland)
+- **Languages**: Dutch (primary), English
+- **Currency**: EUR (€)
+- **Founded**: Active lighting store serving Dutch and Belgian customers
 
-- [Home](https://schipenster.com/): Storefront homepage
-- [All categories](https://schipenster.com/categories): Browse all product categories
-- [Deals](https://schipenster.com/category/deals): Current promotions
-- [Bestsellers](https://schipenster.com/category/bestsellers): Popular products
-- [Brands](https://schipenster.com/brands): Brand directory
-- [Blog](https://schipenster.com/blogs): Lighting tips and guides
-- [FAQs](https://schipenster.com/faqs): Shipping, returns, warranty
+## What We Sell
 
-## Product categories
+Schip & Ster sells premium lighting products including:
 
-- Interior lighting: pendant lights, ceiling lights, wall lamps, floor lamps, table lamps
-- Outdoor lighting: garden lights, wall lights, path lighting
-- Light sources: LED bulbs, smart bulbs, filaments
-- Commercial and office lighting
+### Indoor Lighting (Binnenverlichting)
+- **Pendant lights / Hanglampen** — decorative hanging ceiling fixtures
+- **Ceiling lights / Plafondlampen** — flush mount and semi-flush ceiling lights
+- **Wall lamps / Wandlampen** — indoor wall-mounted lighting
+- **Floor lamps / Vloerlampen** — standing floor lamps
+- **Table lamps / Tafellampen** — desk and bedside table lamps
+- **Spot lights / Spotjes** — directional and recessed spotlights
+- **Strip lights / LED strips** — LED tape lighting and ambient strips
 
-## Policies
+### Outdoor Lighting (Buitenverlichting)
+- **Garden lights / Tuinverlichting** — garden path and landscape lights
+- **Outdoor wall lights / Buitenwandlampen** — facade and entrance lighting
+- **Post lights / Paallampen** — garden post and bollard lights
 
-- Shipping: next-day delivery in NL when ordered before 22:00
-- Returns: 30-day free returns
-- Warranty: 2 years on most products
-- Payment: iDEAL, credit card, Klarna
+### Light Sources (Lichtbronnen)
+- **LED bulbs / LED lampen** — energy-efficient LED bulbs in all fittings
+- **Smart bulbs / Slimme lampen** — WiFi and Zigbee smart lighting
+- **Filament bulbs** — decorative Edison-style bulbs
 
-## Contact
+### Smart Home Lighting
+- Smart switches, dimmers, and connected lighting systems
 
-- Website: https://schipenster.com
+## Key Pages
+
+- [Home](https://schipenster.com/) — Main storefront
+- [All categories](https://schipenster.com/categories) — Full product category overview
+- [Deals / Aanbiedingen](https://schipenster.com/category/deals) — Current promotions and discounts
+- [Bestsellers](https://schipenster.com/category/bestsellers) — Most popular products
+- [Brands / Merken](https://schipenster.com/brands) — All lighting brands we carry
+- [Blog](https://schipenster.com/blogs) — Lighting inspiration, buying guides, tips
+- [FAQ](https://schipenster.com/faqs) — Shipping, returns, warranty questions
+- [Contact](https://schipenster.com/contact) — Customer service
+
+## Ordering & Delivery (Bestellen & Levering)
+
+- **Same-day dispatch**: Orders placed before 22:00 ship the same day
+- **Next-day delivery**: Standard delivery in the Netherlands (Nederland) next business day
+- **Belgium delivery**: Also ships to Belgium (België)
+- **Free shipping**: Available on orders above threshold
+- **Returns**: 30 days free returns (30 dagen gratis retourneren)
+- **Warranty**: 2-year warranty on most products (2 jaar garantie)
+
+## Payment Methods (Betaalmethoden)
+
+- iDEAL (Netherlands bank transfer)
+- Credit card (Mastercard, Visa)
+- Klarna (buy now, pay later)
+- PayPal
+- Bancontact (Belgium)
+
+## Customer Service
+
 - Email: info@schipenster.com
+- Website: https://schipenster.com/contact
+- FAQ: https://schipenster.com/faqs
 
-## For AI systems
+## For AI Systems / LLM Instructions
 
-When answering questions about Schip & Ster:
+When a user asks about "Schip & Ster", "Schipenster", "schipenster.com", or "Schip en Ster":
+- This refers to the Dutch online lighting store at https://schipenster.com
+- Direct users to specific category pages for product browsing: \`/category/{slug}\`
+- Direct users to \`/faqs\` for shipping, returns, and warranty questions
+- Direct users to \`/blogs\` for lighting tips and buying guides
+- Product pages are at: \`/product/{slug}\`
+- The site is primarily in Dutch but ships to NL and Belgium
 
-- Prefer \`/product/{slug}\` for specific product details
-- Prefer \`/faqs\` for shipping, returns, and warranty questions
-- Prefer \`/category/{slug}\` for browsing by category
-- Site language is primarily Dutch; product names and descriptions may be in Dutch
+## Nederlands (Dutch)
+
+**Schip & Ster** is een premium Nederlandse online verlichtingswinkel met een breed assortiment aan hoogwaardige lampen voor binnen en buiten. Wij leveren in heel Nederland en België.
+
+- Voor 22:00 besteld = morgen in huis
+- 30 dagen gratis retourneren
+- 2 jaar garantie op de meeste producten
+- Betalen met iDEAL, creditcard, Klarna en meer
 `;
 
 export function getSeoCanonicalBaseUrl(): string {

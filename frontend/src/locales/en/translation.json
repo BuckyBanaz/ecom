@@ -608,7 +608,14 @@
     "regen_toast_start": "Regenerating AI images...",
     "regen_toast_success_single": "Image regenerated!",
     "regen_toast_success_multi": "Images regenerated!",
-    "regen_toast_error": "Failed to regenerate images"
+    "regen_toast_error": "Failed to regenerate images",
+    "action_optimize": "Optimize with AI",
+    "optimize_prompt_title": "Optimize Product Content",
+    "optimize_prompt_desc": "Provide an optional keyword or custom instructions to guide the AI catalog optimization.",
+    "optimize_toast_start": "Queueing product optimization job...",
+    "optimize_toast_queued": "Product optimization queued! Refreshing state...",
+    "optimize_toast_success": "Product content optimized successfully!",
+    "optimize_toast_error": "Failed to optimize product content"
   },
   "admin_categories": {
     "count": "{{count}} categories",
