@@ -1,7 +1,6 @@
 import type { Plugin } from "vite";
 
 const DEFAULTS = {
-  siteName: "Schip & Ster",
   title: "Schip & Ster — Light up your moment",
   description:
     "Shop indoor & outdoor lighting, LED bulbs and smart home fixtures. Ordered before 22:00, delivered next day in NL. 30-day free returns.",
@@ -33,7 +32,7 @@ export function injectSeoHtml(): Plugin {
   return {
     name: "inject-seo-html",
     transformIndexHtml(html) {
-      const siteName = pick(process.env.VITE_SEO_SITE_NAME, process.env.SEO_SITE_NAME) || DEFAULTS.siteName;
+      const siteName = pick(process.env.VITE_SEO_SITE_NAME, process.env.SEO_SITE_NAME) || "Schip & Ster";
       const title = pick(process.env.VITE_SEO_TITLE, process.env.SEO_DEFAULT_TITLE) || DEFAULTS.title;
       const description =
         pick(process.env.VITE_SEO_DESCRIPTION, process.env.SEO_DEFAULT_DESCRIPTION) || DEFAULTS.description;

@@ -121,7 +121,7 @@ export const SEOInjector = () => {
       try {
         const res = await apiClient.get<{ data: any }>(ENDPOINTS.PUBLIC_SEO_CONFIG);
         const cfg = res.data || {};
-        const siteName = cfg.siteName || "Schip & Ster";
+        const siteName = cfg.siteName;
         const defaultTitle = cfg.defaultTitle || "Schip & Ster — Light up your moment";
         const defaultDescription =
           cfg.defaultDescription ||
