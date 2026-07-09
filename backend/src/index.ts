@@ -53,8 +53,13 @@ async function startServer() {
   try {
     const { getSitemapXmlContent } = await import("./services/settingsStore");
     const sitemap = await getSitemapXmlContent();
-    if (!sitemap) {
-      console.log("🔄 No sitemap.xml found, generating on boot...");
+    const sitemapNeedsRebuild =
+      !sitemap ||
+      sitemap.includes("localhost") ||
+      /<loc>https?:\/\/[^<]+\/(account|cart|checkout|dashboard|forgot-password|invoice|reset-password|search|wishlist)([/?#<]|<\/loc>)/i.test(sitemap);
+
+    if (sitemapNeedsRebuild) {
+      console.log("🔄 sitemap.xml missing or stale, generating on boot...");
       const { rebuildSitemap } = await import("./controllers/adminSettingsController");
       await rebuildSitemap();
       console.log("✅ sitemap.xml generated on boot!");

@@ -389,6 +389,7 @@ export function buildStructuredData(opts: {
     "@type": ["Organization", "OnlineStore"],
     "@id": `${siteUrl}/#organization`,
     name: opts.siteName,
+    alternateName: ["Schipenster", "Schip en Ster"],
     url: siteUrl,
     description: opts.description,
     logo: {
@@ -419,7 +420,7 @@ export function buildStructuredData(opts: {
     "@type": "WebSite",
     "@id": `${siteUrl}/#website`,
     name: opts.siteName,
-    alternateName: ["Schip en Ster", "Schip & Ster"],
+    alternateName: ["Schipenster", "Schip en Ster"],
     url: siteUrl,
     description: opts.description,
     publisher: { "@id": `${siteUrl}/#organization` },

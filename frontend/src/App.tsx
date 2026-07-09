@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import Index from "./pages/Index.tsx";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -91,6 +91,11 @@ const queryClient = new QueryClient({
   },
 });
 
+function LegacyCategorieRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/category/${slug || ""}`} replace />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -164,6 +169,8 @@ function App() {
                             <Route path="/relief" element={<Relief />} />
                             <Route path="/relief/category/:slug" element={<Category />} />
                             <Route path="/relief/:slug" element={<ReliefCategory />} />
+                            <Route path="/categorie" element={<Navigate to="/categories" replace />} />
+                            <Route path="/categorie/:slug" element={<LegacyCategorieRedirect />} />
                             <Route path="/categories" element={<AllCategories />} />
                             <Route path="/category" element={<Category />} />
                             <Route path="/category/:slug" element={<Category />} />
