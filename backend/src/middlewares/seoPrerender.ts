@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { prisma } from "../config/db";
+import { getSeoPlaybook } from "../services/seoPlaybookService";
 
 const BRAND_SITE_NAME = "Schip & Ster";
 const DEFAULT_TITLE = "Schip & Ster — Light up your moment";
@@ -223,7 +224,9 @@ export const seoPrerender = async (req: Request, res: Response) => {
     ).replace(/\/$/, "");
     const canonicalUrl = `${baseCanonical}${originalUrl === "/" ? "" : originalUrl}`;
 
-    const siteName = BRAND_SITE_NAME;
+    // Use dynamic site name from admin SEO settings (falls back to hardcoded default)
+    const playbook = await getSeoPlaybook().catch(() => null);
+    const siteName = playbook?.siteName || process.env.SEO_SITE_NAME || BRAND_SITE_NAME;
     const escTitle = escAttr(title);
     const escDescription = escAttr(description);
     const escImage = escAttr(image);
@@ -294,6 +297,24 @@ export const seoPrerender = async (req: Request, res: Response) => {
   ${pageSchema ? `<script type="application/ld+json" id="webpage-schema">${jsonLd(pageSchema)}</script>` : ""}
 </head>`;
     html = html.replace(/<\/head>/i, injectedMeta);
+
+    // Inject SEO body content so Google can validate the site name from visible H1
+    // Google requires the WebSite schema "name" to match visible page content
+    const seoBodyBlock = `
+  <header id="seo-header" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">
+    <h1>${escAttr(siteName)}</h1>
+    <p>${escAttr(description)}</p>
+    <nav>
+      <a href="${escAttr(baseCanonical)}/">Home</a>
+      <a href="${escAttr(baseCanonical)}/categories">Alle categorieën</a>
+      <a href="${escAttr(baseCanonical)}/category/deals">Aanbiedingen</a>
+      <a href="${escAttr(baseCanonical)}/category/bestsellers">Bestsellers</a>
+      <a href="${escAttr(baseCanonical)}/brands">Merken</a>
+      <a href="${escAttr(baseCanonical)}/blogs">Blog</a>
+      <a href="${escAttr(baseCanonical)}/faqs">FAQ</a>
+    </nav>
+  </header>`;
+    html = html.replace(/<div id="root"><\/div>/, `<div id="root"></div>${seoBodyBlock}`);
     
     if (isNotFound) {
       res.status(404);
