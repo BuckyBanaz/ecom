@@ -250,7 +250,7 @@ export const seoPrerender = async (req: Request, res: Response) => {
       "@type": ["Organization", "OnlineStore"],
       "@id": `${baseCanonical}/#organization`,
       name: siteName,
-      alternateName: ["Schipenster", "Schip en Ster"],
+      alternateName: ["Schip en Ster"],
       url: baseCanonical,
       description,
       logo: {
