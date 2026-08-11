@@ -99,7 +99,7 @@ const AdminCategories = () => {
     const formData = new FormData(e.currentTarget as HTMLFormElement);
     const name = formData.get("name") as string;
     const slug = formData.get("slug") as string;
-    const group = formData.get("group") as string;
+    const group = "Categories"; // Obsolete field, kept for Prisma compatibility
     const parentId = formData.get("parentId") as string;
     const sortOrder = parseInt(formData.get("sortOrder") as string, 10) || 0;
     const showInNavigation = formData.get("showInNavigation") === "on";
@@ -279,18 +279,7 @@ const AdminCategories = () => {
                     }}
                   />
                 </div>
-                <div>
-                  <Label>Column Name (Mega Menu Group)</Label>
-                  <Input
-                    name="group"
-                    defaultValue={editCat?.group || "Categories"}
-                    placeholder="e.g., Categories, Rooms, Styles, Featured"
-                    className="mt-1"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Leave as 'Categories' or empty for default column.
-                  </p>
-                </div>
+
                 <div>
                   <Label>Parent Category</Label>
                   <select
