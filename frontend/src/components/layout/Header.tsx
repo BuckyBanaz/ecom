@@ -19,9 +19,22 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { labelT } from "@/utils/i18nLabel";
 import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
 
-function getMenuLink(parentSlug: string, child: any) {
+function getMenuLink(parentSlug: string, child: any, allCategories: any[]) {
   if (child.isDynamic) {
-    return `/${parentSlug}/${child.slug}`;
+    // Find the real parent category slug from the database categories
+    const childCat = allCategories.find((c: any) => c.slug === child.slug);
+    let realParentSlug = "category";
+    
+    if (childCat?.parentId) {
+      const parentCat = allCategories.find((c: any) => c.id === childCat.parentId);
+      if (parentCat) {
+        realParentSlug = parentCat.slug;
+      }
+    } else if (childCat?.parent?.slug) {
+      realParentSlug = childCat.parent.slug;
+    }
+
+    return `/${realParentSlug}/${child.slug}`;
   }
   // Custom links: assume slug is a valid path/URL
   return child.slug.startsWith('/') || child.slug.startsWith('http') 
@@ -434,7 +447,7 @@ export function Header() {
                             {(section.items || []).map((child: any) => (
                               <li key={child.slug}>
                                 <Link
-                                  to={getMenuLink(parent.slug, child)}
+                                  to={getMenuLink(parent.slug, child, allCategories)}
                                   onClick={() => setActiveMenu(null)}
                                   className="text-sm transition-colors hover:text-primary hover:underline underline-offset-4 font-medium text-muted-foreground"
                                 >

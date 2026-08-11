@@ -210,12 +210,31 @@ const Category = () => {
 
   // Sync CMS Landing Pages details
   useEffect(() => {
-    const saved = localStorage.getItem("landing_pages_data");
-    if (saved) {
-      try {
-        const pages = JSON.parse(saved);
-        if (pages[slug]) {
-          setLandingPage(pages[slug]);
+    const fetchLandingPage = async () => {
+      let pages: any = null;
+      const saved = localStorage.getItem("landing_pages_data");
+      
+      if (saved) {
+        try {
+          pages = JSON.parse(saved);
+        } catch (e) {}
+      }
+
+      // If no pages or missing the specific slug, fetch from backend
+      if (!pages || (slug && !pages[slug])) {
+        try {
+          const res = await megaMenuRepository.getAll();
+          if (res.success && res.landingPages) {
+            pages = res.landingPages;
+            localStorage.setItem("landing_pages_data", JSON.stringify(pages));
+          }
+        } catch (e) {
+          console.warn("Failed to fetch landing pages", e);
+        }
+      }
+
+      if (pages && pages[slug]) {
+        setLandingPage(pages[slug]);
           
           // Apply SEO Metadata dynamically
           const pageData = pages[slug];
@@ -241,10 +260,12 @@ const Category = () => {
         } else {
           setLandingPage(null);
         }
-      } catch (e) {
+      } else {
         setLandingPage(null);
       }
-    }
+    };
+    
+    fetchLandingPage();
   }, [slug]);
 
   const resolvedSlug = slug;
