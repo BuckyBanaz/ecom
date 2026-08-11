@@ -56,6 +56,8 @@ export default function CMSMegaMenu() {
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
   const [sectionEditIndex, setSectionEditIndex] = useState<number | null>(null);
   const [sectionTitle, setSectionTitle] = useState("");
+  const [sectionType, setSectionType] = useState<"custom" | "dynamic">("custom");
+  const [sectionCategoryId, setSectionCategoryId] = useState("");
 
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [itemEditSectionIndex, setItemEditSectionIndex] = useState<number | null>(null);
@@ -368,13 +370,17 @@ export default function CMSMegaMenu() {
   };
 
   // --- Section CRUD ---
-  const openSectionDialog = (index: number | null = null) => {
-    if (index !== null) {
-      setSectionEditIndex(index);
-      setSectionTitle(menus[selectedMenuIndex].sections[index].title);
+  const openSectionDialog = (sIdx: number | null = null) => {
+    setSectionEditIndex(sIdx);
+    if (sIdx !== null && menus[selectedMenuIndex]) {
+      const section = menus[selectedMenuIndex].sections[sIdx] as any;
+      setSectionTitle(section.title);
+      setSectionType(section.type || "custom");
+      setSectionCategoryId(section.categoryId || "");
     } else {
-      setSectionEditIndex(null);
       setSectionTitle("");
+      setSectionType("custom");
+      setSectionCategoryId("");
     }
     setSectionDialogOpen(true);
   };
@@ -383,25 +389,29 @@ export default function CMSMegaMenu() {
     e.preventDefault();
     if (!sectionTitle.trim()) return;
 
-    const updated = [...menus];
-    const currentMenu = updated[selectedMenuIndex];
+    const updatedMenus = [...menus];
+    const targetMenu = updatedMenus[selectedMenuIndex];
+
+    const newSection: any = {
+      title: sectionTitle.trim(),
+      type: sectionType,
+      categoryId: sectionType === "dynamic" ? sectionCategoryId : undefined,
+      items: [], // Always start with empty items, or keep existing if custom
+    };
 
     if (sectionEditIndex !== null) {
-      currentMenu.sections[sectionEditIndex] = {
-        ...currentMenu.sections[sectionEditIndex],
-        title: sectionTitle,
-      };
-      toast.success("Section updated");
+      // Keep existing items if changing title but staying custom
+      if (sectionType === "custom" && targetMenu.sections[sectionEditIndex].type !== "dynamic") {
+         newSection.items = targetMenu.sections[sectionEditIndex].items;
+      }
+      targetMenu.sections[sectionEditIndex] = newSection;
     } else {
-      currentMenu.sections.push({
-        title: sectionTitle,
-        items: [],
-      });
-      toast.success("New section added");
+      targetMenu.sections.push(newSection);
     }
 
-    saveToLocalStorage(updated);
+    setMenus(updatedMenus);
     setSectionDialogOpen(false);
+    toast.success(sectionEditIndex !== null ? "Column updated" : "Column added");
   };
 
   const handleDeleteSection = (sectionIndex: number) => {
@@ -889,38 +899,45 @@ export default function CMSMegaMenu() {
                           </CardHeader>
                           <CardContent className="p-4 flex-1 flex flex-col justify-between">
                             {/* Items list */}
-                            <ul className="space-y-2 mb-4">
-                              {section.items.length === 0 ? (
-                                <li className="text-xs text-muted-foreground italic py-2 text-center">No links in this section</li>
-                              ) : (
-                                section.items.map((item, iIdx) => (
-                                  <li key={item.slug} className="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 text-xs transition-colors">
-                                    <div className="truncate pr-2">
-                                      <div className="font-semibold">{item.name}</div>
-                                      <div className="text-[9px] text-muted-foreground truncate">/category/{item.slug}</div>
-                                    </div>
-                                    {hasPermission("admin") && (
-                                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/section:opacity-100 transition-opacity">
-                                        <button onClick={() => moveItem(sIdx, iIdx, "up")} disabled={iIdx === 0} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
-                                          <ArrowUp className="h-3 w-3" />
-                                        </button>
-                                        <button onClick={() => moveItem(sIdx, iIdx, "down")} disabled={iIdx === section.items.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
-                                          <ArrowDown className="h-3 w-3" />
-                                        </button>
-                                        <button onClick={() => openItemDialog(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-primary">
-                                          <Pencil className="h-3 w-3" />
-                                        </button>
-                                        <button onClick={() => handleDeleteItem(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-destructive">
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
+                            {(section as any).type === "dynamic" ? (
+                              <div className="py-4 text-center text-xs text-primary bg-primary/5 rounded-md border border-primary/10 mb-4">
+                                Auto-populated from Category<br/>
+                                <strong>{categoriesList.find(c => c.id === (section as any).categoryId)?.name || "Unknown"}</strong>
+                              </div>
+                            ) : (
+                              <ul className="space-y-2 mb-4">
+                                {section.items.length === 0 ? (
+                                  <li className="text-xs text-muted-foreground italic py-2 text-center">No links in this section</li>
+                                ) : (
+                                  section.items.map((item, iIdx) => (
+                                    <li key={item.slug} className="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 text-xs transition-colors">
+                                      <div className="truncate pr-2">
+                                        <div className="font-semibold">{item.name}</div>
+                                        <div className="text-[9px] text-muted-foreground truncate">/category/{item.slug}</div>
                                       </div>
-                                    )}
-                                  </li>
-                                ))
-                              )}
-                            </ul>
+                                      {hasPermission("admin") && (
+                                        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/section:opacity-100 transition-opacity">
+                                          <button onClick={() => moveItem(sIdx, iIdx, "up")} disabled={iIdx === 0} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
+                                            <ArrowUp className="h-3 w-3" />
+                                          </button>
+                                          <button onClick={() => moveItem(sIdx, iIdx, "down")} disabled={iIdx === section.items.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
+                                            <ArrowDown className="h-3 w-3" />
+                                          </button>
+                                          <button onClick={() => openItemDialog(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-primary">
+                                            <Pencil className="h-3 w-3" />
+                                          </button>
+                                          <button onClick={() => handleDeleteItem(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-destructive">
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </li>
+                                  ))
+                                )}
+                              </ul>
+                            )}
 
-                            {hasPermission("admin") && (
+                            {hasPermission("admin") && (section as any).type !== "dynamic" && (
                               <Button size="sm" variant="outline" className="w-full text-xs h-8 gap-1.5" onClick={() => openItemDialog(sIdx)}>
                                 <ListPlus className="h-3.5 w-3.5" /> Add Link
                               </Button>
@@ -987,15 +1004,60 @@ export default function CMSMegaMenu() {
           </DialogHeader>
           <form onSubmit={handleSaveSection} className="space-y-4 pt-4">
             <div>
-              <Label>Section Title</Label>
+              <Label>Column Title</Label>
               <Input
                 value={sectionTitle}
                 onChange={(e) => setSectionTitle(e.target.value)}
-                placeholder="e.g. Hanglampen"
+                placeholder="e.g. Categories, Rooms, Styles"
                 required
               />
             </div>
-            <DialogFooter className="pt-2">
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div
+                className={`border rounded-lg p-4 cursor-pointer transition-colors ${sectionType === 'dynamic' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
+                onClick={() => setSectionType('dynamic')}
+              >
+                <div className="font-semibold flex items-center gap-2">
+                  <input type="radio" checked={sectionType === 'dynamic'} readOnly className="pointer-events-none" />
+                  Dynamic Category
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Auto-populate children of a specific category.
+                </p>
+              </div>
+              <div
+                className={`border rounded-lg p-4 cursor-pointer transition-colors ${sectionType === 'custom' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
+                onClick={() => setSectionType('custom')}
+              >
+                <div className="font-semibold flex items-center gap-2">
+                  <input type="radio" checked={sectionType === 'custom'} readOnly className="pointer-events-none" />
+                  Custom Links
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Manually add specific links and URLs.
+                </p>
+              </div>
+            </div>
+
+            {sectionType === 'dynamic' && (
+              <div className="animate-in fade-in slide-in-from-top-2">
+                <Label>Select Parent Category</Label>
+                <select
+                  value={sectionCategoryId}
+                  onChange={(e) => setSectionCategoryId(e.target.value)}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  required={sectionType === 'dynamic'}
+                >
+                  <option value="">Select a category...</option>
+                  {categoriesList.filter(c => !c.parentId).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => setSectionDialogOpen(false)}>Cancel</Button>
               <Button type="submit">{sectionEditIndex !== null ? "Save Changes" : "Add Column"}</Button>
             </DialogFooter>

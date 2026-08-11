@@ -5,6 +5,8 @@ export interface MegaMenuItem {
 
 export interface MegaMenuSection {
   title: string;
+  type?: 'custom' | 'dynamic';
+  categoryId?: string;
   items: MegaMenuItem[];
 }
 

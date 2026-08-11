@@ -67,25 +67,59 @@ export function Header() {
     return { success: res.success, data: res };
   });
 
-  // Generate navigation tree from categories
+  // Generate navigation tree from categories (fallback only)
   const tree = categoriesRes?.tree || [];
   const activeTree = tree.filter((c: any) => c.isActive !== false && c.showInNavigation !== false).sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  const navTree = activeTree.map((parent: any) => ({
-    ...parent,
-    children: (parent.children || []).filter((c: any) => c.isActive !== false && c.showInNavigation !== false).sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+  const navTreeFallback = activeTree.map((parent: any) => ({
+    name: parent.name,
+    slug: parent.slug,
+    sections: [
+      {
+        title: "Categories",
+        type: "custom",
+        items: (parent.children || []).filter((c: any) => c.isActive !== false && c.showInNavigation !== false).sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c: any) => ({
+          name: c.name,
+          slug: c.slug
+        }))
+      }
+    ]
   }));
 
-  const isSingleRoot = navTree.length === 1 && (!rawMegaMenu || rawMegaMenu.length === 0);
-  
-  const customLinks = (rawMegaMenu || []).map((m: any) => ({
-    name: m.menu,
-    slug: m.slug,
-    children: m.sections ? m.sections.flatMap((s: any) => s.items || []) : []
-  }));
-  const finalNavTree = [...navTree, ...customLinks];
-  const maxDesktopChildren = 6;
-  const visibleDesktopChildren = isSingleRoot && navTree[0] ? navTree[0].children.slice(0, maxDesktopChildren) : [];
-  const moreDesktopChildren = isSingleRoot && navTree[0] ? navTree[0].children.slice(maxDesktopChildren) : [];
+  // Build the Final Navigation Tree from the CMS Mega Menu
+  let finalNavTree: any[] = [];
+  if (rawMegaMenu && rawMegaMenu.length > 0) {
+    const allCategories = categoriesRes?.categories || [];
+    finalNavTree = rawMegaMenu.map((m: any) => {
+      const enhancedSections = (m.sections || []).map((section: any) => {
+        if (section.type === "dynamic" && section.categoryId) {
+          // Auto-populate from category
+          const childCategories = allCategories
+            .filter((c: any) => c.parentId === section.categoryId && c.isActive !== false && c.showInNavigation !== false)
+            .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+          return {
+            title: section.title,
+            type: "dynamic",
+            categoryId: section.categoryId,
+            items: childCategories.map((c: any) => ({
+              name: c.name,
+              slug: c.slug
+            }))
+          };
+        }
+        return section;
+      });
+
+      return {
+        name: m.menu,
+        slug: m.slug,
+        sections: enhancedSections
+      };
+    });
+  } else {
+    // Fallback if MegaMenu CMS is completely empty
+    finalNavTree = navTreeFallback;
+  }
+
 
   const topLeft = headerFooterData?.topLeft || [];
   const topRight = headerFooterData?.topRight || [];
@@ -245,68 +279,36 @@ export function Header() {
               <Logo />
             </div>
             <nav className="p-2">
-              {isSingleRoot && navTree[0] ? (
-                <div className="px-2 pb-4">
-                  <div className="mt-2">
-                    <ul className="space-y-1">
-                      <li>
-                        <Link
-                          to={`/${navTree[0].slug}`}
-                          onClick={() => setIsMobileMenuOpen(false)}
-                          className="block py-2 text-sm hover:text-primary transition-colors font-bold"
-                        >
-                          All {labelT(t, navTree[0].name, i18n.language)} &rarr;
-                        </Link>
-                      </li>
-                      {(navTree[0].children || []).map((child: any) => (
-                        <li key={child.slug}>
-                          <Link
-                            to={`/${navTree[0].slug}/${child.slug}`}
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="block py-2 text-sm hover:text-primary transition-colors font-semibold"
-                          >
-                            {labelT(t, child.name, i18n.language)} &rarr;
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ) : (
-                <div className="px-2 pb-4 space-y-6">
-                  {finalNavTree.map((parent: any) => (
-                    <div key={parent.slug} className="mb-2">
-                      <div className="mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              <div className="px-2 pb-4 space-y-6">
+                {finalNavTree.map((parent: any) => (
+                  <div key={parent.slug} className="mb-4 border-b border-border/50 pb-4 last:border-0 last:pb-0">
+                    <div className="mb-3 text-sm font-bold text-foreground uppercase tracking-wider">
+                      <Link to={`/${parent.slug}`} onClick={() => setIsMobileMenuOpen(false)}>
                         {labelT(t, parent.name, i18n.language)}
-                      </div>
-                      <div className="space-y-4">
-                        <ul className="space-y-1">
-                          <li>
-                            <Link
-                              to={`/${parent.slug}`}
-                              onClick={() => setIsMobileMenuOpen(false)}
-                              className="block py-2 text-sm hover:text-primary transition-colors font-bold"
-                            >
-                              All {labelT(t, parent.name, i18n.language)} &rarr;
-                            </Link>
-                          </li>
-                          {(parent.children || []).map((child: any) => (
-                            <li key={child.slug}>
+                      </Link>
+                    </div>
+                    <div className="space-y-4">
+                      {(parent.sections || []).map((section: any, sIdx: number) => (
+                        <div key={sIdx}>
+                          <h4 className="text-xs font-semibold text-muted-foreground mb-2">{section.title}</h4>
+                          <div className="flex flex-col space-y-2 pl-2">
+                            {(section.items || []).map((child: any) => (
                               <Link
+                                key={child.slug}
                                 to={`/${parent.slug}/${child.slug}`}
+                                className="text-sm text-foreground/80 font-medium transition-colors hover:text-primary"
                                 onClick={() => setIsMobileMenuOpen(false)}
-                                className="block py-1.5 text-sm hover:text-primary font-medium text-muted-foreground"
                               >
                                 {labelT(t, child.name, i18n.language)}
                               </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </nav>
           </SheetContent>
         </Sheet>
@@ -401,118 +403,50 @@ export function Header() {
       {/* Mega nav (Desktop) */}
       <nav className="hidden border-t lg:block relative z-50 bg-background" onMouseLeave={() => setActiveMenu(null)}>
         <div className="container-page flex items-center gap-4 py-0 flex-wrap">
-          {isSingleRoot && navTree[0] ? (
-            <>
+          {finalNavTree.map((parent: any) => (
+            <div
+              key={parent.slug}
+              className="group"
+              onMouseEnter={() => setActiveMenu(parent.slug)}
+            >
               <Link
-                to={`/${navTree[0].slug}`}
+                to={`/${parent.slug}`}
                 className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
               >
-                All {labelT(t, navTree[0].name, i18n.language)}
+                {labelT(t, parent.name, i18n.language)}
+                <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === parent.slug ? 'rotate-180' : ''}`} />
               </Link>
-              {visibleDesktopChildren.map((child: any) => (
-                <Link
-                  key={child.slug}
-                  to={`/${navTree[0].slug}/${child.slug}`}
-                  className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
-                >
-                  {labelT(t, child.name, i18n.language)}
-                </Link>
-              ))}
-              {moreDesktopChildren.length > 0 && (
-                <div
-                  className="group relative"
-                  onMouseEnter={() => setActiveMenu("more")}
-                >
-                  <button
-                    className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
-                  >
-                    More
-                    <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === "more" ? 'rotate-180' : ''}`} />
-                  </button>
-                  {activeMenu === "more" && (
-                    <div className="absolute left-0 top-full w-48 bg-background border rounded-b-xl shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 z-[60] py-2">
-                      {moreDesktopChildren.map((child: any) => (
-                        <Link
-                          key={child.slug}
-                          to={`/${navTree[0].slug}/${child.slug}`}
-                          onClick={() => setActiveMenu(null)}
-                          className="block px-4 py-2 text-sm transition-colors hover:text-primary hover:bg-muted font-medium text-muted-foreground"
-                        >
-                          {labelT(t, child.name, i18n.language)}
-                        </Link>
+              
+              {activeMenu === parent.slug && (
+                <div className="absolute left-0 top-full w-full bg-background border-b shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 z-[60]">
+                  <div className="container-page py-8">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                      {(parent.sections || []).map((section: any, sIdx: number) => (
+                        <div key={sIdx}>
+                          <h3 className="mb-4 text-base font-bold text-foreground capitalize">
+                            {section.title}
+                          </h3>
+                          <ul className="space-y-3">
+                            {(section.items || []).map((child: any) => (
+                              <li key={child.slug}>
+                                <Link
+                                  to={`/${parent.slug}/${child.slug}`}
+                                  onClick={() => setActiveMenu(null)}
+                                  className="text-sm transition-colors hover:text-primary hover:underline underline-offset-4 font-medium text-muted-foreground"
+                                >
+                                  {labelT(t, child.name, i18n.language)}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       ))}
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
-            </>
-          ) : (
-            finalNavTree.map((parent: any) => (
-              <div
-                key={parent.slug}
-                className="group"
-                onMouseEnter={() => setActiveMenu(parent.slug)}
-              >
-                <Link
-                  to={`/${parent.slug}`}
-                  className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
-                >
-                  {labelT(t, parent.name, i18n.language)}
-                  <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === parent.slug ? 'rotate-180' : ''}`} />
-                </Link>
-                
-                {activeMenu === parent.slug && (
-                  <div className="absolute left-0 top-full w-full bg-background border-b shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 z-[60]">
-                    <div className="container-page py-8">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                        {Object.entries(
-                          (parent.children || []).reduce((acc: any, child: any) => {
-                            let g = child.group && child.group.trim() !== "" ? child.group : "Categories";
-                            // Normalize legacy group names
-                            if (g.toLowerCase() === 'indoor' || g.toLowerCase() === 'interior-lighting' || g.toLowerCase() === 'outdoor') {
-                              g = "Categories";
-                            }
-                            if (!acc[g]) acc[g] = [];
-                            acc[g].push(child);
-                            return acc;
-                          }, {} as Record<string, any[]>)
-                        ).map(([groupName, items]: [string, any]) => (
-                          <div key={groupName}>
-                            <h3 className="mb-4 text-base font-bold text-foreground capitalize">
-                              {groupName}
-                            </h3>
-                            <ul className="space-y-3">
-                              {groupName === "Categories" && (
-                                <li>
-                                  <Link
-                                    to={`/${parent.slug}`}
-                                    onClick={() => setActiveMenu(null)}
-                                    className="text-sm transition-colors hover:text-primary hover:underline underline-offset-4 font-bold text-foreground"
-                                  >
-                                    All {labelT(t, parent.name, i18n.language)}
-                                  </Link>
-                                </li>
-                              )}
-                              {items.map((child: any) => (
-                                <li key={child.slug}>
-                                  <Link
-                                    to={`/${parent.slug}/${child.slug}`}
-                                    onClick={() => setActiveMenu(null)}
-                                    className="text-sm transition-colors hover:text-primary hover:underline underline-offset-4 font-medium text-muted-foreground"
-                                  >
-                                    {labelT(t, child.name, i18n.language)}
-                                  </Link>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
+            </div>
+          ))}
         </div>
       </nav>
     </header>

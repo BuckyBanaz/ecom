@@ -280,19 +280,16 @@ const AdminCategories = () => {
                   />
                 </div>
                 <div>
-                  <Label>{t("admin_categories.label_menu")}</Label>
-                  <select
+                  <Label>Column Name (Mega Menu Group)</Label>
+                  <Input
                     name="group"
-                    defaultValue={editCat?.group || (menus[0] ? menus[0].slug : "interior-lighting")}
-                    className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    required
-                  >
-                    {menus.map((m) => (
-                      <option key={m.slug} value={m.slug}>
-                        {m.menu}
-                      </option>
-                    ))}
-                  </select>
+                    defaultValue={editCat?.group || "Categories"}
+                    placeholder="e.g., Categories, Rooms, Styles, Featured"
+                    className="mt-1"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Leave as 'Categories' or empty for default column.
+                  </p>
                 </div>
                 <div>
                   <Label>Parent Category</Label>
