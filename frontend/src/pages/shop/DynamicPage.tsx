@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cmsPagesRepository } from "@/client/apiClient";
 import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { readCachedCmsPage, writeCachedCmsPage } from "@/utils/cmsLocalStorage";
+import Category from "./Category";
 
 const RESERVED_SLUGS = new Set([
   "admin", "api", "cart", "checkout", "account", "search", "categories", "category",
@@ -99,15 +100,18 @@ export default function DynamicPage() {
 
   if (isLoading && !page) {
     return (
-      <div className="container-page py-20 text-center text-muted-foreground animate-pulse">
-        Loading…
+      <div className="container-page py-16 animate-pulse">
+        <div className="h-8 bg-muted rounded w-1/3 mb-8"></div>
+        <div className="h-4 bg-muted rounded w-full mb-4"></div>
+        <div className="h-4 bg-muted rounded w-5/6 mb-4"></div>
+        <div className="h-4 bg-muted rounded w-4/5 mb-8"></div>
       </div>
     );
   }
 
   if (error || !page) {
-    navigate("/404", { replace: true });
-    return null;
+    // Fallback to Category page. Category page will handle 404 if category slug is also invalid.
+    return <Category />;
   }
 
   return (

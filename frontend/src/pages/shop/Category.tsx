@@ -32,17 +32,12 @@ import {
 
 
 
-const GROUP_CATEGORY_SLUGS = new Set([
-  "interior-lighting",
-  "outdoor-lighting",
-  "light-sources",
-  "commercial-lighting",
-  "all-lamps",
-]);
+
 
 const Category = () => {
   const { t } = useTranslation();
-  const { slug = "" } = useParams();
+  const { slug: legacySlug, parentSlug, childSlug } = useParams();
+  const slug = childSlug || legacySlug || parentSlug || "";
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const isRelief = location.pathname.startsWith("/relief");
@@ -182,7 +177,7 @@ const Category = () => {
         const filters: Record<string, string | number | boolean> = { limit: 120 };
         if (targetCategory === "bestsellers") {
           filters.isBestSelling = true;
-        } else if (targetCategory && targetCategory !== "deals" && !GROUP_CATEGORY_SLUGS.has(targetCategory)) {
+        } else if (targetCategory && targetCategory !== "deals") {
           filters.category = targetCategory;
         } else {
           filters.limit = 180;
@@ -581,7 +576,7 @@ const Category = () => {
       "breadcrumb-schema",
       buildBreadcrumbSchema([
         { name: "Home", url: "/" },
-        { name: "Categories", url: "/categories" },
+        ...(parentSlug && childSlug ? [{ name: categoriesList.find(c => c.slug === parentSlug)?.name || parentSlug, url: `/${parentSlug}` }] : []),
         { name: title, url: categoryUrl },
       ])
     );
@@ -666,7 +661,11 @@ const Category = () => {
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
         <Link to="/" className="hover:text-primary transition-colors">{t("breadcrumb.home")}</Link> /{" "}
-        {isRelief ? (
+        {parentSlug && childSlug ? (
+          <>
+            <Link to={`/${parentSlug}`} className="hover:text-primary transition-colors">{categoriesList.find(c => c.slug === parentSlug)?.name || parentSlug}</Link> /{" "}
+          </>
+        ) : isRelief ? (
           <>
             <Link to="/relief" className="hover:text-primary transition-colors">{t("breadcrumb.relief")}</Link> /{" "}
           </>

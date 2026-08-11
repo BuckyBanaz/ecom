@@ -10,6 +10,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { categoryRepository, megaMenuRepository } from "@/client/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
@@ -99,6 +100,10 @@ const AdminCategories = () => {
     const name = formData.get("name") as string;
     const slug = formData.get("slug") as string;
     const group = formData.get("group") as string;
+    const parentId = formData.get("parentId") as string;
+    const sortOrder = parseInt(formData.get("sortOrder") as string, 10) || 0;
+    const showInNavigation = formData.get("showInNavigation") === "on";
+    const isActive = formData.get("isActive") === "on";
     const image = imagePreview;
 
     if (!image || isMissingImage(image)) {
@@ -119,6 +124,10 @@ const AdminCategories = () => {
             slug,
             image,
             group,
+            parentId: parentId || null,
+            sortOrder,
+            showInNavigation,
+            isActive,
           });
         } else {
           data = await categoryRepository.create({
@@ -126,6 +135,10 @@ const AdminCategories = () => {
             slug,
             image,
             group,
+            parentId: parentId || null,
+            sortOrder,
+            showInNavigation,
+            isActive,
           });
         }
 
@@ -146,6 +159,10 @@ const AdminCategories = () => {
           slug,
           image,
           group,
+          parentId: parentId || null,
+          sortOrder,
+          showInNavigation,
+          isActive,
         });
         const newCat = data.category;
         const updated = [...categoriesList, newCat];
@@ -277,6 +294,33 @@ const AdminCategories = () => {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <Label>Parent Category</Label>
+                  <select
+                    name="parentId"
+                    defaultValue={(editCat as any)?.parentId || ""}
+                    className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">None (Top Level)</option>
+                    {categoriesList.filter((c) => (c as any).id !== (editCat as any)?.id).map((c) => (
+                      <option key={(c as any).id} value={(c as any).id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Sort Order</Label>
+                  <Input type="number" name="sortOrder" defaultValue={(editCat as any)?.sortOrder ?? 0} className="mt-1" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" name="showInNavigation" id="showInNavigation" defaultChecked={(editCat as any)?.showInNavigation ?? true} />
+                  <Label htmlFor="showInNavigation">Show in Navigation</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" name="isActive" id="isActive" defaultChecked={(editCat as any)?.isActive ?? true} />
+                  <Label htmlFor="isActive">Active</Label>
+                </div>
                 <div className="flex gap-2 justify-end">
                   <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditCat(null); }}>{t("admin_categories.cancel")}</Button>
                   <Button type="submit">{editCat ? t("admin_categories.update") : t("admin_categories.create")}</Button>
@@ -287,57 +331,126 @@ const AdminCategories = () => {
         )}
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {isLoading ? (
-          Array.from({ length: 6 }).map((_, idx) => (
-            <div key={idx} className="overflow-hidden rounded-xl border bg-card shadow-sm space-y-4 pb-4">
-              <Skeleton className="h-40 w-full rounded-t-xl rounded-b-none" />
-              <div className="px-4 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1.5 flex-1 pr-4">
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="h-3 w-40" />
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Skeleton className="h-8 w-8 rounded-lg" />
-                    <Skeleton className="h-8 w-8 rounded-lg" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          categoriesList.map((c) => {
-            const count = (c as any)._count?.products ?? 0;
-            const matchedMenu = menus.find((m) => m.slug === c.group);
-            const menuLabel = matchedMenu ? matchedMenu.menu : c.group;
+      <Tabs defaultValue="root" className="mt-6">
+        <TabsList className="mb-4">
+          <TabsTrigger value="root">Categories (Roots)</TabsTrigger>
+          <TabsTrigger value="sub">Sub Categories (Children)</TabsTrigger>
+        </TabsList>
 
-            return (
-              <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
-                <SafeImage src={c.image} alt={c.name} className="h-40 w-full object-cover" fallbackType="category" />
-                <div className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold">{c.name}</h3>
-                      <p className="text-xs text-muted-foreground">{t("admin_categories.card_meta", { count, menu: menuLabel })}</p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditCat(c); setDialogOpen(true); }}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {hasPermission("categories") && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDeleteDialog(c)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+        <TabsContent value="root">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, idx) => (
+                <div key={idx} className="overflow-hidden rounded-xl border bg-card shadow-sm space-y-4 pb-4">
+                  <Skeleton className="h-40 w-full rounded-t-xl rounded-b-none" />
+                  <div className="px-4 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1.5 flex-1 pr-4">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-40" />
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Skeleton className="h-8 w-8 rounded-lg" />
+                        <Skeleton className="h-8 w-8 rounded-lg" />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+              ))
+            ) : (
+              categoriesList
+                .filter((c: any) => !c.parentId)
+                .map((c) => {
+                  const count = (c as any)._count?.products ?? 0;
+                  const matchedMenu = menus.find((m) => m.slug === c.group);
+                  const menuLabel = matchedMenu ? matchedMenu.menu : c.group;
+
+                  return (
+                    <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                      <SafeImage src={c.image} alt={c.name} className="h-40 w-full object-cover" fallbackType="category" />
+                      <div className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-semibold">{c.name}</h3>
+                            <p className="text-xs text-muted-foreground">{t("admin_categories.card_meta", { count, menu: menuLabel })}</p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditCat(c); setDialogOpen(true); }}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {hasPermission("categories") && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDeleteDialog(c)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sub">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, idx) => (
+                <div key={idx} className="overflow-hidden rounded-xl border bg-card shadow-sm space-y-4 pb-4">
+                  <Skeleton className="h-40 w-full rounded-t-xl rounded-b-none" />
+                  <div className="px-4 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1.5 flex-1 pr-4">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-40" />
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Skeleton className="h-8 w-8 rounded-lg" />
+                        <Skeleton className="h-8 w-8 rounded-lg" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              categoriesList
+                .filter((c: any) => c.parentId)
+                .map((c) => {
+                  const count = (c as any)._count?.products ?? 0;
+                  const matchedMenu = menus.find((m) => m.slug === c.group);
+                  const menuLabel = matchedMenu ? matchedMenu.menu : c.group;
+                  const parentName = categoriesList.find(p => (p as any).id === (c as any).parentId)?.name || "Unknown Parent";
+
+                  return (
+                    <div key={c.slug} className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                      <SafeImage src={c.image} alt={c.name} className="h-40 w-full object-cover" fallbackType="category" />
+                      <div className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-semibold">{c.name}</h3>
+                            <p className="text-xs text-muted-foreground">{t("admin_categories.card_meta", { count, menu: menuLabel })}</p>
+                            <p className="text-xs font-medium text-primary mt-1">Parent: {parentName}</p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditCat(c); setDialogOpen(true); }}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {hasPermission("categories") && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDeleteDialog(c)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setReassignCategoryId(""); } }}>
         <DialogContent>

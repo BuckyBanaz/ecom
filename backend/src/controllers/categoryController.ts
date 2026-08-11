@@ -8,12 +8,14 @@ export const getCategories = async (_req: Request, res: Response, next: NextFunc
     const categories = await prisma.category.findMany({
       include: {
         parent: true,
-        children: true,
+        children: {
+          orderBy: { sortOrder: "asc" }
+        },
         _count: {
           select: { products: true }
         }
       },
-      orderBy: { name: "asc" },
+      orderBy: { sortOrder: "asc" },
     });
 
     // Structure category tree for convenience
@@ -56,7 +58,7 @@ export const getCategoryById = async (req: Request, res: Response, next: NextFun
 
 export const createCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, slug, image, group, parentId, seoTitle, seoDescription, seoKeywords } = req.body;
+    const { name, slug, image, group, parentId, seoTitle, seoDescription, seoKeywords, sortOrder, showInNavigation, isActive } = req.body;
 
     const category = await prisma.category.create({
       data: {
@@ -68,6 +70,9 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
         seoTitle: seoTitle ?? null,
         seoDescription: seoDescription ?? null,
         seoKeywords: seoKeywords ?? null,
+        sortOrder: sortOrder !== undefined ? Number(sortOrder) : 0,
+        showInNavigation: showInNavigation !== undefined ? Boolean(showInNavigation) : true,
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
       },
     });
 
@@ -81,7 +86,7 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
 export const updateCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, slug, image, group, parentId, seoTitle, seoDescription, seoKeywords } = req.body;
+    const { name, slug, image, group, parentId, seoTitle, seoDescription, seoKeywords, sortOrder, showInNavigation, isActive } = req.body;
 
     const category = await prisma.category.update({
       where: { id },
@@ -94,6 +99,9 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
         seoTitle,
         seoDescription,
         seoKeywords,
+        sortOrder: sortOrder !== undefined ? Number(sortOrder) : undefined,
+        showInNavigation: showInNavigation !== undefined ? Boolean(showInNavigation) : undefined,
+        isActive: isActive !== undefined ? Boolean(isActive) : undefined,
       },
     });
 

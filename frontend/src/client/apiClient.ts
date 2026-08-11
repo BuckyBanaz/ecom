@@ -183,7 +183,7 @@ export const productRepository = {
 // 2. Categories Repository
 export const categoryRepository = {
   getAll: async () => {
-    return request<any>(ENDPOINTS.CATEGORIES, { method: "GET", cacheTtl: CACHE.LONG });
+    return request<any>(ENDPOINTS.CATEGORIES, { method: "GET" });
   },
   
   create: async (data: any) => {
