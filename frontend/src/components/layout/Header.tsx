@@ -19,11 +19,14 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { labelT } from "@/utils/i18nLabel";
 import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
 
-/** Mega menu slugs may include query filters, e.g. `all-lamps?room=Living Room`. */
-function categoryItemPath(slug: string): string {
-  const q = slug.indexOf("?");
-  if (q === -1) return `/category/${slug}`;
-  return `/category/${slug.slice(0, q)}${slug.slice(q)}`;
+function getMenuLink(parentSlug: string, child: any) {
+  if (child.isDynamic) {
+    return `/${parentSlug}/${child.slug}`;
+  }
+  // Custom links: assume slug is a valid path/URL
+  return child.slug.startsWith('/') || child.slug.startsWith('http') 
+    ? child.slug 
+    : `/${child.slug}`;
 }
 
 function HeaderTopBarText({ text, icon }: { text: string; icon?: string }) {
@@ -102,7 +105,8 @@ export function Header() {
             categoryId: section.categoryId,
             items: childCategories.map((c: any) => ({
               name: c.name,
-              slug: c.slug
+              slug: c.slug,
+              isDynamic: true
             }))
           };
         }
@@ -290,12 +294,12 @@ export function Header() {
                     <div className="space-y-4">
                       {(parent.sections || []).map((section: any, sIdx: number) => (
                         <div key={sIdx}>
-                          <h4 className="text-xs font-semibold text-muted-foreground mb-2">{section.title}</h4>
+                          <h4 className="text-xs font-semibold text-muted-foreground mb-2">{labelT(t, section.title, i18n.language)}</h4>
                           <div className="flex flex-col space-y-2 pl-2">
                             {(section.items || []).map((child: any) => (
                               <Link
                                 key={child.slug}
-                                to={`/${parent.slug}/${child.slug}`}
+                                to={getMenuLink(parent.slug, child)}
                                 className="text-sm text-foreground/80 font-medium transition-colors hover:text-primary"
                                 onClick={() => setIsMobileMenuOpen(false)}
                               >
@@ -424,13 +428,13 @@ export function Header() {
                       {(parent.sections || []).map((section: any, sIdx: number) => (
                         <div key={sIdx}>
                           <h3 className="mb-4 text-base font-bold text-foreground capitalize">
-                            {section.title}
+                            {labelT(t, section.title, i18n.language)}
                           </h3>
                           <ul className="space-y-3">
                             {(section.items || []).map((child: any) => (
                               <li key={child.slug}>
                                 <Link
-                                  to={`/${parent.slug}/${child.slug}`}
+                                  to={getMenuLink(parent.slug, child)}
                                   onClick={() => setActiveMenu(null)}
                                   className="text-sm transition-colors hover:text-primary hover:underline underline-offset-4 font-medium text-muted-foreground"
                                 >
