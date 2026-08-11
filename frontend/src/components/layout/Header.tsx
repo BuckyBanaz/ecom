@@ -103,8 +103,9 @@ export function Header() {
 
   // Build the Final Navigation Tree from the CMS Mega Menu
   let finalNavTree: any[] = [];
+  const allCategories = categoriesRes?.categories || [];
+  
   if (rawMegaMenu && rawMegaMenu.length > 0) {
-    const allCategories = categoriesRes?.categories || [];
     finalNavTree = rawMegaMenu.map((m: any) => {
       const enhancedSections = (m.sections || []).map((section: any) => {
         if (section.type === "dynamic" && section.categoryId) {
@@ -312,7 +313,7 @@ export function Header() {
                             {(section.items || []).map((child: any) => (
                               <Link
                                 key={child.slug}
-                                to={getMenuLink(parent.slug, child)}
+                                to={getMenuLink(parent.slug, child, allCategories)}
                                 className="text-sm text-foreground/80 font-medium transition-colors hover:text-primary"
                                 onClick={() => setIsMobileMenuOpen(false)}
                               >

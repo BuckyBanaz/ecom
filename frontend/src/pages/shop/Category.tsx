@@ -257,9 +257,6 @@ const Category = () => {
             }
             metaKeywords.setAttribute('content', pageData.seoKeywords);
           }
-        } else {
-          setLandingPage(null);
-        }
       } else {
         setLandingPage(null);
       }
