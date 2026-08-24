@@ -10,9 +10,12 @@ import { parseOrderMetadata } from "@/utils/formatters";
 import { formatPrice } from "@/context/CartContext";
 import { printInvoice } from "@/utils/printInvoice";
 import { getInvoiceNumber, isInvoiceEligible } from "@/utils/invoice";
+import { useInvoiceVendor } from "@/hooks/useInvoiceVendor";
+import { InvoiceVendorBlock } from "@/components/invoice/InvoiceVendorBlock";
 
 export default function AdminInvoices() {
   const { t } = useTranslation();
+  const { vendor } = useInvoiceVendor();
   const [search, setSearch] = useState("");
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -120,12 +123,7 @@ export default function AdminInvoices() {
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("admin_invoices.vendor_label")}</h4>
-                  <p className="mt-1 font-semibold">Schip & Ster BV</p>
-                  <p>Keizersgracht 456, Amsterdam</p>
-                  <p>billing@schipandster.nl</p>
-                </div>
+                <InvoiceVendorBlock vendor={vendor} title={t("admin_invoices.vendor_label")} />
                 <div>
                   <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("admin_invoices.bill_to_label")}</h4>
                   <div className="mt-1 space-y-1">

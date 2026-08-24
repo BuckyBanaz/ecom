@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
+import Index from "./pages/Index.tsx";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,7 +15,7 @@ import { MaintenanceGuard } from "./components/MaintenanceGuard.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { PageLoader } from "./components/ui/PageLoader.tsx";
 
-const Index = lazy(() => import("./pages/Index.tsx"));
+
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const Category = lazy(() => import("./pages/shop/Category.tsx"));
 const AllCategories = lazy(() => import("./pages/shop/AllCategories.tsx"));
@@ -40,6 +41,8 @@ const AdminLayout = lazy(() => import("./components/admin/AdminLayout.tsx"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin.tsx"));
 const Dashboard = lazy(() => import("./pages/admin/Dashboard.tsx"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.tsx"));
+const AdminProductQuickAdd = lazy(() => import("./pages/admin/AdminProductQuickAdd.tsx"));
+const AdminProductDrafts = lazy(() => import("./pages/admin/AdminProductDrafts.tsx"));
 const AdminProductForm = lazy(() => import("./pages/admin/AdminProductForm.tsx"));
 const AdminReviews = lazy(() => import("./pages/admin/AdminReviews.tsx"));
 const AdminCategories = lazy(() => import("./pages/admin/AdminCategories.tsx"));
@@ -50,6 +53,8 @@ const AdminInTransit = lazy(() => import("./pages/admin/AdminInTransit.tsx"));
 const AdminReadyToShip = lazy(() => import("./pages/admin/AdminReadyToShip.tsx"));
 const AdminDelivered = lazy(() => import("./pages/admin/AdminDelivered.tsx"));
 const AdminReturns = lazy(() => import("./pages/admin/AdminReturns.tsx"));
+const AdminReplacements = lazy(() => import("./pages/admin/AdminReplacements.tsx"));
+const AdminPaymentRefunds = lazy(() => import("./pages/admin/AdminPaymentRefunds.tsx"));
 const AdminOrderDetails = lazy(() => import("./pages/admin/AdminOrderDetails.tsx"));
 const AdminLabels = lazy(() => import("./pages/admin/AdminLabels.tsx"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers.tsx"));
@@ -86,6 +91,11 @@ const queryClient = new QueryClient({
   },
 });
 
+function LegacyCategorieRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/category/${slug || ""}`} replace />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -103,11 +113,64 @@ function App() {
                     <MaintenanceGuard>
                       <Suspense fallback={<PageLoader />}>
                         <Routes>
+                          <Route path="/invoice" element={<InvoicePage />} />
+
+                          <Route path="/admin/login" element={<AdminLogin />} />
+                          <Route path="/admin" element={<AdminLayout />}>
+                            <Route index element={<Dashboard />} />
+                            <Route path="analytics" element={<AdminAnalytics />} />
+                            <Route path="products" element={<AdminProducts />} />
+                            <Route path="products/quick-add" element={<AdminProductQuickAdd />} />
+                            <Route path="ai-seo" element={<Navigate to="/admin/cms/seo" replace />} />
+                            <Route path="product-drafts" element={<AdminProductDrafts />} />
+                            <Route path="products/drafts/:draftId" element={<AdminProductForm />} />
+                            <Route path="products/new" element={<AdminProductForm />} />
+                            <Route path="products/:id/edit" element={<AdminProductForm />} />
+                            <Route path="products/:id/reviews" element={<AdminReviews />} />
+                            <Route path="categories" element={<AdminCategories />} />
+                            <Route path="brands" element={<AdminBrands />} />
+                            <Route path="attributes" element={<AdminAttributes />} />
+                            <Route path="orders" element={<AdminOrders />} />
+                            <Route path="orders/ready-to-ship" element={<AdminReadyToShip />} />
+                            <Route path="orders/in-transit" element={<AdminInTransit />} />
+                            <Route path="orders/delivered" element={<AdminDelivered />} />
+                            <Route path="orders/returns" element={<AdminReturns />} />
+                            <Route path="orders/replacements" element={<AdminReplacements />} />
+                            <Route path="orders/refunds" element={<AdminPaymentRefunds />} />
+                            <Route path="orders/labels" element={<AdminLabels />} />
+                            <Route path="orders/:id" element={<AdminOrderDetails />} />
+                            <Route path="offers" element={<AdminOffers />} />
+                            <Route path="charges" element={<AdminCharges />} />
+                            <Route path="testimonials" element={<AdminTestimonials />} />
+                            <Route path="cms" element={<Navigate to="/admin/cms/homepage" replace />} />
+                            <Route path="cms/homepage" element={<CMSHomepage />} />
+                            <Route path="cms/product-page" element={<CMSProductPage />} />
+                            <Route path="cms/megamenu" element={<CMSMegaMenu />} />
+                            <Route path="cms/header-footer" element={<CMSHeaderFooter />} />
+                            <Route path="cms/faqs" element={<CMSFaqs />} />
+                            <Route path="cms/relief" element={<CMSRelief />} />
+                            <Route path="cms/privacy-policy" element={<CMSLegal />} />
+                            <Route path="cms/terms-conditions" element={<CMSLegal />} />
+                            <Route path="cms/pages" element={<CMSPages />} />
+                            <Route path="cms/blogs" element={<CMSBlogs />} />
+                            <Route path="cms/seo" element={<CMSSeo />} />
+                            <Route path="cms/email-templates" element={<AdminEmailTemplates />} />
+                            <Route path="storage" element={<MediaLibrary />} />
+                            <Route path="users" element={<AdminUsers />} />
+                            <Route path="manage-users" element={<AdminManageUsers />} />
+                            <Route path="settings" element={<AdminSettings />} />
+                            <Route path="logs" element={<AdminLogs />} />
+                            <Route path="backups" element={<AdminBackups />} />
+                            <Route path="notifications" element={<AdminNotificationsPage />} />
+                          </Route>
+
                           <Route element={<SiteLayout />}>
                             <Route path="/" element={<Index />} />
                             <Route path="/relief" element={<Relief />} />
                             <Route path="/relief/category/:slug" element={<Category />} />
                             <Route path="/relief/:slug" element={<ReliefCategory />} />
+                            <Route path="/categorie" element={<Navigate to="/categories" replace />} />
+                            <Route path="/categorie/:slug" element={<LegacyCategorieRedirect />} />
                             <Route path="/categories" element={<AllCategories />} />
                             <Route path="/category" element={<Category />} />
                             <Route path="/category/:slug" element={<Category />} />
@@ -130,50 +193,6 @@ function App() {
                             <Route path="/404" element={<NotFound />} />
                             <Route path="/:slug" element={<DynamicPage />} />
                             <Route path="*" element={<NotFound />} />
-                          </Route>
-
-                          <Route path="/invoice" element={<InvoicePage />} />
-
-                          <Route path="/admin/login" element={<AdminLogin />} />
-                          <Route path="/admin" element={<AdminLayout />}>
-                            <Route index element={<Dashboard />} />
-                            <Route path="analytics" element={<AdminAnalytics />} />
-                            <Route path="products" element={<AdminProducts />} />
-                            <Route path="products/new" element={<AdminProductForm />} />
-                            <Route path="products/:id/edit" element={<AdminProductForm />} />
-                            <Route path="products/:id/reviews" element={<AdminReviews />} />
-                            <Route path="categories" element={<AdminCategories />} />
-                            <Route path="brands" element={<AdminBrands />} />
-                            <Route path="attributes" element={<AdminAttributes />} />
-                            <Route path="orders" element={<AdminOrders />} />
-                            <Route path="orders/ready-to-ship" element={<AdminReadyToShip />} />
-                            <Route path="orders/in-transit" element={<AdminInTransit />} />
-                            <Route path="orders/delivered" element={<AdminDelivered />} />
-                            <Route path="orders/returns" element={<AdminReturns />} />
-                            <Route path="orders/labels" element={<AdminLabels />} />
-                            <Route path="orders/:id" element={<AdminOrderDetails />} />
-                            <Route path="offers" element={<AdminOffers />} />
-                            <Route path="charges" element={<AdminCharges />} />
-                            <Route path="testimonials" element={<AdminTestimonials />} />
-                            <Route path="cms" element={<Navigate to="/admin/cms/homepage" replace />} />
-                            <Route path="cms/homepage" element={<CMSHomepage />} />
-                            <Route path="cms/product-page" element={<CMSProductPage />} />
-                            <Route path="cms/megamenu" element={<CMSMegaMenu />} />
-                            <Route path="cms/header-footer" element={<CMSHeaderFooter />} />
-                            <Route path="cms/faqs" element={<CMSFaqs />} />
-                            <Route path="cms/relief" element={<CMSRelief />} />
-                            <Route path="cms/:kind" element={<CMSLegal />} />
-                            <Route path="cms/pages" element={<CMSPages />} />
-                            <Route path="cms/blogs" element={<CMSBlogs />} />
-                            <Route path="cms/seo" element={<CMSSeo />} />
-                            <Route path="cms/email-templates" element={<AdminEmailTemplates />} />
-                            <Route path="storage" element={<MediaLibrary />} />
-                            <Route path="users" element={<AdminUsers />} />
-                            <Route path="manage-users" element={<AdminManageUsers />} />
-                            <Route path="settings" element={<AdminSettings />} />
-                            <Route path="logs" element={<AdminLogs />} />
-                            <Route path="backups" element={<AdminBackups />} />
-                            <Route path="notifications" element={<AdminNotificationsPage />} />
                           </Route>
                         </Routes>
                       </Suspense>

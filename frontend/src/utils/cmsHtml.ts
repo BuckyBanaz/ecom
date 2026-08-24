@@ -1,3 +1,5 @@
+import { decodeShortcodesInHtml } from "./shortcodeAttrs";
+
 /** Strip RichTextEditor UI chrome (.cms-block toolbars) before saving or previewing. */
 export function stripRichTextEditorArtifacts(html: string): string {
   if (!html?.trim()) return "";
@@ -26,7 +28,7 @@ export function stripRichTextEditorArtifacts(html: string): string {
     )
     .forEach((el) => el.remove());
 
-  return doc.body.innerHTML.trim();
+  return decodeShortcodesInHtml(doc.body.innerHTML.trim());
 }
 
 export function getCmsHtmlWrapperClass(_html?: string): string {
@@ -117,9 +119,7 @@ function wrapTextImageHeroGrid(doc: Document): void {
 
   const imgCol = doc.createElement("div");
   imgCol.className = "cms-auto-grid-media";
-  img.removeAttribute("width");
-  img.removeAttribute("height");
-  img.style.cssText = "width:100%;max-width:100%;height:auto;display:block;float:none;margin:0;object-fit:cover;border-radius:0.75rem;";
+  applyHeroImageLayout(img);
 
   if (wrapper && wrapper.parentElement) {
     imgCol.appendChild(img);
@@ -223,8 +223,16 @@ function wrapDivHeroGrid(doc: Document): void {
   topDiv.classList.add("cms-auto-grid");
   topDiv.append(textCol, imgCol);
 
-  img.style.cssText =
-    "width:100%;max-width:100%;height:auto;display:block;float:none;margin:0;object-fit:cover;border-radius:0.75rem;";
+  applyHeroImageLayout(img);
+}
+
+function applyHeroImageLayout(img: HTMLImageElement): void {
+  const w = img.getAttribute("width");
+  const h = img.getAttribute("height");
+  const aspectRatio = w && h ? `${w} / ${h}` : "4 / 3";
+  img.removeAttribute("width");
+  img.removeAttribute("height");
+  img.style.cssText = `width:100%;max-width:100%;height:auto;display:block;float:none;margin:0;object-fit:cover;border-radius:0.75rem;aspect-ratio:${aspectRatio};`;
 }
 
 export type ParsedCmsHtml = {

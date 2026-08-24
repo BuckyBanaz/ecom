@@ -39,7 +39,7 @@ export const getBlogById = async (req: Request, res: Response, next: NextFunctio
 
 export const createBlog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { title, slug, excerpt, body, cover, author, published } = req.body;
+    const { title, slug, excerpt, body, cover, author, published, seoTitle, seoDescription, seoKeywords } = req.body;
 
     if (!title) {
       res.status(400).json({ success: false, message: "Title is required" });
@@ -55,6 +55,9 @@ export const createBlog = async (req: Request, res: Response, next: NextFunction
         cover: cover ?? null,
         author: author || "",
         published: typeof published === "boolean" ? published : true,
+        seoTitle: seoTitle ?? null,
+        seoDescription: seoDescription ?? null,
+        seoKeywords: seoKeywords ?? null,
       },
     });
 
@@ -67,7 +70,7 @@ export const createBlog = async (req: Request, res: Response, next: NextFunction
 export const updateBlog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, slug, excerpt, body, cover, author, published } = req.body;
+    const { title, slug, excerpt, body, cover, author, published, seoTitle, seoDescription, seoKeywords } = req.body;
 
     const existing = await prisma.blog.findUnique({ where: { id } });
     if (!existing) {
@@ -85,6 +88,9 @@ export const updateBlog = async (req: Request, res: Response, next: NextFunction
         cover,
         author,
         published,
+        seoTitle,
+        seoDescription,
+        seoKeywords,
       },
     });
 

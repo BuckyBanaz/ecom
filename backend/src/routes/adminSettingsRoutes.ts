@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData, getGeneralSettings, updateGeneralSettings } from "../controllers/adminSettingsController";
+import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, getLlmsTxt, updateLlmsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData, getGeneralSettings, updateGeneralSettings, getAiSettings, updateAiSettings, getAiModels } from "../controllers/adminSettingsController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
 const router = Router();
@@ -261,6 +261,63 @@ router.put("/auth", updateAuthSettings);
 
 /**
  * @swagger
+ * /api/v1/admin/settings/ai:
+ *   get:
+ *     summary: Get AI configuration settings
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: AI configuration details
+ */
+router.get("/ai", getAiSettings);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/ai/models:
+ *   get:
+ *     summary: Get available AI models from Google
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of AI models
+ */
+router.get("/ai/models", getAiModels);
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/ai:
+ *   put:
+ *     summary: Update AI configuration settings
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               enabled:
+ *                 type: boolean
+ *               groqApiKey:
+ *                 type: string
+ *               systemPrompt:
+ *                 type: string
+ *               model:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Settings updated successfully
+ */
+router.put("/ai", updateAiSettings);
+
+/**
+ * @swagger
  * /api/v1/admin/settings/seo/config:
  *   get:
  *     summary: Get SEO and Analytics configuration
@@ -329,6 +386,9 @@ router.get("/seo/robots", getRobotsTxt);
  *         description: robots.txt updated successfully
  */
 router.put("/seo/robots", updateRobotsTxt);
+
+router.get("/seo/llms", getLlmsTxt);
+router.put("/seo/llms", updateLlmsTxt);
 
 /**
  * @swagger

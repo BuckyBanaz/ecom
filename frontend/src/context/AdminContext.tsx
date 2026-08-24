@@ -23,14 +23,15 @@ type AdminContextType = {
 
 const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
   superadmin: [
-    "dashboard", "products", "categories", "brands", "attributes", 
-    "orders", "offers", "charges", "reviews", "testimonials", 
-    "storage", "users", "manage_users", "cms", "email_templates", "settings"
+    "dashboard", "analytics", "products", "categories", "brands", "attributes",
+    "orders", "offers", "charges", "reviews", "testimonials",
+    "storage", "users", "manage_users", "cms", "email_templates", "ai",
+    "logs", "backups", "settings"
   ],
   admin: [
-    "dashboard", "products", "categories", "brands", "attributes", 
-    "orders", "offers", "charges", "reviews", "testimonials", 
-    "storage", "users", "email_templates"
+    "dashboard", "analytics", "products", "categories", "brands", "attributes",
+    "orders", "offers", "charges", "reviews", "testimonials",
+    "storage", "users", "email_templates", "ai"
   ],
   moderator: [
     "dashboard", "products", "orders", "reviews", "testimonials"

@@ -13,6 +13,8 @@ import { navGroups } from "@/data/categories";
 import { useDebounce } from "@/hooks/use-debounce";
 import { productRepository, megaMenuRepository, cmsHeaderFooterRepository } from "@/client/apiClient";
 import { useCmsData } from "@/hooks/useCmsData";
+import { useCmsLabel } from "@/hooks/useCmsLabel";
+import { DefaultAnnouncementBar } from "./TopBar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { labelT } from "@/utils/i18nLabel";
 import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
@@ -22,6 +24,25 @@ function categoryItemPath(slug: string): string {
   const q = slug.indexOf("?");
   if (q === -1) return `/category/${slug}`;
   return `/category/${slug.slice(0, q)}${slug.slice(q)}`;
+}
+
+function HeaderTopBarText({ text, icon }: { text: string; icon?: string }) {
+  const label = useCmsLabel(text);
+  return (
+    <span className="flex items-center gap-2 font-medium text-muted-foreground">
+      {icon && <FaIcon name={icon} className="h-4 w-4 text-primary" />}
+      {label}
+    </span>
+  );
+}
+
+function HeaderTopBarLink({ label, href, className }: { label: string; href: string; className?: string }) {
+  const text = useCmsLabel(label);
+  return (
+    <Link to={href} className={className ?? "hover:text-primary font-medium"}>
+      {text}
+    </Link>
+  );
 }
 
 export function Header() {
@@ -40,11 +61,13 @@ export function Header() {
   const [expandedMobileMenu, setExpandedMobileMenu] = useState<string | null>(null);
 
   const { data: rawMegaMenu } = useCmsData("mega_menu_data", fetchMegaMenusCmsPayload);
-  const { data: headerFooterData } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
+  const { data: headerFooterData, loading: headerFooterLoading } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
 
   const menuList = extractMegaMenus(rawMegaMenu);
   const topLeft = headerFooterData?.topLeft || [];
   const topRight = headerFooterData?.topRight || [];
+  const hasCmsAnnouncement = topLeft.length > 0 || topRight.length > 0;
+  const showDefaultAnnouncement = !headerFooterLoading && !hasCmsAnnouncement;
 
   useEffect(() => {
     if (!debouncedQ.trim()) {
@@ -142,50 +165,49 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 w-full min-w-0 border-b bg-background/95 backdrop-blur notranslate" translate="no">
-      {topLeft.length > 0 || topRight.length > 0 ? (
-        <div className="w-full overflow-hidden border-b bg-muted/30">
-          <div className="container-page min-w-0 py-2 text-xs">
-            {/* Desktop Layout */}
-            <div className="hidden md:flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-4">
-                {topLeft.map((item, idx) => (
-                    <span key={`desk-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground">
-                      {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
-                      {labelT(t, item.text, i18n.language)}
-                    </span>
+      <div className="w-full overflow-hidden border-b bg-muted/30 min-h-9">
+        <div className="container-page min-w-0 py-2 text-xs">
+          {hasCmsAnnouncement ? (
+            <>
+              <div className="hidden md:flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  {topLeft.map((item, idx) => (
+                    <HeaderTopBarText key={`desk-l-${item.text}-${idx}`} text={item.text} icon={item.icon} />
                   ))}
+                </div>
+                <div className="flex items-center gap-4 text-muted-foreground">
+                  {topRight.map((link, idx) => (
+                    <HeaderTopBarLink key={`desk-r-${link.label}-${idx}`} label={link.label} href={link.href} />
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-4 text-muted-foreground">
-                {topRight.map((link, idx) => (
-                  <Link key={`desk-r-${link.label}-${idx}`} to={link.href} className="hover:text-primary font-medium">
-                    {labelT(t, link.label, i18n.language)}
-                  </Link>
-                ))}
-              </div>
-            </div>
 
-            {/* Mobile Layout (Marquee) */}
-            <div className="md:hidden w-full min-w-0 overflow-hidden">
-              <div className="flex w-max animate-marquee items-center gap-6 pr-6">
-                {[...topLeft, ...topRight, ...topLeft, ...topRight].map((item: any, idx) => {
-                  const isLink = item.href !== undefined;
+              <div className="md:hidden w-full min-w-0 overflow-hidden">
+                <div className="flex w-max animate-marquee items-center gap-6 pr-6">
+                  {[...topLeft, ...topRight, ...topLeft, ...topRight].map((item: any, idx) => {
+                    const isLink = item.href !== undefined;
 
-                  return isLink ? (
-                    <Link key={`mob-r-${item.label}-${idx}`} to={item.href} className="hover:text-primary font-medium whitespace-nowrap">
-                      {labelT(t, item.label, i18n.language)}
-                    </Link>
-                  ) : (
-                    <span key={`mob-l-${item.text}-${idx}`} className="flex items-center gap-2 font-medium text-muted-foreground whitespace-nowrap">
-                      {item.icon && <FaIcon name={item.icon} className="h-4 w-4 text-primary" />}
-                      {labelT(t, item.text, i18n.language)}
-                    </span>
-                  );
-                })}
+                    return isLink ? (
+                      <HeaderTopBarLink
+                        key={`mob-r-${item.label}-${idx}`}
+                        label={item.label}
+                        href={item.href}
+                        className="hover:text-primary font-medium whitespace-nowrap"
+                      />
+                    ) : (
+                      <span key={`mob-l-${item.text}-${idx}`} className="whitespace-nowrap">
+                        <HeaderTopBarText text={item.text} icon={item.icon} />
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          ) : showDefaultAnnouncement ? (
+            <DefaultAnnouncementBar />
+          ) : null}
         </div>
-      ) : null}
+      </div>
       <div className="container-page flex min-w-0 items-center gap-2 py-3 sm:gap-3 md:gap-6 md:py-4">
         <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <SheetTrigger asChild>

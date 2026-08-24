@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { BlogCard } from "@/components/shop/BlogCard";
 import { categories } from "@/data/categories";
-import { dealProducts, featuredProducts } from "@/data/products";
-import { initialBlogs } from "@/data/blogs";
 import { StarRating } from "@/components/shop/StarRating";
 import { FaIcon } from "@/components/ui/FaIcon";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
@@ -17,8 +15,76 @@ import { productRepository, categoryRepository, blogRepository, brandRepository,
 import { SafeImage } from "@/components/ui/SafeImage";
 import { labelT } from "@/utils/i18nLabel";
 import { CmsHtmlContent } from "@/components/cms/CmsHtmlContent";
+import { CmsLabel } from "@/components/cms/CmsLabel";
+import { useCmsLabel } from "@/hooks/useCmsLabel";
+import { decodeShortcodeAttribute } from "@/utils/shortcodeAttrs";
 import { extractMegaMenus, readMegaMenusFromStorage } from "@/utils/megaMenu";
+import { detectShortcodeBlocks } from "@/utils/cmsLocalStorage";
 import type { MegaMenu } from "@/data/megaMenu";
+
+type HeroBannerSlideData = {
+  title?: string;
+  subtitle?: string;
+  bgImage?: string;
+  btnText?: string;
+  btnLink?: string;
+  titleColor?: string;
+  subtitleColor?: string;
+  overlayOpacity: number;
+  borderRadius: number;
+};
+
+function HeroBannerSlide({ slide, sIndex }: { slide: HeroBannerSlideData; sIndex: number }) {
+  const { t } = useTranslation();
+  const titleAlt = useCmsLabel(slide.title);
+  const radius = slide.borderRadius ?? 12;
+  const overlay = (slide.overlayOpacity ?? 40) / 100;
+
+  return (
+    <CarouselItem className="pl-2 md:pl-4">
+      <div className="relative h-full overflow-hidden" style={{ borderRadius: radius }}>
+        <SafeImage
+          src={slide.bgImage}
+          alt={titleAlt || t("shortcode.hero_banner", { defaultValue: "Hero banner" })}
+          priority={sIndex === 0}
+          responsiveWidths={sIndex === 0 ? [640, 960, 1200] : [640, 960]}
+          sizes="100vw"
+          width={1200}
+          height={440}
+          className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]"
+          style={{ borderRadius: radius }}
+          fallbackType="category"
+        />
+        <div className="absolute inset-0 bg-black" style={{ opacity: overlay, borderRadius: radius }} />
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-4 py-6 text-center text-white sm:px-6">
+          {slide.title && (
+            <CmsLabel
+              as="h1"
+              text={slide.title}
+              className={`max-w-full break-words text-3xl font-black drop-shadow-sm sm:text-4xl md:text-6xl lg:text-7xl ${slide.titleColor ? "" : "text-primary"}`}
+              style={{ fontFamily: "Inter", ...(slide.titleColor ? { color: slide.titleColor } : {}) }}
+            />
+          )}
+          {slide.subtitle && (
+            <CmsLabel
+              as="p"
+              text={slide.subtitle}
+              className={`mt-2 max-w-full break-words text-base font-medium sm:text-lg md:text-2xl ${slide.subtitleColor ? "" : "text-white"}`}
+              style={slide.subtitleColor ? { color: slide.subtitleColor } : undefined}
+            />
+          )}
+          {slide.btnText && slide.btnLink && (
+            <Button asChild size="lg" className="mt-6 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
+              <Link to={slide.btnLink}>
+                <CmsLabel text={slide.btnText} />
+              </Link>
+            </Button>
+          )}
+        </div>
+      </div>
+    </CarouselItem>
+  );
+}
 
 interface ShortcodeRendererProps {
   content: string;
@@ -34,8 +100,21 @@ interface ShortcodeRendererProps {
 export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRendererProps) {
   const { t, i18n } = useTranslation();
   const L = (text: string | undefined | null) => labelT(t, text, i18n.language);
+
+  const requiredBlocks = useMemo(() => detectShortcodeBlocks(content), [content]);
+  const needsProducts = requiredBlocks.has("product-block");
+  const needsCategories =
+    requiredBlocks.has("category-block") || requiredBlocks.has("menu-category");
+  const needsBlogs = requiredBlocks.has("blogs-block");
+  const needsBrands = requiredBlocks.has("brands-block");
+  const needsTestimonials = requiredBlocks.has("reviews-block");
+  const needsMegaMenu = requiredBlocks.has("menu-category");
+
   const [loading, setLoading] = useState(
-    !prefetchedData || !prefetchedData.products || !prefetchedData.categories
+    () =>
+      (needsProducts && !prefetchedData?.products) ||
+      (needsCategories && !prefetchedData?.categories) ||
+      (needsBlogs && !prefetchedData?.blogs),
   );
   const [dbProducts, setDbProducts] = useState<any[]>(prefetchedData?.products || []);
   const [dbCategories, setDbCategories] = useState<any[]>(prefetchedData?.categories || []);
@@ -44,8 +123,8 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
   const [dbMegaMenus, setDbMegaMenus] = useState<MegaMenu[]>(prefetchedData?.megaMenus || readMegaMenusFromStorage());
   const [dbTestimonials, setDbTestimonials] = useState<any[]>([]);
 
-  // Load testimonials from backend
   useEffect(() => {
+    if (!needsTestimonials) return;
     let active = true;
     cmsTestimonialsRepository.get().then(res => {
       if (active && res.success && res.data) {
@@ -66,57 +145,91 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
       }
     });
     return () => { active = false; };
-  }, []);
+  }, [needsTestimonials]);
 
   useEffect(() => {
     let active = true;
 
-    if (prefetchedData && prefetchedData.products && prefetchedData.categories) {
-      setDbProducts(prefetchedData.products);
-      setDbCategories(prefetchedData.categories);
-      if (prefetchedData.blogs) setDbBlogs(prefetchedData.blogs);
-      
-      if (prefetchedData.brands) {
-        setDbBrands(prefetchedData.brands);
-      } else {
+    if (requiredBlocks.size === 0) {
+      setLoading(false);
+      return () => { active = false; };
+    }
+
+    const applyPrefetched = () => {
+      if (prefetchedData?.products) setDbProducts(prefetchedData.products);
+      if (prefetchedData?.categories) setDbCategories(prefetchedData.categories);
+      if (prefetchedData?.blogs) setDbBlogs(prefetchedData.blogs);
+      if (prefetchedData?.brands) setDbBrands(prefetchedData.brands);
+      if (prefetchedData?.megaMenus) setDbMegaMenus(prefetchedData.megaMenus);
+    };
+
+    const hasPrefetchedCore =
+      (!needsProducts || !!prefetchedData?.products) &&
+      (!needsCategories || !!prefetchedData?.categories) &&
+      (!needsBlogs || !!prefetchedData?.blogs);
+
+    if (hasPrefetchedCore) {
+      applyPrefetched();
+      if (needsBrands && !prefetchedData?.brands) {
         brandRepository.getAll().then(res => {
           if (active && res.success && res.brands) setDbBrands(res.brands);
         }).catch(err => console.warn("Failed to fetch brands", err));
       }
-
-      if (prefetchedData.megaMenus) {
-        setDbMegaMenus(prefetchedData.megaMenus);
-      } else {
+      if (needsMegaMenu && !prefetchedData?.megaMenus) {
         megaMenuRepository.getAll().then(res => {
           if (active && res.success && res.menus) setDbMegaMenus(res.menus);
         }).catch(() => {
           if (active) setDbMegaMenus(readMegaMenusFromStorage());
         });
       }
-      
       setLoading(false);
       return () => { active = false; };
     }
 
     const fetchRealData = async () => {
       try {
-        const [prodRes, catRes, blogRes, brandRes, menuRes] = await Promise.all([
-          productRepository.getAll({ limit: 40 }),
-          categoryRepository.getAll(),
-          blogRepository.getAll({ published: true }).catch(() => ({ success: false })),
-          brandRepository.getAll().catch(() => ({ success: false })),
-          megaMenuRepository.getAll().catch(() => ({ success: false })),
-        ]);
-        if (!active) return;
-        if (prodRes.success && prodRes.products) setDbProducts(prodRes.products);
-        if (catRes.success && catRes.categories) setDbCategories(catRes.categories);
-        if (blogRes.success && blogRes.blogs) setDbBlogs(blogRes.blogs);
-        if (brandRes.success && brandRes.brands) setDbBrands(brandRes.brands);
-        if (menuRes.success && menuRes.menus) {
-          setDbMegaMenus(menuRes.menus);
-        } else {
-          setDbMegaMenus(readMegaMenusFromStorage());
+        const tasks: Promise<any>[] = [];
+        const taskKeys: string[] = [];
+        if (needsProducts) {
+          tasks.push(productRepository.getAll({ limit: 40 }));
+          taskKeys.push("products");
         }
+        if (needsCategories) {
+          tasks.push(categoryRepository.getAll());
+          taskKeys.push("categories");
+        }
+        if (needsBlogs) {
+          tasks.push(blogRepository.getAll({ published: true }).catch(() => ({ success: false })));
+          taskKeys.push("blogs");
+        }
+        if (needsBrands) {
+          tasks.push(brandRepository.getAll().catch(() => ({ success: false })));
+          taskKeys.push("brands");
+        }
+        if (needsMegaMenu) {
+          tasks.push(megaMenuRepository.getAll().catch(() => ({ success: false })));
+          taskKeys.push("menus");
+        }
+
+        if (tasks.length === 0) {
+          setLoading(false);
+          return;
+        }
+
+        const results = await Promise.all(tasks);
+        if (!active) return;
+
+        results.forEach((res, idx) => {
+          const key = taskKeys[idx];
+          if (key === "products" && res.success && res.products) setDbProducts(res.products);
+          if (key === "categories" && res.success && res.categories) setDbCategories(res.categories);
+          if (key === "blogs" && res.success && res.blogs) setDbBlogs(res.blogs);
+          if (key === "brands" && res.success && res.brands) setDbBrands(res.brands);
+          if (key === "menus") {
+            if (res.success && res.menus) setDbMegaMenus(res.menus);
+            else setDbMegaMenus(readMegaMenusFromStorage());
+          }
+        });
       } catch (err) {
         console.warn("Failed to load real data for Shortcodes:", err);
       } finally {
@@ -125,7 +238,16 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
     };
     fetchRealData();
     return () => { active = false; };
-  }, [prefetchedData]);
+  }, [
+    content,
+    requiredBlocks,
+    needsProducts,
+    needsCategories,
+    needsBlogs,
+    needsBrands,
+    needsMegaMenu,
+    prefetchedData,
+  ]);
 
   const parts = useMemo(() => {
     if (!content) return [];
@@ -197,7 +319,7 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
       const attrRegex = /([a-zA-Z0-9_]+)="([^"]*)"/g;
       let attrMatch;
       while ((attrMatch = attrRegex.exec(attrStr)) !== null) {
-        attributes[attrMatch[1]] = attrMatch[2];
+        attributes[attrMatch[1]] = decodeShortcodeAttribute(attrMatch[2]);
       }
       
       partsArray.push({ type: 'shortcode', blockType: type, attributes });
@@ -238,19 +360,25 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
                 <div className="relative overflow-hidden rounded-3xl bg-muted p-8 md:p-12 border shadow-xs">
                   <div className="relative z-10 max-w-4xl flex flex-col gap-4">
                     {attributes.title && (
-                      <h1 className="text-3xl font-extrabold md:text-5xl tracking-tight text-foreground">
-                        {L(attributes.title)}
-                      </h1>
+                      <CmsLabel
+                        as="h1"
+                        text={attributes.title}
+                        className="text-3xl font-extrabold md:text-5xl tracking-tight text-foreground"
+                      />
                     )}
                     {attributes.subtitle && (
-                      <p className="text-2xl font-bold text-foreground/90">
-                        {L(attributes.subtitle)}
-                      </p>
+                      <CmsLabel
+                        as="p"
+                        text={attributes.subtitle}
+                        className="text-2xl font-bold text-foreground/90"
+                      />
                     )}
                     {attributes.description && (
-                      <p className="text-lg text-foreground/80 max-w-2xl">
-                        {L(attributes.description)}
-                      </p>
+                      <CmsLabel
+                        as="p"
+                        text={attributes.description}
+                        className="text-lg text-foreground/80 max-w-2xl"
+                      />
                     )}
                   </div>
                   <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-primary/10 to-transparent pointer-events-none" />
@@ -333,42 +461,27 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             const slides = [];
             for (let i = 1; i <= count; i++) {
               slides.push({
-                title: attributes[`title_${i}`] || attributes.title, // fallback for old shortcodes
+                title: attributes[`title_${i}`] || attributes.title,
                 subtitle: attributes[`subtitle_${i}`] || attributes.subtitle,
                 bgImage: attributes[`background_image_${i}`] || attributes.background_image,
                 btnText: attributes[`primary_button_text_${i}`] || attributes.primary_button_text,
                 btnLink: attributes[`primary_button_link_${i}`] || attributes.primary_button_link,
+                titleColor: attributes[`title_color_${i}`] || "",
+                subtitleColor: attributes[`subtitle_color_${i}`] || "",
+                overlayOpacity: parseInt(attributes[`overlay_opacity_${i}`] || "40", 10),
+                borderRadius: parseInt(attributes[`border_radius_${i}`] || "12", 10),
               });
             }
             return (
               <section key={index} className="container-page min-w-0 pt-4 pb-2 md:pt-6">
-                <Carousel 
-                  opts={{ loop: true }} 
+                <Carousel
+                  opts={{ loop: true }}
                   className="w-full overflow-hidden"
+                  aria-label="Hero banners"
                 >
                   <CarouselContent className="-ml-2 md:-ml-4">
                     {slides.map((slide, sIndex) => (
-                      <CarouselItem key={sIndex} className="pl-2 md:pl-4">
-                        <div className="relative h-full overflow-hidden rounded-xl">
-                          <SafeImage src={slide.bgImage} alt="Hero" className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]" fallbackType="category" />
-                          <div className="absolute inset-0 bg-black/40" />
-                          <div className="absolute inset-0 flex flex-col items-center justify-center px-4 py-6 text-center text-white sm:px-6">
-                            {slide.title && (
-                              <h1 className="max-w-full break-words text-3xl font-black text-primary drop-shadow-sm sm:text-4xl md:text-6xl lg:text-7xl" style={{ fontFamily: "Inter" }}>
-                                {L(slide.title)}
-                              </h1>
-                            )}
-                            {slide.subtitle && (
-                              <p className="mt-2 max-w-full break-words text-base font-medium text-white sm:text-lg md:text-2xl">{L(slide.subtitle)}</p>
-                            )}
-                            {slide.btnText && slide.btnLink && (
-                              <Button asChild size="lg" className="mt-6 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
-                                <Link to={slide.btnLink}>{L(slide.btnText)}</Link>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CarouselItem>
+                      <HeroBannerSlide key={sIndex} slide={slide} sIndex={sIndex} />
                     ))}
                   </CarouselContent>
                   {slides.length > 1 && (
@@ -472,9 +585,9 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
             }
             return (
               <section key={index} className="container-page">
-                <div className="grid grid-cols-2 gap-4 rounded-2xl bg-muted p-6 md:grid-cols-4">
+                <div className="flex flex-wrap items-start justify-center gap-x-10 gap-y-5 rounded-2xl bg-muted p-6 md:gap-x-14 md:p-8">
                   {feats.map((f, i) => (
-                      <div key={i} className="flex items-start gap-3">
+                      <div key={i} className="flex w-full max-w-[280px] items-start gap-3 sm:w-auto sm:min-w-[200px]">
                         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                           <FaIcon name={f.icon || "star"} className="h-4 w-4" />
                         </span>

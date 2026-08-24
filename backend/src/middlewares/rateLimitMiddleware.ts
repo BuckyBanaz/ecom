@@ -9,6 +9,8 @@ const limitMessage = {
 };
 
 const createStore = (prefix: string) => {
+  // In-memory store in dev — Redis rate-limit store can hang requests on Windows/Docker
+  if (env.NODE_ENV === "development") return undefined;
   if (env.ENABLE_REDIS !== "true" || !redis) return undefined;
 
   return new RedisStore({
@@ -32,6 +34,9 @@ export const globalLimiter = buildLimiter("global", {
   max: 2000,
   skip: (req) =>
     req.path === "/health" ||
+    req.path === "/robots.txt" ||
+    req.path === "/sitemap.xml" ||
+    req.path === "/llms.txt" ||
     req.path === "/api/v1/payments/webhook" ||
     req.originalUrl.startsWith("/uploads/"),
 });

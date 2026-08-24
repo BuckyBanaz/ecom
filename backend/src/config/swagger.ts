@@ -3,6 +3,7 @@ import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import { Express } from "express";
 import { env } from "./env";
+import { isApiDocsEnabled } from "../utils/generalSettings";
 
 const isProduction = env.NODE_ENV === "production";
 const routesGlob = path.join(__dirname, "..", "routes", isProduction ? "*.js" : "*.ts");
@@ -66,15 +67,27 @@ const swaggerSpec = swaggerJSDoc(options);
  * Connects Swagger documentation routes to the Express Application instance
  */
 export const setupSwagger = (app: Express): void => {
+  const gate = (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+    if (!isApiDocsEnabled()) {
+      res.status(404).type("text/plain").send("API documentation is disabled.");
+      return;
+    }
+    next();
+  };
+
   // Serve Swagger Interactive Dashboard UI
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use("/api-docs", gate, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   // Serve raw Swagger specification JSON endpoint
-  app.get("/api-docs.json", (_req, res) => {
+  app.get("/api-docs.json", gate, (_req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerSpec);
   });
 
-  console.log(`📑 Swagger Documentation active at http://localhost:${env.PORT}/api-docs`);
+  console.log(
+    isApiDocsEnabled()
+      ? `📑 Swagger Documentation active at http://localhost:${env.PORT}/api-docs`
+      : "📑 Swagger Documentation disabled (set API_DOCS_ENABLED=true to enable)",
+  );
 };
 export default setupSwagger;

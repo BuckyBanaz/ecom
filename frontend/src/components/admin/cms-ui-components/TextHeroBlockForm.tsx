@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { encodeShortcodeAttribute } from "@/utils/shortcodeAttrs";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,9 +40,9 @@ export function TextHeroBlockForm({
   }, [initialDescription]);
 
   const handleInsert = () => {
-    let shortcode = `[text-hero title="${title.replace(/"/g, '&quot;')}"`;
-    if (subtitle) shortcode += ` subtitle="${subtitle.replace(/"/g, '&quot;')}"`;
-    if (description) shortcode += ` description="${description.replace(/"/g, '&quot;')}"`;
+    let shortcode = `[text-hero title="${encodeShortcodeAttribute(title)}"`;
+    if (subtitle) shortcode += ` subtitle="${encodeShortcodeAttribute(subtitle)}"`;
+    if (description) shortcode += ` description="${encodeShortcodeAttribute(description)}"`;
     shortcode += `][/text-hero]`;
     
     // Add an empty paragraph afterwards so the user has space to write the description

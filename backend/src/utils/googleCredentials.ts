@@ -1,0 +1,99 @@
+/** Shared Google service-account credential parsing for GA4 + Search Console. */
+
+export function parseGooglePrivateKey(raw: string): string {
+  let privateKey = raw.replace(/^["']|["']$/g, "");
+  const beginMarker = "-----BEGIN PRIVATE KEY-----";
+  const endMarker = "-----END PRIVATE KEY-----";
+
+  if (privateKey.includes(beginMarker) && privateKey.includes(endMarker)) {
+    let base64 = privateKey.substring(
+      privateKey.indexOf(beginMarker) + beginMarker.length,
+      privateKey.indexOf(endMarker),
+    );
+    base64 = base64.replace(/\s/g, "").replace(/\\n/g, "").replace(/\\/g, "");
+    const chunks = base64.match(/.{1,64}/g) || [];
+    privateKey = `${beginMarker}\n${chunks.join("\n")}\n${endMarker}\n`;
+  } else {
+    privateKey = privateKey.replace(/\\+n/g, "\n").trim();
+  }
+
+  return privateKey;
+}
+
+export function getGoogleServiceAccountCredentials(): { clientEmail: string; privateKey: string } | null {
+  const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
+  const rawKey = process.env.GA4_PRIVATE_KEY?.trim();
+  if (!clientEmail || !rawKey) return null;
+  return {
+    clientEmail,
+    privateKey: parseGooglePrivateKey(rawKey),
+  };
+}
+
+export function getGoogleIntegrationStatus() {
+  const creds = getGoogleServiceAccountCredentials();
+  const siteUrl = getGscSiteUrl();
+  return {
+    hasClientEmail: Boolean(process.env.GA4_CLIENT_EMAIL?.trim()),
+    hasPrivateKey: Boolean(process.env.GA4_PRIVATE_KEY?.trim()),
+    hasPropertyId: Boolean(process.env.GA4_PROPERTY_ID?.trim()),
+    hasCredentials: Boolean(creds && process.env.GA4_PROPERTY_ID?.trim()),
+    siteUrl,
+    hasSiteUrl: Boolean(siteUrl),
+    gscSiteUrlExplicit: Boolean(process.env.GSC_SITE_URL?.trim()),
+    ga4Ready: Boolean(creds && process.env.GA4_PROPERTY_ID?.trim()),
+    gscReady: Boolean(creds && siteUrl),
+  };
+}
+
+export function getGscSiteUrl(): string | null {
+  const configured = process.env.GSC_SITE_URL?.trim();
+  if (configured) return configured;
+  const canonical = process.env.SEO_CANONICAL_URL?.trim();
+  if (!canonical) return null;
+  return canonical.endsWith("/") ? canonical : `${canonical}/`;
+}
+
+/** Domain property form used when GSC is verified as sc-domain:example.com */
+export function deriveGscDomainProperty(siteUrl: string): string | null {
+  const trimmed = siteUrl.trim();
+  if (trimmed.startsWith("sc-domain:")) return trimmed;
+  try {
+    const url = trimmed.startsWith("http") ? new URL(trimmed) : new URL(`https://${trimmed}`);
+    const host = url.hostname.replace(/^www\./i, "");
+    if (!host || host.includes("localhost")) return null;
+    return `sc-domain:${host}`;
+  } catch {
+    return null;
+  }
+}
+
+/** URL-prefix form: https://example.com/ */
+export function deriveGscUrlPrefix(siteUrl: string): string | null {
+  const trimmed = siteUrl.trim();
+  if (trimmed.startsWith("sc-domain:")) {
+    const host = trimmed.slice("sc-domain:".length).trim();
+    return host ? `https://${host}/` : null;
+  }
+  try {
+    const url = trimmed.startsWith("http") ? new URL(trimmed) : new URL(`https://${trimmed}`);
+    return `https://${url.hostname}/`;
+  } catch {
+    return null;
+  }
+}
+
+export function getGscSiteUrlCandidates(): string[] {
+  const primary = getGscSiteUrl();
+  if (!primary) return [];
+  const candidates = [primary];
+  const domain = deriveGscDomainProperty(primary);
+  const prefix = deriveGscUrlPrefix(primary);
+  if (domain && !candidates.includes(domain)) candidates.push(domain);
+  if (prefix && !candidates.includes(prefix)) candidates.push(prefix);
+  return candidates;
+}
+
+export function isGoogleApiConfigured(): boolean {
+  return !!getGoogleServiceAccountCredentials() && !!getGscSiteUrl();
+}

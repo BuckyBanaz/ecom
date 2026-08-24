@@ -4,14 +4,46 @@ import { CreditCard, Facebook, Instagram, ShieldCheck, Truck, Youtube } from "lu
 import { FaIcon } from "@/components/ui/FaIcon";
 import { cmsHeaderFooterRepository } from "@/client/apiClient";
 import { useCmsData } from "@/hooks/useCmsData";
+import { useCmsLabel } from "@/hooks/useCmsLabel";
 import { Logo } from "./Logo";
-import { labelT } from "@/utils/i18nLabel";
+
+function FooterColumn({ column }: { column: { title: string; links: { label: string; href: string }[] } }) {
+  const title = useCmsLabel(column.title);
+  return (
+    <div>
+      <h3 className="mb-4 text-sm font-bold uppercase tracking-wider">{title}</h3>
+      <ul className="space-y-2 text-sm text-secondary-foreground/75">
+        {column.links.map((l) => (
+          <FooterLink key={`${column.title}-${l.label}`} link={l} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function FooterLink({ link }: { link: { label: string; href: string } }) {
+  const label = useCmsLabel(link.label);
+  return (
+    <li>
+      <Link to={link.href || "/help"} className="hover:text-primary">{label}</Link>
+    </li>
+  );
+}
+
+function FooterBottomItem({ item }: { item: { icon?: string; text: string } }) {
+  const text = useCmsLabel(item.text);
+  return (
+    <span className="flex items-center gap-2">
+      {item.icon && <FaIcon name={item.icon} className="h-3.5 w-3.5" />} {text}
+    </span>
+  );
+}
 
 export function Footer() {
   const { t } = useTranslation();
   const { data: footerData } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
+  const aboutDescription = useCmsLabel(footerData?.footerAbout?.description);
 
-  const footerAbout = footerData?.footerAbout;
   const footerSocial = footerData?.footerSocial;
   const footerColumns = footerData?.footerColumns || [];
   const footerBottom = footerData?.footerBottom || [];
@@ -31,7 +63,7 @@ export function Footer() {
         <div className="lg:col-span-2">
           <Logo />
           <p className="mt-4 max-w-sm text-sm text-secondary-foreground/70">
-            {footerAbout?.description || t("footer.about_description")}
+            {aboutDescription || t("footer.about_description")}
           </p>
           <div className="mt-6 flex items-center gap-3">
             {footerData ? (
@@ -55,16 +87,7 @@ export function Footer() {
           </div>
         </div>
         {footerColumns.map((c: any) => (
-          <div key={c.title}>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider">{labelT(t, c.title)}</h3>
-            <ul className="space-y-2 text-sm text-secondary-foreground/75">
-              {c.links.map((l: any) => (
-                <li key={l.label}>
-                  <Link to={l.href || "/help"} className="hover:text-primary">{labelT(t, l.label)}</Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <FooterColumn key={c.title} column={c} />
         ))}
       </div>
       <div className="border-t border-black/10">
@@ -72,10 +95,8 @@ export function Footer() {
           <div className="flex items-center gap-6">
             {footerBottom.length > 0 ? (
               footerBottom.map((item: any, idx: number) => (
-                  <span key={`${item.text}-${idx}`} className="flex items-center gap-2">
-                    {item.icon && <FaIcon name={item.icon} className="h-3.5 w-3.5" />} {labelT(t, item.text)}
-                  </span>
-                ))
+                <FooterBottomItem key={`${item.text}-${idx}`} item={item} />
+              ))
             ) : (
               <>
                 <span className="flex items-center gap-2"><Truck size={14}/> {t("footer.free_shipping")}</span>

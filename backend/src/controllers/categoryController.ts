@@ -56,7 +56,7 @@ export const getCategoryById = async (req: Request, res: Response, next: NextFun
 
 export const createCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, slug, image, group, parentId } = req.body;
+    const { name, slug, image, group, parentId, seoTitle, seoDescription, seoKeywords } = req.body;
 
     const category = await prisma.category.create({
       data: {
@@ -65,6 +65,9 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
         image: image || "/assets/cat-pendant.jpg",
         group: group || "interior-lighting",
         parentId: parentId || null,
+        seoTitle: seoTitle ?? null,
+        seoDescription: seoDescription ?? null,
+        seoKeywords: seoKeywords ?? null,
       },
     });
 
@@ -78,7 +81,7 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
 export const updateCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, slug, image, group, parentId } = req.body;
+    const { name, slug, image, group, parentId, seoTitle, seoDescription, seoKeywords } = req.body;
 
     const category = await prisma.category.update({
       where: { id },
@@ -88,6 +91,9 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
         image,
         group,
         parentId: parentId || null,
+        seoTitle,
+        seoDescription,
+        seoKeywords,
       },
     });
 

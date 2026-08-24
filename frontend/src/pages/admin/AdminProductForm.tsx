@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2 } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
@@ -18,6 +19,7 @@ import { brandRepository, categoryRepository, attributeRepository, productReposi
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { cn } from "@/lib/utils";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { getApiV1Url } from "@/utils/endpoints";
 
 
 export interface SpecItem {
@@ -29,19 +31,56 @@ export interface SpecItem {
 
 const AdminProductForm = () => {
   const { t } = useTranslation();
-  const { id } = useParams<{ id: string }>();
+  const { id, draftId } = useParams<{ id?: string; draftId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasPermission } = useAdmin();
 
-  const isEdit = id !== undefined && id !== "new";
+  const isDraftMode = Boolean(draftId);
+  const isEdit = id !== undefined && id !== "new" && !isDraftMode;
+  const canRegenerate = Boolean(draftId || (id && id !== "new"));
 
   // Mount guard for portal-based components
   const [isMounted, setIsMounted] = useState(false);
+  const [isDraftModeState, setIsDraftModeState] = useState(isDraftMode);
+
+  // Regeneration prompt state
+  const [regenPromptOpen, setRegenPromptOpen] = useState(false);
+  const [regenPromptText, setRegenPromptText] = useState("");
+  const [regenTargetIndex, setRegenTargetIndex] = useState<number | null>(null);
+  const [isGlobalRegenerating, setIsGlobalRegenerating] = useState(false);
+  const [regeneratingIndexes, setRegeneratingIndexes] = useState<number[]>([]);
+
+  // Optimization states
+  const [optimizePromptOpen, setOptimizePromptOpen] = useState(false);
+  const [optimizePromptText, setOptimizePromptText] = useState("");
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
-  const [isProductLoading, setIsProductLoading] = useState(isEdit);
+  const [isProductLoading, setIsProductLoading] = useState(isEdit || isDraftMode);
   const [mediaDialogTarget, setMediaDialogTarget] = useState<"thumbnail" | "gallery" | null>(null);
+
+  // Lightbox & Zoom states
+  const [zoomScale, setZoomScale] = useState(1);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  const openLightbox = (url: string) => {
+    setLightboxImage(url);
+    setZoomScale(1);
+  };
+
+  const handleZoomIn = () => {
+    setZoomScale((prev) => Math.min(prev + 0.25, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoomScale((prev) => Math.max(prev - 0.25, 0.5));
+  };
+
+  const handleResetZoom = () => {
+    setZoomScale(1);
+  };
 
   // Data states
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -77,6 +116,252 @@ const AdminProductForm = () => {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const reloadProductDetails = async () => {
+    if (isDraftMode && draftId) {
+      try {
+        const apiUrl = getApiV1Url();
+        const res = await fetch(`${apiUrl}/ai/drafts/${draftId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+        });
+        const data = await res.json();
+        if (data.success && data.draft?.payload) {
+          applyDraftToForm(data.draft.payload);
+        }
+      } catch (err) {
+        console.error("Failed to reload draft details:", err);
+      }
+    } else if (id && id !== "new") {
+      try {
+        const data = await productRepository.getByIdOrSlug(id);
+        if (data.success && data.product) {
+          const p = data.product;
+          setName(p.title || p.name || "");
+          setPrice(String(p.price || ""));
+          setOldPrice(p.oldPrice ? String(p.oldPrice) : "");
+          setThumbnail(p.image || null);
+          setGalleryImages(p.images || (p.image ? [p.image] : []));
+          setDescription(p.description || "");
+          setShortDescription(p.shortDescription || "");
+          setSeoTitle(p.seoTitle || "");
+          setSeoDescription(p.seoDesc || p.seoDescription || "");
+          setSeoKeywords(p.seoKeywords || "");
+          setInStock(p.inStock ?? true);
+          setIsNewArrival(p.isNewArrival ?? false);
+          setIsBestSelling(p.isBestSelling ?? false);
+          setSelectedCategory(p.category?.slug || "");
+          setSelectedBrand(typeof p.brand === "string" ? p.brand : (p.brand?.name || ""));
+
+          const initialAttrVals: Record<string, string[]> = {};
+          if (p.productAttributeValues) {
+            p.productAttributeValues.forEach((pav: any) => {
+              const slug = pav.attribute.slug;
+              const value = pav.attributeValue.value;
+              if (!initialAttrVals[slug]) {
+                initialAttrVals[slug] = [];
+              }
+              initialAttrVals[slug].push(value);
+            });
+          }
+          setSelectedAttributeValues(initialAttrVals);
+
+          let foundNumLights = "";
+          let foundSeries = "";
+          if (Array.isArray(p.specs)) {
+            p.specs.forEach((s: any) => {
+              if (s && s.key === "Number of lights") foundNumLights = String(s.value);
+              if (s && s.key === "Series") foundSeries = String(s.value);
+            });
+          }
+          setNumberOfLights(foundNumLights);
+          setSelectedSeries(foundSeries || "none");
+
+          const parsed = parseSpecs(p.specs || {});
+          setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+        }
+      } catch (err) {
+        console.error("Failed to reload product details:", err);
+      }
+    }
+  };
+
+  // Recover active AI image regeneration on refresh/mount
+  useEffect(() => {
+    const activeRegenStr = localStorage.getItem("active_regen");
+    if (!activeRegenStr) return;
+    try {
+      const activeRegen = JSON.parse(activeRegenStr);
+      const currentId = draftId || id;
+      if (activeRegen.id === currentId) {
+        if (activeRegen.targetIndex !== null) {
+          setRegeneratingIndexes([activeRegen.targetIndex]);
+        } else {
+          setIsGlobalRegenerating(true);
+        }
+
+        let attempts = 0;
+        const intervalId = setInterval(async () => {
+          attempts += 1;
+          if (attempts > 20) { // 60s timeout
+            clearInterval(intervalId);
+            localStorage.removeItem("active_regen");
+            setIsGlobalRegenerating(false);
+            setRegeneratingIndexes([]);
+            return;
+          }
+
+          try {
+            const apiUrl = getApiV1Url();
+            const fetchUrl = draftId
+              ? `${apiUrl}/ai/drafts/${draftId}`
+              : `${apiUrl}/products/${id}`;
+            const res = await fetch(fetchUrl, {
+              headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            let serverImages: string[] = [];
+            if (draftId && data.success && data.draft) {
+              serverImages = data.draft.payload?.images || [];
+            } else if (!draftId && data.success && data.product) {
+              serverImages = data.product.images || [];
+            }
+
+            const starting = activeRegen.startingImages || [];
+            const hasChanged = serverImages.length !== starting.length ||
+              serverImages.some((img, idx) => img !== starting[idx]);
+
+            if (hasChanged && serverImages.length > 0) {
+              clearInterval(intervalId);
+              localStorage.removeItem("active_regen");
+              setGalleryImages(serverImages);
+              if (serverImages[0]) {
+                setThumbnail(prev => {
+                  if (activeRegen.targetIndex === 0 || !prev || prev === starting[0]) {
+                    return serverImages[0];
+                  }
+                  return prev;
+                });
+              }
+              setIsGlobalRegenerating(false);
+              setRegeneratingIndexes([]);
+              toast.success("AI images regenerated successfully!");
+            }
+          } catch (e) {
+            console.error("Error polling AI image regen status:", e);
+          }
+        }, 3000);
+
+        return () => clearInterval(intervalId);
+      }
+    } catch (e) {
+      console.error("Failed to recover AI image regeneration session:", e);
+    }
+  }, [id, draftId]);
+
+  // Poll background optimization job status
+  useEffect(() => {
+    if (!id || id === "new") return;
+    
+    let intervalId: any;
+    let toastId: string | null = null;
+
+    const checkJobStatus = async () => {
+      try {
+        const apiUrl = getApiV1Url();
+        const res = await fetch(`${apiUrl}/ai/seo/job`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data.success && data.job) {
+          const { type, status, progress, targetEntityId, error } = data.job;
+          
+          if (type === "product_optimize" && targetEntityId === id) {
+            if (status === "queued" || status === "running") {
+              setIsOptimizing(true);
+              const label = progress.label || "Optimizing content with AI...";
+              
+              if (!toastId) {
+                toastId = "product-optimize-toast";
+                toast.loading(`AI Optimization: ${label}`, { id: toastId });
+              } else {
+                toast.loading(`AI Optimization: ${label}`, { id: toastId });
+              }
+            } else if (status === "completed") {
+              setIsOptimizing(false);
+              if (toastId) {
+                toast.success(t("admin_product_form.optimize_toast_success"), { id: toastId });
+                toastId = null;
+              }
+              await fetch(`${apiUrl}/ai/seo/job/dismiss`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` }
+              });
+              await reloadProductDetails();
+              if (intervalId) clearInterval(intervalId);
+            } else if (status === "failed") {
+              setIsOptimizing(false);
+              if (toastId) {
+                toast.error(error || t("admin_product_form.optimize_toast_error"), { id: toastId });
+                toastId = null;
+              }
+              await fetch(`${apiUrl}/ai/seo/job/dismiss`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` }
+              });
+              if (intervalId) clearInterval(intervalId);
+            }
+          } else {
+            setIsOptimizing(false);
+            if (intervalId) clearInterval(intervalId);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check background AI job status:", err);
+      }
+    };
+
+    checkJobStatus();
+    intervalId = setInterval(checkJobStatus, 3000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [id, draftId]);
+
+  const handleTriggerOptimize = async () => {
+    setOptimizePromptOpen(false);
+    setIsOptimizing(true);
+    const toastId = "product-optimize-toast";
+    toast.loading(t("admin_product_form.optimize_toast_start"), { id: toastId });
+    
+    try {
+      const apiUrl = getApiV1Url();
+      const res = await fetch(`${apiUrl}/ai/seo/product-optimize`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          productId: id,
+          customPrompt: optimizePromptText
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.info(t("admin_product_form.optimize_toast_queued"), { id: toastId });
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      setIsOptimizing(false);
+      toast.error(err.message || t("admin_product_form.optimize_toast_error"), { id: toastId });
+    }
+  };
 
   // Load brands, categories, attributes, series
   useEffect(() => {
@@ -211,12 +496,65 @@ const AdminProductForm = () => {
     }));
   };
 
-  // Load existing product details (if Edit mode)
+  const applyDraftToForm = (draft: Record<string, any>) => {
+    setName(draft.name || "");
+    setPrice(String(draft.price || ""));
+    setThumbnail(draft.image || null);
+    setGalleryImages(Array.isArray(draft.images) ? draft.images : []);
+    setDescription(draft.description || "");
+    setShortDescription(draft.shortDescription || "");
+    setInStock(draft.inStock ?? true);
+    setSelectedCategory(draft.category || "");
+    setSelectedBrand(draft.brand || "");
+    setSeoTitle(draft.seoTitle || "");
+    setSeoDescription(draft.seoDescription || "");
+    setSeoKeywords(draft.seoKeywords || "");
+    setSelectedAttributeValues(draft.attributes || {});
+    const parsed = parseSpecs(draft.specs || {});
+    parsed.forEach((s) => {
+      if (s.key === "Number of lights") setNumberOfLights(s.value);
+      if (s.key === "Series") setSelectedSeries(s.value);
+    });
+    setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+    toast.info(t("admin_product_form.draft_loaded"));
+  };
+
+  // Load existing product details (if Edit mode or Draft mode)
   useEffect(() => {
+    if (isDraftMode && draftId) {
+      const loadDraft = async () => {
+        setIsProductLoading(true);
+        try {
+          const apiUrl = getApiV1Url();
+          const res = await fetch(`${apiUrl}/ai/drafts/${draftId}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+          });
+          const data = await res.json();
+          if (data.success && data.draft?.payload) {
+            applyDraftToForm(data.draft.payload);
+          } else {
+            toast.error(t("admin_product_form.draft_load_failed"));
+            navigate("/admin/product-drafts");
+          }
+        } catch {
+          toast.error(t("admin_product_form.draft_load_failed"));
+        } finally {
+          setIsProductLoading(false);
+        }
+      };
+      loadDraft();
+      return;
+    }
+
     if (!isEdit) {
-      setSpecs(DEFAULT_SPECS_STRUCTURE);
-      setNumberOfLights("");
-      setSelectedSeries("");
+      const draft = location.state?.draft;
+      if (draft) {
+        applyDraftToForm(draft);
+      } else {
+        setSpecs(DEFAULT_SPECS_STRUCTURE);
+        setNumberOfLights("");
+        setSelectedSeries("");
+      }
       return;
     }
 
@@ -602,6 +940,17 @@ const AdminProductForm = () => {
         : await productRepository.create(payload);
 
       if (data.success) {
+        if (isDraftMode && draftId) {
+          try {
+            const apiUrl = getApiV1Url();
+            await fetch(`${apiUrl}/ai/drafts/${draftId}/published`, {
+              method: "PATCH",
+              headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+            });
+          } catch {
+            /* non-blocking */
+          }
+        }
         toast.success(isEdit ? t("admin_product_form.toast_product_updated", { name }) : t("admin_product_form.toast_product_created", { name }));
         navigate("/admin/products");
         return;
@@ -906,6 +1255,14 @@ const AdminProductForm = () => {
                           </div>
                           <button
                             type="button"
+                            onClick={(e) => { e.stopPropagation(); openLightbox(thumbnail); }}
+                            className="absolute left-2 top-2 rounded-full bg-background/90 p-1 hover:bg-primary hover:text-white shadow-sm border border-border z-10 transition-colors"
+                            title="Zoom Image"
+                          >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); setThumbnail(null); }}
                             className="absolute right-2 top-2 rounded-full bg-background/90 p-1 hover:bg-destructive hover:text-white shadow-sm border border-border z-10 transition-colors"
                           >
@@ -924,17 +1281,36 @@ const AdminProductForm = () => {
 
                   {/* Slider Gallery Grid */}
                   <div className="md:col-span-2 space-y-2">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-wrap items-center justify-between pb-1 gap-2">
                       <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_gallery")}</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-[10px] font-bold text-primary gap-1 px-2 hover:bg-primary/10 transition-colors"
-                        onClick={() => setMediaDialogTarget("gallery")}
-                      >
-                        <Plus className="h-3 w-3" /> {t("admin_product_form.add_images")}
-                      </Button>
+                      <div className="flex gap-2">
+                        {canRegenerate && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isGlobalRegenerating || regeneratingIndexes.length > 0}
+                            className="h-6 text-[10px] font-bold text-amber-600 border-amber-600/30 gap-1 px-2 hover:bg-amber-600/10 transition-colors"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setRegenTargetIndex(null);
+                              setRegenPromptText("");
+                              setRegenPromptOpen(true);
+                            }}
+                          >
+                            {isGlobalRegenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {t("admin_product_form.regen_ai_images")}
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] font-bold text-primary gap-1 px-2 hover:bg-primary/10 transition-colors"
+                          onClick={() => setMediaDialogTarget("gallery")}
+                        >
+                          <Plus className="h-3 w-3" /> {t("admin_product_form.add_images")}
+                        </Button>
+                      </div>
                     </div>
 
                     {galleryImages.length === 0 ? (
@@ -959,9 +1335,32 @@ const AdminProductForm = () => {
                               >
                                 {t("admin_product_form.set_cover")}
                               </button>
+                              {canRegenerate && !isGlobalRegenerating && regeneratingIndexes.length === 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRegenTargetIndex(i);
+                                    setRegenPromptText("");
+                                    setRegenPromptOpen(true);
+                                  }}
+                                  className="absolute top-1 right-6 rounded-full bg-background/90 text-amber-500 p-0.5 hover:bg-amber-500 hover:text-white transition-colors"
+                                  title="Regenerate this image"
+                                >
+                                  <Sparkles className="h-2.5 w-2.5" />
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => removeGalleryImage(i)}
+                                onClick={(e) => { e.stopPropagation(); openLightbox(src); }}
+                                className="absolute top-1 left-1 rounded-full bg-background/90 p-0.5 hover:bg-primary hover:text-white transition-colors text-foreground"
+                                title="Zoom Image"
+                              >
+                                <Maximize2 className="h-2.5 w-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); removeGalleryImage(i); }}
                                 className="absolute top-1 right-1 rounded-full bg-background/90 p-0.5 hover:bg-destructive hover:text-white transition-colors"
                               >
                                 <X className="h-2.5 w-2.5" />
@@ -970,6 +1369,11 @@ const AdminProductForm = () => {
                             {thumbnail === src && (
                               <div className="absolute bottom-1 left-1 rounded-md text-[8px] font-extrabold bg-primary text-primary-foreground px-1 py-0.2 shadow-sm">
                                 {t("admin_product_form.cover_badge")}
+                              </div>
+                            )}
+                            {regeneratingIndexes.includes(i) && (
+                              <div className="absolute inset-0 bg-background/80 backdrop-blur-[2px] flex items-center justify-center z-10 transition-all rounded-xl">
+                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
                               </div>
                             )}
                           </div>
@@ -1285,12 +1689,27 @@ const AdminProductForm = () => {
               </CardContent>
             </Card>
 
-            {/* Actions Card */}
+             {/* Actions Card */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl p-6 space-y-3">
               <Button type="submit" className="w-full gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300">
                 <Save className="h-4 w-4" />
                 {isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}
               </Button>
+              {canRegenerate && (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setOptimizePromptOpen(true);
+                  }}
+                  variant="outline"
+                  className="w-full gap-2 h-10 text-xs font-bold rounded-lg border-amber-600/30 text-amber-700 bg-amber-600/5 hover:bg-amber-600/15 hover:text-amber-800 transition-all duration-300"
+                  disabled={isGlobalRegenerating || regeneratingIndexes.length > 0 || isOptimizing}
+                >
+                  {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 animate-bounce" />}
+                  {t("admin_product_form.action_optimize")}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -1326,6 +1745,168 @@ const AdminProductForm = () => {
           setMediaDialogTarget(null);
         }}
       />
+      {/* Regeneration Prompt Dialog */}
+      <Dialog open={regenPromptOpen} onOpenChange={setRegenPromptOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              {regenTargetIndex !== null ? t("admin_product_form.regen_specific_title") : t("admin_product_form.regen_gallery_title")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("admin_product_form.regen_prompt_desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <textarea
+              className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              placeholder={t("admin_product_form.regen_prompt_placeholder")}
+              value={regenPromptText}
+              onChange={(e) => setRegenPromptText(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenPromptOpen(false)}>{t("admin_product_form.action_cancel")}</Button>
+            <Button
+              className="gap-2"
+              onClick={async () => {
+                setRegenPromptOpen(false);
+                const toastId = regenTargetIndex !== null ? `regen-${regenTargetIndex}` : "regen-all";
+                toast.info(t("admin_product_form.regen_toast_start"), { id: toastId });
+                
+                if (regenTargetIndex !== null) {
+                  setRegeneratingIndexes(prev => [...prev, regenTargetIndex]);
+                } else {
+                  setIsGlobalRegenerating(true);
+                }
+
+                try {
+                  const apiUrl = getApiV1Url();
+                  const targetUrl = draftId 
+                    ? `${apiUrl}/ai/drafts/${draftId}/regenerate-images`
+                    : `${apiUrl}/ai/products/${id}/regenerate-images`;
+                  const res = await fetch(targetUrl, {
+                    method: "POST",
+                    headers: { 
+                      Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
+                      "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ 
+                      prompt: regenPromptText, 
+                      index: regenTargetIndex !== null ? regenTargetIndex : undefined 
+                    })
+                  });
+                  
+                  const data = await res.json();
+                  if (data.success && data.images) {
+                    setGalleryImages(prev => {
+                      if (regenTargetIndex !== null) {
+                        const next = [...prev];
+                        next[regenTargetIndex] = data.images[0];
+                        if (thumbnail === prev[regenTargetIndex]) setThumbnail(data.images[0]);
+                        return next;
+                      } else {
+                        const merged = [...prev, ...data.images];
+                        if (!thumbnail && merged.length > 0) setThumbnail(merged[0]);
+                        return merged;
+                      }
+                    });
+                    toast.success(regenTargetIndex !== null ? t("admin_product_form.regen_toast_success_single") : t("admin_product_form.regen_toast_success_multi"), { id: toastId });
+                  } else {
+                    throw new Error(data.error);
+                  }
+                } catch (err: any) {
+                  toast.error(t("admin_product_form.regen_toast_error"), { id: toastId });
+                } finally {
+                  if (regenTargetIndex !== null) {
+                    setRegeneratingIndexes(prev => prev.filter(idx => idx !== regenTargetIndex));
+                  } else {
+                    setIsGlobalRegenerating(false);
+                  }
+                }
+              }}
+            >
+              <Sparkles className="h-4 w-4" />
+              {t("admin_product_form.regen_generate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox Modal with Zoom */}
+      <Dialog open={Boolean(lightboxImage)} onOpenChange={(open) => !open && setLightboxImage(null)}>
+        <DialogContent className="max-w-[90vw] md:max-w-[70vw] lg:max-w-[50vw] max-h-[85vh] p-0 overflow-hidden bg-black/95 border-none shadow-2xl rounded-2xl flex flex-col items-center justify-between">
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-50">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full border-white/20 bg-black/40 hover:bg-black/60 text-white hover:text-white backdrop-blur-md"
+              onClick={handleZoomOut}
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full border-white/20 bg-black/40 hover:bg-black/60 text-white hover:text-white backdrop-blur-md"
+              onClick={handleZoomIn}
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full border-white/20 bg-black/40 hover:bg-black/60 text-white hover:text-white backdrop-blur-md"
+              onClick={handleResetZoom}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex-1 w-full flex items-center justify-center p-6 overflow-hidden">
+            {lightboxImage && (
+              <img
+                src={resolveImgUrl(lightboxImage)}
+                alt=""
+                className="max-w-full max-h-[60vh] md:max-h-[70vh] object-contain transition-transform duration-200 ease-out"
+                style={{ transform: `scale(${zoomScale})` }}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Optimization Prompt Dialog */}
+      <Dialog open={optimizePromptOpen} onOpenChange={setOptimizePromptOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
+              {t("admin_product_form.optimize_prompt_title")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("admin_product_form.optimize_prompt_desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <textarea
+              className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              placeholder='e.g. "Focus on wooden textures", "Translate description to clear Dutch"'
+              value={optimizePromptText}
+              onChange={(e) => setOptimizePromptText(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOptimizePromptOpen(false)}>{t("admin_product_form.action_cancel")}</Button>
+            <Button
+              className="gap-2"
+              onClick={handleTriggerOptimize}
+            >
+              <Sparkles className="h-4 w-4" />
+              {t("admin_product_form.regen_generate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

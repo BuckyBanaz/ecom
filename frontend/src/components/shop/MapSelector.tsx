@@ -6,30 +6,103 @@ import { Loader2, MapPin, Search, LocateFixed } from "lucide-react";
 
 declare global {
   interface Window {
-    google: any;
+    google: {
+      maps: {
+        Map: new (el: HTMLElement, opts: Record<string, unknown>) => GoogleMapInstance;
+        Marker: new (opts: Record<string, unknown>) => GoogleMarkerInstance;
+        Geocoder: new () => GoogleGeocoderInstance;
+      };
+    };
   }
 }
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyAoVauo0szWOaKCsNW6lqklZCXmZED-7ZU";
+type GoogleMapInstance = {
+  setCenter: (pos: { lat: number; lng: number }) => void;
+  setZoom: (z: number) => void;
+  addListener: (event: string, handler: (e: { latLng: { lat: () => number; lng: () => number } }) => void) => void;
+};
+
+type GoogleMarkerInstance = {
+  setMap: (map: GoogleMapInstance | null) => void;
+  setPosition: (pos: { lat: number; lng: number }) => void;
+  getPosition: () => { lat: () => number; lng: () => number };
+  addListener: (event: string, handler: () => void) => void;
+};
+
+type GoogleGeocoderInstance = {
+  geocode: (
+    req: Record<string, unknown>,
+    cb: (results: GeocoderResult[] | null, status: string) => void,
+  ) => void;
+};
+
+type GeocoderResult = {
+  place_id: string;
+  formatted_address: string;
+  geometry: { location: { lat: () => number; lng: () => number } };
+  address_components: Array<{ long_name: string; types: string[] }>;
+};
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
 let googleMapsLoadPromise: Promise<void> | null = null;
 
-const loadGoogleMaps = (): Promise<void> => {
-  if (window.google && window.google.maps) return Promise.resolve();
+function isGoogleMapsReady(): boolean {
+  return typeof window.google?.maps?.Map === "function";
+}
+
+function waitForGoogleMapsReady(timeoutMs = 15000): Promise<void> {
+  if (isGoogleMapsReady()) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      if (isGoogleMapsReady()) {
+        resolve();
+        return;
+      }
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error("Google Maps API did not finish loading."));
+        return;
+      }
+      window.setTimeout(tick, 50);
+    };
+    tick();
+  });
+}
+
+function loadGoogleMaps(): Promise<void> {
+  if (!GOOGLE_MAPS_API_KEY?.trim()) {
+    return Promise.reject(new Error("Google Maps API key is not configured (VITE_GOOGLE_MAPS_API_KEY)."));
+  }
+  if (isGoogleMapsReady()) return Promise.resolve();
   if (googleMapsLoadPromise) return googleMapsLoadPromise;
 
   googleMapsLoadPromise = new Promise((resolve, reject) => {
+    const finish = () => waitForGoogleMapsReady().then(resolve).catch(reject);
+
+    const existing = document.querySelector('script[data-google-maps="true"]');
+    if (existing) {
+      if (isGoogleMapsReady()) {
+        resolve();
+        return;
+      }
+      // Replace stale loader (e.g. old loading=async script without Map constructor)
+      existing.remove();
+    }
+
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.dataset.googleMaps = "true";
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=places`;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
+    script.onload = () => finish();
     script.onerror = () => reject(new Error("Failed to load Google Maps library"));
     document.head.appendChild(script);
   });
 
   return googleMapsLoadPromise;
-};
+}
 
 interface MapSelectorProps {
   onSelect: (location: {
@@ -64,6 +137,7 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -77,10 +151,12 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
       try {
         await loadGoogleMaps();
       } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed to load Google Maps.";
         console.error("Failed to load Google Maps script:", e);
+        setMapError(message);
         return;
       }
-      if (cancelled || !mapRef.current || !window.google) return;
+      if (cancelled || !mapRef.current || !isGoogleMapsReady()) return;
 
       const innerDiv = document.createElement("div");
       innerDiv.style.width = "100%";
@@ -88,8 +164,8 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
       containerEl.appendChild(innerDiv);
       mapDiv = innerDiv;
 
-      const initialLat = 28.6139;
-      const initialLng = 77.2090;
+      const initialLat = 52.3676;
+      const initialLng = 4.9041;
 
       try {
         mapInstance.current = new window.google.maps.Map(innerDiv, {
@@ -140,6 +216,7 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
         }
       } catch (e) {
         console.error("Failed to initialize Google Map:", e);
+        setMapError("Could not initialize the map. Check your Google Maps API key and billing.");
       }
     };
 
@@ -182,16 +259,17 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
     setSearchOpen(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        if (!window.google || !window.google.maps) {
+        await loadGoogleMaps();
+        if (!isGoogleMapsReady()) {
           setSearchResults([]);
           setSearching(false);
           return;
         }
         const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ address: q }, (results: any, status: any) => {
+        geocoder.geocode({ address: q }, (results: GeocoderResult[] | null, status: string) => {
           if (status === "OK" && results) {
             setSearchResults(
-              results.map((r: any) => ({
+              results.map((r) => ({
                 place_id: r.place_id,
                 display_name: r.formatted_address,
                 lat: r.geometry.location.lat().toString(),
@@ -249,14 +327,15 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
     
     setLoading(true);
     try {
-      if (!window.google || !window.google.maps) {
+      await loadGoogleMaps();
+      if (!isGoogleMapsReady()) {
         throw new Error("Google Maps not loaded");
       }
       const geocoder = new window.google.maps.Geocoder();
-      
+
       geocoder.geocode(
         { location: { lat: selectedCoords.lat, lng: selectedCoords.lng } },
-        (results: any, status: any) => {
+        (results: GeocoderResult[] | null, status: string) => {
           if (status === "OK" && results && results[0]) {
             const result = results[0];
             let street = "";
@@ -382,8 +461,14 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
 
         <div 
           ref={mapRef} 
-          className="w-full h-[55vh] bg-zinc-200"
-        />
+          className="relative w-full h-[55vh] bg-zinc-200"
+        >
+          {mapError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-zinc-100 p-6 text-center text-sm text-muted-foreground">
+              {mapError}
+            </div>
+          )}
+        </div>
         
         <div className="p-4 border-t flex justify-end gap-3 bg-zinc-50">
           <Button variant="outline" onClick={onCancel} className="rounded-full">{t("map_selector.cancel")}</Button>

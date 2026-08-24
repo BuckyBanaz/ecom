@@ -1,7 +1,10 @@
 import { Router } from "express";
+import path from "path";
 import { toPublicMediaUrl } from "../utils/mediaUrl";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
-import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia, optimizeMedia } from "../controllers/mediaController";
+import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia, optimizeMedia, deleteDuplicates } from "../controllers/mediaController";
+
+const UPLOADS_DIR = path.join(__dirname, "../../public/uploads");
 
 const router = Router();
 
@@ -89,6 +92,7 @@ router.post("/folder", createFolder);
  *         description: Not found
  */
 router.delete("/", deleteMedia);
+router.delete("/duplicates", deleteDuplicates);
 
 /**
  * @swagger
@@ -162,24 +166,31 @@ router.post("/copy", copyMedia);
  */
 router.post("/optimize", optimizeMedia);
 
-router.post("/upload", upload, (req, res) => {
+router.post("/upload", upload, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "No file uploaded" });
   }
-  
-  // Return the path relative to uploads dir
+
   const filename = req.file.filename;
   const folderPath = req.query.path as string || "";
-  const relativePath = folderPath ? `${folderPath}/${filename}`.replace(/^\//, '') : filename;
-  
-  res.status(201).json({ 
-    success: true, 
+  const relativePath = folderPath ? `${folderPath}/${filename}`.replace(/^\//, "") : filename;
+  const fullPath = path.join(UPLOADS_DIR, relativePath);
+
+  try {
+    const { optimizeImageAtPath } = await import("../utils/imageOptimize");
+    await optimizeImageAtPath(fullPath);
+  } catch (error) {
+    console.warn("Post-upload optimize skipped:", relativePath, error);
+  }
+
+  res.status(201).json({
+    success: true,
     message: "File uploaded successfully",
     file: {
       name: filename,
       url: toPublicMediaUrl(`/uploads/${relativePath}`),
-      path: relativePath
-    }
+      path: relativePath,
+    },
   });
 });
 

@@ -13,14 +13,23 @@ import { ProductCard } from "@/components/shop/ProductCard";
 import { toast } from "sonner";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { MapSelector } from "@/components/shop/MapSelector";
-import { addressRepository, authRepository, ordersRepository } from "@/client/apiClient";
-import { Loader2, FileText, CreditCard, Truck, Check, X } from "lucide-react";
+import { addressRepository, authRepository, ordersRepository, returnsRepository } from "@/client/apiClient";
+import { Loader2, FileText, CreditCard, Truck, Check, X, RotateCcw } from "lucide-react";
 import { parseOrderMetadata } from "@/utils/formatters";
 import { ReviewModal } from "@/components/shop/ReviewModal";
+import { ReturnRequestModal } from "@/components/shop/ReturnRequestModal";
+import { ReturnProcessInfo } from "@/components/shop/ReturnProcessInfo";
 import { SectionLoader } from "@/components/ui/PageLoader";
+import {
+  ACTIVE_RETURN_STATUSES,
+  getReturnEligibility,
+  getReturnWindowDeadline,
+} from "@/utils/returnValidation";
+import { getReturnWindowDays, getReturnWindowStart, getReturnWindowDeadline as getDeadline, isReturnsSystemEnabled } from "@/utils/returnWindow";
 import { useFcmToken } from "@/hooks/useFcmToken";
 import { PhonePicker } from "@/components/ui/PhonePicker";
 import { parseAndValidateFullPhone } from "@/utils/phoneValidation";
+import { getApiV1Url } from "@/utils/endpoints";
 
 interface Address {
   id: string | number;
@@ -53,6 +62,12 @@ const getFriendlyStatus = (status: string, t: (key: string) => string): string =
   if (s === "delivered") {
     return t("dashboard.status.delivered");
   }
+  if (s === "return_requested") {
+    return t("dashboard.status.return_requested");
+  }
+  if (s === "returned" || s === "refunded") {
+    return t("dashboard.status.refunded");
+  }
   if (s === "cancelled") {
     return t("dashboard.status.cancelled");
   }
@@ -61,9 +76,10 @@ const getFriendlyStatus = (status: string, t: (key: string) => string): string =
 
 const getStepIndex = (status: string) => {
   const s = status?.toLowerCase();
+  if (["return_requested", "returned"].includes(s)) return 3;
   if (["pending", "payment_pending", "payment_failed"].includes(s)) return 0;
   if (["paid", "processing"].includes(s)) return 1;
-  if (["ready_to_ship", "label_generated"].includes(s)) return 2; // Processing done, preparing shipment
+  if (["ready_to_ship", "label_generated"].includes(s)) return 2;
   if (["shipped", "picked_up", "in_transit", "out_for_delivery"].includes(s)) return 2;
   if (s === "delivered") return 3;
   return 0;
@@ -82,6 +98,12 @@ const getStatusBadgeClass = (status: string): string => {
   }
   if (s === "delivered") {
     return "bg-green-100 text-green-700";
+  }
+  if (s === "return_requested") {
+    return "bg-purple-100 text-purple-700";
+  }
+  if (s === "returned" || s === "refunded") {
+    return "bg-gray-100 text-gray-700";
   }
   if (s === "cancelled") {
     return "bg-red-100 text-red-700";
@@ -134,6 +156,7 @@ const UserDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem("customer_token");
     localStorage.removeItem("customer_user");
+    window.dispatchEvent(new CustomEvent("customer-auth-changed"));
     toast.success(t("dashboard.sidebar.toast_logout"));
     navigate("/account");
   };
@@ -209,9 +232,12 @@ function OrdersTab() {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewProductId, setReviewProductId] = useState("");
   const [reviewProductName, setReviewProductName] = useState("");
+  const [myReturns, setMyReturns] = useState<any[]>([]);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
 
   useEffect(() => {
     fetchOrders();
+    fetchMyReturns();
   }, []);
 
   useEffect(() => {
@@ -257,6 +283,46 @@ function OrdersTab() {
     }
   };
 
+  const fetchMyReturns = async () => {
+    try {
+      const res = await returnsRepository.getMy();
+      setMyReturns(res.data || []);
+    } catch {
+      // Non-blocking
+    }
+  };
+
+  const handleCancelReturn = async (returnId: string) => {
+    if (!window.confirm(t("returns.confirm_cancel"))) return;
+    try {
+      setIsProcessingAction(true);
+      await returnsRepository.cancel(returnId);
+      toast.success(t("returns.toast_cancelled"));
+      await Promise.all([fetchOrders(), fetchMyReturns()]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t("returns.toast_cancel_failed"));
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  const handleReturnSuccess = async () => {
+    await Promise.all([fetchOrders(), fetchMyReturns()]);
+  };
+
+  const openReturnLabel = (returnId: string) => {
+    const token = localStorage.getItem("customer_token");
+    if (!token) {
+      toast.error(t("returns.toast_login_required"));
+      return;
+    }
+    window.open(
+      `${getApiV1Url()}/returns/my/${returnId}/label?token=${encodeURIComponent(token)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
   const handlePayNow = async (orderId: string) => {
     try {
       setIsProcessingAction(true);
@@ -290,6 +356,20 @@ function OrdersTab() {
 
   if (selectedOrder) {
     const isPending = ["pending", "payment_pending", "payment_failed"].includes(selectedOrder.status);
+    const returnsForOrder = myReturns.filter(
+      (r) => r.orderId === selectedOrder.id && r.status !== "cancelled",
+    );
+    const orderReturn =
+      returnsForOrder.find((r) => (ACTIVE_RETURN_STATUSES as readonly string[]).includes(r.status)) ||
+      returnsForOrder.find((r) => ["refunded", "rejected"].includes(r.status));
+    const hasActiveReturn = returnsForOrder.some((r) =>
+      (ACTIVE_RETURN_STATUSES as readonly string[]).includes(r.status),
+    );
+    const returnEligibility = getReturnEligibility(selectedOrder, hasActiveReturn);
+    const returnWindowDeadline = getReturnWindowDeadline(selectedOrder);
+    const canRequestReturn = returnEligibility.allowed && isReturnsSystemEnabled();
+    const returnWindowExpired = returnEligibility.reason === "window_expired";
+    const canCancelReturn = orderReturn?.status === "pending_review";
     const { formattedAddress, tax, discount, phone, email, firstName, lastName, street, houseNumber, landmark, city, state, pincode, country } = parseOrderMetadata(selectedOrder.shippingAddress);
     
     return (
@@ -329,8 +409,132 @@ function OrdersTab() {
                   <CreditCard className="h-3.5 w-3.5 mr-1.5" /> {t("dashboard.orders.pay_now")}
                 </Button>
               )}
+
+              {canRequestReturn && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsReturnModalOpen(true)}
+                  disabled={isProcessingAction}
+                  className="rounded-full h-8 px-3 gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> {t("returns.request_button")}
+                </Button>
+              )}
             </div>
           </div>
+
+
+
+          {orderReturn && (
+            <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50/50 p-4 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <p className="font-semibold text-sm flex items-center gap-2">
+                  <RotateCcw className="h-4 w-4 text-purple-600" />
+                  {t("returns.status_title")}
+                  {(orderReturn.status === "approved" || orderReturn.status === "awaiting_return") && (
+                    <ReturnProcessInfo />
+                  )}
+                </p>
+                <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
+                  {t(`returns.statuses.${orderReturn.status}`, { defaultValue: orderReturn.status })}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("returns.reasons." + orderReturn.reason)} · {new Date(orderReturn.createdAt).toLocaleDateString()}
+              </p>
+              {orderReturn.status === "rejected" && orderReturn.adminNote && (
+                <p className="text-xs text-rose-700 bg-rose-50 rounded-lg p-2">{orderReturn.adminNote}</p>
+              )}
+              {orderReturn.status === "rejected" && canRequestReturn && (
+                <p className="text-xs text-muted-foreground">{t("returns.rejected_can_resubmit")}</p>
+              )}
+              {orderReturn.status === "approved" && (
+                <p className="text-xs text-purple-700 bg-white/60 rounded-lg p-2 border">{t("returns.approved_message")}</p>
+              )}
+              {orderReturn.status === "awaiting_return" && (
+                <p className="text-xs text-purple-700">
+                  {orderReturn.resolutionType === "replacement"
+                    ? "Your replacement order will be shipped within 1-2 business days after we receive and inspect your return."
+                    : orderReturn.refundAmount != null && t("returns.awaiting_refund_message", {
+                        amount: orderReturn.refundAmount.toFixed(2),
+                        days: orderReturn.refundEtaDays || "5-7",
+                      })}
+                </p>
+              )}
+              {orderReturn.status === "return_received" && (
+                <p className="text-xs text-blue-700 bg-blue-50 rounded-lg p-2 border border-blue-200">
+                  {t("returns.return_received_processing")}
+                </p>
+              )}
+              {orderReturn.status === "refunded" && orderReturn.itemReceivedAt && (
+                <p className="text-xs text-blue-700 bg-blue-50 rounded-lg p-2 border border-blue-200">
+                  {t("returns.item_received", {
+                    date: new Date(orderReturn.itemReceivedAt).toLocaleString(),
+                  })}
+                </p>
+              )}
+              {orderReturn.status === "refunded" && (
+                <p className="text-xs text-green-700 font-medium">
+                  {orderReturn.resolutionType === "replacement"
+                    ? "Replacement order has been created and will be shipped shortly."
+                    : orderReturn.refundAmount != null && t("returns.refund_completed", { amount: orderReturn.refundAmount.toFixed(2) })}
+                </p>
+              )}
+              {(orderReturn.status === "awaiting_return" ||
+                (orderReturn.status === "approved" && orderReturn.returnLabelUrl)) && (
+                <div className="text-xs space-y-2 mt-2 rounded-lg bg-white/80 p-3 border">
+                  <p className="font-semibold">{t("returns.return_instructions_title")}</p>
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    <li>{t("returns.return_step_1")}</li>
+                    <li>{t("returns.return_step_2")}</li>
+                    <li>{t("returns.return_step_3")}</li>
+                    <li>{t("returns.return_step_4")}</li>
+                  </ol>
+                </div>
+              )}
+              {orderReturn.status === "awaiting_return" &&
+                (orderReturn.returnTrackingNumber || orderReturn.returnLabelUrl) && (
+                <div className="text-xs space-y-1 mt-2 rounded-lg bg-white/60 p-2 border">
+                  <p className="font-medium flex items-center gap-1">
+                    <Truck className="h-3.5 w-3.5" /> {t("returns.return_shipping")}
+                    <ReturnProcessInfo className="h-4 w-4" />
+                  </p>
+                  {orderReturn.returnCarrier && orderReturn.returnTrackingNumber && (
+                    <p>{orderReturn.returnCarrier} · {orderReturn.returnTrackingNumber}</p>
+                  )}
+                  {orderReturn.returnShipmentStatus && (
+                    <p className="text-muted-foreground">{t("returns.return_shipment_status", { status: orderReturn.returnShipmentStatus })}</p>
+                  )}
+                  {orderReturn.returnLabelUrl && (
+                    <button
+                      type="button"
+                      onClick={() => openReturnLabel(orderReturn.id)}
+                      className="text-primary underline text-left"
+                    >
+                      {t("returns.download_return_label")}
+                    </button>
+                  )}
+                  {orderReturn.returnTrackingUrl && (
+                    <a href={orderReturn.returnTrackingUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline block">
+                      {t("returns.track_return")}
+                    </a>
+                  )}
+                </div>
+              )}
+              {canCancelReturn && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full h-7 text-xs mt-1"
+                  disabled={isProcessingAction}
+                  onClick={() => handleCancelReturn(orderReturn.id)}
+                >
+                  {t("returns.cancel_request")}
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Progress Stepper */}
           <div className="mb-8 py-6 px-4 rounded-xl bg-muted/30 border border-muted/50">
@@ -341,9 +545,9 @@ function OrdersTab() {
               {/* Active/Completed Connection Line (Green) */}
               <div 
                 className="absolute left-0 top-[16px] -translate-y-1/2 h-1 bg-green-500 rounded-full transition-all duration-500" 
-                style={{
+                  style={{
                   width: selectedOrder.status === "cancelled" ? "0%" :
-                         selectedOrder.status === "delivered" ? "100%" :
+                         ["return_requested", "returned", "delivered"].includes(selectedOrder.status) ? "100%" :
                          ["shipped", "picked_up", "in_transit", "out_for_delivery"].includes(selectedOrder.status) ? "66.6%" :
                          ["ready_to_ship", "label_generated"].includes(selectedOrder.status) ? "50%" :
                          ["paid", "processing"].includes(selectedOrder.status) ? "33.3%" : "0%"
@@ -508,7 +712,10 @@ function OrdersTab() {
                 </div>
               </div>
             </div>
-            {selectedOrder.status !== "cancelled" && selectedOrder.status !== "delivered" && selectedOrder.trackingNumber && (
+            {selectedOrder.trackingNumber &&
+              ["picked_up", "in_transit", "out_for_delivery", "shipped", "ready_to_ship", "label_generated"].includes(
+                selectedOrder.status,
+              ) && (
               <div className="rounded-lg bg-muted p-4 col-span-2 flex items-center justify-between flex-wrap gap-4 border border-primary/15">
                 <div>
                   <p className="font-semibold mb-1 flex items-center gap-1.5"><Truck size={16} className="text-primary" /> {t("dashboard.orders.shipment_tracking")}</p>
@@ -524,6 +731,7 @@ function OrdersTab() {
               </div>
             )}
           </div>
+          
         </div>
         </div>
         <ReviewModal 
@@ -534,6 +742,14 @@ function OrdersTab() {
           onSuccess={() => {
             fetchOrders();
           }}
+        />
+        <ReturnRequestModal
+          open={isReturnModalOpen}
+          onOpenChange={setIsReturnModalOpen}
+          orderId={selectedOrder.id}
+          orderNumber={selectedOrder.orderNumber}
+          returnEligibility={returnEligibility}
+          onSuccess={handleReturnSuccess}
         />
       </>
     );

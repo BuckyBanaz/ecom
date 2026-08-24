@@ -117,7 +117,12 @@
 
 ### Order Status Values
 `pending` → `processing` → `ready_to_ship` → `in_transit` → `delivered`
-Returns: `return_requested` → `returned`
+
+**Return-related order statuses:** `return_requested` → `returned` (with `paymentStatus: refunded`)
+
+**Return window:** 30 days from `orders.deliveredAt` (enforced on `POST /returns` — frontend pre-check + backend `assertReturnEligible()`)
+
+**Validation (frontend + backend):** reason (enum), 1–5 photos (JPEG/PNG/WebP/GIF), note ≤2000 chars, delivered + no active return + in window; return label weight 0.01–30 kg. Utils: `backend/src/utils/returnValidation.ts`, `frontend/src/utils/returnValidation.ts`
 
 ---
 
@@ -176,9 +181,11 @@ Uploaded files served at: `/uploads/<filename>`
 | `/api/v1/wishlists` | Wishlist items |
 | `/api/v1/coupons` | Coupon codes |
 | `/api/v1/charges` | Shipping charge config |
-| `/api/v1/shipping` | Sendcloud shipping |
+| `/api/v1/shipping` | Sendcloud shipping (live labels) |
+| `/api/v1/ai` | AI tools (admin only — quick-add, CMS generate, drafts) |
 | `/api/v1/blogs` | Blog CRUD |
 | `/api/v1/notifications` | Push notifications |
+| `/api/v1/webhooks/sendcloud` | Sendcloud parcel webhooks (raw body — registered in `app.ts`, not `webhookRoutes`) |
 | `/api/v1/config` | Public config (maintenance mode, etc.) |
 
 ---
@@ -191,6 +198,76 @@ Uploaded files served at: `/uploads/<filename>`
 | `GET /robots.txt` | Dynamic robots.txt (from AdminSettings) |
 | `GET /sitemap.xml` | Dynamic sitemap (from AdminSettings) |
 | `GET /api-docs` | Swagger UI |
+
+---
+
+## 🤖 AI Routes (Admin JWT required)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/ai/limits` | AI config limits (bulk count, image count, output language) |
+| GET | `/ai/drafts` | List AI-generated product drafts |
+| GET | `/ai/drafts/:id` | Get single draft |
+| DELETE | `/ai/drafts/:id` | Delete draft |
+| PATCH | `/ai/drafts/:id/published` | Mark draft as published |
+| POST | `/ai/products/quick-add` | AI product quick-add (multipart: image + hint) |
+| POST | `/ai/products/bulk-quick-add` | Bulk quick-add (up to `AI_BULK_LIMIT` rows) |
+| PATCH | `/ai/cms/generate` | AI CMS Coder — generate/edit page HTML + SEO |
+| GET | `/ai/seo/audit` | Site-wide SEO audit |
+| GET/PUT | `/ai/seo/playbook` | SEO playbook + target keywords |
+| POST | `/ai/seo/optimize` | AI optimize single entity |
+| POST | `/ai/seo/bulk-optimize` | Bulk SEO optimize (queued) |
+| GET | `/ai/seo/job` | Background SEO job status |
+| GET/PUT | `/ai/seo/autopilot` | Autopilot config |
+| POST | `/ai/seo/autopilot/run` | Run autopilot now |
+| GET | `/ai/blogs/suggestions` | Blog topic suggestions |
+| POST | `/ai/blogs/generate` | AI blog writer (queued) |
+| POST | `/ai/faqs/generate` | AI FAQ writer (queued) |
+| GET | `/ai/seo/search-console/status` | GSC connection status |
+| GET | `/ai/seo/search-console/overview` | GSC clicks/impressions/queries/pages |
+| GET | `/ai/seo/rank-tracking` | Stored rank history + trends |
+| POST | `/ai/seo/rank-tracking/sync` | Sync playbook keywords from GSC |
+| GET | `/ai/seo/internal-links` | Internal linking suggestions |
+
+---
+
+## ↩️ Returns Routes — `/api/v1/returns`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/returns` | Customer JWT | Submit return (multipart photos, max 5). Requires `delivered` order + 30-day window |
+| GET | `/returns/my` | Customer JWT | List own return requests |
+| GET | `/returns/my/:id/label` | Customer JWT | Download return label PDF (Sendcloud proxy) |
+| DELETE | `/returns/:id` | Customer JWT | Cancel while `pending_review` only |
+| GET | `/returns` | Admin | List returns — filter `?status=pending_review\|approved\|awaiting_return\|return_received\|refunded\|rejected\|all` |
+| GET | `/returns/refunds` | Admin | Processed + pending refunds (no Stripe ID yet) |
+| GET | `/returns/:id` | Admin | Return detail |
+| GET | `/returns/:id/label` | Admin | Download return label PDF |
+| PATCH | `/returns/:id/approve` | Admin | Approve return — **no Stripe refund**; order → `return_requested` |
+| PATCH | `/returns/:id/reject` | Admin | Reject (requires `adminNote` in body) |
+| POST | `/returns/:id/return-shipment` | Admin | Create Sendcloud return label (optimistic lock + transactional save); status → `awaiting_return` |
+| PATCH | `/returns/:id/receive` | Admin | Mark received + process Stripe refund |
+| PATCH | `/returns/:id/refund` | Admin | Manual Stripe refund (approved / awaiting_return / return_received) |
+
+### Return request status values
+`pending_review` → `approved` → `awaiting_return` → `return_received` → `refunded`  
+Terminal: `rejected`, `cancelled` — customer may submit a **new** request after `rejected`
+
+### Refund processing
+- Service: `backend/src/services/returnRefundService.ts` → `processReturnRefund()`
+- Auto-trigger: Sendcloud webhook on return parcel (`ORD-xxx-RET`) status **11** (delivered to warehouse)
+- Idempotent: reuses existing Stripe refund if PI already refunded
+- Concurrent-safe: row lock (`FOR UPDATE`) + `refund_processing` before Stripe; 409 on duplicate
+- Blocks refund if order has no `stripePaymentId`
+
+### Sendcloud webhook — `/api/v1/webhooks/sendcloud`
+| Field | Detail |
+|-------|--------|
+| Method | `POST` |
+| Body parser | `express.raw({ type: "application/json" })` in `app.ts` (before `express.json()`) |
+| Signature header | `Sendcloud-Signature` — HMAC-SHA256 of **raw body** using `SENDCLOUD_SECRET_KEY` |
+| Outbound parcels | Updates `orders.status`, `shipmentStatus`, `deliveredAt` |
+| Return parcels (`*-RET`) | Updates `returnShipmentStatus`; auto-refund on status 11 |
 
 ---
 

@@ -56,6 +56,15 @@ const envSchema = z.object({
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
+  AI_ENABLED: z.enum(["true", "false"]).default("false"),
+  AI_SYSTEM_PROMPT: z.string().optional(),
+  AI_MODEL: z.string().default("gemini-1.5-flash"),
+  AI_IMAGE_COUNT: z.string().default("1"),
+  AI_BULK_LIMIT: z.string().default("5"),
+  AI_IMAGE_PROMPT: z.string().optional(),
+  AI_OUTPUT_LANGUAGE: z.string().default("nl"),
+  SENDCLOUD_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -77,6 +86,16 @@ const RUNTIME_ENV_KEYS = [
   "STRIPE_PUBLISHABLE_KEY",
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
+  "GROQ_API_KEY",
+  "GOOGLE_API_KEY",
+  "GOOGLE_AI_API_KEY",
+  "AI_ENABLED",
+  "AI_SYSTEM_PROMPT",
+  "AI_MODEL",
+  "AI_IMAGE_MODEL",
+  "AI_IMAGE_COUNT",
+  "AI_IMAGE_PROMPT",
+  "AI_OUTPUT_LANGUAGE",
 ] as const;
 
 /** Sync admin-saved .env.production values into the cached env object. */

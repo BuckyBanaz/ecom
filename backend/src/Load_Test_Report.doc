@@ -1,0 +1,109 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Load Testing & API Stress Analysis Report</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; line-height: 1.6; color: #333333; }
+  h1 { color: #1F4E78; border-bottom: 2px solid #1F4E78; padding-bottom: 5px; }
+  h2 { color: #2E74B5; margin-top: 20px; }
+  h3 { color: #5B9BD5; }
+  table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+  th, td { border: 1px solid #D3D3D3; padding: 10px; text-align: left; }
+  th { background-color: #F2F2F2; font-weight: bold; color: #1F4E78; }
+  .tip-box { background-color: #E2EFDA; border-left: 5px solid #375623; padding: 15px; margin: 15px 0; }
+  .note-box { background-color: #DDEBF7; border-left: 5px solid #1F4D78; padding: 15px; margin: 15px 0; }
+  .error-item { color: #C00000; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Load Testing & API Stress Analysis Report</h1>
+<p>This report documents the load testing execution and performance analysis of the E-commerce backend API. Tests were executed locally and against the staging/production servers to identify performance bottlenecks and evaluate rate-limiting configurations.</p>
+
+<hr>
+
+<h2>📊 Summary of Test Scenarios</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Test Run</th>
+      <th>Target URL</th>
+      <th>Total Requests</th>
+      <th>Concurrency Limit</th>
+      <th>Success Rate</th>
+      <th>Avg Latency</th>
+      <th>Key Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Run #1 (Local)</strong></td>
+      <td>http://localhost:5000/api/v1/products</td>
+      <td>1,000</td>
+      <td>100</td>
+      <td><strong>100%</strong></td>
+      <td>760.61 ms</td>
+      <td>✅ 200 OK</td>
+    </tr>
+    <tr>
+      <td><strong>Run #2 (Server)</strong></td>
+      <td>https://api.schipenster.com/api/v1/products</td>
+      <td>1,000</td>
+      <td>100</td>
+      <td><strong>100%</strong></td>
+      <td>882.15 ms</td>
+      <td>✅ 200 OK</td>
+    </tr>
+    <tr>
+      <td><strong>Run #3 (Server Stress)</strong></td>
+      <td>https://api.schipenster.com/api/v1/products</td>
+      <td>10,000</td>
+      <td>400</td>
+      <td><strong>9.76%</strong></td>
+      <td>964.33 ms</td>
+      <td>💥 Rate Limited</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>🔍 Detailed Analysis of Stress Run (10,000 Requests)</h2>
+<p>During the high-volume concurrent test (10k requests at 400 parallel connections), the server responded with the following defensive measures:</p>
+
+<h3>1. Active Rate Limiting (HTTP 429)</h3>
+<ul>
+  <li><strong>Count:</strong> 8,846 times (88.46% of total requests)</li>
+  <li><strong>Response Status:</strong> <span class="error-item">HTTP 429 Too Many Requests</span></li>
+  <li><strong>Analysis:</strong> The backend middleware (express-rate-limit backed by Redis/Memory Store) successfully identified the high-frequency burst from a single client and blocked it. This prevents database degradation and ensures resource availability for legitimate users.</li>
+</ul>
+
+<h3>2. Network Timed Out (ETIMEDOUT)</h3>
+<ul>
+  <li><strong>Count:</strong> 178 times (1.78% of total requests)</li>
+  <li><strong>Error:</strong> <span class="error-item">connect ETIMEDOUT 187.124.21.137:443</span></li>
+  <li><strong>Analysis:</strong> With 400 workers making parallel calls, some connections timed out at the network socket layer before HTTP request parsing occurred.</li>
+</ul>
+
+<hr>
+
+<h2>💡 Recommendations & Conclusions</h2>
+
+<div class="tip-box">
+  <strong>Rate Limiter operates correctly:</strong><br>
+  The application's rate limiter configuration behaves as expected under brute-force or high-stress requests, protecting core database queries from crashing the application layer.
+</div>
+
+<div class="note-box">
+  <strong>Note for Raw Load Testing:</strong><br>
+  If you intend to run absolute raw performance tests beyond this constraint:
+  <ol>
+    <li>Whitelist the testing IP in your rate limiting configuration.</li>
+    <li>Or, temporarily adjust/disable rate limit environments on the staging/production server for load testing windows.</li>
+  </ol>
+</div>
+
+</body>
+</html>

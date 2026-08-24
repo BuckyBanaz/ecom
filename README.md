@@ -19,20 +19,19 @@
 - [x] **Order Management** — Admin orders, ready-to-ship, in-transit, delivered, returns
 - [x] **User Authentication** — Customer + admin login, OTP, roles & permissions
 - [x] **Mobile Responsive** — Storefront layout optimised for phones
-- [x] **CI/CD (Jenkins)** — Deploy via `code-deploy` branch on VPS
+- [x] **Production deploy** — SSH + `scripts/deploy.sh` on `code-deploy` branch
 - [x] **Admin Backups** — Database & uploads download from admin panel
 - [x] **i18n** — Dutch / English storefront
-
-### Pending
-
-- [ ] **Sendcloud (live labels)** — Integration code exists; carrier labels blocked until Sendcloud billing, carrier contracts, and sender address are fully activated. See `docs/sendcloud_integration.md`.
+- [x] **Sendcloud (live labels)** — Carrier label generation, shipment creation, tracking webhooks, and admin label download
+- [x] **AI Product Quick Add** — Upload photo + hint → Gemini auto-fills product form, generates lifestyle images, saves drafts (`/admin/products/quick-add`)
+- [x] **AI CMS Coder** — Rich Text Editor AI generates CMS page HTML, shortcodes & SEO from a prompt (`POST /api/v1/ai/cms/generate`)
 
 ### Docs
 
 | Topic | File |
 |-------|------|
-| **Easy product add** (image + one line → auto-fill) | `docs/easy_product_adding_plan.md` |
-| **AI roadmap** (catalog import, room visualizer, returns AI) | `docs/ai_powered_ecommerce_plan.md` |
+| Future tasks & AI backlog | `brain/08_future_tasks.md` |
+| **AI roadmap** (remaining: chatbot, analytics, returns AI) | `docs/ai_powered_ecommerce_plan.md` |
 | Returns & refunds (+ AI triage) | `docs/returns-system-architecture.md` |
 | Product import / scraping (+ AI auto-fill & images) | `docs/product_scraping_specification.md` |
 | Analytics (GA4, Meta, TikTok) | `docs/analytics_tracking_setup.md` |
@@ -40,7 +39,7 @@
 | Production deploy | `docs/production_deployment_checklist.md` |
 | Backup & restore | `docs/backup_restore_guide.md` |
 | Sendcloud setup | `docs/sendcloud_integration.md` |
-| Jenkins / CI-CD | `docs/v1.4-cicd-jenkins-plan.md` |
+| SEO & AEO | `docs/seo-and-aeo.md` |
 
 ---
 

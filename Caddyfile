@@ -4,12 +4,44 @@
 
 {$DOMAIN}, www.{$DOMAIN} {
   encode gzip zstd
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Cross-Origin-Opener-Policy "same-origin"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+
   handle /robots.txt {
     reverse_proxy backend:5000
   }
   handle /sitemap.xml {
     reverse_proxy backend:5000
   }
+  handle /llms.txt {
+    reverse_proxy backend:5000
+  }
+  handle /uploads/* {
+    reverse_proxy backend:5000
+  }
+
+  @staticFiles {
+    path *.ico *.png *.jpg *.jpeg *.gif *.svg *.css *.js *.webmanifest *.json *.woff *.woff2
+  }
+  handle @staticFiles {
+    reverse_proxy frontend:80
+  }
+
+  @bots {
+    header_regexp User-Agent (?i)(googlebot|bingbot|facebookexternalhit|twitterbot|linkedinbot|slackbot|whatsapp|yandexbot|discordbot|baiduspider)
+    not path_regexp (?i)\.(js|css|png|jpg|jpeg|gif|ico|svg|webp|avif|json|woff2?|xml|webmanifest|txt)$
+  }
+  handle @bots {
+    rewrite * /seo-proxy{uri}
+    reverse_proxy backend:5000
+  }
+
   handle {
     reverse_proxy frontend:80
   }
@@ -17,18 +49,14 @@
 
 api.{$DOMAIN} {
   encode gzip zstd
-  reverse_proxy backend:5000
-}
 
-jenkins.{$DOMAIN} {
-  # No gzip — Jenkins uses long-polling / websockets
-  reverse_proxy jenkins:8080 {
-    flush_interval -1
-    header_up Host {host}
-    header_up X-Real-IP {remote_host}
-    header_up X-Forwarded-For {remote_host}
-    header_up X-Forwarded-Proto https
-    header_up X-Forwarded-Host {host}
-    header_up X-Forwarded-Port 443
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Cross-Origin-Opener-Policy "same-origin"
+    Referrer-Policy "strict-origin-when-cross-origin"
   }
+
+  reverse_proxy backend:5000
 }

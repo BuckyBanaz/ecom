@@ -4,7 +4,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Link, Image as ImageIcon, Table, Minus, Undo, Redo, Code, Quote, Eraser, 
-  Palette, Highlighter, Indent, Outdent, ArrowUp, ArrowDown, Edit, Trash, Trash2, Type
+  Palette, Highlighter, Indent, Outdent, ArrowUp, ArrowDown, Edit, Trash, Trash2, Type, Sparkles, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -17,15 +17,112 @@ import { normalizeUploadedUrl, getApiBaseUrl, resolveImgUrl } from "@/utils/imag
 import { normalizeCmsHtmlForStorage } from "@/utils/cmsHtml";
 import { CmsHtmlContent } from "@/components/cms/CmsHtmlContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { aiRepository } from "@/client/apiClient";
+import { toast } from "sonner";
+
+const CMS_BLOCK_STYLE =
+  "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;";
+
+function buildCmsBlockToolbarHtml(friendlyName: string, shortcode: string): string {
+  return `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span><button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button><button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button><button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button><button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button><button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button><button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button></span>${shortcode}`;
+}
+
+function normalizeUrlsForStorage(html: string): string {
+  if (!html) return "";
+  const baseUrl = getApiBaseUrl();
+  const escapedBaseUrl = baseUrl.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const regex = new RegExp(`src="${escapedBaseUrl}/uploads/`, "g");
+  const localRegex = /src="https?:\/\/[^/]+\/uploads\//g;
+  return html.replace(regex, 'src="/uploads/').replace(localRegex, 'src="/uploads/');
+}
+
+function getStoredEditorHtml(root: HTMLElement): string {
+  return normalizeCmsHtmlForStorage(normalizeUrlsForStorage(root.innerHTML));
+}
+
+function enhanceCmsBlocksInEditor(root: HTMLElement, { rebuildToolbars = true }: { rebuildToolbars?: boolean } = {}) {
+  root.querySelectorAll(".cms-block .cms-block").forEach((nested) => {
+    const shortcodeMatch = nested.textContent?.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+    if (shortcodeMatch) {
+      nested.replaceWith(document.createTextNode(shortcodeMatch[0]));
+    } else {
+      nested.remove();
+    }
+  });
+
+  root.querySelectorAll(".cms-block").forEach((block) => {
+    if (!block.textContent?.trim()) {
+      block.remove();
+      return;
+    }
+
+    block.setAttribute("contenteditable", "false");
+    (block as HTMLElement).style.userSelect = "none";
+
+    const shortcodeMatch = block.textContent.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
+    if (!shortcodeMatch) return;
+
+    if (!rebuildToolbars && block.querySelector(".cms-block-edit-btn")) return;
+
+    const shortcode = shortcodeMatch[0];
+    const blockType = shortcodeMatch[1];
+    const friendlyName = blockType.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    block.innerHTML = buildCmsBlockToolbarHtml(friendlyName, shortcode);
+  });
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodesToWrap: Text[] = [];
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (node.nodeValue?.includes("[") && !(node.parentElement?.closest(".cms-block"))) {
+      if (/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/.test(node.nodeValue)) {
+        textNodesToWrap.push(node as Text);
+      }
+    }
+  }
+
+  textNodesToWrap.forEach((textNode) => {
+    const text = textNode.nodeValue || "";
+    const regex = /\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/g;
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+      }
+      const shortcodeType = match[1];
+      const fullShortcode = match[0];
+      const friendlyName = shortcodeType.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "cms-block";
+      wrapper.contentEditable = "false";
+      wrapper.setAttribute("style", CMS_BLOCK_STYLE);
+      wrapper.innerHTML = buildCmsBlockToolbarHtml(friendlyName, fullShortcode);
+      fragment.appendChild(wrapper);
+      lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+    }
+
+    textNode.parentNode?.replaceChild(fragment, textNode);
+  });
+}
 
 interface RichTextEditorProps {
   value: string;
   onChange: (val: string) => void;
   label?: string;
   placeholder?: string;
+  onSeoGenerated?: (seoData: { seoTitle: string; seoDesc: string; seoKeywords: string }) => void;
+  seoMeta?: { seoTitle?: string; seoDesc?: string; seoKeywords?: string };
 }
 
-export function RichTextEditor({ value, onChange, label, placeholder }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, label, placeholder, onSeoGenerated, seoMeta }: RichTextEditorProps) {
   const { t } = useTranslation();
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -56,6 +153,13 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   const [imgHeight, setImgHeight] = useState("auto");
   const [imgAlign, setImgAlign] = useState<"left" | "center" | "right" | "none">("none");
 
+  // AI Dialog state
+  const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiCodeLines, setAiCodeLines] = useState<string[]>([]);
+  const aiCodeScrollRef = useRef<HTMLDivElement>(null);
+
   const resolveRelativeUrlsInHtml = (html: string): string => {
     if (!html) return "";
     const baseUrl = getApiBaseUrl();
@@ -81,106 +185,33 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     return () => document.removeEventListener('click', handleGlobalClick);
   }, []);
 
-  // Sync prop value to DOM if it changed externally (and not in source mode)
+  // Sync prop value to DOM only for external updates — never reset while user is typing
   useEffect(() => {
-    if (!isSourceMode) {
-      let processedValue = value || "";
-      
-      // Resolve relative URLs so they render in the visual editor
-      processedValue = resolveRelativeUrlsInHtml(processedValue);
-      
-      if (editorRef.current && editorRef.current.innerHTML !== processedValue) {
-        editorRef.current.innerHTML = processedValue;
-      }
-      
-      // Clean up and ensure all blocks are properly structured
-      if (editorRef.current) {
-        // Step 1: Unwrap nested .cms-block elements - keep only the outer one
-        const allBlocks = editorRef.current.querySelectorAll('.cms-block');
-        allBlocks.forEach(b => {
-          const nestedBlocks = b.querySelectorAll('.cms-block');
-          nestedBlocks.forEach(nested => {
-            // Extract the shortcode text from nested block and remove the nested wrapper
-            const shortcodeMatch = nested.innerHTML.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
-            if (shortcodeMatch) {
-              const textNode = document.createTextNode(shortcodeMatch[0]);
-              nested.replaceWith(textNode);
-            } else {
-              nested.remove();
-            }
-          });
-        });
-        
-        // Step 2: Now process each top-level block - remove old toolbars, keep shortcode, add fresh toolbar
-        const blocks = editorRef.current.querySelectorAll('.cms-block');
-        blocks.forEach(b => {
-          if (!b.textContent?.trim()) {
-            b.remove();
-            return;
-          }
-          b.setAttribute('contenteditable', 'false');
-          (b as HTMLElement).style.userSelect = 'none';
-          
-          // Extract the pure shortcode from the block
-          const shortcodeMatch = b.textContent.match(/\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/);
-          if (!shortcodeMatch) return;
-          
-          const shortcode = shortcodeMatch[0];
-          const blockType = shortcodeMatch[1];
-          const friendlyName = blockType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-          
-          // Rebuild the block with single clean toolbar
-          b.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span><button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button><button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button><button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button><button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button><button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button><button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button></span>${shortcode}`;
-        });
-        
-        // Step 3: Auto-wrap any raw shortcodes that aren't yet wrapped (in text nodes)
-        const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_TEXT, null);
-        const textNodesToWrap: Text[] = [];
-        let node;
-        while (node = walker.nextNode()) {
-          if (node.nodeValue && node.nodeValue.includes('[') && !(node.parentElement?.closest('.cms-block'))) {
-            const regex = /\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/;
-            if (regex.test(node.nodeValue)) {
-              textNodesToWrap.push(node as Text);
-            }
-          }
-        }
-        
-        textNodesToWrap.forEach(textNode => {
-          const text = textNode.nodeValue || "";
-          const regex = /\[([a-zA-Z0-9-]+)[^\]]*\]\[\/\1\]/g;
-          const fragment = document.createDocumentFragment();
-          let lastIndex = 0;
-          let match;
-          
-          while ((match = regex.exec(text)) !== null) {
-            if (match.index > lastIndex) {
-              fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
-            }
-            const shortcodeType = match[1];
-            const fullShortcode = match[0];
-            const friendlyName = shortcodeType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-            
-            const wrapper = document.createElement("div");
-            wrapper.className = "cms-block";
-            wrapper.contentEditable = "false";
-            wrapper.setAttribute("style", "background-color: #f4f4f5; padding: 16px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 12px; position: relative; font-family: monospace; font-size: 14px; color: #52525b; user-select: none;");
-            wrapper.innerHTML = `<span style="position: absolute; top: -1px; right: -1px; background-color: #3f3f46; color: white; padding: 4px 10px; font-size: 11px; font-family: sans-serif; font-weight: bold; border-bottom-left-radius: 8px; border-top-right-radius: 8px; user-select: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><span style="opacity: 0.85; margin-right: 4px;">${friendlyName}</span><button type="button" class="cms-block-above-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Insert Text Above">T↑</button><button type="button" class="cms-block-below-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0; margin-right: 4px;" title="Insert Text Below">T↓</button><button type="button" class="cms-block-up-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Up">▲</button><button type="button" class="cms-block-down-btn" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 10px; padding: 0;" title="Move Down">▼</button><button type="button" class="cms-block-edit-btn" style="background: #2563eb; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Edit Block">Edit</button><button type="button" class="cms-block-delete-btn" style="background: #dc2626; border: none; color: white; cursor: pointer; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; line-height: 1;" title="Delete Block">Delete</button></span>${fullShortcode}`;
-            
-            fragment.appendChild(wrapper);
-            lastIndex = regex.lastIndex;
-          }
-          
-          if (lastIndex < text.length) {
-            fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-          }
-          
-          textNode.parentNode?.replaceChild(fragment, textNode);
-        });
-      }
-    } else {
+    if (isSourceMode) {
       setHtmlSource(value || "");
+      return;
     }
+
+    if (!editorRef.current) return;
+
+    const incoming = normalizeCmsHtmlForStorage(value || "");
+    const current = getStoredEditorHtml(editorRef.current);
+
+    if (incoming === current) {
+      enhanceCmsBlocksInEditor(editorRef.current, { rebuildToolbars: false });
+      return;
+    }
+
+    if (document.activeElement === editorRef.current) {
+      enhanceCmsBlocksInEditor(editorRef.current, { rebuildToolbars: false });
+      return;
+    }
+
+    const scrollTop = editorRef.current.scrollTop;
+    editorRef.current.innerHTML = resolveRelativeUrlsInHtml(value || "");
+    enhanceCmsBlocksInEditor(editorRef.current, { rebuildToolbars: true });
+    editorRef.current.scrollTop = scrollTop;
+    setHtmlSource(value || "");
   }, [value, isSourceMode]);
 
   const saveSelection = () => {
@@ -224,32 +255,68 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   };
 
   const handleInput = () => {
-    if (editorRef.current) {
-      // Also enforce during input just in case browsers try to strip it
-      const blocks = editorRef.current.querySelectorAll('.cms-block');
-      let changed = false;
-      blocks.forEach(b => {
-        if (!b.textContent?.trim()) {
-          b.remove();
-          changed = true;
+    if (!editorRef.current) return;
+
+    const scrollTop = editorRef.current.scrollTop;
+    const hadShortcode = editorRef.current.textContent?.includes("[") ?? false;
+
+    if (hadShortcode) {
+      enhanceCmsBlocksInEditor(editorRef.current, { rebuildToolbars: false });
+    } else {
+      editorRef.current.querySelectorAll(".cms-block").forEach((block) => {
+        if (!block.textContent?.trim()) {
+          block.remove();
           return;
         }
-        if (b.getAttribute('contenteditable') !== 'false') {
-          b.setAttribute('contenteditable', 'false');
-          (b as HTMLElement).style.userSelect = 'none';
-          changed = true;
-        }
+        block.setAttribute("contenteditable", "false");
+        (block as HTMLElement).style.userSelect = "none";
       });
-      
-      const currentHTML = normalizeCmsHtmlForStorage(editorRef.current.innerHTML);
-      const normalizedHTML = normalizeUrlsInHtml(currentHTML);
-      
-      // Only trigger updates if content actually changed
-      // This preserves browser formatting state for empty selections
-      if (normalizedHTML !== htmlSource) {
-        setHtmlSource(normalizedHTML);
-        onChange(normalizedHTML);
-      }
+    }
+
+    const normalizedHTML = normalizeUrlsInHtml(
+      normalizeCmsHtmlForStorage(editorRef.current.innerHTML),
+    );
+
+    if (normalizedHTML !== htmlSource) {
+      setHtmlSource(normalizedHTML);
+      onChange(normalizedHTML);
+    }
+
+    editorRef.current.scrollTop = scrollTop;
+  };
+
+  const getActiveBlockElement = (): HTMLElement | null => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !editorRef.current) return null;
+
+    let node: Node | null = selection.anchorNode;
+    if (!node) return null;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    const block = (node as Element | null)?.closest("p, h1, h2, h3, h4, h5, h6, li, div, blockquote");
+    if (block && editorRef.current.contains(block) && !block.closest(".cms-block")) {
+      return block as HTMLElement;
+    }
+    return null;
+  };
+
+  const applyLineHeight = (lineHeight: string) => {
+    if (isSourceMode) return;
+    restoreSelection();
+    const block = getActiveBlockElement();
+    if (block) {
+      block.style.lineHeight = lineHeight;
+      handleInput();
+    }
+  };
+
+  const applyParagraphSpacing = (marginBottom: string) => {
+    if (isSourceMode) return;
+    restoreSelection();
+    const block = getActiveBlockElement();
+    if (block) {
+      block.style.marginBottom = marginBottom;
+      if (marginBottom === "0") block.style.removeProperty("margin-bottom");
+      handleInput();
     }
   };
 
@@ -692,6 +759,104 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
     }
   };
 
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+
+    const existingContent = (isSourceMode ? htmlSource : value || editorRef.current?.innerHTML || "").trim();
+    const isEditMode = existingContent.length > 0;
+
+    try {
+      setIsGenerating(true);
+      const res = await aiRepository.generateCmsPage({
+        prompt: aiPrompt,
+        existingContent: isEditMode ? existingContent : undefined,
+        existingSeo: isEditMode && seoMeta ? seoMeta : undefined,
+      });
+      if (res.success && res.htmlContent) {
+        let content = res.htmlContent as string;
+        content = normalizeCmsHtmlForStorage(content);
+        content = normalizeUrlsInHtml(content);
+
+        const seoPayload = {
+          seoTitle: res.seoTitle || "",
+          seoDesc: res.seoDesc || "",
+          seoKeywords: res.seoKeywords || "",
+        };
+
+        applyAiContent(content, true, seoPayload);
+        setIsAiDialogOpen(false);
+        setAiPrompt("");
+        toast.success(
+          isEditMode
+            ? t("admin_richtext.ai_updated", {
+                defaultValue: "Page updated — your existing content was kept and changes were applied.",
+              })
+            : t("admin_richtext.ai_success", {
+                defaultValue: "Page content generated — uses shortcodes + inline HTML (no JavaScript).",
+              }),
+        );
+      } else {
+        toast.error(res.error || t("admin_richtext.ai_failed", { defaultValue: "Failed to generate page content." }));
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t("admin_richtext.ai_failed", { defaultValue: "Failed to generate page content." });
+      toast.error(message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const applyAiContent = (
+    content: string,
+    replaceAll: boolean,
+    seo?: { seoTitle: string; seoDesc: string; seoKeywords: string } | null,
+  ) => {
+    if (replaceAll) {
+      if (editorRef.current) {
+        editorRef.current.innerHTML = resolveRelativeUrlsInHtml(content);
+        handleInput();
+      } else {
+        onChange(content);
+      }
+      if (isSourceMode) {
+        setHtmlSource(content);
+      }
+    } else {
+      executeCommand("insertHTML", resolveRelativeUrlsInHtml(content));
+      handleInput();
+    }
+
+    if (onSeoGenerated && seo && (seo.seoTitle || seo.seoDesc || seo.seoKeywords)) {
+      onSeoGenerated(seo);
+    }
+  };
+
+  const hasExistingPageContent = Boolean(
+    (isSourceMode ? htmlSource : value || editorRef.current?.innerHTML || "").trim(),
+  );
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setAiCodeLines([]);
+      return;
+    }
+    const pool = AI_CMS_CODE_LINES;
+    setAiCodeLines([pool[0]]);
+    let idx = 1;
+    const timer = setInterval(() => {
+      const next = pool[idx % pool.length];
+      idx += 1;
+      setAiCodeLines((prev) => [...prev.slice(-5), next]);
+    }, 420);
+    return () => clearInterval(timer);
+  }, [isGenerating]);
+
+  useEffect(() => {
+    const el = aiCodeScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [aiCodeLines]);
+
   return (
     <div className="space-y-2">
       {label && <label className="text-sm font-semibold text-foreground">{label}</label>}
@@ -700,7 +865,15 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
         {/* Advanced Toolbar */}
         <div className="flex flex-wrap items-center gap-1 border-b bg-muted/30 p-2">
           
-          {/* Group 1: Source & History */}
+          {/* Group 1: AI, Source & History */}
+          <ToolbarButton 
+            disabled={isSourceMode}
+            icon={Sparkles} 
+            label="Generate with AI" 
+            onClick={() => setIsAiDialogOpen(true)}
+            className="text-primary hover:text-primary hover:bg-primary/10"
+          />
+          <div className="w-[1px] h-6 bg-border mx-1" />
           <ToolbarButton 
             active={isSourceMode}
             icon={Code} 
@@ -767,6 +940,43 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
             <option value="5">Size: Large</option>
             <option value="6">Size: X-Large</option>
             <option value="7">Size: XX-Large</option>
+          </select>
+
+          {/* Group 5: Line spacing */}
+          <select
+            disabled={isSourceMode}
+            onChange={(e) => {
+              applyLineHeight(e.target.value);
+              e.target.selectedIndex = 0;
+            }}
+            defaultValue=""
+            className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs font-semibold focus-visible:outline-none"
+            title="Line spacing within paragraph"
+          >
+            <option value="" disabled>Line spacing</option>
+            <option value="1.25">Lines: Tight</option>
+            <option value="1.625">Lines: Normal</option>
+            <option value="2">Lines: Relaxed</option>
+            <option value="2.5">Lines: Loose</option>
+          </select>
+
+          {/* Group 6: Space between paragraphs */}
+          <select
+            disabled={isSourceMode}
+            onChange={(e) => {
+              applyParagraphSpacing(e.target.value);
+              e.target.selectedIndex = 0;
+            }}
+            defaultValue=""
+            className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs font-semibold focus-visible:outline-none"
+            title="Space below current paragraph/block"
+          >
+            <option value="" disabled>Para gap</option>
+            <option value="0">Gap: None</option>
+            <option value="8px">Gap: Small</option>
+            <option value="16px">Gap: Medium</option>
+            <option value="24px">Gap: Large</option>
+            <option value="40px">Gap: XL</option>
           </select>
 
           <div className="w-[1px] h-6 bg-border mx-1" />
@@ -971,8 +1181,6 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
                   saveSelection();
                 }}
                 onInput={handleInput}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
                 className="outline-hidden prose prose-sm max-w-none dark:prose-invert min-h-[220px] max-h-[520px] resize-y overflow-auto text-foreground leading-relaxed focus:outline-none"
               />
               {!value && !isFocused && placeholder && (
@@ -992,17 +1200,6 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           </div>
         </div>
 
-        {/* Storefront preview — matches live page rendering */}
-        {(htmlSource || value)?.trim() && (
-          <div className="border-t bg-muted/10">
-            <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-b bg-muted/20">
-              Live page preview
-            </div>
-            <div className="max-h-[420px] overflow-auto bg-background">
-              <CmsHtmlContent html={normalizeUrlsInHtml(normalizeCmsHtmlForStorage(htmlSource || value || ""))} />
-            </div>
-          </div>
-        )}
       </div>
 
       <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
@@ -1140,17 +1337,17 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl font-bold">
               <ImageIcon className="h-5 w-5 text-primary" />
-              Edit Image Properties
+              {t("admin_rich_text_editor.insert_image_dialog")}
             </DialogTitle>
             <DialogDescription>
-              Adjust size, alignment, and display options for this image.
+              {t("admin_rich_text_editor.ui_blocks")} {/* Reusing a general translation or leave as is if no exact match, but let's just use empty string or generic text */}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-6 py-4">
             {/* Alignment Options */}
             <div className="space-y-3">
-              <Label className="text-sm font-semibold">Alignment</Label>
+              <Label className="text-sm font-semibold">{t("admin_cms_components.align")}</Label>
               <div className="grid grid-cols-4 gap-2">
                 {[
                   { value: "none", label: "Inline", icon: AlignLeft },
@@ -1183,7 +1380,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
             {/* Size Options */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">Width</Label>
+                <Label className="text-sm font-semibold">{t("admin_cms_components.width")}</Label>
                 <Input
                   value={imgWidth}
                   onChange={(e) => setImgWidth(e.target.value)}
@@ -1192,7 +1389,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">Height</Label>
+                <Label className="text-sm font-semibold">{t("admin_cms_components.height")}</Label>
                 <Input
                   value={imgHeight}
                   onChange={(e) => setImgHeight(e.target.value)}
@@ -1233,7 +1430,7 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
               onClick={handleDeleteImage}
             >
               <Trash2 className="h-4 w-4" />
-              Delete Image
+              {t("admin_components.button_delete")}
             </Button>
             <div className="flex gap-2 w-full justify-end">
               <Button
@@ -1241,15 +1438,92 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
                 variant="outline"
                 onClick={() => setIsImgPropertiesOpen(false)}
               >
-                Cancel
+                {t("admin_components.button_cancel")}
               </Button>
               <Button
                 type="button"
                 onClick={handleApplyImageProperties}
               >
-                Apply Changes
+                {t("admin_components.button_save")}
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAiDialogOpen} onOpenChange={(open) => !isGenerating && setIsAiDialogOpen(open)}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col gap-4">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Sparkles className="h-5 w-5" />
+              Generate Page with AI
+            </DialogTitle>
+            <DialogDescription>
+              {hasExistingPageContent ? (
+                <>
+                  This page already has content. Describe what to <strong>change or add</strong> — AI keeps your existing blocks and applies your edits (shortcodes + inline HTML, no JavaScript).
+                </>
+              ) : (
+                <>
+                  Describe your lighting page. AI builds it with <strong>shortcodes</strong> (hero, products, categories) and inline HTML — not JavaScript.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {isGenerating ? (
+            <div className="flex h-[200px] min-h-0 shrink-0 flex-col overflow-hidden rounded-xl border border-primary/20 bg-zinc-950 p-4 font-mono text-[11px] text-emerald-400 shadow-inner">
+              <div className="mb-3 flex shrink-0 items-center gap-2 font-sans text-sm font-medium text-primary">
+                <Sparkles className="h-4 w-4 animate-pulse" />
+                AI is {hasExistingPageContent ? "updating your page" : "writing your page"}…
+              </div>
+              <div
+                ref={aiCodeScrollRef}
+                className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden pr-1"
+              >
+                {aiCodeLines.map((line, i) => (
+                  <div
+                    key={`${i}-${line.slice(0, 12)}`}
+                    className="break-all opacity-80 animate-in fade-in slide-in-from-bottom-1 duration-300"
+                  >
+                    <span className="select-none text-zinc-500">{"> "}</span>
+                    {line}
+                  </div>
+                ))}
+                <span className="inline-block h-4 w-2 animate-pulse bg-emerald-400" aria-hidden />
+              </div>
+            </div>
+          ) : (
+            <div className="min-h-0 shrink space-y-4 overflow-y-auto py-2">
+              <div className="space-y-2">
+                <Label>Your Prompt</Label>
+                <textarea
+                  autoFocus
+                  className="w-full min-h-[120px] max-h-[40vh] resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder={
+                    hasExistingPageContent
+                      ? "e.g. Change hero title to Spring Sale, add a features block below hero, update privacy section wording…"
+                      : "e.g. Pendant lights page: hero banner, 3 features, bestseller grid…"
+                  }
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="shrink-0">
+            <Button variant="outline" onClick={() => setIsAiDialogOpen(false)} disabled={isGenerating}>
+              {t("admin_components.button_cancel")}
+            </Button>
+            <Button onClick={handleAiGenerate} disabled={!aiPrompt.trim() || isGenerating} className="gap-2">
+              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {isGenerating
+                ? hasExistingPageContent
+                  ? "Applying changes…"
+                  : "Generating magic…"
+                : hasExistingPageContent
+                  ? "Apply changes"
+                  : "Generate Page"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1257,19 +1531,38 @@ export function RichTextEditor({ value, onChange, label, placeholder }: RichText
   );
 }
 
-function ToolbarButton({ 
-  icon: Icon, 
-  label, 
-  onClick, 
-  disabled = false,
-  active = false
-}: { 
+const AI_CMS_CODE_LINES = [
+  '[hero-banner count="1" title_1="Spring Deals" overlay_opacity_1="40"]',
+  '[features-block count="3" icon_1="truck-fast" title_1="Free EU Shipping"]',
+  '[product-block type="bestsellers" title="Popular Products"]',
+  '<section class="container-page py-12">…</section>',
+  '[category-block title="Shop by Room"]',
+  'seoTitle: "Premium Interior Lighting | Schip & Ster"',
+  'import { HeroBanner, FeaturesGrid } from "@/cms/blocks"',
+  'await prisma.category.findMany({ select: { slug: true } })',
+  '[reviews-block title="Customer Reviews"]',
+  'normalizeCmsHtmlForStorage(htmlContent)',
+  'const overlayOpacity = slide.overlayOpacity ?? 40;',
+  '[text-hero title="Crafting Atmosphere Through Light"]',
+];
+
+interface ToolbarButtonProps { 
   icon: any; 
   label: string; 
   onClick: () => void;
   disabled?: boolean;
   active?: boolean;
-}) {
+  className?: string;
+}
+
+function ToolbarButton({ 
+  icon: Icon, 
+  label, 
+  onClick, 
+  disabled = false,
+  active = false,
+  className = ""
+}: ToolbarButtonProps) {
   return (
     <Button
       type="button"
@@ -1278,7 +1571,7 @@ function ToolbarButton({
       disabled={disabled}
       className={`h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-md transition-all duration-150 ${
         active ? "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15" : ""
-      }`}
+      } ${className}`}
       onClick={onClick}
       onMouseDown={(e) => e.preventDefault()}
       title={label}

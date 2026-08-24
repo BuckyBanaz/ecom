@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../../config/db";
 import { notificationTriggerService } from "../notificationTriggerService";
+import { handleReturnParcelWebhook } from "../returnRefundService";
 
 /**
  * Handle incoming Sendcloud webhooks (e.g., parcel status changes)
@@ -8,17 +9,26 @@ import { notificationTriggerService } from "../notificationTriggerService";
 export const sendcloudWebhookHandler = async (req: Request, res: Response) => {
   try {
     const signature = req.headers["sendcloud-signature"] as string;
-    const payload = req.body;
+    const rawBody =
+      Buffer.isBuffer(req.body) ? req.body.toString("utf8") : JSON.stringify(req.body ?? {});
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return res.status(400).json({ success: false, message: "Invalid JSON body" });
+    }
 
-    // ── Signature Verification (HMAC-SHA256) ─────────────────────────────
-    const webhookSecret = process.env.SENDCLOUD_WEBHOOK_SECRET;
+    // Sendcloud signs webhooks with HMAC-SHA256 using your API Secret Key (not a separate webhook secret).
+    const webhookSecret =
+      process.env.SENDCLOUD_WEBHOOK_SECRET ||
+      process.env.SENDCLOUD_SECRET_KEY ||
+      "";
     if (webhookSecret) {
       if (!signature) {
-        console.warn("[Sendcloud Webhook] Missing sendcloud-signature header — rejecting request");
+        console.warn("[Sendcloud Webhook] Missing Sendcloud-Signature header — rejecting request");
         return res.status(401).json({ success: false, message: "Missing webhook signature" });
       }
       const crypto = await import("crypto");
-      const rawBody = JSON.stringify(payload);
       const expectedSig = crypto
         .createHmac("sha256", webhookSecret)
         .update(rawBody)
@@ -29,10 +39,9 @@ export const sendcloudWebhookHandler = async (req: Request, res: Response) => {
         return res.status(401).json({ success: false, message: "Invalid webhook signature" });
       }
     } else {
-      // Warn in production, allow in dev/staging without secret configured
-      if (process.env.NODE_ENV === "production") {
-        console.error("[Sendcloud Webhook] ⚠️ SENDCLOUD_WEBHOOK_SECRET is NOT set in production! Request accepted but this is a security risk.");
-      }
+      console.warn(
+        "[Sendcloud Webhook] No SENDCLOUD_SECRET_KEY configured — accepting unsigned requests (set API keys in Admin → Settings → Shipping)",
+      );
     }
 
     console.log("[Sendcloud Webhook] Received event:", payload.action, "| Parcel:", payload.parcel?.id);
@@ -47,6 +56,15 @@ export const sendcloudWebhookHandler = async (req: Request, res: Response) => {
       if (!orderNumber) {
         console.warn("[Sendcloud Webhook] No order_number in parcel payload — skipping DB update");
         return res.status(200).json({ success: true, message: "No order number, skipped" });
+      }
+
+      // Return parcels use order_number suffix -RET — handle separately
+      if (String(orderNumber).endsWith("-RET")) {
+        const result = await handleReturnParcelWebhook(String(orderNumber), statusId, parcel.status?.message || "");
+        return res.status(200).json({
+          success: true,
+          message: result.handled ? "Return parcel webhook processed" : "Return request not found, skipped",
+        });
       }
 
       // ── Sendcloud Status ID → Our Order Status Mapping ───────────────────
@@ -106,6 +124,9 @@ export const sendcloudWebhookHandler = async (req: Request, res: Response) => {
 
       if (newStatus) {
         updateData.status = newStatus;
+        if (newStatus === "delivered") {
+          updateData.deliveredAt = new Date();
+        }
       }
 
       // Find order — might not exist if order number doesn't match

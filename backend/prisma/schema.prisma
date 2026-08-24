@@ -26,6 +26,7 @@ model User {
   wishlists    Wishlist[]
   addresses    Address[]
   fcmTokens    String[]   @default([]) @map("fcm_tokens")
+  returnRequests ReturnRequest[]
 
   @@map("users")
 }
@@ -79,6 +80,9 @@ model Category {
   parent             Category?           @relation("CategoryParent", fields: [parentId], references: [id])
   children           Category[]          @relation("CategoryParent")
   products           Product[]
+  seoTitle           String?             @map("seo_title")
+  seoDescription     String?             @map("seo_description")
+  seoKeywords        String?             @map("seo_keywords")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
 
@@ -233,9 +237,11 @@ model Order {
   carrier         String?
   shippingCost    Float?      @map("shipping_cost")
   shipmentStatus  String?     @map("shipment_status")
+  deliveredAt     DateTime?   @map("delivered_at")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
   items           OrderItem[]
+  returnRequests  ReturnRequest[]
 
   @@map("orders")
 }
@@ -270,16 +276,19 @@ model Wishlist {
 
 // 7.5. Blogs Model
 model Blog {
-  id        String   @id @default(uuid())
-  title     String
-  slug      String   @unique
-  excerpt   String   @default("")
-  body      String   @default("")
-  cover     String?
-  author    String   @default("")
-  published Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  title          String
+  slug           String   @unique
+  excerpt        String   @default("")
+  body           String   @default("")
+  cover          String?
+  author         String   @default("")
+  published      Boolean  @default(true)
+  seoTitle       String?  @map("seo_title")
+  seoDescription String?  @map("seo_description")
+  seoKeywords    String?  @map("seo_keywords")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("blogs")
 }
@@ -388,4 +397,61 @@ model StoreCharge {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("store_charges")
+}
+
+// 16. AI Product Drafts (Quick Add — save before publish)
+model ProductDraft {
+  id        String   @id @default(uuid())
+  status    String   @default("draft") // draft | published | failed
+  batchId   String?  @map("batch_id")
+  name      String?
+  payload   Json
+  error     String?
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([batchId])
+  @@map("product_drafts")
+}
+
+// 17. Return Requests (customer returns + AI triage)
+model ReturnRequest {
+  id               String    @id @default(uuid())
+  orderId          String    @map("order_id")
+  order            Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId           String?   @map("user_id")
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reason           String
+  customerNote     String?   @map("customer_note")
+  photos           Json      @default("[]")
+  status           String    @default("pending_review") // pending_review | approved | awaiting_return | return_received | refunded | rejected | cancelled
+  aiFraudScore     Float?    @map("ai_fraud_score")
+  aiSummary        String?   @map("ai_summary")
+  aiRecommendation String?   @map("ai_recommendation") // auto_approve | needs_review | likely_fraud
+  adminNote        String?   @map("admin_note")
+  refundAmount     Float?    @map("refund_amount")
+  stripeRefundId   String?   @map("stripe_refund_id")
+  refundProcessedAt DateTime? @map("refund_processed_at")
+  refundExpectedAt DateTime? @map("refund_expected_at")
+  returnCarrier          String?   @map("return_carrier")
+  returnTrackingNumber   String?   @map("return_tracking_number")
+  returnTrackingUrl      String?   @map("return_tracking_url")
+  returnLabelUrl         String?   @map("return_label_url")
+  returnShipMethodId     String?   @map("return_ship_method_id")
+  returnParcelId         String?   @map("return_parcel_id")
+  returnShipmentStatus   String?   @map("return_shipment_status")
+  itemReceivedAt         DateTime? @map("item_received_at")
+  reviewedAt             DateTime? @map("reviewed_at")
+  resolutionType         String?   @map("resolution_type") // refund | replacement
+  resolutionNote         String?   @map("resolution_note")
+  replacementOrderId     String?   @map("replacement_order_id")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@map("return_requests")
 }

@@ -20,8 +20,9 @@
 | Docker (local) | `docker-compose.yml` |
 | Docker (prod) | `docker-compose.prod.yml` |
 | Reverse proxy | `Caddyfile` |
-| CI/CD | `Jenkinsfile` |
+| Deploy | `scripts/deploy.sh` on VPS (`code-deploy` branch) |
 | Docs folder | `docs/` |
+| Shipping & refund docs | `docs/shipping-and-refund/` |
 
 ---
 
@@ -44,7 +45,6 @@
 | Storefront | https://schipenster.com |
 | API | https://api.schipenster.com |
 | Swagger | https://api.schipenster.com/api-docs |
-| Jenkins | https://jenkins.schipenster.com |
 | Admin Panel | https://schipenster.com/admin |
 
 ---
@@ -111,7 +111,9 @@ git push origin code-deploy
 | **Stripe** | Payments | `STRIPE_SECRET_KEY` env |
 | **Firebase** | Google OAuth + Push notif | `backend/src/config/firebase.ts` + `serviceAccountKey.json` |
 | **Twilio** | OTP SMS | `TWILIO_*` env vars |
-| **Sendcloud** | Shipping labels | `SENDCLOUD_*` env vars (pending activation) |
+| **Sendcloud** | Shipping labels (live) | `SENDCLOUD_*` env vars |
+| **Sendcloud Webhook** | Outbound + return parcel status | `POST https://api.schipenster.com/api/v1/webhooks/sendcloud` — registered in `app.ts` with `express.raw()`; HMAC-SHA256 via `SENDCLOUD_SECRET_KEY` |
+| **Google Gemini** | AI product add + CMS coder | `GOOGLE_API_KEY`, `AI_*` env vars |
 | **Nodemailer** | Transactional email | `SMTP_*` env vars |
 | **Redis** | Caching + Rate limiting | `REDIS_URL` env var |
 | **Sharp** | Image optimization | Auto-applied on upload |
@@ -125,7 +127,42 @@ git push origin code-deploy
 pending → processing → ready_to_ship → in_transit → delivered
                                                         ↓
                                               return_requested → returned
+                                                        ↓
+                                              paymentStatus: refunded
 ```
+
+### Return request statuses (`return_requests.status`)
+
+```
+pending_review → approved → awaiting_return → return_received → refunded
+                    ↓              ↓ (Sendcloud -RET webhook status 11)
+                 rejected      manual receive / manual refund
+                 cancelled
+```
+
+**Refund rule:** Stripe refund runs **after** warehouse receive — not on approve.
+
+---
+
+## ↩️ Return Flow (Quick)
+
+| Who | Action |
+|-----|--------|
+| Customer | Delivered order → Request Return (photo + reason, 30 days from `deliveredAt`; FE + BE validation) |
+| Admin | Approve (no refund) → Create return label → Awaiting Return |
+| Customer | Download label (JWT proxy) → drop at PostNL |
+| System / Admin | Webhook `-RET` delivered OR Mark received OR Manual refund → Stripe → `refunded` |
+
+**Admin tabs:** Pending · Approved · Awaiting Return · **Received — Refund Pending** · Completed · Rejected
+
+**Test scripts:**
+```bash
+cd backend
+node -r dotenv/config scripts/reset-order-for-return-test.js <order-uuid>
+node -r dotenv/config scripts/test-return-flow-audit.js <order-uuid>
+```
+
+**Customer docs:** `docs/shipping-and-refund/` · **API:** `brain/04_api_reference.md` § Returns
 
 ---
 
@@ -151,7 +188,20 @@ pending → processing → ready_to_ship → in_transit → delivered
 
 ## ❓ Pending Work
 
-1. **Sendcloud live labels** — billing + carrier contracts needed
-2. **AI features** — see `docs/ai_powered_ecommerce_plan.md`
-3. **Easy product adding** — see `docs/easy_product_adding_plan.md`
-4. **Returns AI triage** — see `docs/returns-system-architecture.md`
+1. **Guest checkout** — see `brain/08_future_tasks.md` §1
+2. **AI Shopping Assistant** (storefront RAG chatbot) — see `brain/08_future_tasks.md` §2
+3. **Meta Pixel & TikTok live analytics** — **out of scope**; tags via GTM in CMS → SEO
+4. **SEO v0.2** (branch `v0.2`) — Search Console API, rank tracking, hreflang, internal linking — see `brain/08_future_tasks.md`
+5. **Deploy migrations** on production — see `brain/08_future_tasks.md`
+
+## ✅ Recently Completed
+
+- **Sendcloud live labels** — carrier label generation, shipment creation, tracking webhooks, admin label download
+- **AI Product Quick Add** — image + hint → Gemini auto-fills product form, lifestyle images, drafts (`/admin/products/quick-add`)
+- **AI CMS Coder** — Rich Text Editor → generates HTML, shortcodes & SEO (`POST /api/v1/ai/cms/generate`)
+- **Returns & Refunds + AI Triage** — refund after receive; Sendcloud return labels; webhook auto-refund on `-RET`; admin manual refund
+- **Returns polish** — 30-day UI pre-check, dual FE/BE validation, transactional return labels, refund DB lock
+- **AI SEO Expert (v0.1)** — unified `/admin/cms/seo`, job queue, autopilot, AI blog/FAQ writers — pushed `origin/v0.1`
+- **Analytics loading fix (v0.2)** — skeleton on load, no dummy chart flash; GTM handles storefront pixels
+- **SEO proxy & sitemap fix (v0.6)** — Fixed Caddyfile crawler matching and asset routing, normalized meta descriptions, resolved sitemap generation and added startup boot hook. Included dynamic relief pages in sitemap and dynamic preview metadata.
+- **Duplicate photo cleanup & Admin Lightbox (v0.6)** — Added system to recursively scan media uploads for duplicate files, update database references (Products, Categories, Blogs, Users, Reviews), delete redundant files from server, and localized keys in locales (`en`, `nl`). Built fullscreen zoomable lightbox preview modal for Cover and Gallery images.

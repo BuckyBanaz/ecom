@@ -5,7 +5,8 @@ import {
   Check, Lock, Unlock, Users, Package, ShoppingCart,
   LayoutDashboard, FolderTree, Tag, Sliders, Percent,
   Coins, MessageSquare, HardDrive, Settings,
-  Globe, Star, Mail, Calendar, Trash, Edit
+  Globe, Star, Mail, Calendar, Trash, Edit,
+  BarChart3, Terminal, Database, Sparkles
 } from "lucide-react";
 import { SectionLoader } from "@/components/ui/PageLoader";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 /* ─── Permission Definitions ──────────────────────────────────────────────── */
 const ALL_PERMISSIONS = [
   { key: "dashboard",      label: "Dashboard",         icon: LayoutDashboard },
+  { key: "analytics",      label: "Analytics",         icon: BarChart3 },
   { key: "products",       label: "Products",          icon: Package },
   { key: "categories",     label: "Categories",        icon: FolderTree },
   { key: "brands",         label: "Brands",            icon: Tag },
@@ -33,6 +35,9 @@ const ALL_PERMISSIONS = [
   { key: "manage_users",   label: "Admin Users",       icon: ShieldCheck },
   { key: "cms",            label: "CMS Pages",         icon: Globe },
   { key: "email_templates",label: "Email Templates",   icon: Mail },
+  { key: "ai",             label: "AI Tools",          icon: Sparkles },
+  { key: "logs",           label: "Logs",              icon: Terminal },
+  { key: "backups",        label: "Backups",           icon: Database },
   { key: "settings",       label: "Settings",          icon: Settings },
 ];
 
@@ -52,7 +57,7 @@ const ROLE_PRESETS: Record<string, {
     label: "Admin", icon: ShieldCheck,
     color: "text-blue-600 bg-blue-50 border-blue-200",
     badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
-    permissions: ["dashboard","products","categories","brands","attributes","orders","offers","charges","reviews","testimonials","storage","users","email_templates"],
+    permissions: ["dashboard","analytics","products","categories","brands","attributes","orders","offers","charges","reviews","testimonials","storage","users","email_templates","ai"],
     description: "All operational areas. Cannot manage admin accounts or settings.",
   },
   moderator: {
@@ -241,7 +246,7 @@ const AdminManageUsers = () => {
         </div>
         {user?.role === "superadmin" && (
           <Button
-            onClick={() => setOpenCreateModal(true)}
+            onClick={() => setOpenModal(true)}
             className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl gap-2 shadow-sm self-start sm:self-auto shrink-0"
           >
             <Plus className="h-4 w-4" /> {t("admin_manage_users.button_add")}
@@ -502,24 +507,23 @@ const AdminManageUsers = () => {
 
       {/* ── Create Admin Modal ───────────────────────────────────────────────── */}
       {openModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm overflow-hidden">
-          {/* Bottom sheet on mobile, centered dialog on sm+ */}
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
           <div
             className="
-              bg-card w-full max-h-[92dvh] overflow-y-auto
+              bg-card w-full max-h-[92dvh] flex flex-col overflow-hidden
               rounded-t-3xl sm:rounded-2xl
               border border-border shadow-2xl
-              sm:max-w-2xl sm:my-4
+              sm:max-w-2xl
               relative
             "
           >
             {/* Drag handle (mobile) */}
-            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+            <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
               <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
             </div>
 
             {/* Header */}
-            <div className="px-5 sm:px-6 py-4 border-b flex items-start justify-between gap-3">
+            <div className="px-5 sm:px-6 py-4 border-b flex items-start justify-between gap-3 shrink-0">
               <div>
                 <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-foreground">
                   Create Admin Account
@@ -536,8 +540,8 @@ const AdminManageUsers = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreate}>
-              <div className="px-5 sm:px-6 py-5 space-y-6">
+            <form onSubmit={handleCreate} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto min-h-0 px-5 sm:px-6 py-5 space-y-6">
 
                 {/* Credentials */}
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
@@ -638,7 +642,7 @@ const AdminManageUsers = () => {
               </div>
 
               {/* Footer */}
-              <div className="px-5 sm:px-6 py-4 border-t flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 bg-muted/20">
+              <div className="px-5 sm:px-6 py-4 border-t flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 bg-muted/20 shrink-0">
                 <Button type="button" variant="outline"
                   onClick={() => setOpenModal(false)}
                   className="rounded-xl font-bold w-full sm:w-auto"
@@ -661,18 +665,18 @@ const AdminManageUsers = () => {
 
       {/* ── Edit Admin Modal ───────────────────────────────────────────────── */}
       {editingAdmin && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
           <div
             className="
-              bg-card w-full max-h-[92dvh] overflow-y-auto
+              bg-card w-full max-h-[92dvh] flex flex-col overflow-hidden
               rounded-t-3xl sm:rounded-2xl
               border border-border shadow-2xl
-              sm:max-w-2xl sm:my-4
+              sm:max-w-2xl
               relative
             "
           >
             {/* Header */}
-            <div className="px-5 sm:px-6 py-4 border-b flex items-start justify-between gap-3">
+            <div className="px-5 sm:px-6 py-4 border-b flex items-start justify-between gap-3 shrink-0">
               <div>
                 <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-foreground">
                   Edit Admin Account
@@ -689,8 +693,8 @@ const AdminManageUsers = () => {
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit}>
-              <div className="px-5 sm:px-6 py-5 space-y-6">
+            <form onSubmit={handleEditSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto min-h-0 px-5 sm:px-6 py-5 space-y-6">
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-muted-foreground">Full Name</label>
@@ -782,7 +786,7 @@ const AdminManageUsers = () => {
               </div>
 
               {/* Footer */}
-              <div className="px-5 sm:px-6 py-4 border-t flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 bg-muted/20">
+              <div className="px-5 sm:px-6 py-4 border-t flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 bg-muted/20 shrink-0">
                 <Button type="button" variant="outline"
                   onClick={() => setEditingAdmin(null)}
                   className="rounded-xl font-bold w-full sm:w-auto"

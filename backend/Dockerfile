@@ -50,6 +50,10 @@ RUN npx prisma generate
 # Copy built dist from builder
 COPY --from=builder /app/dist ./dist
 
+# Startup: recover failed migrations, then deploy + run
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh
+
 # Create uploads + SEO files directories
 RUN mkdir -p public/uploads backups seo
 
@@ -57,4 +61,4 @@ RUN mkdir -p public/uploads backups seo
 EXPOSE 5000
 
 # Run migrations and start app
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["./docker-entrypoint.sh"]

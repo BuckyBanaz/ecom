@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plus, Pencil, Trash2, Search, MessageSquare } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, MessageSquare, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
-import { productRepository } from "@/client/apiClient";
+import { productRepository, adminSettingsRepository } from "@/client/apiClient";
 import { resolveImgUrl } from "@/utils/image";
 import { SafeImage } from "@/components/ui/SafeImage";
 
@@ -18,6 +18,7 @@ const AdminProducts = () => {
   const [search, setSearch] = useState("");
   const [productsList, setProductsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [aiEnabled, setAiEnabled] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -37,7 +38,20 @@ const AdminProducts = () => {
         setIsLoading(false);
       }
     };
+    
+    const fetchAiStatus = async () => {
+      try {
+        const res = await adminSettingsRepository.getAiSettings();
+        if (res.success && res.data) {
+          setAiEnabled(res.data.enabled);
+        }
+      } catch (err) {
+        console.error("Failed to fetch AI settings", err);
+      }
+    };
+    
     fetchProducts();
+    fetchAiStatus();
   }, []);
 
   const filtered = productsList.filter((p) => {
@@ -76,9 +90,21 @@ const AdminProducts = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">{t("admin_products.total_count", { count: productsList.length })}</p>
         {hasPermission("products") && (
-          <Button className="rounded-full gap-2" onClick={() => navigate("/admin/products/new")}>
-            <Plus className="h-4 w-4" /> {t("admin_products.add_product")}
-          </Button>
+          <div className="flex gap-2">
+            {aiEnabled && (
+              <>
+                <Button variant="outline" className="rounded-full gap-2 border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary" onClick={() => navigate("/admin/products/quick-add")}>
+                  <span className="text-base leading-none">✨</span> Quick Add (AI)
+                </Button>
+                <Button variant="outline" className="rounded-full gap-2" onClick={() => navigate("/admin/product-drafts")}>
+                  Drafts
+                </Button>
+              </>
+            )}
+            <Button className="rounded-full gap-2" onClick={() => navigate("/admin/products/new")}>
+              <Plus className="h-4 w-4" /> {t("admin_products.add_product")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -176,6 +202,15 @@ const AdminProducts = () => {
                           onClick={() => navigate(`/admin/products/${p.id}/edit`)}
                         >
                           <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title={t("admin_products.action_view", { defaultValue: "View Product" })}
+                          className="h-8 w-8 text-green-600 hover:bg-green-50"
+                          onClick={() => window.open(`/product/${p.slug || p.id}`, '_blank')}
+                        >
+                          <Eye className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"

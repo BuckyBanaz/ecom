@@ -7,6 +7,7 @@ import { setupSwagger } from "./config/swagger";
 import { requestLogger } from "./middlewares/loggerMiddleware";
 import { globalLimiter } from "./middlewares/rateLimitMiddleware";
 import redis from "./config/redis";
+import { serveResizedUpload } from "./middlewares/imageResizeMiddleware";
 import { seedTemplates } from "./utils/seedTemplates";
 
 // Run seed script on startup
@@ -19,6 +20,15 @@ const app = express();
 // Behind Caddy reverse proxy in production (fixes express-rate-limit X-Forwarded-For warning)
 app.set("trust proxy", 1);
 
+// Prevent Google from indexing raw API responses, while allowing them to be fetched
+app.use((req, res, next) => {
+  const host = String(req.hostname || req.get("host") || "").toLowerCase();
+  if (host.startsWith("api.") || req.path.startsWith("/api/")) {
+    res.setHeader("X-Robots-Tag", "noindex");
+  }
+  next();
+});
+
 const allowedOrigins = new Set(
   [
     env.CLIENT_URL,
@@ -26,7 +36,6 @@ const allowedOrigins = new Set(
     "https://schipenster.com",
     "https://www.schipenster.com",
     "https://api.schipenster.com",
-    "https://jenkins.schipenster.com",
     "http://localhost:5173",
     "http://localhost:8080",
     "http://localhost:5000",
@@ -56,24 +65,7 @@ app.use(
 // Register HTTP request logger middleware
 app.use(requestLogger);
 
-// Rate limiting — protects against brute-force and abuse
-app.use(globalLimiter);
-
-// Webhook needs raw body to verify Stripe signature
-import { handleStripeWebhook } from "./controllers/paymentController";
-app.post("/api/v1/payments/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
-
-// Standard HTTP middleware parsers (increased limits for base64 image uploads)
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
-
-// Serve uploaded media statically
-app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
-
-// Serve Swagger API Interactive documentation UI
-setupSwagger(app);
-
-// Health probe endpoint for monitoring
+// Health probe — before rate limiter so monitoring never blocks
 app.get("/health", async (_req, res) => {
   let redisStatus: "connected" | "disabled" | "error" = "disabled";
 
@@ -82,7 +74,10 @@ app.get("/health", async (_req, res) => {
       redisStatus = "error";
     } else {
       try {
-        const pong = await redis.ping();
+        const pong = await Promise.race([
+          redis.ping(),
+          new Promise<string>((_, reject) => setTimeout(() => reject(new Error("timeout")), 2000)),
+        ]);
         redisStatus = pong === "PONG" ? "connected" : "error";
       } catch {
         redisStatus = "error";
@@ -101,11 +96,42 @@ app.get("/health", async (_req, res) => {
   });
 });
 
+// Rate limiting — protects against brute-force and abuse
+app.use(globalLimiter);
+
+// Webhook needs raw body to verify Stripe signature
+import { handleStripeWebhook } from "./controllers/paymentController";
+import { sendcloudWebhookHandler } from "./services/sendcloud/webhook";
+app.post("/api/v1/payments/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+app.post("/api/v1/webhooks/sendcloud", express.raw({ type: "application/json" }), sendcloudWebhookHandler);
+
+// Standard HTTP middleware parsers (increased limits for base64 image uploads)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Serve uploaded media — optional ?w= resize, then static originals
+app.use("/uploads", serveResizedUpload);
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../public/uploads"), {
+    maxAge: "365d",
+    immutable: true,
+    etag: true,
+    lastModified: true,
+    setHeaders(res) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    },
+  })
+);
+
+// Serve Swagger API Interactive documentation UI
+setupSwagger(app);
 
 import authRoutes from "./routes/authRoutes";
 import productRoutes from "./routes/productRoutes";
 import categoryRoutes from "./routes/categoryRoutes";
 import brandRoutes from "./routes/brandRoutes";
+import aiRoutes from "./routes/aiRoutes";
 import seriesRoutes from "./routes/seriesRoutes";
 import attributeRoutes from "./routes/attributeRoutes";
 import megaMenuRoutes from "./routes/megaMenuRoutes";
@@ -122,15 +148,24 @@ import chargeRoutes from "./routes/chargeRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import shippingRoutes from "./routes/shippingRoutes";
 import orderRoutes from "./routes/orderRoutes";
+import returnRoutes from "./routes/returnRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import configRoutes from "./routes/configRoutes";
 import logsRoutes from "./routes/logsRoutes";
 import backupRoutes from "./routes/backupRoutes";
-import { getRobotsTxtContent, getSitemapXmlContent } from "./services/settingsStore";
+import { getRobotsTxtContent, getSitemapXmlContent, getLlmsTxtContent } from "./services/settingsStore";
+import { seoPrerender } from "./middlewares/seoPrerender";
 
-app.get("/robots.txt", async (_req, res, next) => {
+app.get("/seo-proxy*", seoPrerender);
+
+app.get("/robots.txt", async (req, res, next) => {
   try {
+    const host = String(req.hostname || req.get("host") || "").toLowerCase();
+    if (host.startsWith("api.")) {
+      res.type("text/plain").send("User-agent: *\nAllow: /\n");
+      return;
+    }
     const content = await getRobotsTxtContent();
     res.type("text/plain").send(content);
   } catch (error) {
@@ -151,11 +186,26 @@ app.get("/sitemap.xml", async (_req, res, next) => {
   }
 });
 
+app.get("/llms.txt", async (req, res, next) => {
+  try {
+    const host = String(req.hostname || req.get("host") || "").toLowerCase();
+    if (host.startsWith("api.")) {
+      res.status(404).type("text/plain").send("Not found");
+      return;
+    }
+    const content = await getLlmsTxtContent();
+    res.type("text/plain; charset=utf-8").send(content);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Aggregate API Routers will be registered here under /api/v1
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/brands", brandRoutes);
+app.use("/api/v1/ai", aiRoutes);
 app.use("/api/v1/addresses", addressRoutes);
 app.use("/api/v1/wishlists", wishlistRoutes);
 app.use("/api/v1/series", seriesRoutes);
@@ -175,6 +225,7 @@ app.use("/api/v1/charges", chargeRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/shipping", shippingRoutes);
 app.use("/api/v1/orders", orderRoutes);
+app.use("/api/v1/returns", returnRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 

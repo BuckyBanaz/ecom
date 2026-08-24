@@ -70,13 +70,17 @@ npm run lint           # ESLint
 
 ## 🌐 Production Deployment
 
-### CI/CD via Jenkins
-- Push to `code-deploy` branch → Jenkins pipeline triggers
-- Jenkins pulls latest code on VPS at `/opt/ecom`
-- Runs Docker build + restart
-- Config: `Jenkinsfile` at root
+### Production deploy (SSH)
 
-### VPS Operations (SSH into server)
+Push to `code-deploy`, then on VPS:
+
+```bash
+cd /opt/ecom
+BRANCH=code-deploy bash scripts/deploy.sh
+```
+
+See `docs/vps_operations_runbook.md` for full ops commands.
+
 ```bash
 # Navigate to project
 cd /opt/ecom
@@ -196,16 +200,13 @@ curl http://localhost:5000/health
 
 ---
 
-## 🔄 CI/CD Pipeline (Jenkinsfile)
+## 🔄 Production deploy flow
 
-1. Code pushed to `code-deploy` branch
-2. Jenkins webhook fires
-3. Jenkins pulls latest on VPS
-4. Runs `docker-compose build`
-5. Runs `docker-compose up -d`
-6. Health check passes → deploy complete
+1. Push to `code-deploy` branch
+2. SSH to VPS: `cd /opt/ecom && BRANCH=code-deploy bash scripts/deploy.sh`
+3. Script pulls, builds `backend` + `frontend` + `caddy`, runs health check
 
-Config: `Jenkinsfile` + `docker-compose.jenkins.yml`
+See `docs/vps_operations_runbook.md`.
 
 ---
 
@@ -213,14 +214,14 @@ Config: `Jenkinsfile` + `docker-compose.jenkins.yml`
 
 | File | Topic |
 |------|-------|
+| `shipping-and-refund/` | **Returns & refunds** — user/admin flows, customer UI, policies |
 | `api_endpoints.md` | Full API reference |
 | `system_architecture.md` | Scale architecture plan |
 | `vps_operations_runbook.md` | VPS commands (disk, docker, logs) |
 | `production_deployment_checklist.md` | Pre-deploy checklist |
 | `backup_restore_guide.md` | DB backup & restore |
 | `sendcloud_integration.md` | Sendcloud setup guide |
-| `v1.4-cicd-jenkins-plan.md` | Jenkins setup |
 | `easy_product_adding_plan.md` | AI-assisted product adding |
 | `ai_powered_ecommerce_plan.md` | AI feature roadmap |
-| `returns-system-architecture.md` | Returns & refunds |
+| `returns-system-architecture.md` | Returns & refunds (legacy — prefer `shipping-and-refund/`) |
 | `analytics_tracking_setup.md` | GA4, Meta, TikTok tracking |

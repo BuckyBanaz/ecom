@@ -130,4 +130,48 @@ export const emailService = {
       throw error; // Re-throw so controller can handle it properly
     }
   },
+
+  /**
+   * Send a raw HTML email directly, without fetching a template from the database.
+   */
+  sendEmail: async (options: { to: string; subject: string; html: string; attachments?: any[] }) => {
+    try {
+      const host = process.env.SMTP_HOST;
+      const port = parseInt(process.env.SMTP_PORT || "587", 10);
+      const user = process.env.SMTP_USER;
+      const pass = process.env.SMTP_PASS;
+      const encryption = (process.env.SMTP_ENCRYPTION || "tls").toLowerCase();
+      const fromName = process.env.SMTP_FROM_NAME || "Lampgigant";
+      const fromEmail = process.env.SMTP_FROM_EMAIL || user;
+
+      if (!host || !user || !pass) {
+        console.warn(`[EmailService] SMTP not configured. Skipping raw email to: ${options.to}`);
+        return false;
+      }
+
+      const secure = port === 465 || encryption === "ssl";
+
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass },
+        tls: { rejectUnauthorized: false },
+      });
+
+      const info = await transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        attachments: options.attachments || [],
+      });
+
+      console.log(`[EmailService] ✅ Custom email sent to ${options.to} | MessageId: ${info.messageId}`);
+      return true;
+    } catch (error: any) {
+      console.error("[EmailService] ❌ Failed to send custom email:", error?.message || error);
+      throw error;
+    }
+  },
 };

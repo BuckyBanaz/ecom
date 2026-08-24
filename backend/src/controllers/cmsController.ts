@@ -204,18 +204,26 @@ export const createPage = async (req: Request, res: Response) => {
 export const updatePage = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
-    const { title, body, published, seoTitle, seoDesc, seoKeywords, seoImage, newSlug } = req.body;
+    const { title, body, published, seoTitle, seoDesc, seoKeywords, seoImage, newSlug, slug: bodySlug } = req.body;
+    const nextSlug = (newSlug || bodySlug || slug)?.trim();
 
     const page = await prisma.cmsPage.findUnique({ where: { slug } });
     if (!page) {
       return res.status(404).json({ success: false, message: "Page not found" });
     }
 
+    if (nextSlug !== slug) {
+      const conflict = await prisma.cmsPage.findUnique({ where: { slug: nextSlug } });
+      if (conflict) {
+        return res.status(400).json({ success: false, message: "A page with this slug already exists" });
+      }
+    }
+
     const updatedPage = await prisma.cmsPage.update({
       where: { slug },
       data: {
         title,
-        slug: newSlug || slug,
+        slug: nextSlug,
         body,
         published,
         seoTitle,
@@ -256,7 +264,17 @@ export const getHeaderFooter = async (req: Request, res: Response) => {
     });
 
     if (!config) {
-      return res.status(404).json({ success: false, message: "Header & Footer configuration not found" });
+      return res.status(200).json({
+        success: true,
+        data: {
+          topLeft: [],
+          topRight: [],
+          footerAbout: { brandText: "", description: "" },
+          footerSocial: [],
+          footerColumns: [],
+          footerBottom: [],
+        },
+      });
     }
 
     res.status(200).json({
@@ -346,7 +364,7 @@ export const getTestimonials = async (req: Request, res: Response) => {
     });
 
     if (!config) {
-      return res.status(404).json({ success: false, message: "Testimonials not found" });
+      return res.status(200).json({ success: true, data: [] });
     }
 
     res.status(200).json({
@@ -403,7 +421,7 @@ export const getProductPageConfig = async (req: Request, res: Response) => {
       questionTitle: "Do you have a question about this product?",
       questionSubtitle: "Our employee is happy to help you find the right product",
       questionButtonText: "Send mail",
-      questionEmail: "info@schipenster.nl",
+      questionEmail: "info@schipenster.com",
       questionImage: "/uploads/employee.png"
     };
 

@@ -24,6 +24,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { getProductBrandName } from "@/utils/formatters";
 import { resolveImgUrl } from "@/utils/image";
 import { labelT } from "@/utils/i18nLabel";
+import {
+  applyPageMeta,
+  buildBreadcrumbSchema,
+  buildProductSchema,
+  removeJsonLd,
+  upsertJsonLd,
+} from "@/utils/seoMeta";
 
 const ProductPage = () => {
   const { t } = useTranslation();
@@ -63,7 +70,7 @@ const ProductPage = () => {
     questionTitle: "Do you have a question about this product?",
     questionSubtitle: "Our employee is happy to help you find the right product",
     questionButtonText: "Send mail",
-    questionEmail: "info@schipenster.nl",
+    questionEmail: "info@schipenster.com",
     questionImage: "/uploads/employee.png"
   });
 
@@ -103,37 +110,37 @@ const ProductPage = () => {
           const p = data.product;
           const mappedColor = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "color")?.attributeValue?.value || "Black";
           const mappedFitting = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "fitting")?.attributeValue?.value || "E27";
-            setLiveProduct({
-              id: p.id,
-              slug: p.slug,
-              name: p.name,
-              brand: getProductBrandName(p.brand),
-              category: p.category?.slug || "general",
-              price: p.price,
-              oldPrice: p.oldPrice || undefined,
-              rating: p.rating || 5,
-              reviewCount: p.reviewCount || 12,
-              image: p.image,
-              images: p.images || [],
-              inStock: p.inStock ?? true,
-              description: p.description || "",
-              shortDescription: p.shortDescription || "",
-              specs: p.specs || {},
-              color: mappedColor,
-              fitting: mappedFitting,
-              isNewArrival: p.isNewArrival,
-              isBestSelling: p.isBestSelling,
-              seoTitle: p.seoTitle,
-              seoDescription: p.seoDescription,
-              seoKeywords: p.seoKeywords,
-            });
-            setSelectedImageIndex(0);
-            setColor(mappedColor);
-            setFitting(mappedFitting);
+          setLiveProduct({
+            id: p.id,
+            slug: p.slug,
+            name: p.name,
+            brand: getProductBrandName(p.brand),
+            category: p.category?.slug || "general",
+            price: p.price,
+            oldPrice: p.oldPrice || undefined,
+            rating: p.rating || 5,
+            reviewCount: p.reviewCount || 12,
+            image: p.image,
+            images: p.images || [],
+            inStock: p.inStock ?? true,
+            description: p.description || "",
+            shortDescription: p.shortDescription || "",
+            specs: p.specs || {},
+            color: mappedColor,
+            fitting: mappedFitting,
+            isNewArrival: p.isNewArrival,
+            isBestSelling: p.isBestSelling,
+            seoTitle: p.seoTitle,
+            seoDescription: p.seoDescription,
+            seoKeywords: p.seoKeywords,
+          });
+          setSelectedImageIndex(0);
+          setColor(mappedColor);
+          setFitting(mappedFitting);
 
           const pCatSlug = p.category?.slug;
           const pBrandName = getProductBrandName(p.brand);
-          
+
           let pSeriesName = null;
           if (p.specs) {
             if (Array.isArray(p.specs)) {
@@ -159,7 +166,7 @@ const ProductPage = () => {
             if (reviewData.success) {
               setLiveReviews(reviewData.reviews || []);
             }
-          } catch(e) {
+          } catch (e) {
             console.error("Failed to fetch reviews");
           }
         }
@@ -172,28 +179,45 @@ const ProductPage = () => {
     fetchProduct();
   }, [slug]);
 
-  // Update SEO Meta Tags when product is loaded
+  // Update SEO + AEO structured data when product is loaded
   useEffect(() => {
-    if (liveProduct) {
-      document.title = liveProduct.seoTitle || `${liveProduct.name} | Premium Lighting`;
-      
-      let metaDescription = document.querySelector('meta[name="description"]');
-      if (!metaDescription) {
-        metaDescription = document.createElement('meta');
-        metaDescription.setAttribute('name', 'description');
-        document.head.appendChild(metaDescription);
-      }
-      metaDescription.setAttribute('content', liveProduct.seoDescription || liveProduct.shortDescription || "");
+    if (!liveProduct) return;
 
-      let metaKeywords = document.querySelector('meta[name="keywords"]');
-      if (!metaKeywords) {
-        metaKeywords = document.createElement('meta');
-        metaKeywords.setAttribute('name', 'keywords');
-        document.head.appendChild(metaKeywords);
-      }
-      metaKeywords.setAttribute('content', liveProduct.seoKeywords || "");
-    }
-  }, [liveProduct]);
+    const title = liveProduct.seoTitle || `${liveProduct.name} | Schip & Ster`;
+    const description = liveProduct.seoDescription || liveProduct.shortDescription || "";
+    const canonical = `${window.location.origin}/product/${liveProduct.slug || slug}`;
+
+    applyPageMeta({
+      seoTitle: liveProduct.seoTitle,
+      title: liveProduct.name,
+      seoDescription: liveProduct.seoDescription,
+      description: liveProduct.shortDescription || "",
+      seoKeywords: liveProduct.seoKeywords,
+      canonical,
+      ogType: "product",
+      ogImage: liveProduct.image,
+      ogTitle: liveProduct.name,
+      hreflangPath: `/product/${liveProduct.slug || slug}`,
+    });
+
+    upsertJsonLd(
+      "product-schema",
+      buildProductSchema(liveProduct, { reviews: liveReviews })
+    );
+    upsertJsonLd(
+      "breadcrumb-schema",
+      buildBreadcrumbSchema([
+        { name: "Home", url: "/" },
+        { name: "Categories", url: "/categories" },
+        ...(liveProduct.category
+          ? [{ name: liveProduct.category, url: `/category/${liveProduct.category}` }]
+          : []),
+        { name: liveProduct.name, url: `/product/${liveProduct.slug || slug}` },
+      ])
+    );
+
+    return () => removeJsonLd("product-schema", "breadcrumb-schema");
+  }, [liveProduct, liveReviews, slug]);
 
   if (loading) {
     return <SectionLoader />;
@@ -249,7 +273,7 @@ const ProductPage = () => {
 
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
         <div className="space-y-3">
-          <div 
+          <div
             className="relative overflow-hidden rounded-xl border border-border/50 bg-white dark:bg-muted aspect-square sm:aspect-[4/3] lg:aspect-auto lg:h-[400px] flex items-center justify-center cursor-zoom-in group"
             onClick={() => setIsZoomOpen(true)}
           >
@@ -265,9 +289,9 @@ const ProductPage = () => {
           </div>
           <div className="grid grid-cols-4 gap-3">
             {galleryImages.map((img: string, i: number) => (
-              <div 
-                key={i} 
-                className={cn("aspect-[4/3] overflow-hidden rounded-lg border bg-white dark:bg-muted cursor-pointer transition-all hover:opacity-90 flex items-center justify-center", i === selectedImageIndex ? "border-primary ring-1 ring-primary" : "border-border/50") } 
+              <div
+                key={i}
+                className={cn("aspect-[4/3] overflow-hidden rounded-lg border bg-white dark:bg-muted cursor-pointer transition-all hover:opacity-90 flex items-center justify-center", i === selectedImageIndex ? "border-primary ring-1 ring-primary" : "border-border/50")}
                 onClick={() => setSelectedImageIndex(i)}
               >
                 <SafeImage
@@ -285,7 +309,7 @@ const ProductPage = () => {
           <div className="flex flex-wrap items-center gap-3 mb-3">
             {product.isBestSelling && <Badge className="rounded-full px-3 py-0.5 bg-[#f59e0b] hover:bg-[#d97706] text-white border-transparent font-bold text-[12px] shadow-sm">{t("product.badge_best_seller")}</Badge>}
             {product.isNewArrival && <Badge className="rounded-full px-3 py-0.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white border-transparent font-bold text-[12px] shadow-sm">{t("product.badge_new_arrival")}</Badge>}
-            
+
             {product.inStock !== false ? (
               <div className="flex items-center gap-2 text-[12px] text-green-700 dark:text-green-400 font-bold bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 px-2.5 py-0.5 rounded-full">
                 <span className="relative flex h-2 w-2">
@@ -305,7 +329,7 @@ const ProductPage = () => {
           </div>
 
           <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">{product.name}</h1>
-          
+
           <div className="mt-4 space-y-3">
             {/* Row 1: Brand & Series */}
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
@@ -317,13 +341,13 @@ const ProductPage = () => {
                   </div>
                 ) : null;
               })()}
-              
+
               {(() => {
                 let series = null;
                 if (Array.isArray(product.specs)) {
-                   series = product.specs.find(s => s.key === 'Series')?.value;
+                  series = product.specs.find(s => s.key === 'Series')?.value;
                 } else if (product.specs && product.specs['Series']) {
-                   series = product.specs['Series'];
+                  series = product.specs['Series'];
                 }
                 // Fallback to name extraction if no series is defined
                 if (!series) {
@@ -397,10 +421,10 @@ const ProductPage = () => {
               {productPageCms.quoteTitle && (
                 <div className="mt-8 pt-6 border-t border-border/60 flex items-center justify-between gap-4">
                   <span className="font-semibold text-foreground text-sm sm:text-base">{labelT(t, productPageCms.quoteTitle)}</span>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="rounded-lg bg-[#FAF6F0] hover:bg-[#F3EFE9] text-foreground border-transparent font-semibold text-xs sm:text-sm px-5 py-2 h-auto shadow-sm"
-                    onClick={() => window.location.href = `mailto:${productPageCms.questionEmail || 'info@schipenster.nl'}?subject=Quote Request for ${product.name}`}
+                    onClick={() => window.location.href = `mailto:${productPageCms.questionEmail || 'info@schipenster.com'}?subject=Quote Request for ${product.name}`}
                   >
                     {labelT(t, productPageCms.quoteButtonText) || "Request a quote"}
                   </Button>
@@ -441,18 +465,18 @@ const ProductPage = () => {
                     <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                       {labelT(t, productPageCms.questionSubtitle)}
                     </p>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="mt-2 rounded-lg bg-white dark:bg-background hover:bg-muted text-foreground border-transparent font-semibold text-xs sm:text-sm px-6 py-2.5 h-auto shadow-sm"
-                      onClick={() => window.location.href = `mailto:${productPageCms.questionEmail || 'info@schipenster.nl'}?subject=Question about ${product.name}`}
+                      onClick={() => window.location.href = `mailto:${productPageCms.questionEmail || 'info@schipenster.com'}?subject=Question about ${product.name}`}
                     >
                       {labelT(t, productPageCms.questionButtonText) || "Send mail"}
                     </Button>
                   </div>
                   <div className="absolute right-0 bottom-0 h-full w-[35%] flex items-end justify-end pointer-events-none select-none">
-                    <img 
-                      src={resolveImgUrl(productPageCms.questionImage)} 
-                      alt="Customer Service Employee" 
+                    <img
+                      src={resolveImgUrl(productPageCms.questionImage)}
+                      alt="Customer Service Employee"
                       className="h-[95%] w-auto object-contain object-bottom"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
@@ -505,7 +529,7 @@ const ProductPage = () => {
       {(seriesProducts.length > 0 || brandProducts.length > 0 || relatedProducts.length > 0) && (
         <section className="mt-16">
           <h2 className="mb-8 text-2xl font-bold">{t("product.section_similar")}</h2>
-          
+
           <div className="space-y-12">
             {seriesProducts.length > 0 && (
               <div>
@@ -540,13 +564,13 @@ const ProductPage = () => {
       {/* 3. Customer Reviews Section */}
       <div className="mt-20 border-t pt-12">
         <h2 className="text-xl font-bold mb-8">{t("product.section_reviews")}</h2>
-        
+
         {(() => {
           const realReviewCount = liveReviews.length;
-          const realAvgRating = realReviewCount > 0 
-            ? liveReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount 
+          const realAvgRating = realReviewCount > 0
+            ? liveReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount
             : 0;
-            
+
           const ratingCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
           liveReviews.forEach(r => {
             if (r.rating >= 1 && r.rating <= 5) {
@@ -564,20 +588,20 @@ const ProductPage = () => {
                   </div>
                   <p className="text-xs text-muted-foreground font-medium">{t("product.review_based_on")} {realReviewCount} {t("product.reviews_count_label")}</p>
                 </div>
-                
+
                 <div className="space-y-1.5 w-[200px]">
                   {[5, 4, 3, 2, 1].map((stars) => {
-                     const count = ratingCounts[stars as keyof typeof ratingCounts];
-                     const pct = realReviewCount > 0 ? `${(count / realReviewCount) * 100}%` : "0%";
-                     return (
-                       <div key={stars} className="flex items-center gap-3 text-xs">
-                         <span className="flex text-muted-foreground">{"★".repeat(stars)}{"☆".repeat(5-stars)}</span>
-                         <div className="flex-1 h-3.5 bg-muted rounded-sm overflow-hidden flex">
-                           <div className="bg-[#333] dark:bg-primary h-full transition-all duration-500" style={{ width: pct }} />
-                         </div>
-                         <span className="w-5 text-right text-muted-foreground font-medium">{count}</span>
-                       </div>
-                     );
+                    const count = ratingCounts[stars as keyof typeof ratingCounts];
+                    const pct = realReviewCount > 0 ? `${(count / realReviewCount) * 100}%` : "0%";
+                    return (
+                      <div key={stars} className="flex items-center gap-3 text-xs">
+                        <span className="flex text-muted-foreground">{"★".repeat(stars)}{"☆".repeat(5 - stars)}</span>
+                        <div className="flex-1 h-3.5 bg-muted rounded-sm overflow-hidden flex">
+                          <div className="bg-[#333] dark:bg-primary h-full transition-all duration-500" style={{ width: pct }} />
+                        </div>
+                        <span className="w-5 text-right text-muted-foreground font-medium">{count}</span>
+                      </div>
+                    );
                   })}
                 </div>
               </div>
@@ -590,10 +614,10 @@ const ProductPage = () => {
 
         {/* Filters bar */}
         <div className="flex justify-end mb-6">
-           <select className="text-xs border rounded-md px-3 py-2 bg-background font-medium outline-none focus:border-primary">
-             <option>{t("product.filter_with_photos")}</option>
-             <option>{t("product.filter_all_reviews")}</option>
-           </select>
+          <select className="text-xs border rounded-md px-3 py-2 bg-background font-medium outline-none focus:border-primary">
+            <option>{t("product.filter_with_photos")}</option>
+            <option>{t("product.filter_all_reviews")}</option>
+          </select>
         </div>
 
         {/* Reviews Grid */}
@@ -602,8 +626,8 @@ const ProductPage = () => {
             <p className="text-muted-foreground col-span-full">{t("product.no_reviews")}</p>
           ) : (
             liveReviews.map((r, i) => (
-              <div 
-                key={r.id || i} 
+              <div
+                key={r.id || i}
                 className="flex flex-col border rounded-lg overflow-hidden bg-card text-left cursor-pointer hover:shadow-md transition-shadow"
                 onClick={() => {
                   setSelectedReview(r);
@@ -641,14 +665,14 @@ const ProductPage = () => {
         </div>
       </div>
 
-      <ReviewModal 
-        isOpen={reviewModalOpen} 
-        onClose={() => setReviewModalOpen(false)} 
-        productId={liveProduct?.id} 
-        productName={liveProduct?.name} 
+      <ReviewModal
+        isOpen={reviewModalOpen}
+        onClose={() => setReviewModalOpen(false)}
+        productId={liveProduct?.id}
+        productName={liveProduct?.name}
         onSuccess={(newReview) => {
           setLiveReviews(prev => [newReview, ...prev]);
-        }} 
+        }}
       />
 
       {/* Review Details Dialog */}
@@ -658,16 +682,16 @@ const ProductPage = () => {
             <div className="flex flex-col md:flex-row max-h-[80vh]">
               {((selectedReview.images && selectedReview.images.length > 0) || selectedReview.image) && (
                 <div className="w-full md:w-1/2 bg-muted flex flex-col items-center justify-center p-4">
-                  <SafeImage 
-                    src={selectedReview.images?.[selectedImageIndex] || selectedReview.image} 
-                    alt="Review" 
+                  <SafeImage
+                    src={selectedReview.images?.[selectedImageIndex] || selectedReview.image}
+                    alt="Review"
                     className="max-w-full max-h-[400px] object-contain rounded-lg shadow-sm"
                   />
                   {selectedReview.images && selectedReview.images.length > 1 && (
                     <div className="flex gap-2 mt-4">
                       {selectedReview.images.map((img: string, idx: number) => (
-                        <button 
-                          key={idx} 
+                        <button
+                          key={idx}
                           onClick={() => setSelectedImageIndex(idx)}
                           className={cn("w-14 h-14 rounded-md border-2 overflow-hidden transition-all", selectedImageIndex === idx ? "border-primary shadow-sm" : "border-transparent opacity-60 hover:opacity-100")}
                         >
@@ -688,11 +712,11 @@ const ProductPage = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <p className="text-sm text-foreground/90 leading-relaxed mb-6 whitespace-pre-wrap flex-1">
                   {selectedReview.text}
                 </p>
-                
+
                 <div className="mt-auto border-t pt-4">
                   <p className="text-sm font-bold">{selectedReview.name}</p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -707,11 +731,11 @@ const ProductPage = () => {
 
       {/* Lightbox / Zoom Modal */}
       <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
-        <DialogContent 
+        <DialogContent
           className="max-w-[95vw] max-h-[95vh] sm:max-w-[85vw] sm:max-h-[85vh] p-0 border-0 bg-transparent flex items-center justify-center outline-none shadow-none"
           onClick={() => setIsZoomOpen(false)}
         >
-          <div 
+          <div
             className="relative max-w-full max-h-full p-4 bg-background rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl border border-border/80"
             onClick={(e) => e.stopPropagation()}
           >

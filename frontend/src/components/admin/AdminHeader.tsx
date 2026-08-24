@@ -41,7 +41,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/cms/megamenu": "CMS — Mega Menu",
   "/admin/cms/relief": "CMS — Relief Page",
   "/admin/cms/blogs": "CMS — Blogs",
-  "/admin/cms/seo": "CMS — SEO Settings",
+  "/admin/cms/seo": "CMS — SEO & AI Expert",
   "/admin/cms/email-templates": "CMS — Email Templates",
 };
 
@@ -269,7 +269,7 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
                     <span>My Profile</span>
                     <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
                   </button>
-                  {hasPermission("superadmin") && (
+                  {hasPermission("settings") && (
                     <button
                       onClick={() => navigate("/admin/settings")}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors text-left"
@@ -279,7 +279,7 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
                       <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
                     </button>
                   )}
-                  {hasPermission("superadmin") && (
+                  {hasPermission("manage_users") && (
                     <button
                       onClick={() => navigate("/admin/manage-users")}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors text-left"

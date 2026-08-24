@@ -36,10 +36,16 @@ async function fetchAndParse<T>(url: string, config: RequestInit): Promise<T> {
     if (response.status === 403 && message.toLowerCase().includes("suspended")) {
       window.dispatchEvent(new CustomEvent("admin-suspended", { detail: message }));
     }
-    if (response.status === 401 && (isAdminPanel || localStorage.getItem("admin_token"))) {
-      localStorage.removeItem("admin_token");
-      localStorage.removeItem("admin_user");
-      window.dispatchEvent(new CustomEvent("admin-session-expired"));
+    if (response.status === 401) {
+      if (isAdminPanel || localStorage.getItem("admin_token")) {
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_user");
+        window.dispatchEvent(new CustomEvent("admin-session-expired"));
+      }
+      if (!isAdminPanel && localStorage.getItem("customer_token")) {
+        localStorage.removeItem("customer_token");
+        window.dispatchEvent(new CustomEvent("customer-auth-changed"));
+      }
     }
     throw new Error(message);
   }
@@ -54,61 +60,73 @@ async function request<T>(url: string, config: RequestOptions = {}): Promise<T> 
   const { cacheTtl, ...fetchConfig } = config;
   const key = cacheKey(method, url);
 
-  if (method === "GET" && cacheTtl && !isAdminPanel) {
-    const cached = getCached<T>(key);
-    if (cached) {
-      const staleAfter = Math.floor(cacheTtl / 3);
-      if (isCacheStale(key, staleAfter) && !inflight.has(key)) {
-        inflight.set(
-          key,
-          fetchAndParse<T>(url, fetchConfig)
-            .then(async (fresh) => {
-              try {
-                const translated = await maybeTranslateApiData(url, fresh);
-                setCache(key, translated, cacheTtl);
-                return translated;
-              } catch (err) {
-                console.error("Translation fail in cache reload:", err);
-                setCache(key, fresh, cacheTtl);
-                return fresh;
-              }
-            })
-            .finally(() => inflight.delete(key))
-        );
+  const execute = async (): Promise<T> => {
+    if (method === "GET" && cacheTtl && !isAdminPanel) {
+      const cached = getCached<T>(key);
+      if (cached) {
+        const staleAfter = Math.floor(cacheTtl / 3);
+        if (isCacheStale(key, staleAfter) && !inflight.has(key)) {
+          inflight.set(
+            key,
+            fetchAndParse<T>(url, fetchConfig)
+              .then(async (fresh) => {
+                try {
+                  const translated = await maybeTranslateApiData(url, fresh);
+                  setCache(key, translated, cacheTtl);
+                  return translated;
+                } catch (err) {
+                  console.error("Translation fail in cache reload:", err);
+                  setCache(key, fresh, cacheTtl);
+                  return fresh;
+                }
+              })
+              .finally(() => inflight.delete(key))
+          );
+        }
+        return cached;
       }
-      return cached;
     }
-  }
 
-  const promise = fetchAndParse<T>(url, fetchConfig);
-  if (method === "GET" && cacheTtl && !isAdminPanel) {
+    const promise = fetchAndParse<T>(url, fetchConfig);
+    if (method === "GET" && cacheTtl && !isAdminPanel) {
+      return promise.then(async (data) => {
+        try {
+          const translated = await maybeTranslateApiData(url, data);
+          setCache(key, translated, cacheTtl);
+          return translated;
+        } catch (err) {
+          console.error("Translation fail in fetch:", err);
+          setCache(key, data, cacheTtl);
+          return data;
+        }
+      });
+    }
+
     return promise.then(async (data) => {
-      try {
-        const translated = await maybeTranslateApiData(url, data);
-        setCache(key, translated, cacheTtl);
-        return translated;
-      } catch (err) {
-        console.error("Translation fail in fetch:", err);
-        setCache(key, data, cacheTtl);
-        return data;
+      if (method !== "GET") {
+        clearApiCache();
       }
+      if (!isAdminPanel && method === "GET") {
+        try {
+          return await maybeTranslateApiData(url, data);
+        } catch (err) {
+          console.error("Translation fail in direct get:", err);
+          return data;
+        }
+      }
+      return data;
     });
+  };
+
+  if (method === "GET") {
+    const pending = inflight.get(key);
+    if (pending) return pending as Promise<T>;
+    const shared = execute().finally(() => inflight.delete(key));
+    inflight.set(key, shared);
+    return shared;
   }
 
-  return promise.then(async (data) => {
-    if (method !== "GET") {
-      clearApiCache();
-    }
-    if (!isAdminPanel && method === "GET") {
-      try {
-        return await maybeTranslateApiData(url, data);
-      } catch (err) {
-        console.error("Translation fail in direct get:", err);
-        return data;
-      }
-    }
-    return data;
-  });
+  return execute();
 }
 
 const CACHE = {
@@ -247,7 +265,7 @@ export const seriesRepository = {
 // 5. Attributes Repository
 export const attributeRepository = {
   getAll: async () => {
-    return request<any>(ENDPOINTS.ATTRIBUTES, { method: "GET" });
+    return request<any>(ENDPOINTS.ATTRIBUTES, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   getById: async (id: string) => {
@@ -393,7 +411,7 @@ export const authRepository = {
 // 8. CMS Homepage Repository
 export const cmsHomepageRepository = {
   get: async () => {
-    return request<any>(ENDPOINTS.CMS_HOMEPAGE, { method: "GET", cacheTtl: CACHE.MEDIUM });
+    return request<any>(ENDPOINTS.CMS_HOMEPAGE, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   update: async (data: any) => {
@@ -481,7 +499,7 @@ export const cmsPagesRepository = {
   },
   
   getBySlug: async (slug: string) => {
-    return request<any>(`${ENDPOINTS.CMS_PAGE}/${slug}`, { method: "GET", cacheTtl: CACHE.MEDIUM });
+    return request<any>(`${ENDPOINTS.CMS_PAGE}/${slug}`, { method: "GET", cacheTtl: CACHE.LONG });
   },
   
   create: async (data: any) => {
@@ -611,6 +629,10 @@ export const mediaRepository = {
       body: JSON.stringify({ paths, destination }),
     });
   },
+
+  deleteDuplicates: async () => {
+    return request<any>(`${ENDPOINTS.MEDIA}/duplicates`, { method: "DELETE" });
+  },
 };
 
 // 11. Blogs Repository
@@ -724,6 +746,18 @@ export const adminSettingsRepository = {
   },
   getMaintenanceStatus: async () => {
     return request<any>(ENDPOINTS.PUBLIC_MAINTENANCE_STATUS, { method: "GET", cacheTtl: CACHE.SHORT });
+  },
+  getAiSettings: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/ai`, { method: "GET" });
+  },
+  getAiModels: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/ai/models`, { method: "GET" });
+  },
+  updateAiSettings: async (data: any) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/ai`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
   },
 };
 
@@ -941,6 +975,94 @@ export const logsRepository = {
   },
   stats: async () => request<any>(`${ENDPOINTS.ADMIN_LOGS}/stats`, { method: "GET" }),
   clear: async () => request<any>(ENDPOINTS.ADMIN_LOGS, { method: "DELETE" }),
+};
+
+// 29. AI Repository
+export const aiRepository = {
+  generateCmsPage: async (payload: {
+    prompt: string;
+    existingContent?: string;
+    existingSeo?: { seoTitle?: string; seoDesc?: string; seoKeywords?: string };
+  }) => {
+    return request<any>(ENDPOINTS.AI_CMS_GENERATE, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+};
+
+// 21. Returns Repository
+export const returnsRepository = {
+  create: async (formData: FormData) => {
+    const token = localStorage.getItem("customer_token");
+    const response = await fetch(ENDPOINTS.RETURNS, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.message || body.error || `HTTP Error ${response.status}`);
+    }
+    return body;
+  },
+  getMy: async () => {
+    return request<any>(`${ENDPOINTS.RETURNS}/my`, { method: "GET" });
+  },
+  cancel: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}`, { method: "DELETE" });
+  },
+  getAll: async (status?: string) => {
+    const url = status && status !== "all"
+      ? `${ENDPOINTS.RETURNS}?status=${encodeURIComponent(status)}`
+      : ENDPOINTS.RETURNS;
+    return request<any>(url, { method: "GET" });
+  },
+  listRefunds: async () => {
+    return request<any>(`${ENDPOINTS.RETURNS}/refunds`, { method: "GET" });
+  },
+  getById: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}`, { method: "GET" });
+  },
+  approve: async (id: string, adminNote?: string, resolutionType?: string, resolutionNote?: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/approve`, {
+      method: "PATCH",
+      body: JSON.stringify({ adminNote, resolutionType, resolutionNote }),
+    });
+  },
+  generateReturnEmail: async (payload: { prompt: string; resolutionType: string; customerName?: string; orderNumber?: string; reason?: string }) => {
+    return request<any>(`${ENDPOINTS.AI}/generate-return-email`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  createReplacementOrder: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/replacement-order`, {
+      method: "POST",
+    });
+  },
+  reject: async (id: string, adminNote: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/reject`, {
+      method: "PATCH",
+      body: JSON.stringify({ adminNote }),
+    });
+  },
+  createReturnShipment: async (id: string, shippingMethodId: number, weight?: number) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/return-shipment`, {
+      method: "POST",
+      body: JSON.stringify({ shippingMethodId, weight: weight || 1 }),
+    });
+  },
+  markReceived: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/receive`, {
+      method: "PATCH",
+    });
+  },
+  processRefund: async (id: string) => {
+    return request<any>(`${ENDPOINTS.RETURNS}/${id}/refund`, {
+      method: "PATCH",
+    });
+  },
 };
 
 const apiClient = {

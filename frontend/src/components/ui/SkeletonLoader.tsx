@@ -2,12 +2,8 @@ import { Skeleton } from "./skeleton";
 
 export function HeroBannerSkeleton() {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-muted p-8 md:p-12 mb-8 border shadow-xs min-h-[280px] md:min-h-[440px] flex flex-col justify-center">
-      <div className="relative z-10 max-w-3xl space-y-4">
-        <Skeleton className="h-10 w-2/3 md:h-16" />
-        <Skeleton className="h-6 w-1/2" />
-        <Skeleton className="h-10 w-36 rounded-full mt-4" />
-      </div>
+    <div className="container-page min-w-0 pt-4 pb-2 md:pt-6">
+      <div className="relative overflow-hidden rounded-xl bg-muted min-h-[220px] sm:min-h-[280px] md:min-h-[440px] animate-pulse" />
     </div>
   );
 }
@@ -80,19 +76,15 @@ export function SidebarFiltersSkeleton() {
 
 export function HomepageSkeleton() {
   return (
-    <div className="container-page py-6 space-y-12">
+    <div className="space-y-12">
       <HeroBannerSkeleton />
-      <div className="space-y-6">
+      <div className="container-page space-y-6">
         <Skeleton className="h-8 w-48" />
         <CategoryCirclesSkeleton />
       </div>
-      <div className="space-y-6">
+      <div className="container-page space-y-6">
         <Skeleton className="h-8 w-64" />
         <ProductGridSkeleton count={4} />
-      </div>
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-40" />
-        <BlogGridSkeleton />
       </div>
     </div>
   );

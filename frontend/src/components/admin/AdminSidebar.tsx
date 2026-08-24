@@ -2,18 +2,19 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Package, FolderTree, ShoppingCart, Users, Settings,
-  FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown,
+  FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown, PackageOpen,
   Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders, Quote, HardDrive, Mail,
-  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw, BarChart3, Terminal
+  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw, BarChart3, Terminal, CreditCard
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { isReturnsSystemEnabled, isRefundsSystemEnabled } from "@/utils/returnWindow";
 
 const navItemsBase = [
   { to: "/admin", icon: LayoutDashboard, labelKey: "dashboard", permission: "dashboard" },
-  { to: "/admin/analytics", icon: BarChart3, labelKey: "analytics", permission: "dashboard" },
+  { to: "/admin/analytics", icon: BarChart3, labelKey: "analytics", permission: "analytics" },
   { to: "/admin/products", icon: Package, labelKey: "products", permission: "products" },
   { to: "/admin/categories", icon: FolderTree, labelKey: "categories", permission: "categories" },
   { to: "/admin/brands", icon: Tag, labelKey: "brands", permission: "brands" },
@@ -23,8 +24,8 @@ const navItemsBase = [
   { to: "/admin/testimonials", icon: Quote, labelKey: "testimonials", permission: "testimonials" },
   { to: "/admin/storage", icon: HardDrive, labelKey: "storage", permission: "storage" },
   { to: "/admin/users", icon: Users, labelKey: "users", permission: "users" },
-  { to: "/admin/logs", icon: Terminal, labelKey: "logs", permission: "dashboard" },
-  { to: "/admin/backups", icon: HardDrive, labelKey: "backups", permission: "settings" },
+  { to: "/admin/logs", icon: Terminal, labelKey: "logs", permission: "logs" },
+  { to: "/admin/backups", icon: HardDrive, labelKey: "backups", permission: "backups" },
   { to: "/admin/settings", icon: Settings, labelKey: "settings", permission: "settings" },
 ];
 
@@ -34,6 +35,8 @@ const ordersChildrenBase = [
   { to: "/admin/orders/in-transit", icon: ArrowRight, labelKey: "in_transit" },
   { to: "/admin/orders/delivered", icon: CheckCircle, labelKey: "delivered" },
   { to: "/admin/orders/returns", icon: RotateCcw, labelKey: "returns" },
+  { to: "/admin/orders/replacements", icon: PackageOpen, labelKey: "replacements" },
+  { to: "/admin/orders/refunds", icon: CreditCard, labelKey: "payment_refunds" },
   { to: "/admin/orders/labels", icon: Tag, labelKey: "shipping_labels" }
 ];
 
@@ -49,7 +52,7 @@ const cmsChildrenBase = [
   { to: "/admin/cms/pages", icon: FileCode, labelKey: "dynamic_pages" },
   { to: "/admin/cms/blogs", icon: Newspaper, labelKey: "blogs" },
   { to: "/admin/cms/email-templates", icon: Mail, labelKey: "email_templates" },
-  { to: "/admin/cms/seo", icon: Search, labelKey: "seo_settings" },
+  { to: "/admin/cms/seo", icon: Search, labelKey: "site_seo" },
 ];
 
 export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileOpen: (open: boolean) => void }) {
@@ -62,7 +65,13 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolea
 
   // Create translated menu items - use full key path with admin_sidebar namespace
   const navItems = navItemsBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
-  const ordersChildren = ordersChildrenBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
+  const ordersChildren = ordersChildrenBase
+    .filter(item => {
+      if (item.labelKey === "returns" && !isReturnsSystemEnabled()) return false;
+      if (item.labelKey === "payment_refunds" && !isRefundsSystemEnabled()) return false;
+      return true;
+    })
+    .map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
   const cmsChildren = cmsChildrenBase.map(item => ({ ...item, label: t(`admin_sidebar.${item.labelKey}`) }));
 
   useEffect(() => {

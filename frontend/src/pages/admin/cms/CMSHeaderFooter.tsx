@@ -38,8 +38,9 @@ const defaultConfig: HeaderFooterConfig = {
     { label: "Customer service", href: "/help" },
   ],
   footerAbout: {
-    brandText: "Schip & ster",
-    description: "Schip & ster — light up your moment. We carry over 10,000 lighting products with same-day shipping and 30-day returns.",
+    brandText: "Schip & Ster",
+    description:
+      "Premium lighting for home and garden. Ordered before 22:00, delivered next day in the Netherlands. 30-day free returns.",
   },
   footerSocial: [
     { icon: "facebook", label: "Facebook", href: "#" },

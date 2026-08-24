@@ -53,16 +53,16 @@ export function AdminLayout() {
   if (!isLoggedIn) return <Navigate to="/admin/login" replace />;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] overflow-hidden bg-background">
       {/* Sidebar drawer for mobile & desktop */}
       <AdminSidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Admin Header — shown on all screen sizes */}
         <AdminHeader onMenuClick={() => setMobileSidebarOpen(true)} />
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="p-4 md:p-6 lg:p-8">
             <Outlet />
           </div>

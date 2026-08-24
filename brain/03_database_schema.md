@@ -145,28 +145,25 @@ model Order {
   customerEmail   String
   shippingAddress String
   paymentMethod   String
-  status          String   // "pending" | "processing" | "shipped" | "delivered" | "returned"
-  subtotal        Float
-  shipping        Float
-  total           Float
-  stripeSessionId String?
-  createdAt       DateTime
+  status          String   // pending | processing | ready_to_ship | in_transit | delivered | return_requested | returned
+  paymentStatus   String   // paid | refunded | ...
+  deliveredAt     DateTime? // Set when Sendcloud reports delivered — used for 30-day return window
+  stripePaymentId String?
+  ...
 }
 
-model OrderItem {
-  id           String  (PK)
-  orderId      String  (FK → Order)
-  productId    String
-  productName  String
-  productImage String
-  quantity     Int
-  price        Float
-  variant      String?
+model ReturnRequest {
+  id, orderId, userId, reason, photos (Json), status
+  // status: pending_review | approved | awaiting_return | return_received | refunded | rejected | cancelled
+  aiFraudScore, aiSummary, aiRecommendation, adminNote
+  refundAmount, stripeRefundId, refundProcessedAt, refundExpectedAt
+  returnCarrier, returnTrackingNumber, returnTrackingUrl, returnLabelUrl
+  returnParcelId, returnShipmentStatus, itemReceivedAt
 }
 ```
 
-Order statuses flow: `pending → processing → ready_to_ship → in_transit → delivered`
-Returns tracked separately.
+Order statuses flow: `pending → processing → ready_to_ship → in_transit → delivered`  
+Returns: separate `ReturnRequest` lifecycle; order → `return_requested` → `returned` when refunded.
 
 ---
 

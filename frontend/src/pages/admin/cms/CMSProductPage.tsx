@@ -36,7 +36,7 @@ const DEFAULT_DATA: ProductPageCmsData = {
   questionTitle: "Do you have a question about this product?",
   questionSubtitle: "Our employee is happy to help you find the right product",
   questionButtonText: "Send mail",
-  questionEmail: "info@schipenster.nl",
+  questionEmail: "info@schipenster.com",
   questionImage: "/uploads/employee.png"
 };
 
@@ -260,7 +260,7 @@ export default function CMSProductPage() {
                   id="questionEmail"
                   value={data.questionEmail}
                   onChange={(e) => setData({ ...data, questionEmail: e.target.value })}
-                  placeholder="e.g. info@schipenster.nl"
+                  placeholder="e.g. info@schipenster.com"
                   type="email"
                   className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                 />
@@ -269,9 +269,9 @@ export default function CMSProductPage() {
                 <Label className="text-xs font-bold text-foreground/80">Representative Image</Label>
                 <div className="mt-1 flex items-center gap-3">
                   {data.questionImage ? (
-                    <img 
-                      src={resolveImgUrl(data.questionImage)} 
-                      alt="Representative Preview" 
+                    <img
+                      src={resolveImgUrl(data.questionImage)}
+                      alt="Representative Preview"
                       className="h-10 w-10 rounded-lg object-contain bg-muted border border-border shrink-0"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
@@ -290,9 +290,9 @@ export default function CMSProductPage() {
                       placeholder="e.g. /uploads/employee.png"
                       className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg flex-grow"
                     />
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => setIsMediaLibraryOpen(true)}
                       className="h-10 text-xs gap-1.5 font-bold shrink-0 rounded-lg"
                     >

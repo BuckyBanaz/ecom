@@ -22,8 +22,23 @@ import { resolveImgUrl } from "@/utils/image";
 import { getProductBrandName, getProductCategorySlug } from "@/utils/formatters";
 import { countProductsWithFilterValue, productMatchesAttributeFilter } from "@/utils/productFilters";
 import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
+import {
+  applyPageMeta,
+  buildBreadcrumbSchema,
+  buildItemListSchema,
+  removeJsonLd,
+  upsertJsonLd,
+} from "@/utils/seoMeta";
 
 
+
+const GROUP_CATEGORY_SLUGS = new Set([
+  "interior-lighting",
+  "outdoor-lighting",
+  "light-sources",
+  "commercial-lighting",
+  "all-lamps",
+]);
 
 const Category = () => {
   const { t } = useTranslation();
@@ -67,31 +82,15 @@ const Category = () => {
     }));
   };
 
-  // Load brands, categories, attributes, and products in parallel on mount
+  // Load brands, categories, attributes (not products — those load per category slug)
   useEffect(() => {
-    const loadAllData = async () => {
-      setProductsLoading(true);
+    const loadMetadata = async () => {
       try {
-        const [prodData, brandData, catData, attrData] = await Promise.all([
-          productRepository.getAll({ limit: 1000 }).catch(() => null),
+        const [brandData, catData, attrData] = await Promise.all([
           brandRepository.getAll().catch(() => null),
           categoryRepository.getAll().catch(() => null),
           attributeRepository.getAll().catch(() => null),
         ]);
-
-        // Products
-        if (prodData && prodData.success && prodData.products) {
-          setProductsList(prodData.products);
-        } else {
-          const saved = localStorage.getItem("products_data");
-          if (saved) {
-            try { setProductsList(JSON.parse(saved)); } catch { setProductsList(products); }
-          } else {
-            setProductsList(products);
-          }
-        }
-
-        // Brands
         if (brandData && brandData.success && brandData.brands) {
           setBrands(brandData.brands);
         } else {
@@ -166,13 +165,53 @@ const Category = () => {
         }
       } catch (err) {
         console.warn("Failed to fetch Category metadata in parallel:", err);
+      }
+    };
+
+    loadMetadata();
+  }, []);
+
+  // Load products for the active category (server-filtered when possible)
+  useEffect(() => {
+    const targetCategory = landingPage?.categorySlug || slug;
+    const searchQuery = searchParams.get("search");
+
+    const loadProducts = async () => {
+      setProductsLoading(true);
+      try {
+        const filters: Record<string, string | number | boolean> = { limit: 120 };
+        if (targetCategory === "bestsellers") {
+          filters.isBestSelling = true;
+        } else if (targetCategory && targetCategory !== "deals" && !GROUP_CATEGORY_SLUGS.has(targetCategory)) {
+          filters.category = targetCategory;
+        } else {
+          filters.limit = 180;
+        }
+
+        if (searchQuery) {
+          filters.search = searchQuery;
+        }
+
+        const prodData = await productRepository.getAll(filters).catch(() => null);
+        if (prodData && prodData.success && prodData.products) {
+          setProductsList(prodData.products);
+        } else {
+          const saved = localStorage.getItem("products_data");
+          if (saved) {
+            try { setProductsList(JSON.parse(saved)); } catch { setProductsList(products); }
+          } else {
+            setProductsList(products);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch category products:", err);
       } finally {
         setProductsLoading(false);
       }
     };
 
-    loadAllData();
-  }, []);
+    loadProducts();
+  }, [slug, landingPage?.categorySlug, searchParams.get("search")]);
 
   // Sync CMS Landing Pages details
   useEffect(() => {
@@ -472,7 +511,7 @@ const Category = () => {
       case "rating": list = [...list].sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
     }
     return list;
-  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes]);
+  }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes, searchParams]);
 
   const getDealsTitle = () => {
     const priceMax = searchParams.get("price-max");
@@ -510,6 +549,45 @@ const Category = () => {
             ? t("category.light_sources", { defaultValue: "Light Sources" })
             : cat?.name ?? t("category.all_products")
   );
+
+  useEffect(() => {
+    if (productsLoading) return;
+
+    const categoryUrl = slug ? `/category/${slug}` : "/category";
+
+    applyPageMeta({
+      seoTitle: landingPage?.seoTitle || (cat as any)?.seoTitle,
+      title,
+      seoDescription: landingPage?.seoDescription || (cat as any)?.seoDescription,
+      description: `Shop ${title} at Schip & Ster — premium lighting with next-day delivery in NL.`,
+      seoKeywords: landingPage?.seoKeywords || (cat as any)?.seoKeywords,
+      canonical: `${window.location.origin}${categoryUrl}`,
+      hreflangPath: categoryUrl,
+    });
+
+    if (filtered.length > 0) {
+      upsertJsonLd(
+        "category-itemlist-schema",
+        buildItemListSchema(
+          title,
+          filtered.map((p) => ({ name: p.name, slug: p.slug, id: p.id }))
+        )
+      );
+    } else {
+      removeJsonLd("category-itemlist-schema");
+    }
+
+    upsertJsonLd(
+      "breadcrumb-schema",
+      buildBreadcrumbSchema([
+        { name: "Home", url: "/" },
+        { name: "Categories", url: "/categories" },
+        { name: title, url: categoryUrl },
+      ])
+    );
+
+    return () => removeJsonLd("category-itemlist-schema", "breadcrumb-schema");
+  }, [filtered, title, slug, productsLoading]);
 
   if (productsLoading) {
     return <CategorySkeleton />;

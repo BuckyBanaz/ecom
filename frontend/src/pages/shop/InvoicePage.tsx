@@ -10,9 +10,12 @@ import { parseOrderMetadata } from "@/utils/formatters";
 import { printInvoice } from "@/utils/printInvoice";
 import { getInvoiceNumber } from "@/utils/invoice";
 import { Logo } from "@/components/layout/Logo";
+import { useInvoiceVendor } from "@/hooks/useInvoiceVendor";
+import { InvoiceVendorBlock } from "@/components/invoice/InvoiceVendorBlock";
 
 export default function InvoicePage() {
   const { t } = useTranslation();
+  const { vendor } = useInvoiceVendor();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const [order, setOrder] = useState<any>(null);
@@ -83,12 +86,7 @@ export default function InvoicePage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-xs">
-            <div>
-              <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("invoice.label_vendor")}</h4>
-              <p className="mt-1 font-semibold">Schip & Ster BV</p>
-              <p>Keizersgracht 456, Amsterdam</p>
-              <p>billing@schipandster.nl</p>
-            </div>
+            <InvoiceVendorBlock vendor={vendor} title={t("invoice.label_vendor")} />
             <div>
               <h4 className="font-bold text-stone-500 uppercase tracking-wider text-[10px]">{t("invoice.label_bill_to")}</h4>
               <div className="mt-1 space-y-1">

@@ -11,6 +11,9 @@ interface MaintenanceStatus {
   maintenanceMode: boolean;
   maintenanceMessage: string;
   storeName: string;
+  returnWindowDays?: number;
+  returnsSystemEnabled?: boolean;
+  refundsSystemEnabled?: boolean;
 }
 
 const readCachedMaintenanceStatus = (): MaintenanceStatus => {
@@ -22,17 +25,26 @@ const readCachedMaintenanceStatus = (): MaintenanceStatus => {
       maintenanceMode: !!parsed.maintenanceMode,
       maintenanceMessage: parsed.maintenanceMessage || "",
       storeName: parsed.storeName || "",
+      returnWindowDays: parsed.returnWindowDays,
+      returnsSystemEnabled: parsed.returnsSystemEnabled,
+      refundsSystemEnabled: parsed.refundsSystemEnabled,
     };
   } catch {
     return { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
   }
 };
 
+const MAINTENANCE_REFETCH_MS = 0; // Disable cache for dev
+const MAINTENANCE_FETCHED_AT_KEY = "maintenance_status_fetched_at";
+
 export const MaintenanceGuard = ({ children }: MaintenanceGuardProps) => {
   const [status, setStatus] = useState<MaintenanceStatus>(readCachedMaintenanceStatus);
   const location = useLocation();
 
   useEffect(() => {
+    const lastFetch = Number(localStorage.getItem(MAINTENANCE_FETCHED_AT_KEY) || 0);
+    if (Date.now() - lastFetch < MAINTENANCE_REFETCH_MS) return;
+
     let cancelled = false;
     const fetchStatus = async () => {
       try {
@@ -43,10 +55,14 @@ export const MaintenanceGuard = ({ children }: MaintenanceGuardProps) => {
               maintenanceMode: !!res.data.maintenanceMode,
               maintenanceMessage: res.data.maintenanceMessage || "",
               storeName: res.data.storeName || "",
+              returnWindowDays: res.data.returnWindowDays,
+              returnsSystemEnabled: res.data.returnsSystemEnabled,
+              refundsSystemEnabled: res.data.refundsSystemEnabled,
             }
           : { maintenanceMode: false, maintenanceMessage: "", storeName: "" };
         setStatus(nextStatus);
         localStorage.setItem("maintenance_status", JSON.stringify(nextStatus));
+        localStorage.setItem(MAINTENANCE_FETCHED_AT_KEY, String(Date.now()));
       } catch {
         if (!cancelled) {
           setStatus({ maintenanceMode: false, maintenanceMessage: "", storeName: "" });
@@ -57,7 +73,7 @@ export const MaintenanceGuard = ({ children }: MaintenanceGuardProps) => {
     return () => {
       cancelled = true;
     };
-  }, [location.pathname]);
+  }, []);
 
   const isAdminRoute = location.pathname.startsWith("/admin");
 
