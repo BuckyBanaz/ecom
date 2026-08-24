@@ -74,7 +74,8 @@ export function Header() {
   const { count, setDrawerOpen } = useCart();
   const { ids } = useWishlist();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [expandedMobileMenu, setExpandedMobileMenu] = useState<string | null>(null);
+  const [expandedMobileParent, setExpandedMobileParent] = useState<string | null>(null);
+  const [expandedMobileSection, setExpandedMobileSection] = useState<string | null>(null);
 
   const { data: rawMegaMenu } = useCmsData("mega_menu_data", fetchMegaMenusCmsPayload);
   const { data: headerFooterData, loading: headerFooterLoading } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
@@ -300,30 +301,57 @@ export function Header() {
               <div className="px-2 pb-4 space-y-6">
                 {finalNavTree.map((parent: any) => (
                   <div key={parent.slug} className="mb-4 border-b border-border/50 pb-4 last:border-0 last:pb-0">
-                    <div className="mb-3 text-sm font-bold text-foreground uppercase tracking-wider">
-                      <Link to={`/${parent.slug}`} onClick={() => setIsMobileMenuOpen(false)}>
-                        {labelT(t, parent.name, i18n.language)}
-                      </Link>
+                    <div 
+                      className="flex items-center justify-between mb-3 text-sm font-bold text-foreground uppercase tracking-wider cursor-pointer"
+                      onClick={() => {
+                        setExpandedMobileParent(expandedMobileParent === parent.slug ? null : parent.slug);
+                        setExpandedMobileSection(null); // Reset section when changing parent
+                      }}
+                    >
+                      <span>{labelT(t, parent.name, i18n.language)}</span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${expandedMobileParent === parent.slug ? 'rotate-180' : ''}`} />
                     </div>
-                    <div className="space-y-4">
-                      {(parent.sections || []).map((section: any, sIdx: number) => (
-                        <div key={sIdx}>
-                          <h4 className="text-xs font-semibold text-muted-foreground mb-2">{labelT(t, section.title, i18n.language)}</h4>
-                          <div className="flex flex-col space-y-2 pl-2">
-                            {(section.items || []).map((child: any) => (
-                              <Link
-                                key={child.slug}
-                                to={getMenuLink(parent.slug, child, allCategories)}
-                                className="text-sm text-foreground/80 font-medium transition-colors hover:text-primary"
-                                onClick={() => setIsMobileMenuOpen(false)}
-                              >
-                                {labelT(t, child.name, i18n.language)}
-                              </Link>
-                            ))}
-                          </div>
+                    {expandedMobileParent === parent.slug && (
+                      <div className="space-y-4">
+                        <div className="mb-2">
+                          <Link 
+                            to={`/${parent.slug}`} 
+                            className="text-sm text-primary font-medium underline"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                          >
+                            View all {labelT(t, parent.name, i18n.language)}
+                          </Link>
                         </div>
-                      ))}
-                    </div>
+                        {(parent.sections || []).map((section: any, sIdx: number) => {
+                          const sectionKey = `${parent.slug}-${sIdx}`;
+                          return (
+                            <div key={sIdx}>
+                              <div 
+                                className="flex items-center justify-between cursor-pointer"
+                                onClick={() => setExpandedMobileSection(expandedMobileSection === sectionKey ? null : sectionKey)}
+                              >
+                                <h4 className="text-xs font-semibold text-muted-foreground mb-2">{labelT(t, section.title, i18n.language)}</h4>
+                                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expandedMobileSection === sectionKey ? 'rotate-180' : ''}`} />
+                              </div>
+                              {expandedMobileSection === sectionKey && (
+                                <div className="flex flex-col space-y-2 pl-2 mt-2">
+                                  {(section.items || []).map((child: any) => (
+                                    <Link
+                                      key={child.slug}
+                                      to={getMenuLink(parent.slug, child, allCategories)}
+                                      className="text-sm text-foreground/80 font-medium transition-colors hover:text-primary"
+                                      onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                      {labelT(t, child.name, i18n.language)}
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
