@@ -297,73 +297,42 @@ export function Header() {
             <div className="border-b p-4" onClick={() => setIsMobileMenuOpen(false)}>
               <Logo />
             </div>
-            <nav className="flex flex-col mt-2">
-              {finalNavTree.map((parent: any) => {
-                const isParentExpanded = expandedMobileParent === parent.slug;
-                return (
-                  <div key={parent.slug} className="border-b border-border/30 last:border-0">
-                    <button 
-                      className={`flex w-full items-center justify-between px-5 py-4 text-[14px] font-medium transition-colors ${isParentExpanded ? 'text-primary' : 'text-foreground/80'}`}
-                      onClick={() => {
-                        setExpandedMobileParent(isParentExpanded ? null : parent.slug);
-                        setExpandedMobileSection(null);
-                      }}
+            <nav className="flex flex-col mt-4">
+              {finalNavTree.map((parent: any) => (
+                <div key={parent.slug} className="mb-6 border-b border-border/30 pb-6 last:border-0 last:pb-0">
+                  <div className="px-5 mb-4">
+                    <Link 
+                      to={`/${parent.slug}`}
+                      className="text-[15px] font-bold text-foreground tracking-[0.05em] uppercase hover:text-primary transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <span className="tracking-[0.05em] uppercase">{labelT(t, parent.name, i18n.language)}</span>
-                      <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isParentExpanded ? 'rotate-180 text-primary' : 'opacity-40'}`} />
-                    </button>
+                      {labelT(t, parent.name, i18n.language)}
+                    </Link>
+                  </div>
 
-                    {isParentExpanded && (
-                      <div className="px-5 pb-5 animate-in fade-in slide-in-from-top-2 duration-300">
-                        {/* View All link */}
-                        <Link 
-                          to={`/${parent.slug}`} 
-                          className="flex items-center text-[13px] font-medium text-primary hover:text-primary/80 mb-5 group"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          <span className="border-b border-primary/30 pb-0.5 group-hover:border-primary transition-colors">
-                            View all {labelT(t, parent.name, i18n.language)}
-                          </span>
-                        </Link>
-
-                        <div className="space-y-4">
-                          {(parent.sections || []).map((section: any, sIdx: number) => {
-                            const sectionKey = `${parent.slug}-${sIdx}`;
-                            const isSectionExpanded = expandedMobileSection === sectionKey;
-                            return (
-                              <div key={sIdx} className="overflow-hidden">
-                                <button 
-                                  className={`flex w-full items-center justify-between py-2 text-[14px] transition-colors ${isSectionExpanded ? 'font-medium text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                                  onClick={() => setExpandedMobileSection(isSectionExpanded ? null : sectionKey)}
-                                >
-                                  {labelT(t, section.title, i18n.language)}
-                                  <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isSectionExpanded ? 'rotate-180 text-primary' : 'opacity-30'}`} />
-                                </button>
-
-                                {isSectionExpanded && (
-                                  <div className="flex flex-col space-y-3 pl-4 pt-3 pb-2 animate-in fade-in duration-300 border-l border-border/40 ml-2 mt-1">
-                                    {(section.items || []).map((child: any) => (
-                                      <Link
-                                        key={child.slug}
-                                        to={getMenuLink(parent.slug, child, allCategories)}
-                                        className="flex items-center text-[13px] text-muted-foreground transition-colors hover:text-primary group/item"
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                      >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 mr-2.5 transition-colors group-hover/item:bg-primary shrink-0" />
-                                        <span>{labelT(t, child.name, i18n.language)}</span>
-                                      </Link>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                  <div className="space-y-6 px-5">
+                    {(parent.sections || []).map((section: any, sIdx: number) => (
+                      <div key={sIdx}>
+                        <div className="text-[14px] font-semibold text-foreground/90 mb-3">
+                          {labelT(t, section.title, i18n.language)}
+                        </div>
+                        <div className="flex flex-col space-y-3.5 pl-2 border-l-2 border-muted">
+                          {(section.items || []).map((child: any) => (
+                            <Link
+                              key={child.slug}
+                              to={getMenuLink(parent.slug, child, allCategories)}
+                              className="flex items-center text-[13px] text-muted-foreground transition-colors hover:text-primary group/item pl-2"
+                              onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                              <span>{labelT(t, child.name, i18n.language)}</span>
+                            </Link>
+                          ))}
                         </div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </nav>
           </SheetContent>
         </Sheet>
