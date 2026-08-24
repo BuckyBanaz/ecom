@@ -319,9 +319,32 @@ export const aiService = {
       const defaultImagePrompt = process.env.AI_IMAGE_PROMPT || "in a clean modern aesthetic setting";
       const finalImageScene = imagePromptOverride?.trim() || defaultImagePrompt;
 
-      // Fetch categories & attributes dynamically
-      const categories = await prisma.category.findMany({ select: { slug: true, name: true } });
-      const categorySlugs = categories.map(c => c.slug).join(", ");
+      // Fetch categories with parent/child hierarchy
+      const categories = await prisma.category.findMany({ 
+        select: { id: true, slug: true, name: true, parentId: true } 
+      });
+
+      // Build hierarchical category context: only leaf (child) categories are selectable
+      const parentCats = categories.filter(c => !c.parentId);
+      const childCats = categories.filter(c => c.parentId);
+      
+      // Leaf categories = categories with no children of their own
+      const parentIds = new Set(categories.filter(c => !c.parentId).map(c => c.id));
+      const hasChildren = new Set(childCats.map(c => c.parentId));
+      const leafCategories = categories.filter(c => c.parentId && !hasChildren.has(c.id));
+      // Also include root-level categories that have NO children (standalone)
+      const standaloneCats = parentCats.filter(p => !childCats.some(c => c.parentId === p.id));
+      const selectableCategories = [...leafCategories, ...standaloneCats];
+      const categorySlugs = selectableCategories.map(c => c.slug).join(", ");
+
+      // Build grouped context string for the AI to understand hierarchy
+      const hierarchyContext = parentCats
+        .filter(p => childCats.some(c => c.parentId === p.id))
+        .map(parent => {
+          const children = childCats.filter(c => c.parentId === parent.id);
+          return `${parent.name}: [${children.map(c => c.slug).join(", ")}]`;
+        }).join("\n        ");
+
 
       const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
 
@@ -354,13 +377,20 @@ export const aiService = {
         Please extract and infer the complete product details to fill an e-commerce product form.
         Return ONLY a valid JSON object with the following structure, and nothing else (no markdown wrapping, no backticks).
         
+        CATEGORY SELECTION RULES:
+        - The store has a 2-level category hierarchy: Parent → Children
+        - You MUST pick a SPECIFIC CHILD category (not a parent)
+        - Use the hierarchy below to understand which parent this product belongs to, then pick the right child:
+        ${hierarchyContext}
+        - Valid category slugs you can use (child categories only): ${categorySlugs}
+        
         {
           "name": "Full product title",
           "shortDescription": "1-2 sentences summarizing the product",
           "description": "A detailed multi-paragraph description suitable for a product page.",
           "price": "number",
           "brand": "string",
-          "category": "string (one of EXACTLY: ${categorySlugs})",
+          "category": "string (MUST be one of EXACTLY: ${categorySlugs} — pick the most specific child category)",
           "seoTitle": "A catchy SEO title for the product page (max 60 chars)",
           "seoDescription": "A compelling meta description for search engines (max 160 chars)",
           "seoKeywords": "comma separated keywords like 'modern, lighting, pendant'",

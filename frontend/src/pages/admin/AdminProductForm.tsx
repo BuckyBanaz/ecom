@@ -103,6 +103,19 @@ const AdminProductForm = () => {
   const [isNewArrival, setIsNewArrival] = useState(false);
   const [isBestSelling, setIsBestSelling] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
+  // Prevent parent categories from being set — auto-resolves to first child
+  const safeSetCategory = (slug: string, cats?: any[]) => {
+    const list = cats || categoriesList;
+    if (!slug) { setSelectedCategory(""); return; }
+    const parent = (list as any[]).find((p: any) => p.slug === slug);
+    const isParent = parent && (list as any[]).some((ch: any) => ch.parentId === parent.id);
+    if (isParent) {
+      const firstChild = (list as any[]).find((ch: any) => ch.parentId === parent.id);
+      setSelectedCategory((firstChild as any)?.slug || "");
+    } else {
+      setSelectedCategory(slug);
+    }
+  };
   const [selectedBrand, setSelectedBrand] = useState("");
   const [selectedSeries, setSelectedSeries] = useState("");
   const [numberOfLights, setNumberOfLights] = useState("");
@@ -149,7 +162,7 @@ const AdminProductForm = () => {
           setInStock(p.inStock ?? true);
           setIsNewArrival(p.isNewArrival ?? false);
           setIsBestSelling(p.isBestSelling ?? false);
-          setSelectedCategory(p.category?.slug || "");
+          safeSetCategory(p.category?.slug || "");
           setSelectedBrand(typeof p.brand === "string" ? p.brand : (p.brand?.name || ""));
 
           const initialAttrVals: Record<string, string[]> = {};
@@ -504,7 +517,7 @@ const AdminProductForm = () => {
     setDescription(draft.description || "");
     setShortDescription(draft.shortDescription || "");
     setInStock(draft.inStock ?? true);
-    setSelectedCategory(draft.category || "");
+    safeSetCategory(draft.category || "");
     setSelectedBrand(draft.brand || "");
     setSeoTitle(draft.seoTitle || "");
     setSeoDescription(draft.seoDescription || "");
@@ -579,7 +592,7 @@ const AdminProductForm = () => {
             setInStock(p.inStock ?? true);
             setIsNewArrival(p.isNewArrival ?? false);
             setIsBestSelling(p.isBestSelling ?? false);
-            setSelectedCategory(p.category?.slug || "");
+            safeSetCategory(p.category?.slug || "");
             setSelectedBrand(typeof p.brand === "string" ? p.brand : (p.brand?.name || ""));
 
             // Parse existing EAV attribute values
@@ -651,7 +664,7 @@ const AdminProductForm = () => {
           setInStock(p.inStock ?? true);
           setIsNewArrival(p.isNewArrival ?? false);
           setIsBestSelling(p.isBestSelling ?? false);
-          setSelectedCategory(p.category || "");
+          safeSetCategory(p.category || "");
           setSelectedBrand(p.brand || "");
 
           // Initialize from local flat fields
@@ -1491,12 +1504,33 @@ const AdminProductForm = () => {
                         <SelectValue placeholder={t("admin_product_form.placeholder_category")} />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl">
-                        {categoriesList.map((c) => (
-                          <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                          {/* First show orphan/standalone categories (no parent) that aren't parents themselves */}
+                          {categoriesList
+                            .filter((c: any) => !c.parentId && !categoriesList.some((ch: any) => ch.parentId === c.id))
+                            .map((c) => (
+                              <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          {/* Then show parent categories with their children grouped */}
+                          {categoriesList
+                            .filter((c: any) => !c.parentId && categoriesList.some((ch: any) => ch.parentId === c.id))
+                            .map((parent: any) => {
+                              const children = categoriesList.filter((ch: any) => ch.parentId === parent.id);
+                              return (
+                                <div key={parent.id}>
+                                  <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50">
+                                    {parent.name}
+                                  </div>
+                                  {children.map((child: any) => (
+                                    <SelectItem key={child.slug} value={child.slug} className="text-xs rounded-lg pl-5">
+                                      ↳ {child.name}
+                                    </SelectItem>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                        </SelectContent>
                     </Select>
                   )}
                 </div>

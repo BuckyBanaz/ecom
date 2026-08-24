@@ -288,11 +288,13 @@ const AdminCategories = () => {
                     className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">None (Top Level)</option>
-                    {categoriesList.filter((c) => (c as any).id !== (editCat as any)?.id).map((c) => (
-                      <option key={(c as any).id} value={(c as any).id}>
-                        {c.name}
-                      </option>
-                    ))}
+                    {categoriesList
+                      .filter((c: any) => !c.parentId && c.id !== (editCat as any)?.id)
+                      .map((c) => (
+                        <option key={(c as any).id} value={(c as any).id}>
+                          {c.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div>
