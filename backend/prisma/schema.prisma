@@ -335,9 +335,10 @@ model MegaMenu {
   id        String   @id @default(uuid())
   menu      String
   slug      String   @unique
-  sections  Json     @default("[]") // Array of sections and items
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  sections         Json     @default("[]") // Array of sections and items
+  isFoldedMobile   Boolean  @default(false) @map("is_folded_mobile")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("mega_menus")
 }

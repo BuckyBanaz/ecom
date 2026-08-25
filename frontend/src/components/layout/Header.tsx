@@ -131,7 +131,8 @@ export function Header() {
       return {
         name: m.menu,
         slug: m.slug,
-        sections: enhancedSections
+        sections: enhancedSections,
+        isFoldedMobile: m.isFoldedMobile,
       };
     });
   } else {
@@ -298,41 +299,90 @@ export function Header() {
               <Logo />
             </div>
             <nav className="flex flex-col mt-4">
-              {finalNavTree.map((parent: any) => (
-                <div key={parent.slug} className="mb-6 border-b border-border/30 pb-6 last:border-0 last:pb-0">
-                  <div className="px-5 mb-4">
-                    <Link 
-                      to={`/${parent.slug}`}
-                      className="text-[15px] font-bold text-foreground tracking-[0.05em] uppercase hover:text-primary transition-colors"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      {labelT(t, parent.name, i18n.language)}
-                    </Link>
-                  </div>
+              {finalNavTree.map((parent: any) => {
+                const isFoldedMenu = parent.isFoldedMobile === true;
+                const isParentExpanded = expandedMobileParent === parent.slug;
 
-                  <div className="space-y-6 px-5">
-                    {(parent.sections || []).map((section: any, sIdx: number) => (
-                      <div key={sIdx}>
-                        <div className="text-[14px] font-semibold text-foreground/90 mb-3">
-                          {labelT(t, section.title, i18n.language)}
+                if (isFoldedMenu) {
+                  return (
+                    <div key={parent.slug} className="border-b border-border/30 last:border-0">
+                      <button 
+                        className={`flex w-full items-center justify-between px-5 py-4 text-[14px] font-bold transition-colors uppercase tracking-[0.05em] ${isParentExpanded ? 'text-primary' : 'text-foreground hover:text-primary'}`}
+                        onClick={() => {
+                          setExpandedMobileParent(isParentExpanded ? null : parent.slug);
+                        }}
+                      >
+                        <span>{labelT(t, parent.name, i18n.language)}</span>
+                        <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isParentExpanded ? 'rotate-180 text-primary' : 'opacity-40'}`} />
+                      </button>
+
+                      {isParentExpanded && (
+                        <div className="px-5 pb-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="space-y-6 pt-2">
+                            {(parent.sections || []).map((section: any, sIdx: number) => (
+                              <div key={sIdx}>
+                                <div className="text-[14px] font-semibold text-foreground/90 mb-3 pb-1 border-b border-border/20">
+                                  {labelT(t, section.title, i18n.language)}
+                                </div>
+                                <div className="flex flex-col space-y-3.5 pl-1">
+                                  {(section.items || []).map((child: any) => (
+                                    <Link
+                                      key={child.slug}
+                                      to={getMenuLink(parent.slug, child, allCategories)}
+                                      className="flex items-center text-[13px] text-muted-foreground transition-colors hover:text-primary group/item"
+                                      onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 mr-3 transition-colors group-hover/item:bg-primary shrink-0" />
+                                      <span>{labelT(t, child.name, i18n.language)}</span>
+                                    </Link>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex flex-col space-y-3.5 pl-2 border-l-2 border-muted">
-                          {(section.items || []).map((child: any) => (
-                            <Link
-                              key={child.slug}
-                              to={getMenuLink(parent.slug, child, allCategories)}
-                              className="flex items-center text-[13px] text-muted-foreground transition-colors hover:text-primary group/item pl-2"
-                              onClick={() => setIsMobileMenuOpen(false)}
-                            >
-                              <span>{labelT(t, child.name, i18n.language)}</span>
-                            </Link>
-                          ))}
+                      )}
+                    </div>
+                  );
+                }
+
+                // Unfolded layout (Default)
+                return (
+                  <div key={parent.slug} className="mb-6 border-b border-border/30 pb-6 last:border-0 last:pb-0">
+                    <div className="px-5 mb-4">
+                      <Link 
+                        to={`/${parent.slug}`}
+                        className="text-[15px] font-bold text-foreground tracking-[0.05em] uppercase hover:text-primary transition-colors"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        {labelT(t, parent.name, i18n.language)}
+                      </Link>
+                    </div>
+
+                    <div className="space-y-6 px-5">
+                      {(parent.sections || []).map((section: any, sIdx: number) => (
+                        <div key={sIdx}>
+                          <div className="text-[14px] font-semibold text-foreground/90 mb-3">
+                            {labelT(t, section.title, i18n.language)}
+                          </div>
+                          <div className="flex flex-col space-y-3.5 pl-2 border-l-2 border-muted">
+                            {(section.items || []).map((child: any) => (
+                              <Link
+                                key={child.slug}
+                                to={getMenuLink(parent.slug, child, allCategories)}
+                                className="flex items-center text-[13px] text-muted-foreground transition-colors hover:text-primary group/item pl-2"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                              >
+                                <span>{labelT(t, child.name, i18n.language)}</span>
+                              </Link>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </nav>
           </SheetContent>
         </Sheet>

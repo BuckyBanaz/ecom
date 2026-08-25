@@ -45,7 +45,7 @@ export const getMegaMenuById = async (req: Request, res: Response, next: NextFun
 // POST /api/v1/megamenus
 export const createMegaMenu = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { menu, slug, sections } = req.body;
+    const { menu, slug, sections, isFoldedMobile } = req.body;
 
     if (!menu || !slug) {
       res.status(400).json({ success: false, message: "Please provide menu name and slug" });
@@ -57,6 +57,7 @@ export const createMegaMenu = async (req: Request, res: Response, next: NextFunc
         menu,
         slug,
         sections: sections || [],
+        isFoldedMobile: isFoldedMobile || false,
       },
     });
 
@@ -74,7 +75,7 @@ export const createMegaMenu = async (req: Request, res: Response, next: NextFunc
 export const updateMegaMenu = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { menu, slug, sections } = req.body;
+    const { menu, slug, sections, isFoldedMobile } = req.body;
 
     const existingMenu = await prisma.megaMenu.findUnique({ where: { id } });
     if (!existingMenu) {
@@ -88,6 +89,7 @@ export const updateMegaMenu = async (req: Request, res: Response, next: NextFunc
         menu: menu || existingMenu.menu,
         slug: slug || existingMenu.slug,
         sections: sections !== undefined ? sections : existingMenu.sections,
+        isFoldedMobile: isFoldedMobile !== undefined ? isFoldedMobile : existingMenu.isFoldedMobile,
       },
     });
 
@@ -141,6 +143,7 @@ export const syncMegaMenus = async (req: Request, res: Response, next: NextFunct
           menu: m.menu,
           slug: m.slug,
           sections: m.sections || [],
+          isFoldedMobile: m.isFoldedMobile || false,
         }))
       });
 

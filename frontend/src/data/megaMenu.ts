@@ -14,6 +14,7 @@ export interface MegaMenu {
   menu: string;
   slug: string;
   sections: MegaMenuSection[];
+  isFoldedMobile?: boolean;
 }
 
 export const megaMenuData: MegaMenu[] = [

@@ -52,6 +52,7 @@ export default function CMSMegaMenu() {
   const [menuEditIndex, setMenuEditIndex] = useState<number | null>(null);
   const [menuName, setMenuName] = useState("");
   const [menuSlug, setMenuSlug] = useState("");
+  const [menuIsFoldedMobile, setMenuIsFoldedMobile] = useState(false);
 
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
   const [sectionEditIndex, setSectionEditIndex] = useState<number | null>(null);
@@ -316,10 +317,12 @@ export default function CMSMegaMenu() {
       setMenuEditIndex(index);
       setMenuName(menus[index].menu);
       setMenuSlug(menus[index].slug);
+      setMenuIsFoldedMobile(menus[index].isFoldedMobile || false);
     } else {
       setMenuEditIndex(null);
       setMenuName("");
       setMenuSlug("");
+      setMenuIsFoldedMobile(false);
     }
     setMenuDialogOpen(true);
   };
@@ -334,6 +337,7 @@ export default function CMSMegaMenu() {
         ...updated[menuEditIndex],
         menu: menuName,
         slug: menuSlug,
+        isFoldedMobile: menuIsFoldedMobile,
       };
       toast.success("Menu updated");
     } else {
@@ -341,6 +345,7 @@ export default function CMSMegaMenu() {
         menu: menuName,
         slug: menuSlug,
         sections: [],
+        isFoldedMobile: menuIsFoldedMobile,
       });
       toast.success("New menu created");
     }
@@ -987,6 +992,18 @@ export default function CMSMegaMenu() {
                 placeholder="e.g. indoor-lighting"
                 required
               />
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <input
+                type="checkbox"
+                id="foldedMobile"
+                checked={menuIsFoldedMobile}
+                onChange={(e) => setMenuIsFoldedMobile(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="foldedMobile" className="cursor-pointer font-normal">
+                Folded in Mobile Menu (Accordion style)
+              </Label>
             </div>
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setMenuDialogOpen(false)}>Cancel</Button>
