@@ -1,6 +1,7 @@
 import { lookupStaticPhrase } from "./cmsPhrases";
 import type { TFunction } from "i18next";
 import { labelT } from "./i18nLabel";
+import { getBaseUrl, API_PREFIX } from "./endpoints";
 
 export function shouldMachineTranslateApiUrl(url: string): boolean {
   // CMS HTML is translated in CmsHtmlContent; skip heavy JSON walk on /cms/* responses.
@@ -57,7 +58,7 @@ export async function translateText(text: string, targetLang: string): Promise<s
   }
 
   try {
-    const response = await fetch("/api/v1/translate", {
+    const response = await fetch(`${getBaseUrl()}${API_PREFIX}/translate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, lang })
@@ -121,7 +122,7 @@ export async function translateCmsText(
   }
 
   try {
-    const response = await fetch("/api/v1/translate", {
+    const response = await fetch(`${getBaseUrl()}${API_PREFIX}/translate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: trimmed, lang })
