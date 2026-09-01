@@ -4,15 +4,6 @@
  */
 const PHRASES: Record<string, Record<string, string>> = {
   nl: {
-    "All Lamps": "Alle lampen",
-    "All lamps": "Alle lampen",
-    "All Lights": "Alle lampen",
-    "All lights": "Alle lampen",
-    "All Products": "Alle producten",
-    "All products": "Alle producten",
-    "All Categories": "Alle categorieën",
-    "Indoor Lighting": "Binnenverlichting",
-    "Outdoor Lighting": "Buitenverlichting",
     "Spring Deals": "Voorjaarsaanbiedingen",
     "Spring deals": "Voorjaarsaanbiedingen",
     "Shop now": "Nu shoppen",

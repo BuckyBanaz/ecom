@@ -40,12 +40,13 @@ export async function translateText(text: string, targetLang: string): Promise<s
   // Normalize target lang (e.g. nl-NL -> nl)
   const lang = targetLang.split("-")[0].toLowerCase();
   
-  // For Dutch, check static phrase dictionary first (handles manually entered English labels like "All Lamps")
-  // then short-circuit — Dutch content is already stored in Dutch, no API call needed.
-  const staticPhraseFirst = lookupStaticPhrase(text, lang);
-  if (staticPhraseFirst) return staticPhraseFirst;
-  
+  // No translation needed if target is English and source is assumed English,
+  // but sl=auto will handle it anyway. To save api calls, let's skip for simple cases.
+  // No translation needed if target is Dutch and source is assumed Dutch.
   if (lang === "nl") return text;
+
+  const staticPhrase = lookupStaticPhrase(text, lang);
+  if (staticPhrase) return staticPhrase;
 
   const cacheKey = `${lang}:${text}`;
   if (cache[cacheKey]) return cache[cacheKey];

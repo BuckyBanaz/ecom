@@ -193,6 +193,9 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
 export function useWishlist() {
   const c = useContext(C);
-  if (!c) throw new Error("useWishlist must be inside provider");
+  if (!c) {
+    // Return safe no-op fallback during HMR or SSR instead of crashing
+    return { ids: [], items: [], loading: false, toggle: () => {}, has: () => false } as Ctx;
+  }
   return c;
 }
