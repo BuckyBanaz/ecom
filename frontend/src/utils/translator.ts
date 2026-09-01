@@ -40,13 +40,12 @@ export async function translateText(text: string, targetLang: string): Promise<s
   // Normalize target lang (e.g. nl-NL -> nl)
   const lang = targetLang.split("-")[0].toLowerCase();
   
-  // No translation needed if target is English and source is assumed English,
-  // but sl=auto will handle it anyway. To save api calls, let's skip for simple cases.
-  // No translation needed if target is Dutch and source is assumed Dutch.
+  // For Dutch, check static phrase dictionary first (handles manually entered English labels like "All Lamps")
+  // then short-circuit — Dutch content is already stored in Dutch, no API call needed.
+  const staticPhraseFirst = lookupStaticPhrase(text, lang);
+  if (staticPhraseFirst) return staticPhraseFirst;
+  
   if (lang === "nl") return text;
-
-  const staticPhrase = lookupStaticPhrase(text, lang);
-  if (staticPhrase) return staticPhrase;
 
   const cacheKey = `${lang}:${text}`;
   if (cache[cacheKey]) return cache[cacheKey];
@@ -66,6 +65,9 @@ export async function translateText(text: string, targetLang: string): Promise<s
     
     if (!response.ok) throw new Error("Translation request failed");
     const json = await response.json();
+    
+    // Backend may return success:false with null data if all retries failed (e.g. rate limit)
+    if (!json.success || !json.data) return text;
     
     // Join translation parts from Google API response format
     const translation = json.data[0].map((item: any) => item[0]).join("");
@@ -100,9 +102,6 @@ export async function translateCmsText(
   const lang = targetLang.split("-")[0].toLowerCase();
   const trimmed = text.trim();
 
-  // CMS content is stored in Dutch — no translation needed when target is NL
-  if (lang === "nl") return text;
-
   if (t) {
     const fromApp = labelT(t, trimmed, lang);
     if (fromApp && fromApp !== trimmed) {
@@ -133,6 +132,10 @@ export async function translateCmsText(
     
     if (!response.ok) throw new Error("CMS text translation failed");
     const json = await response.json();
+    
+    // Backend may return success:false with null data if all retries failed (e.g. rate limit)
+    if (!json.success || !json.data) return text;
+    
     const translation = json.data[0].map((item: [string]) => item[0]).join("");
 
     if (translation?.trim()) {
