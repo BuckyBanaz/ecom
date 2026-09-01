@@ -100,6 +100,9 @@ export async function translateCmsText(
   const lang = targetLang.split("-")[0].toLowerCase();
   const trimmed = text.trim();
 
+  // CMS content is stored in Dutch — no translation needed when target is NL
+  if (lang === "nl") return text;
+
   if (t) {
     const fromApp = labelT(t, trimmed, lang);
     if (fromApp && fromApp !== trimmed) {
