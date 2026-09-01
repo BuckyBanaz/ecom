@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { brandRepository, categoryRepository, attributeRepository, productRepository } from "@/client/apiClient";
+import { brandRepository, categoryRepository, attributeRepository, productRepository, megaMenuRepository } from "@/client/apiClient";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";

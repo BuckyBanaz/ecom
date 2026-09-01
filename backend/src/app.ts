@@ -201,6 +201,9 @@ app.get("/llms.txt", async (req, res, next) => {
 });
 
 // Aggregate API Routers will be registered here under /api/v1
+import translateRoutes from "./routes/translateRoutes";
+
+// Catch-all route for 404 undefined paths
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/categories", categoryRoutes);
@@ -228,6 +231,7 @@ app.use("/api/v1/orders", orderRoutes);
 app.use("/api/v1/returns", returnRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/translate", translateRoutes);
 
 // Catch-all route for 404 undefined paths
 app.all("*", (req, _res, next) => {

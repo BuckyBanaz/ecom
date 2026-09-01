@@ -57,14 +57,17 @@ export async function translateText(text: string, targetLang: string): Promise<s
   }
 
   try {
-    const response = await fetch(
-      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`
-    );
-    if (!response.ok) throw new Error("Translation request failed");
-    const data = await response.json();
+    const response = await fetch("/api/v1/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, lang })
+    });
     
-    // Join translation parts
-    const translation = data[0].map((item: any) => item[0]).join("");
+    if (!response.ok) throw new Error("Translation request failed");
+    const json = await response.json();
+    
+    // Join translation parts from Google API response format
+    const translation = json.data[0].map((item: any) => item[0]).join("");
     
     cache[cacheKey] = translation;
     localStorage.setItem(`tr:${cacheKey}`, translation);
@@ -118,12 +121,15 @@ export async function translateCmsText(
   }
 
   try {
-    const response = await fetch(
-      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(trimmed)}`,
-    );
+    const response = await fetch("/api/v1/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: trimmed, lang })
+    });
+    
     if (!response.ok) throw new Error("CMS text translation failed");
-    const data = await response.json();
-    const translation = data[0].map((item: [string]) => item[0]).join("");
+    const json = await response.json();
+    const translation = json.data[0].map((item: [string]) => item[0]).join("");
 
     if (translation?.trim()) {
       cache[cacheKey] = translation;
