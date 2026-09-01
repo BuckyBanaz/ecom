@@ -109,20 +109,25 @@ export function Header() {
   if (rawMegaMenu && rawMegaMenu.length > 0) {
     finalNavTree = rawMegaMenu.map((m: any) => {
       const enhancedSections = (m.sections || []).map((section: any) => {
-        if (section.type === "dynamic" && section.categoryId) {
+        if ((section.type === "dynamic" || section.type === "both") && section.categoryId) {
           // Auto-populate from category
           const childCategories = allCategories
             .filter((c: any) => c.parentId === section.categoryId && c.isActive !== false && c.showInNavigation !== false)
             .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+            
+          const dynamicItems = childCategories.map((c: any) => ({
+            name: c.name,
+            slug: c.slug,
+            isDynamic: true
+          }));
+
           return {
             title: section.title,
-            type: "dynamic",
+            type: section.type,
             categoryId: section.categoryId,
-            items: childCategories.map((c: any) => ({
-              name: c.name,
-              slug: c.slug,
-              isDynamic: true
-            }))
+            items: section.type === "both" 
+              ? [...(section.items || []), ...dynamicItems]
+              : dynamicItems
           };
         }
         return section;

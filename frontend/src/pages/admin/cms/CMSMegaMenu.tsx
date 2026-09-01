@@ -57,7 +57,7 @@ export default function CMSMegaMenu() {
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
   const [sectionEditIndex, setSectionEditIndex] = useState<number | null>(null);
   const [sectionTitle, setSectionTitle] = useState("");
-  const [sectionType, setSectionType] = useState<"custom" | "dynamic">("custom");
+  const [sectionType, setSectionType] = useState<"custom" | "dynamic" | "both">("custom");
   const [sectionCategoryId, setSectionCategoryId] = useState("");
 
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
@@ -400,14 +400,14 @@ export default function CMSMegaMenu() {
     const newSection: any = {
       title: sectionTitle.trim(),
       type: sectionType,
-      categoryId: sectionType === "dynamic" ? sectionCategoryId : undefined,
-      items: [], // Always start with empty items, or keep existing if custom
+      categoryId: (sectionType === "dynamic" || sectionType === "both") ? sectionCategoryId : undefined,
+      items: [], // Always start with empty items, or keep existing if custom/both
     };
 
     if (sectionEditIndex !== null) {
-      // Keep existing items if changing title but staying custom
-      if (sectionType === "custom" && targetMenu.sections[sectionEditIndex].type !== "dynamic") {
-         newSection.items = targetMenu.sections[sectionEditIndex].items;
+      // Keep existing items if changing title but staying custom or both
+      if ((sectionType === "custom" || sectionType === "both") && targetMenu.sections[sectionEditIndex].type !== "dynamic") {
+         newSection.items = targetMenu.sections[sectionEditIndex].items || [];
       }
       targetMenu.sections[sectionEditIndex] = newSection;
     } else {
@@ -415,6 +415,7 @@ export default function CMSMegaMenu() {
     }
 
     setMenus(updatedMenus);
+    saveToLocalStorage(updatedMenus); // Added saveToLocalStorage to sync local state immediately like delete does
     setSectionDialogOpen(false);
     toast.success(sectionEditIndex !== null ? "Column updated" : "Column added");
   };
@@ -904,15 +905,10 @@ export default function CMSMegaMenu() {
                           </CardHeader>
                           <CardContent className="p-4 flex-1 flex flex-col justify-between">
                             {/* Items list */}
-                            {(section as any).type === "dynamic" ? (
-                              <div className="py-4 text-center text-xs text-primary bg-primary/5 rounded-md border border-primary/10 mb-4">
-                                Auto-populated from Category<br/>
-                                <strong>{categoriesList.find(c => c.id === (section as any).categoryId)?.name || "Unknown"}</strong>
-                              </div>
-                            ) : (
+                            {((section as any).type === "custom" || (section as any).type === "both" || !(section as any).type) && (
                               <ul className="space-y-2 mb-4">
                                 {section.items.length === 0 ? (
-                                  <li className="text-xs text-muted-foreground italic py-2 text-center">No links in this section</li>
+                                  <li className="text-xs text-muted-foreground italic py-2 text-center">No custom links added</li>
                                 ) : (
                                   section.items.map((item, iIdx) => (
                                     <li key={item.slug} className="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 text-xs transition-colors">
@@ -941,8 +937,15 @@ export default function CMSMegaMenu() {
                                 )}
                               </ul>
                             )}
+                            
+                            {((section as any).type === "dynamic" || (section as any).type === "both") && (
+                              <div className="py-4 text-center text-xs text-primary bg-primary/5 rounded-md border border-primary/10 mb-4">
+                                Auto-populated from Category<br/>
+                                <strong>{categoriesList.find(c => c.id === (section as any).categoryId)?.name || "Unknown"}</strong>
+                              </div>
+                            )}
 
-                            {hasPermission("admin") && (section as any).type !== "dynamic" && (
+                            {hasPermission("admin") && ((section as any).type === "custom" || (section as any).type === "both" || !(section as any).type) && (
                               <Button size="sm" variant="outline" className="w-full text-xs h-8 gap-1.5" onClick={() => openItemDialog(sIdx)}>
                                 <ListPlus className="h-3.5 w-3.5" /> Add Link
                               </Button>
@@ -1030,41 +1033,53 @@ export default function CMSMegaMenu() {
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div
-                className={`border rounded-lg p-4 cursor-pointer transition-colors ${sectionType === 'dynamic' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
+                className={`border rounded-lg p-3 cursor-pointer transition-colors ${sectionType === 'dynamic' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
                 onClick={() => setSectionType('dynamic')}
               >
-                <div className="font-semibold flex items-center gap-2">
+                <div className="font-semibold flex items-center gap-2 text-sm">
                   <input type="radio" checked={sectionType === 'dynamic'} readOnly className="pointer-events-none" />
-                  Dynamic Category
+                  Dynamic
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Auto-populate children of a specific category.
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Auto-populate children.
                 </p>
               </div>
               <div
-                className={`border rounded-lg p-4 cursor-pointer transition-colors ${sectionType === 'custom' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
+                className={`border rounded-lg p-3 cursor-pointer transition-colors ${sectionType === 'custom' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
                 onClick={() => setSectionType('custom')}
               >
-                <div className="font-semibold flex items-center gap-2">
+                <div className="font-semibold flex items-center gap-2 text-sm">
                   <input type="radio" checked={sectionType === 'custom'} readOnly className="pointer-events-none" />
-                  Custom Links
+                  Custom
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Manually add specific links and URLs.
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Manually add links.
+                </p>
+              </div>
+              <div
+                className={`border rounded-lg p-3 cursor-pointer transition-colors ${sectionType === 'both' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
+                onClick={() => setSectionType('both')}
+              >
+                <div className="font-semibold flex items-center gap-2 text-sm">
+                  <input type="radio" checked={sectionType === 'both'} readOnly className="pointer-events-none" />
+                  Both
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Dynamic + Custom Links.
                 </p>
               </div>
             </div>
 
-            {sectionType === 'dynamic' && (
+            {(sectionType === 'dynamic' || sectionType === 'both') && (
               <div className="animate-in fade-in slide-in-from-top-2">
                 <Label>Select Parent Category</Label>
                 <select
                   value={sectionCategoryId}
                   onChange={(e) => setSectionCategoryId(e.target.value)}
                   className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                  required={sectionType === 'dynamic'}
+                  required={sectionType === 'dynamic' || sectionType === 'both'}
                 >
                   <option value="">Select a category...</option>
                   {categoriesList.filter(c => !c.parentId).map(c => (
