@@ -4,9 +4,11 @@ import { labelT } from "./i18nLabel";
 import { getBaseUrl, API_PREFIX } from "./endpoints";
 
 export function shouldMachineTranslateApiUrl(url: string): boolean {
-  // CMS HTML is translated in CmsHtmlContent; skip heavy JSON walk on /cms/* responses.
-  if (url.includes("/cms/")) return false;
-  return true;
+  // Bulk API machine translation causes 429 rate-limit floods on Google's free tier.
+  // UI labels are translated individually via useCmsLabel (non-blocking, cached).
+  // CMS HTML is translated in CmsHtmlContent component.
+  // So we disable bulk JSON translation entirely.
+  return false;
 }
 
 const TRANSLATABLE_ATTRS = new Set([
@@ -67,11 +69,18 @@ export async function translateText(text: string, targetLang: string): Promise<s
     if (!response.ok) throw new Error("Translation request failed");
     const json = await response.json();
     
-    // Backend may return success:false with null data if all retries failed (e.g. rate limit)
+    // Backend may return success:false with null data if rate limit exhausted
     if (!json.success || !json.data) return text;
     
-    // Join translation parts from Google API response format
-    const translation = json.data[0].map((item: any) => item[0]).join("");
+    // Handle both Google native format and backend simplified format
+    let translation: string;
+    if (typeof json.data === "string") {
+      translation = json.data;
+    } else if (Array.isArray(json.data) && Array.isArray(json.data[0])) {
+      translation = json.data[0].map((item: any) => (Array.isArray(item) ? item[0] : item)).join("");
+    } else {
+      return text;
+    }
     
     cache[cacheKey] = translation;
     localStorage.setItem(`tr:${cacheKey}`, translation);
@@ -134,10 +143,19 @@ export async function translateCmsText(
     if (!response.ok) throw new Error("CMS text translation failed");
     const json = await response.json();
     
-    // Backend may return success:false with null data if all retries failed (e.g. rate limit)
+    // Backend may return success:false with null data if rate limit exhausted
     if (!json.success || !json.data) return text;
     
-    const translation = json.data[0].map((item: [string]) => item[0]).join("");
+    // Handle both Google native format (array of arrays) and backend simplified format
+    let translation: string;
+    if (typeof json.data === "string") {
+      translation = json.data;
+    } else if (Array.isArray(json.data) && Array.isArray(json.data[0])) {
+      translation = json.data[0].map((item: any) => (Array.isArray(item) ? item[0] : item)).join("");
+    } else {
+      return text;
+    }
+
 
     if (translation?.trim()) {
       cache[cacheKey] = translation;
