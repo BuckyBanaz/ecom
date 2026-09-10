@@ -149,6 +149,11 @@ export const requireAdmin = async (
     return next(new AppError("Access denied. Admin privileges required.", 403));
   }
 
+  // Superadmin has full unrestricted access to all endpoints
+  if (role === "superadmin") {
+    return next();
+  }
+
   let permissions = ROLE_PERMISSIONS[role] || [];
   try {
     const dbUser = await prisma.user.findUnique({
@@ -158,7 +163,7 @@ export const requireAdmin = async (
       return next(new AppError("Access denied. Your account is suspended.", 403));
     }
     if (dbUser.permissions && dbUser.permissions.length > 0) {
-      permissions = dbUser.permissions;
+      permissions = Array.from(new Set([...permissions, ...dbUser.permissions]));
     }
   } catch (error) {
     return next(error);

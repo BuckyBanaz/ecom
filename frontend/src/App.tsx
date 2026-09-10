@@ -41,6 +41,7 @@ const AdminLayout = lazy(() => import("./components/admin/AdminLayout.tsx"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin.tsx"));
 const Dashboard = lazy(() => import("./pages/admin/Dashboard.tsx"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.tsx"));
+const AdminInventory = lazy(() => import("./pages/admin/AdminInventory.tsx"));
 const AdminProductQuickAdd = lazy(() => import("./pages/admin/AdminProductQuickAdd.tsx"));
 const AdminProductDrafts = lazy(() => import("./pages/admin/AdminProductDrafts.tsx"));
 const AdminProductForm = lazy(() => import("./pages/admin/AdminProductForm.tsx"));
@@ -120,6 +121,7 @@ function App() {
                             <Route index element={<Dashboard />} />
                             <Route path="analytics" element={<AdminAnalytics />} />
                             <Route path="products" element={<AdminProducts />} />
+                            <Route path="inventory" element={<AdminInventory />} />
                             <Route path="products/quick-add" element={<AdminProductQuickAdd />} />
                             <Route path="ai-seo" element={<Navigate to="/admin/cms/seo" replace />} />
                             <Route path="product-drafts" element={<AdminProductDrafts />} />

@@ -72,8 +72,13 @@ export const ENDPOINTS = {
   get AI_SEO_RANK_TRACKING() { return api("/ai/seo/rank-tracking"); },
   get AI_SEO_RANK_SYNC() { return api("/ai/seo/rank-tracking/sync"); },
   get AI_SEO_INTERNAL_LINKS() { return api("/ai/seo/internal-links"); },
-  get AI_SEO_INTERNAL_LINK_APPLY() { return api("/ai/seo/internal-links/apply"); },
   get RETURNS() { return api("/returns"); },
+  get INVENTORY() { return api("/inventory"); },
+  get INVENTORY_ADMIN_LIST() { return api("/inventory/admin/list"); },
+  get INVENTORY_ADJUST_STORAGE() { return api("/inventory/admin/adjust-storage"); },
+  get INVENTORY_ALLOCATE_WEBSHOP() { return api("/inventory/admin/allocate-webshop"); },
+  get INVENTORY_LABELS_PDF() { return api("/inventory/admin/labels/pdf"); },
+  get INVENTORY_MOVEMENTS() { return api("/inventory/admin/movements"); },
 };
 
 /** @deprecated use getBaseUrl() */

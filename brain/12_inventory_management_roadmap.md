@@ -11,16 +11,16 @@
 ## 🎯 High-Level Progress Scoreboard
 
 ```
-Overall Progress: [██████--------------] 33% (10 / 30 Tasks Completed)
+Overall Progress: [█████████████------] 66% (20 / 30 Tasks Completed)
 ```
 
 | Phase | Focus Area | Total Tasks | Completed | Status |
 | :--- | :--- | :---: | :---: | :---: |
 | **Phase 1** | **Database Schema, Dual-Layer Models & Migration** | 5 | 5 | ✅ Completed |
 | **Phase 2** | **Backend Core Services, QR/Barcode Engine & APIs** | 5 | 5 | ✅ Completed |
-| **Phase 3** | **Frontend Admin UI, Product Form Hook & Translations** | 5 | 0 | ⏳ Ready to Start |
-| **Phase 4** | **Mobile Camera Scanner, Laser Gun & Label Print Center** | 5 | 0 | ⏳ Queued |
-| **Phase 5** | **Storefront Concurrency Guard & Auto-Sync Engine** | 5 | 0 | ⏳ Queued |
+| **Phase 3** | **Frontend Admin UI, Product Form Hook & Translations** | 5 | 5 | ✅ Completed |
+| **Phase 4** | **Mobile Camera Scanner, Laser Gun & Label Print Center** | 5 | 5 | ✅ Completed |
+| **Phase 5** | **Storefront Concurrency Guard & Auto-Sync Engine** | 5 | 0 | ⏳ Ready to Start |
 | **Phase 6** | **Integration Testing, Stress Tests & Audit Reconciliation** | 5 | 0 | ⏳ Queued |
 
 ---
@@ -66,23 +66,23 @@ Overall Progress: [██████--------------] 33% (10 / 30 Tasks Complete
 ---
 
 ### 🖥️ Phase 3: Frontend Admin UI, Product Form Hook & Translations (Frontend)
-- [ ] **Task 3.1:** Create Master Admin Inventory Dashboard (`frontend/src/pages/admin/AdminInventory.tsx`) with 3 View Tabs:
+- [x] **Task 3.1:** Create Master Admin Inventory Dashboard (`frontend/src/pages/admin/AdminInventory.tsx`) with 3 View Tabs:
   - `All Inventory (Master)`
   - `Storage / Warehouse Only (Physical on-hand & Bin locations)`
   - `Webshop Channel Only (Live online stock & Reserves)`
-- [ ] **Task 3.2:** Build Metric Summary Cards (Total Storage Units, Webshop Active Units, Reserve Buffer, Low Stock Alerts).
-- [ ] **Task 3.3:** Integrate **"📦 Inventory & Storage Management"** Card inside `frontend/src/pages/admin/AdminProductForm.tsx` (`/admin/products/:id/edit`) for direct quantity and bin location editing.
-- [ ] **Task 3.4:** Build Stock Adjustment Modal (`StockAdjustmentModal.tsx`) and Quota Allocation Modal (`AllocateWebshopModal.tsx`).
-- [ ] **Task 3.5:** Add comprehensive **English & Dutch translations** for all new dashboard tables, metric cards, forms, and toasts in `locales/en/translation.json` and `locales/nl/translation.json`.
+- [x] **Task 3.2:** Build Metric Summary Cards (Total Storage Units, Webshop Active Units, Reserve Buffer, Low Stock Alerts).
+- [x] **Task 3.3:** Integrate **"📦 Inventory & Storage Management"** Card inside `frontend/src/pages/admin/AdminProductForm.tsx` (`/admin/products/:id/edit`) for direct quantity and bin location editing.
+- [x] **Task 3.4:** Build Stock Adjustment Modal (`StockAdjustmentModal.tsx`) and Quota Allocation Modal (`AllocateWebshopModal.tsx`).
+- [x] **Task 3.5:** Add comprehensive **English & Dutch translations** for all new dashboard tables, metric cards, forms, and toasts in `locales/en/translation.json` and `locales/nl/translation.json`.
 
 ---
 
 ### 📱 Phase 4: Mobile Camera Scanner, Laser Gun & Label Print Center (Scanner & Print)
-- [ ] **Task 4.1:** Install frontend camera scanning library (`html5-qrcode` / `zxing-js`).
-- [ ] **Task 4.2:** Build Mobile Warehouse Scanner Modal (`frontend/src/components/admin/inventory/WarehouseScannerModal.tsx`) with live camera viewfinder, beep audio, and haptic feedback.
-- [ ] **Task 4.3:** Build Scan Action Drawer (Quick $+1$/$-1$ Inward/Outward, Allocate to Webshop, Set Physical Count, Change Rack/Bin).
-- [ ] **Task 4.4:** Build Label Print Modal (`frontend/src/components/admin/inventory/LabelPrintModal.tsx`) with layout selector (Thermal Roll / A4 Sheet) and live browser print stream.
-- [ ] **Task 4.5:** Add **English & Dutch translations** for scanner prompts, audio feedback, print options, and drawer actions.
+- [x] **Task 4.1:** Install frontend camera scanning library (`html5-qrcode` / `zxing-js`).
+- [x] **Task 4.2:** Build Mobile Warehouse Scanner Modal (`frontend/src/components/admin/inventory/WarehouseScannerModal.tsx`) with live camera viewfinder, beep audio, and haptic feedback.
+- [x] **Task 4.3:** Build Scan Action Drawer (Quick $+1$/$-1$ Inward/Outward, Allocate to Webshop, Set Physical Count, Change Rack/Bin).
+- [x] **Task 4.4:** Build Label Print Modal (`frontend/src/components/admin/inventory/LabelPrintModal.tsx`) with layout selector (Thermal Roll / A4 Sheet) and live browser print stream.
+- [x] **Task 4.5:** Add **English & Dutch translations** for scanner prompts, audio feedback, print options, and drawer actions.
 
 ---
 

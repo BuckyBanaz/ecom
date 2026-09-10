@@ -67,26 +67,31 @@ export class LabelPrintService {
         doc.addPage({ size: [widthPt, heightPt], margin: 4 });
 
         // Title
-        doc.font('Helvetica-Bold').fontSize(7).text(item.name.slice(0, 24), 4, 4, { width: widthPt - 8, ellipsis: true });
+        doc.font('Helvetica-Bold').fontSize(7.5).text(item.name.slice(0, 24), 4, 4, { width: widthPt - 8, ellipsis: true });
 
-        // Generate QR code buffer
+        // Generate Ultra-HD QR code buffer (800px) downscaled for crisp 300+ DPI print
         try {
-          const qrBuffer = await QrBarcodeService.generateQrBuffer(item.qrPayload, 60);
+          const qrBuffer = await QrBarcodeService.generateQrBuffer(item.qrPayload, 800);
           doc.image(qrBuffer, 4, 18, { width: 50, height: 50 });
-        } catch {
-          // Fallback if QR generation fails
+        } catch (err) {
+          console.error('Failed to generate QR in PDF:', err);
         }
 
         // Details right of QR
-        doc.font('Helvetica-Bold').fontSize(7).text(item.sku, 58, 20, { width: widthPt - 62, ellipsis: true });
+        doc.font('Helvetica-Bold').fontSize(7.5).text(item.sku, 58, 20, { width: widthPt - 62, ellipsis: true });
 
         if (options.includeBin && item.binLocation) {
-          doc.font('Helvetica').fontSize(6).text(`Bin: ${item.binLocation}`, 58, 34, { width: widthPt - 62 });
+          doc.font('Helvetica').fontSize(6.5).text(`Bin: ${item.binLocation}`, 58, 34, { width: widthPt - 62 });
         }
 
         if (options.includePrice && item.price != null) {
-          doc.font('Helvetica-Bold').fontSize(7).text(`€${item.price.toFixed(2)}`, 58, 48, { width: widthPt - 62 });
+          doc.font('Helvetica-Bold').fontSize(7.5).text(`€${item.price.toFixed(2)}`, 58, 48, { width: widthPt - 62 });
         }
+      }
+
+      if (items.length === 0) {
+        doc.addPage({ size: [widthPt, heightPt], margin: 4 });
+        doc.fontSize(8).text('No items selected', 10, 10);
       }
 
       doc.end();
@@ -153,10 +158,10 @@ export class LabelPrintService {
             ellipsis: true,
           });
 
-        // Insert QR code image
+        // Insert High-Resolution QR code (800px buffer embedded into vector box)
         try {
           const qrSize = Math.min(labelHeight - 32, 50);
-          const qrBuffer = await QrBarcodeService.generateQrBuffer(item.qrPayload, Math.round(qrSize * 2));
+          const qrBuffer = await QrBarcodeService.generateQrBuffer(item.qrPayload, 800);
           doc.image(qrBuffer, x + 6, y + 20, { width: qrSize, height: qrSize });
 
           // SKU & Details
@@ -181,8 +186,8 @@ export class LabelPrintService {
               .fontSize(8)
               .text(`€${item.price.toFixed(2)}`, textX, y + 48, { width: textWidth });
           }
-        } catch {
-          // Ignore QR render errors
+        } catch (err) {
+          console.error('Failed to generate QR in A4 label:', err);
         }
       }
 

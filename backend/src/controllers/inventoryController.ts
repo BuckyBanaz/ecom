@@ -41,6 +41,11 @@ export class InventoryController {
         where.isPublishedWebshop = true;
       }
 
+      if (lowStockOnly) {
+        where.webshopAllocated = { lte: 5 };
+        where.isPublishedWebshop = true;
+      }
+
       const [items, total] = await Promise.all([
         prisma.inventoryItem.findMany({
           where,
@@ -55,6 +60,7 @@ export class InventoryController {
                     name: true,
                     slug: true,
                     image: true,
+                    images: true,
                     price: true,
                     inStock: true,
                     category: { select: { id: true, name: true } },
@@ -98,6 +104,8 @@ export class InventoryController {
         },
       });
 
+      const totalProducts = await prisma.product.count();
+
       res.status(200).json({
         success: true,
         data: {
@@ -115,6 +123,7 @@ export class InventoryController {
             totalReserveBuffer,
             totalDamaged,
             totalSkus: allAggregates._count.id,
+            totalProducts,
             lowStockCount,
           },
         },
@@ -150,6 +159,7 @@ export class InventoryController {
                   name: true,
                   slug: true,
                   image: true,
+                  images: true,
                   price: true,
                   inStock: true,
                   category: { select: { id: true, name: true } },
@@ -208,14 +218,34 @@ export class InventoryController {
         throw new AppError('Either quantityChange or setExactCount must be provided', 400);
       }
 
+      // If newOnHand is less than current webshopAllocated, cap webshopAllocated down to physical storage
+      const newWebshop = Math.min(newOnHand, item.webshopAllocated);
+
       // Update inventory item
       const updatedItem = await prisma.inventoryItem.update({
         where: { id: inventoryItemId },
         data: {
           quantityOnHand: newOnHand,
+          webshopAllocated: newWebshop,
           ...(binLocation ? { binLocation: binLocation.trim() } : {}),
         },
       });
+
+      // Sync Product inStock & stock for storefront
+      const productId = item.variant.productId;
+      if (productId) {
+        const siblingItems = await prisma.inventoryItem.findMany({
+          where: { variant: { productId } },
+        });
+        const hasLiveStock = siblingItems.some((sib) => (sib.id === item.id ? (sib.isPublishedWebshop && newWebshop > 0) : (sib.isPublishedWebshop && sib.webshopAllocated > 0)));
+
+        await prisma.product.update({
+          where: { id: productId },
+          data: {
+            inStock: hasLiveStock,
+          },
+        });
+      }
 
       // Record movement
       await prisma.stockMovement.create({
@@ -226,7 +256,7 @@ export class InventoryController {
           previousOnHand: item.quantityOnHand,
           newOnHand,
           previousWebshop: item.webshopAllocated,
-          newWebshop: item.webshopAllocated,
+          newWebshop,
           reason: reason || 'Manual storage adjustment / cycle count',
           referenceType: 'MANUAL_ADJUSTMENT',
           performedBy: (req as any).user?.id || null,
@@ -257,13 +287,16 @@ export class InventoryController {
 
       const item = await prisma.inventoryItem.findUnique({
         where: { id: inventoryItemId },
+        include: { variant: true },
       });
 
       if (!item) {
         throw new AppError('Inventory item not found', 404);
       }
 
-      const targetWebshop = webshopAllocated != null ? Math.max(0, parseInt(webshopAllocated)) : item.webshopAllocated;
+      // Webshop allocation cannot exceed physical storage on-hand
+      const requestedQuota = webshopAllocated != null ? Math.max(0, parseInt(webshopAllocated)) : item.webshopAllocated;
+      const targetWebshop = Math.min(item.quantityOnHand, requestedQuota);
       const isPublished = isPublishedWebshop !== undefined ? Boolean(isPublishedWebshop) : item.isPublishedWebshop;
 
       // Update item
@@ -275,11 +308,21 @@ export class InventoryController {
         },
       });
 
-      // Sync product inStock if webshop allocation is changed
-      await prisma.product.updateMany({
-        where: { variants: { some: { id: item.variantId } } },
-        data: { inStock: isPublished && targetWebshop > 0 },
-      });
+      // Sync Product inStock & stock for storefront
+      const productId = item.variant.productId;
+      if (productId) {
+        const siblingItems = await prisma.inventoryItem.findMany({
+          where: { variant: { productId } },
+        });
+        const hasLiveStock = siblingItems.some((sib) => (sib.id === item.id ? (isPublished && targetWebshop > 0) : (sib.isPublishedWebshop && sib.webshopAllocated > 0)));
+
+        await prisma.product.update({
+          where: { id: productId },
+          data: {
+            inStock: hasLiveStock,
+          },
+        });
+      }
 
       // Record movement
       const delta = targetWebshop - item.webshopAllocated;

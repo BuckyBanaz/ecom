@@ -499,6 +499,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       storageStock: req.body.storageStock ? parseInt(req.body.storageStock) : undefined,
       webshopStock: req.body.webshopStock ? parseInt(req.body.webshopStock) : undefined,
       binLocation: req.body.binLocation,
+      lowStockThreshold: req.body.lowStockThreshold !== undefined ? parseInt(req.body.lowStockThreshold) : undefined,
     });
 
     res.status(201).json({ success: true, product });
@@ -658,6 +659,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       storageStock: req.body.storageStock !== undefined ? parseInt(req.body.storageStock) : undefined,
       webshopStock: req.body.webshopStock !== undefined ? parseInt(req.body.webshopStock) : undefined,
       binLocation: req.body.binLocation,
+      lowStockThreshold: req.body.lowStockThreshold !== undefined ? parseInt(req.body.lowStockThreshold) : undefined,
     });
 
     res.status(200).json({ success: true, product });

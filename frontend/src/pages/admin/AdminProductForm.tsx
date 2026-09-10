@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import { Brand, Series } from "@/data/brands";
 import { Attribute } from "@/data/attributes";
 import { brandRepository, categoryRepository, attributeRepository, productRepository, seriesRepository } from "@/client/apiClient";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { QrCodePreviewModal } from "@/components/admin/inventory/QrCodePreviewModal";
 import { cn } from "@/lib/utils";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { getApiV1Url } from "@/utils/endpoints";
@@ -103,6 +104,14 @@ const AdminProductForm = () => {
   const [isNewArrival, setIsNewArrival] = useState(false);
   const [isBestSelling, setIsBestSelling] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
+
+  // Inventory & Warehouse States
+  const [storageStock, setStorageStock] = useState("10");
+  const [webshopStock, setWebshopStock] = useState("5");
+  const [binLocation, setBinLocation] = useState("A-01-1");
+  const [lowStockThreshold, setLowStockThreshold] = useState("5");
+  const [currentInventoryItem, setCurrentInventoryItem] = useState<any>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
   // Prevent parent categories from being set — auto-resolves to first child
   const safeSetCategory = (slug: string, cats?: any[]) => {
     const list = cats || categoriesList;
@@ -120,10 +129,34 @@ const AdminProductForm = () => {
   const [selectedSeries, setSelectedSeries] = useState("");
   const [numberOfLights, setNumberOfLights] = useState("");
   const [selectedAttributeValues, setSelectedAttributeValues] = useState<Record<string, string[]>>({});
-  
+
   // Dynamic Specification states
   const [specs, setSpecs] = useState<SpecItem[]>([]);
   const [newParamName, setNewParamName] = useState("");
+
+  const handleStorageStockChange = (val: string) => {
+    setStorageStock(val);
+    const storageNum = Math.max(0, parseInt(val, 10) || 0);
+    const currentWebshopNum = parseInt(webshopStock, 10) || 0;
+    if (currentWebshopNum > storageNum) {
+      setWebshopStock(String(storageNum));
+    }
+  };
+
+  const handleWebshopStockChange = (val: string) => {
+    const maxStorage = Math.max(0, parseInt(storageStock, 10) || 0);
+    if (val === "") {
+      setWebshopStock("");
+      return;
+    }
+    const inputNum = parseInt(val, 10) || 0;
+    if (inputNum > maxStorage) {
+      toast.error(t("admin_product_form.cannot_exceed_storage", "Webshop quota cannot exceed physical storage ({{max}} units)", { max: maxStorage }));
+      setWebshopStock(String(maxStorage));
+    } else {
+      setWebshopStock(String(Math.max(0, inputNum)));
+    }
+  };
 
   // Set mounted flag on component mount
   useEffect(() => {
@@ -191,6 +224,26 @@ const AdminProductForm = () => {
 
           const parsed = parseSpecs(p.specs || {});
           setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+
+          const firstVariant = p.variants?.[0];
+          const firstInv = firstVariant?.inventoryItems?.[0];
+          if (firstInv) {
+            setStorageStock(String(firstInv.quantityOnHand ?? 10));
+            setWebshopStock(String(firstInv.webshopAllocated ?? 5));
+            setBinLocation(firstInv.binLocation || "A-01-1");
+            setLowStockThreshold(String(firstInv.reorderPoint ?? p.lowStockThreshold ?? 5));
+            setCurrentInventoryItem({
+              ...firstInv,
+              variant: {
+                ...firstVariant,
+                product: p,
+              },
+            });
+          } else if (firstVariant) {
+            setStorageStock(String(firstVariant.stock ?? 10));
+            setWebshopStock(String(firstVariant.stock ?? 5));
+            setLowStockThreshold(String(p.lowStockThreshold ?? 5));
+          }
         }
       } catch (err) {
         console.error("Failed to reload product details:", err);
@@ -276,7 +329,7 @@ const AdminProductForm = () => {
   // Poll background optimization job status
   useEffect(() => {
     if (!id || id === "new") return;
-    
+
     let intervalId: any;
     let toastId: string | null = null;
 
@@ -288,15 +341,15 @@ const AdminProductForm = () => {
         });
         if (!res.ok) return;
         const data = await res.json();
-        
+
         if (data.success && data.job) {
           const { type, status, progress, targetEntityId, error } = data.job;
-          
+
           if (type === "product_optimize" && targetEntityId === id) {
             if (status === "queued" || status === "running") {
               setIsOptimizing(true);
               const label = progress.label || "Optimizing content with AI...";
-              
+
               if (!toastId) {
                 toastId = "product-optimize-toast";
                 toast.loading(`AI Optimization: ${label}`, { id: toastId });
@@ -350,7 +403,7 @@ const AdminProductForm = () => {
     setIsOptimizing(true);
     const toastId = "product-optimize-toast";
     toast.loading(t("admin_product_form.optimize_toast_start"), { id: toastId });
-    
+
     try {
       const apiUrl = getApiV1Url();
       const res = await fetch(`${apiUrl}/ai/seo/product-optimize`, {
@@ -486,7 +539,7 @@ const AdminProductForm = () => {
         .filter(s => s.key !== "Number of lights" && s.key !== "Series")
         .map(s => ({ ...s, id: s.id || `item-${Math.random()}` }));
     }
-    
+
     // Legacy support
     if (typeof specsObj === "object" && specsObj !== null) {
       const items: SpecItem[] = [];
@@ -529,6 +582,10 @@ const AdminProductForm = () => {
       if (s.key === "Series") setSelectedSeries(s.value);
     });
     setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+    if (draft.storageStock !== undefined) setStorageStock(String(draft.storageStock));
+    if (draft.webshopStock !== undefined) setWebshopStock(String(draft.webshopStock));
+    if (draft.binLocation) setBinLocation(draft.binLocation);
+    if (draft.lowStockThreshold !== undefined) setLowStockThreshold(String(draft.lowStockThreshold));
     toast.info(t("admin_product_form.draft_loaded"));
   };
 
@@ -633,6 +690,26 @@ const AdminProductForm = () => {
 
             const parsed = parseSpecs(p.specs || {});
             setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+
+            const firstVariant = p.variants?.[0];
+            const firstInv = firstVariant?.inventoryItems?.[0];
+            if (firstInv) {
+              setStorageStock(String(firstInv.quantityOnHand ?? 10));
+              setWebshopStock(String(firstInv.webshopAllocated ?? 5));
+              setBinLocation(firstInv.binLocation || "A-01-1");
+              setLowStockThreshold(String(firstInv.reorderPoint ?? p.lowStockThreshold ?? 5));
+              setCurrentInventoryItem({
+                ...firstInv,
+                variant: {
+                  ...firstVariant,
+                  product: p,
+                },
+              });
+            } else if (firstVariant) {
+              setStorageStock(String(firstVariant.stock ?? 10));
+              setWebshopStock(String(firstVariant.stock ?? 5));
+              setLowStockThreshold(String(p.lowStockThreshold ?? 5));
+            }
             return;
           }
         } catch (e) {
@@ -643,7 +720,7 @@ const AdminProductForm = () => {
         const savedProducts = localStorage.getItem("products_data");
         let allProducts = [];
         if (savedProducts) {
-          try { allProducts = JSON.parse(savedProducts); } catch (e) {}
+          try { allProducts = JSON.parse(savedProducts); } catch (e) { }
         } else {
           const { products: initialProducts } = await import("@/data/products");
           allProducts = initialProducts;
@@ -745,7 +822,7 @@ const AdminProductForm = () => {
   const moveSpecItem = (index: number, direction: "up" | "down") => {
     if (direction === "up" && index === 0) return;
     if (direction === "down" && index === specs.length - 1) return;
-    
+
     setSpecs((prev) => {
       const newSpecs = [...prev];
       const targetIndex = direction === "up" ? index - 1 : index + 1;
@@ -881,7 +958,7 @@ const AdminProductForm = () => {
     if (attr.visibility === "filter") return false;
 
     const activeCatObj = categoriesList.find((c) => c.slug === selectedCategory);
-    
+
     // DB categories attributes mapping
     if (activeCatObj?.categoryAttributes && activeCatObj.categoryAttributes.length > 0) {
       return activeCatObj.categoryAttributes.some((ca: any) => ca.attribute.slug === attr.slug);
@@ -922,7 +999,7 @@ const AdminProductForm = () => {
     // Build flat parameters payload & backend relational EAV mapping
     const finalBrand = selectedBrand && selectedBrand !== "none" ? selectedBrand : "";
     const finalBrandId = selectedBrand && selectedBrand !== "none" ? brands.find((b) => b.name === selectedBrand)?.id || null : null;
-    
+
     const payload = {
       title: name,
       name: name,
@@ -935,6 +1012,10 @@ const AdminProductForm = () => {
       inStock,
       isNewArrival,
       isBestSelling,
+      storageStock: Math.max(0, parseInt(storageStock, 10) || 0),
+      webshopStock: Math.min(Math.max(0, parseInt(storageStock, 10) || 0), Math.max(0, parseInt(webshopStock, 10) || 0)),
+      binLocation: binLocation.trim() || "A-01-1",
+      lowStockThreshold: Math.max(1, parseInt(lowStockThreshold, 10) || 5),
       description,
       shortDescription,
       seoTitle,
@@ -976,7 +1057,7 @@ const AdminProductForm = () => {
     const savedProducts = localStorage.getItem("products_data");
     let allProducts = [];
     if (savedProducts) {
-      try { allProducts = JSON.parse(savedProducts); } catch (e) {}
+      try { allProducts = JSON.parse(savedProducts); } catch (e) { }
     } else {
       const { products: initialProducts } = await import("@/data/products");
       allProducts = initialProducts;
@@ -1035,10 +1116,10 @@ const AdminProductForm = () => {
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
+
           {/* LEFT COLUMN — Main Forms (2/3 Width) */}
           <div className="lg:col-span-2 space-y-8">
-            
+
             {/* Basic Info */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4">
@@ -1415,10 +1496,10 @@ const AdminProductForm = () => {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Input 
-                    placeholder={t("admin_product_form.specs_new_param_placeholder")} 
-                    value={newParamName} 
-                    onChange={e => setNewParamName(e.target.value)} 
+                  <Input
+                    placeholder={t("admin_product_form.specs_new_param_placeholder")}
+                    value={newParamName}
+                    onChange={e => setNewParamName(e.target.value)}
                     className="h-8 text-xs w-48 bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                     onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAddItem())}
                   />
@@ -1439,7 +1520,7 @@ const AdminProductForm = () => {
                             <button type="button" onClick={() => moveSpecItem(index, 'up')} disabled={index === 0} className="h-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">▲</button>
                             <button type="button" onClick={() => moveSpecItem(index, 'down')} disabled={index === specs.length - 1} className="h-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">▼</button>
                           </div>
-                          
+
                           <div className="grid grid-cols-[1fr_1.5fr_1.5fr] gap-3 flex-grow items-center">
                             <div className="space-y-1">
                               <Label className="text-[10px] text-muted-foreground uppercase px-1">{t("admin_product_form.specs_label_name")}</Label>
@@ -1488,7 +1569,119 @@ const AdminProductForm = () => {
 
           {/* RIGHT COLUMN — Organisation, EAV Attributes & Sticky Action Panel (1/3 Width) */}
           <div className="space-y-8 lg:sticky lg:top-8">
-            
+
+            {/* Inventory & Warehouse Storage Card */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
+              <CardHeader className="border-b pb-4 mb-4">
+                <CardTitle className="text-lg font-bold flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Warehouse className="h-5 w-5 text-primary" />
+                    <span>{t("admin_product_form.inventory_title", "Inventory & Storage")}</span>
+                  </div>
+                  {isEdit && currentInventoryItem && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQrModalOpen(true)}
+                      className="h-7 px-2 text-xs font-semibold gap-1.5 rounded-lg border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800"
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                      <span>{t("admin_product_form.btn_print_qr", "QR Label")}</span>
+                    </Button>
+                  )}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {t("admin_product_form.inventory_subtitle", "Manage warehouse physical count & live webshop quota")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="storageStock" className="text-xs font-bold text-foreground/80 flex items-center gap-1">
+                      <span>{t("admin_product_form.label_storage_stock", "Storage (Godown)")}</span>
+                    </Label>
+                    <Input
+                      id="storageStock"
+                      type="number"
+                      min="0"
+                      value={storageStock}
+                      onChange={(e) => handleStorageStockChange(e.target.value)}
+                      placeholder="0"
+                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg font-mono font-bold"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("admin_product_form.storage_stock_hint", "Total physical units in warehouse")}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="webshopStock" className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <span>{t("admin_product_form.label_webshop_stock", "Webshop (Online)")}</span>
+                    </Label>
+                    <Input
+                      id="webshopStock"
+                      type="number"
+                      min="0"
+                      max={Math.max(0, parseInt(storageStock, 10) || 0)}
+                      value={webshopStock}
+                      onChange={(e) => handleWebshopStockChange(e.target.value)}
+                      placeholder="0"
+                      className="h-10 text-xs bg-emerald-50/50 dark:bg-emerald-950/20 focus-visible:ring-1 border-emerald-300/40 dark:border-emerald-700/40 rounded-lg font-mono font-bold text-emerald-700 dark:text-emerald-300"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("admin_product_form.webshop_stock_hint", "Live checkout quota for website")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="binLocation" className="text-xs font-bold text-foreground/80">
+                      {t("admin_product_form.label_bin_location", "Storage Rack / Bin Location")}
+                    </Label>
+                    <Input
+                      id="binLocation"
+                      value={binLocation}
+                      onChange={(e) => setBinLocation(e.target.value)}
+                      placeholder="e.g. A-01-1, Shelf-B4"
+                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="lowStockThreshold" className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <span>{t("admin_product_form.label_low_stock_threshold", "Low Stock Alert (Threshold)")}</span>
+                    </Label>
+                    <Input
+                      id="lowStockThreshold"
+                      type="number"
+                      min="1"
+                      value={lowStockThreshold}
+                      onChange={(e) => setLowStockThreshold(e.target.value)}
+                      placeholder="5"
+                      className="h-10 text-xs bg-amber-50/50 dark:bg-amber-950/20 focus-visible:ring-1 border-amber-300/40 dark:border-amber-700/40 rounded-lg font-mono font-bold text-amber-700 dark:text-amber-300"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("admin_product_form.low_stock_threshold_hint", "Shows 'Only X left' badge when stock <= threshold")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/50 text-[11px] text-muted-foreground space-y-1">
+                  <div className="flex items-center justify-between font-medium">
+                    <span>{t("admin_product_form.offline_reserve", "Offline Safety Reserve:")}</span>
+                    <span className="font-mono font-bold text-foreground">
+                      {Math.max(0, (parseInt(storageStock, 10) || 0) - (parseInt(webshopStock, 10) || 0))} {t("admin_product_form.units", "units")}
+                    </span>
+                  </div>
+                  <p className="text-[10px] leading-tight text-muted-foreground/80">
+                    {t("admin_product_form.dual_layer_note", "Protected offline in godown. Not purchasable on webshop.")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Organisation & Category attributes */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4">
@@ -1504,33 +1697,33 @@ const AdminProductForm = () => {
                         <SelectValue placeholder={t("admin_product_form.placeholder_category")} />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl">
-                          {/* First show orphan/standalone categories (no parent) that aren't parents themselves */}
-                          {categoriesList
-                            .filter((c: any) => !c.parentId && !categoriesList.some((ch: any) => ch.parentId === c.id))
-                            .map((c) => (
-                              <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          {/* Then show parent categories with their children grouped */}
-                          {categoriesList
-                            .filter((c: any) => !c.parentId && categoriesList.some((ch: any) => ch.parentId === c.id))
-                            .map((parent: any) => {
-                              const children = categoriesList.filter((ch: any) => ch.parentId === parent.id);
-                              return (
-                                <div key={parent.id}>
-                                  <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50">
-                                    {parent.name}
-                                  </div>
-                                  {children.map((child: any) => (
-                                    <SelectItem key={child.slug} value={child.slug} className="text-xs rounded-lg pl-5">
-                                      ↳ {child.name}
-                                    </SelectItem>
-                                  ))}
+                        {/* First show orphan/standalone categories (no parent) that aren't parents themselves */}
+                        {categoriesList
+                          .filter((c: any) => !c.parentId && !categoriesList.some((ch: any) => ch.parentId === c.id))
+                          .map((c) => (
+                            <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        {/* Then show parent categories with their children grouped */}
+                        {categoriesList
+                          .filter((c: any) => !c.parentId && categoriesList.some((ch: any) => ch.parentId === c.id))
+                          .map((parent: any) => {
+                            const children = categoriesList.filter((ch: any) => ch.parentId === parent.id);
+                            return (
+                              <div key={parent.id}>
+                                <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50">
+                                  {parent.name}
                                 </div>
-                              );
-                            })}
-                        </SelectContent>
+                                {children.map((child: any) => (
+                                  <SelectItem key={child.slug} value={child.slug} className="text-xs rounded-lg pl-5">
+                                    ↳ {child.name}
+                                  </SelectItem>
+                                ))}
+                              </div>
+                            );
+                          })}
+                      </SelectContent>
                     </Select>
                   )}
                 </div>
@@ -1579,11 +1772,10 @@ const AdminProductForm = () => {
                                     <button
                                       key={v.id}
                                       type="button"
-                                      className={`relative h-7 w-7 rounded-full border transition-all duration-300 ${
-                                        isChecked
+                                      className={`relative h-7 w-7 rounded-full border transition-all duration-300 ${isChecked
                                           ? "ring-2 ring-primary ring-offset-2 scale-110 shadow-sm"
                                           : "border-muted-foreground/20 hover:scale-105"
-                                      }`}
+                                        }`}
                                       style={{ background: v.colorCode || "#cccccc" }}
                                       title={v.value}
                                       onClick={() => {
@@ -1642,10 +1834,10 @@ const AdminProductForm = () => {
                               <Select
                                 value={currentVals[0] || ""}
                                 onValueChange={(val) => {
-                                    setSelectedAttributeValues((prev) => ({
-                                      ...prev,
-                                      [attr.slug]: [val],
-                                    }));
+                                  setSelectedAttributeValues((prev) => ({
+                                    ...prev,
+                                    [attr.slug]: [val],
+                                  }));
                                 }}
                               >
                                 <SelectTrigger className="h-9 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
@@ -1723,7 +1915,7 @@ const AdminProductForm = () => {
               </CardContent>
             </Card>
 
-             {/* Actions Card */}
+            {/* Actions Card */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl p-6 space-y-3">
               <Button type="submit" className="w-full gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300">
                 <Save className="h-4 w-4" />
@@ -1807,7 +1999,7 @@ const AdminProductForm = () => {
                 setRegenPromptOpen(false);
                 const toastId = regenTargetIndex !== null ? `regen-${regenTargetIndex}` : "regen-all";
                 toast.info(t("admin_product_form.regen_toast_start"), { id: toastId });
-                
+
                 if (regenTargetIndex !== null) {
                   setRegeneratingIndexes(prev => [...prev, regenTargetIndex]);
                 } else {
@@ -1816,21 +2008,21 @@ const AdminProductForm = () => {
 
                 try {
                   const apiUrl = getApiV1Url();
-                  const targetUrl = draftId 
+                  const targetUrl = draftId
                     ? `${apiUrl}/ai/drafts/${draftId}/regenerate-images`
                     : `${apiUrl}/ai/products/${id}/regenerate-images`;
                   const res = await fetch(targetUrl, {
                     method: "POST",
-                    headers: { 
+                    headers: {
                       Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
                       "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ 
-                      prompt: regenPromptText, 
-                      index: regenTargetIndex !== null ? regenTargetIndex : undefined 
+                    body: JSON.stringify({
+                      prompt: regenPromptText,
+                      index: regenTargetIndex !== null ? regenTargetIndex : undefined
                     })
                   });
-                  
+
                   const data = await res.json();
                   if (data.success && data.images) {
                     setGalleryImages(prev => {
@@ -1941,6 +2133,15 @@ const AdminProductForm = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* QR Code Thermal Preview Modal */}
+      {currentInventoryItem && (
+        <QrCodePreviewModal
+          item={currentInventoryItem}
+          isOpen={qrModalOpen}
+          onClose={() => setQrModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

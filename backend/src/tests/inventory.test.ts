@@ -1,9 +1,9 @@
 import express from 'express';
 import http from 'http';
 import jwt from 'jsonwebtoken';
-import { env } from './config/env';
-import inventoryRoutes from './routes/inventoryRoutes';
-import { errorHandler } from './middlewares/errorMiddleware';
+import { env } from '../config/env';
+import inventoryRoutes from '../routes/inventoryRoutes';
+import { errorHandler } from '../middlewares/errorMiddleware';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -121,7 +121,7 @@ async function runInventoryApiTests() {
       },
       body: JSON.stringify({
         inventoryItemId: itemId,
-        quantityChange: 10,
+        quantityChange: 50,
         reason: 'Automated test storage delivery inspection',
         binLocation: 'Rack-TEST-1',
       }),
@@ -130,7 +130,7 @@ async function runInventoryApiTests() {
 
     assertTest(
       'POST /api/v1/inventory/admin/adjust-storage increments quantityOnHand',
-      adjustRes.status === 200 && adjustData?.data?.quantityOnHand === testItem.quantityOnHand + 10,
+      adjustRes.status === 200 && adjustData?.data?.quantityOnHand === testItem.quantityOnHand + 50,
       `Status: ${adjustRes.status}, New Stock: ${adjustData?.data?.quantityOnHand}`
     );
 

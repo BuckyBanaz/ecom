@@ -135,4 +135,30 @@ This file documents the technical memory, files changed, and integration details
 - **Product Controller Integration (`backend/src/controllers/productController.ts`)**:
   - Connected `syncProductInventory` hook on product create and edit.
   - Included `inventoryItems` in `getProductBySlug` response.
+
+---
+
+## 📦 Phase 3: Frontend Admin UI, Product Form Hook & Translations (v1.0-ims)
+- **Repository & Client**:
+  - `frontend/src/client/inventoryRepository.ts`: Typed client repository for list, adjust, allocate, QR preview, PDF labels, and movements.
+  - `frontend/src/utils/endpoints.ts`: Added inventory API endpoints.
+- **Admin Pages & Routing**:
+  - `frontend/src/pages/admin/AdminInventory.tsx`: Master Dual-Layer Dashboard with 3 View Tabs (`All Inventory`, `Storage Only`, `Webshop Channel`), 4 responsive metric summary cards, live search, low stock alert filter, responsive table with inline bin location edit, batch selection, and quick actions.
+  - `frontend/src/App.tsx`: Registered `/admin/inventory` route.
+  - `frontend/src/components/admin/AdminSidebar.tsx`: Added `Inventory` navigation link with `Boxes` icon.
+  - `frontend/src/context/AdminContext.tsx`: Added `"inventory"` to superadmin, admin, and moderator permissions.
+- **Product Edit/Create Form Integration (`AdminProductForm.tsx`)**:
+  - Added **"📦 Inventory & Storage"** Card in the right sidebar.
+  - Inputs for `storageStock` (Physical Godown), `webshopStock` (Live Website Quota), and `binLocation` (Shelf / Rack ID).
+  - Added dynamic calculation and visual pill for `Offline Safety Reserve`.
+  - Added quick `[🖨️ QR Label]` button opening `QrCodePreviewModal` directly from the product edit page.
+  - Integrated inventory fields into form submission payload and product reload hook.
+- **Interactive Modals**:
+  - `StockAdjustmentModal.tsx`: Supports delta (+/-) and exact count modes with reason selection and custom notes.
+  - `AllocateWebshopModal.tsx`: Visual dual-layer slider and publication toggle.
+  - `QrCodePreviewModal.tsx`: QR preview with copy payload and single thermal label PDF generation.
+  - `LabelPrintModal.tsx`: Batch label generator supporting Thermal Roll (50x30mm) and A4 sheets (24/30 labels/page) with price and bin location toggles.
+- **Localization (100% Bilingual)**:
+  - `frontend/src/locales/en/translation.json`: Full English translations for `admin_sidebar.inventory` and `inventory` namespace.
+  - `frontend/src/locales/nl/translation.json`: Full Dutch translations for `admin_sidebar.inventory` and `inventory` namespace.
 

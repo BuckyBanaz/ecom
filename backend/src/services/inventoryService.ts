@@ -85,6 +85,7 @@ export class InventoryService {
       const physicalStock = options?.storageStock ?? (variant.stock > 0 ? variant.stock : product.inStock ? 50 : 0);
       const webshopStock = options?.webshopStock ?? (product.inStock ? Math.min(15, physicalStock) : 0);
       const binLocation = options?.binLocation || 'A-01-1';
+      const lowStockPoint = options?.lowStockThreshold ?? 5;
 
       const qrPayload = QrBarcodeService.buildPayload({
         sku: variant.sku,
@@ -104,7 +105,7 @@ export class InventoryService {
             quantityReserved: 0,
             quantityDamaged: 0,
             binLocation,
-            reorderPoint: 5,
+            reorderPoint: lowStockPoint,
             reorderQuantity: 20,
             customBarcode: variant.sku,
             qrCodePayload: qrPayload,
@@ -129,14 +130,18 @@ export class InventoryService {
           });
         }
       } else {
-        // Update publication state if product.inStock changed
+        const targetOnHand = options?.storageStock !== undefined ? options.storageStock : existing.quantityOnHand;
+        const requestedWebshop = options?.webshopStock !== undefined ? options.webshopStock : existing.webshopAllocated;
+        const targetWebshop = Math.min(targetOnHand, requestedWebshop);
+
         await prisma.inventoryItem.update({
           where: { id: existing.id },
           data: {
-            isPublishedWebshop: product.inStock,
-            ...(options?.storageStock !== undefined ? { quantityOnHand: options.storageStock } : {}),
-            ...(options?.webshopStock !== undefined ? { webshopAllocated: options.webshopStock } : {}),
+            isPublishedWebshop: product.inStock && targetWebshop > 0,
+            quantityOnHand: targetOnHand,
+            webshopAllocated: targetWebshop,
             ...(options?.binLocation !== undefined ? { binLocation: options.binLocation } : {}),
+            ...(options?.lowStockThreshold !== undefined ? { reorderPoint: options.lowStockThreshold } : {}),
           },
         });
       }
