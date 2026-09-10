@@ -27,6 +27,7 @@ model User {
   addresses    Address[]
   fcmTokens    String[]   @default([]) @map("fcm_tokens")
   returnRequests ReturnRequest[]
+  stockMovements StockMovement[]
 
   @@map("users")
 }
@@ -181,6 +182,9 @@ model ProductVariant {
   stock                  Int                     @default(0)
   price                  Float?                  // overrides product price if set
   variantAttributeValues VariantAttributeValue[]
+  inventoryItems         InventoryItem[]
+  purchaseOrderItems     PurchaseOrderItem[]
+  stockTransfers         StockTransfer[]
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
 
@@ -458,4 +462,213 @@ model ReturnRequest {
   @@index([userId])
   @@index([status])
   @@map("return_requests")
+}
+
+// =========================================================================
+// 18. DUAL-LAYER INVENTORY & WAREHOUSE MODULE
+// =========================================================================
+
+enum WarehouseType {
+  CENTRAL_WAREHOUSE
+  RETAIL_STORE
+  THIRD_PARTY_LOGISTICS
+  DROPSHIPPER
+}
+
+enum StockMovementType {
+  PURCHASE_ORDER_RECEIPT   // Stock received from supplier into storage
+  WEBSHOP_ALLOCATION_INC   // Quota moved from storage reserve to webshop
+  WEBSHOP_ALLOCATION_DEC   // Quota removed from webshop back to storage
+  ORDER_RESERVATION        // Locked during checkout
+  ORDER_RESERVATION_CANCEL // Released on cart abort / payment fail
+  ORDER_FULFILLED          // Permanently deducted upon dispatch
+  MANUAL_STORAGE_ADJUST    // Physical storage cycle count correction
+  RETURN_RESTOCK           // Restocked from customer return
+  DAMAGED_SCRAP            // Written off due to damage
+  TRANSFER_OUT             // Shipped to another warehouse
+  TRANSFER_IN              // Received from another warehouse
+}
+
+enum POStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+// 18.1. Warehouses / Storage Locations
+model Warehouse {
+  id           String            @id @default(uuid())
+  code         String            @unique // e.g., "WH-MAIN", "STORE-AMS"
+  name         String
+  type         WarehouseType     @default(CENTRAL_WAREHOUSE)
+  contactName  String?           @map("contact_name")
+  email        String?
+  phone        String?
+  addressLine1 String            @map("address_line1")
+  addressLine2 String?           @map("address_line2")
+  city         String
+  postalCode   String            @map("postal_code")
+  country      String            @default("NL")
+  isDefault    Boolean           @default(false) @map("is_default")
+  isActive     Boolean           @default(true) @map("is_active")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  inventoryItems InventoryItem[]
+  transfersFrom  StockTransfer[] @relation("TransferSource")
+  transfersTo    StockTransfer[] @relation("TransferDestination")
+
+  @@map("warehouses")
+}
+
+// 18.2. Dual-Layer Inventory Levels per Variant & Warehouse
+model InventoryItem {
+  id                  String          @id @default(uuid())
+  warehouseId         String          @map("warehouse_id")
+  warehouse           Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  variantId           String          @map("variant_id")
+  variant             ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  // Storage (Physical) Stock Metrics
+  quantityOnHand      Int             @default(0) @map("quantity_on_hand")     // Total in physical storage
+  quantityDamaged     Int             @default(0) @map("quantity_damaged")     // Damaged / quarantined
+  binLocation         String?         @map("bin_location")                    // Shelf / Rack e.g. "A-04-2"
+  
+  // Webshop Channel Metrics
+  isPublishedWebshop  Boolean         @default(true) @map("is_published_webshop") // Whether item is on webshop
+  webshopAllocated    Int             @default(0) @map("webshop_allocated")    // Max stock allocated to webshop
+  quantityReserved    Int             @default(0) @map("quantity_reserved")    // In-checkout locks
+  
+  // Reorder & Procurement Alerts
+  reorderPoint        Int             @default(10) @map("reorder_point")       // Storage low alert threshold
+  reorderQuantity     Int             @default(50) @map("reorder_quantity")    // Default PO replenishment qty
+  
+  // Barcode & QR Identification
+  customBarcode       String?         @unique @map("custom_barcode")          // EAN / UPC / Custom barcode
+  qrCodePayload       String?         @map("qr_code_payload")                 // Raw payload / Deep-link
+  
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  movements           StockMovement[]
+
+  @@unique([warehouseId, variantId])
+  @@index([variantId])
+  @@index([warehouseId])
+  @@index([customBarcode])
+  @@map("inventory_items")
+}
+
+// 18.3. Immutable Stock Movement Ledger (Audit Log)
+model StockMovement {
+  id              String            @id @default(uuid())
+  inventoryItemId String            @map("inventory_item_id")
+  inventoryItem   InventoryItem     @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  type            StockMovementType
+  
+  quantityChange  Int               @map("quantity_change") // Positive or negative delta
+  previousOnHand  Int               @map("previous_on_hand")
+  newOnHand       Int               @map("new_on_hand")
+  
+  previousWebshop Int?              @map("previous_webshop")
+  newWebshop      Int?              @map("new_webshop")
+  
+  referenceType   String?           @map("reference_type")  // "ORDER", "PURCHASE_ORDER", "RETURN", "QR_SCAN", "MANUAL"
+  referenceId     String?           @map("reference_id")    // order_id, po_id, etc.
+  reason          String?                                   // "Cycle count correction", "Transferred to webshop", etc.
+  
+  performedBy     String?           @map("performed_by")    // Admin user ID or "SYSTEM"
+  performedByUser User?             @relation(fields: [performedBy], references: [id], onDelete: SetNull)
+  
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  @@index([inventoryItemId])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+// 18.4. Suppliers / Vendors
+model Supplier {
+  id             String          @id @default(uuid())
+  name           String          @unique
+  code           String?         @unique // e.g. "SUP-MUTLU-01"
+  contactPerson  String?         @map("contact_person")
+  email          String?
+  phone          String?
+  address        String?
+  leadTimeDays   Int             @default(7) @map("lead_time_days")
+  currency       String          @default("EUR")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+// 18.5. Purchase Orders (PO) for Procurement
+model PurchaseOrder {
+  id             String              @id @default(uuid())
+  poNumber       String              @unique @map("po_number") // e.g. "PO-2026-001"
+  supplierId     String              @map("supplier_id")
+  supplier       Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouseId    String              @map("warehouse_id")
+  status         POStatus            @default(DRAFT)
+  totalAmount    Float               @default(0.0) @map("total_amount")
+  currency       String              @default("EUR")
+  expectedDate   DateTime?           @map("expected_date")
+  receivedDate   DateTime?           @map("received_date")
+  notes          String?
+  createdBy      String?             @map("created_by")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  items          PurchaseOrderItem[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+// 18.6. Purchase Order Items (Line Items)
+model PurchaseOrderItem {
+  id               String        @id @default(uuid())
+  purchaseOrderId  String        @map("purchase_order_id")
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  variantId        String        @map("variant_id")
+  variant          ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  
+  orderedQuantity  Int           @map("ordered_quantity")
+  receivedQuantity Int           @default(0) @map("received_quantity")
+  unitCost         Float         @map("unit_cost")
+  subtotal         Float
+
+  @@map("purchase_order_items")
+}
+
+// 18.7. Inter-Warehouse Transfers
+model StockTransfer {
+  id                  String     @id @default(uuid())
+  transferNumber      String     @unique @map("transfer_number")
+  sourceWarehouseId   String     @map("source_warehouse_id")
+  sourceWarehouse     Warehouse  @relation("TransferSource", fields: [sourceWarehouseId], references: [id])
+  targetWarehouseId   String     @map("target_warehouse_id")
+  targetWarehouse     Warehouse  @relation("TransferDestination", fields: [targetWarehouseId], references: [id])
+  
+  variantId           String     @map("variant_id")
+  variant             ProductVariant @relation(fields: [variantId], references: [id])
+  quantity            Int
+  status              String     @default("PENDING") // PENDING, IN_TRANSIT, COMPLETED, CANCELLED
+  trackingRef         String?    @map("tracking_ref")
+  notes               String?
+  initiatedBy         String?    @map("initiated_by")
+  
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  @@map("stock_transfers")
 }

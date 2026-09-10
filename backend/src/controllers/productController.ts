@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/db";
 import { sanitizeProductForClient, sanitizeProductsForClient } from "../utils/productSerializer";
+import { InventoryService } from "../services/inventoryService";
 
 // Helper to extract filters from query parameters
 const parseFilters = (query: any) => {
@@ -328,6 +329,11 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
         },
         variants: {
           include: {
+            inventoryItems: {
+              include: {
+                warehouse: true,
+              },
+            },
             variantAttributeValues: {
               include: {
                 attributeValue: {
@@ -488,6 +494,13 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       }
     }
 
+    // Automatically synchronize inventory records for product and variants
+    await InventoryService.syncProductInventory(product.id, {
+      storageStock: req.body.storageStock ? parseInt(req.body.storageStock) : undefined,
+      webshopStock: req.body.webshopStock ? parseInt(req.body.webshopStock) : undefined,
+      binLocation: req.body.binLocation,
+    });
+
     res.status(201).json({ success: true, product });
   } catch (error) {
     next(error);
@@ -639,6 +652,13 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
         }
       }
     }
+
+    // Automatically synchronize inventory records for product and variants on edit
+    await InventoryService.syncProductInventory(product.id, {
+      storageStock: req.body.storageStock !== undefined ? parseInt(req.body.storageStock) : undefined,
+      webshopStock: req.body.webshopStock !== undefined ? parseInt(req.body.webshopStock) : undefined,
+      binLocation: req.body.binLocation,
+    });
 
     res.status(200).json({ success: true, product });
   } catch (error) {

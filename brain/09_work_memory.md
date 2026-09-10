@@ -98,3 +98,41 @@ This file documents the technical memory, files changed, and integration details
 - Verify that a toast loader appears showing progress steps (`AI Optimization: Loading product details...`, `Optimizing...`, `Saving...`).
 - Refresh the page during optimization, and verify that the page recovery hook automatically restores the loading toast and finishes the task in the background.
 - Once completed, check that the optimized description, specifications, and SEO keywords/meta tags are updated and automatically reloaded in the form.
+
+---
+
+## 📦 Phase 1: Dual-Layer Inventory & Warehouse Database Migration (v1.0-ims)
+- **Schema Updates (`backend/prisma/schema.prisma`)**:
+  - Added enums: `WarehouseType`, `StockMovementType`, `POStatus`.
+  - Added models: `Warehouse`, `InventoryItem`, `StockMovement`, `Supplier`, `PurchaseOrder`, `PurchaseOrderItem`, `StockTransfer`.
+  - Updated relations on `User` and `ProductVariant`.
+- **Database Synchronization**:
+  - Applied schema to PostgreSQL via `npx prisma db push`.
+  - Re-generated Prisma Client (v5.22.0) with updated query engine bindings.
+- **Existing Catalog Migration (`backend/src/utils/migrateExistingProductsToInventory.ts`)**:
+  - Created Central Main Warehouse (`WH-MAIN`).
+  - Scanned all 24 existing real products in the PostgreSQL database.
+  - Linked all 38 existing product variants into `InventoryItem` records with dual-layer stock (`quantityOnHand`, `webshopAllocated`), shelf/bin locations (`A-01-1`), and auto-generated machine QR payloads.
+  - Recorded initial ledger entries in `StockMovement`.
+
+---
+
+## 📦 Phase 2: Backend Core Services, QR/Barcode Engine & APIs (v1.0-ims)
+- **Services Added**:
+  - `backend/src/services/qrBarcodeService.ts`: Standardized machine payload generator, high-res DataURL generator, and 1D Code-128 barcode buffer creator.
+  - `backend/src/services/labelPrintService.ts`: Printable PDF label engine supporting continuous Thermal Roll (50x30mm) and standard A4 sheets (24/30 label grids).
+  - `backend/src/services/inventoryService.ts`: Automatic catalog hook initializing and syncing variants and `InventoryItem` records on product creation/update.
+- **Controller & Routes**:
+  - `backend/src/controllers/inventoryController.ts` & `backend/src/routes/inventoryRoutes.ts`:
+    - `GET /api/v1/inventory/admin/list` (paginated items with filters and global storage/webshop summary)
+    - `GET /api/v1/inventory/admin/by-sku/:sku` (instant lookup for scanner)
+    - `POST /api/v1/inventory/admin/adjust-storage` (physical count adjustment & audit logging)
+    - `POST /api/v1/inventory/admin/allocate-webshop` (webshop quota allocation)
+    - `PUT /api/v1/inventory/admin/items/:id/location` (shelf/bin location update)
+    - `GET /api/v1/inventory/admin/qr-code/:id` (QR preview data)
+    - `POST /api/v1/inventory/admin/labels/pdf` (stream printable PDF sticker sheet)
+    - `GET /api/v1/inventory/admin/movements` (stock audit ledger)
+- **Product Controller Integration (`backend/src/controllers/productController.ts`)**:
+  - Connected `syncProductInventory` hook on product create and edit.
+  - Included `inventoryItems` in `getProductBySlug` response.
+

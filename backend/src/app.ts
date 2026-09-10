@@ -154,6 +154,7 @@ import notificationRoutes from "./routes/notificationRoutes";
 import configRoutes from "./routes/configRoutes";
 import logsRoutes from "./routes/logsRoutes";
 import backupRoutes from "./routes/backupRoutes";
+import inventoryRoutes from "./routes/inventoryRoutes";
 import { getRobotsTxtContent, getSitemapXmlContent, getLlmsTxtContent } from "./services/settingsStore";
 import { seoPrerender } from "./middlewares/seoPrerender";
 
@@ -232,6 +233,7 @@ app.use("/api/v1/returns", returnRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/translate", translateRoutes);
+app.use("/api/v1/inventory", inventoryRoutes);
 
 // Catch-all route for 404 undefined paths
 app.all("*", (req, _res, next) => {

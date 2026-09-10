@@ -24,6 +24,7 @@
 | Docs folder | `docs/` |
 | Shipping & refund docs | `docs/shipping-and-refund/` |
 | Inventory System Plan | `docs/inventory-management-system-plan.md` |
+| Inventory User Manual & Flow | `docs/inventory-user-manual-and-flow.md` |
 | Inventory Master Roadmap | `brain/12_inventory_management_roadmap.md` |
 
 ---

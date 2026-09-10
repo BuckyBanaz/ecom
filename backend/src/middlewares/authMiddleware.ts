@@ -73,12 +73,12 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "dashboard", "analytics", "products", "categories", "brands", "attributes",
     "orders", "offers", "charges", "reviews", "testimonials",
     "storage", "users", "manage_users", "cms", "email_templates", "ai",
-    "logs", "backups", "settings"
+    "logs", "backups", "settings", "inventory"
   ],
   admin: [
     "dashboard", "analytics", "products", "categories", "brands", "attributes",
     "orders", "offers", "charges", "reviews", "testimonials",
-    "storage", "users", "email_templates", "ai"
+    "storage", "users", "email_templates", "ai", "inventory"
   ],
   moderator: [
     "dashboard", "products", "orders", "reviews", "testimonials"
@@ -106,7 +106,8 @@ const BASE_URL_PERMISSIONS: Record<string, string> = {
   "/api/v1/ai": "ai",
   "/api/v1/megamenus": "cms",
   "/api/v1/shipping": "settings",
-  "/api/v1/webhooks": "settings"
+  "/api/v1/webhooks": "settings",
+  "/api/v1/inventory": "inventory"
 };
 
 const getRequiredPermission = (req: Request): string | null => {

@@ -67,7 +67,7 @@ const swaggerSpec = swaggerJSDoc(options);
  * Connects Swagger documentation routes to the Express Application instance
  */
 export const setupSwagger = (app: Express): void => {
-  const gate = (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+  const gate = (_req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
     if (!isApiDocsEnabled()) {
       res.status(404).type("text/plain").send("API documentation is disabled.");
       return;
