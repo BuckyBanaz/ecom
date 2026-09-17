@@ -39,6 +39,7 @@ export class InventoryService {
       storageStock?: number;
       webshopStock?: number;
       binLocation?: string;
+      lowStockThreshold?: number;
     }
   ) {
     const warehouse = await this.getDefaultWarehouse();
