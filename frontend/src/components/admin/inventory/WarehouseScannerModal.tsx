@@ -244,10 +244,23 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
             const chosen = cameras.find((c) => c.id === overrideCameraId);
             if (chosen) setActiveCameraLabel(chosen.label || 'Selected Camera');
           } else {
-            const backCam = cameras.find((c) => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('rear')) || cameras[0];
-            setActiveCameraLabel(backCam.label || 'Default Camera');
-            cameraToUse = backCam.id;
-            setSelectedCameraId(backCam.id);
+            // Prioritize primary 1x wide auto-focus back camera (EXCLUDE blurry telephoto / ultra-wide lenses on iPhones)
+            const primaryBackCam = cameras.find((c) => {
+              const l = (c.label || '').toLowerCase();
+              return (
+                (l.includes('back') || l.includes('rear') || l.includes('environment')) &&
+                !l.includes('telephoto') &&
+                !l.includes('ultra') &&
+                !l.includes('depth')
+              );
+            }) || cameras.find((c) => {
+              const l = (c.label || '').toLowerCase();
+              return (l.includes('back') || l.includes('rear')) && !l.includes('telephoto');
+            }) || cameras[0];
+
+            setActiveCameraLabel(primaryBackCam.label || 'Default Camera');
+            cameraToUse = primaryBackCam.id;
+            setSelectedCameraId(primaryBackCam.id);
           }
         }
       } catch (_) {}
@@ -257,8 +270,8 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
           const minDim = Math.min(viewfinderWidth, viewfinderHeight);
           return {
-            width: Math.floor(minDim * 0.85),
-            height: Math.floor(minDim * 0.85),
+            width: Math.floor(minDim * 0.9),
+            height: Math.floor(minDim * 0.9),
           };
         },
         aspectRatio: 1.333333,
@@ -602,22 +615,22 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleModalClose()}>
-      <DialogContent className="max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="w-[96vw] sm:max-w-2xl max-h-[94dvh] sm:max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl border shadow-2xl">
         {/* Header Bar */}
-        <DialogHeader className="px-6 py-4 border-b bg-muted/30">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-                <Camera className="w-5 h-5" />
+        <DialogHeader className="px-3.5 py-2.5 sm:px-6 sm:py-4 border-b bg-muted/30 flex-shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-primary/10 text-primary flex-shrink-0">
+                <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                  <span>{t('inventory.scanner_title', 'Warehouse Mobile Scanner')}</span>
-                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 font-semibold px-2 py-0.5">
+              <div className="min-w-0">
+                <DialogTitle className="text-sm sm:text-lg font-bold flex items-center gap-1.5 truncate">
+                  <span>{t('inventory.scanner_title', 'Warehouse Scanner')}</span>
+                  <Badge variant="outline" className="text-[9px] sm:text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 font-semibold px-1.5 py-0">
                     LIVE
                   </Badge>
                 </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground truncate mt-0.5">
                   {t('inventory.scanner_subtitle', 'Scan camera QR, 1D barcodes or laser gun')}
                 </DialogDescription>
               </div>
@@ -628,41 +641,41 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
               variant="outline"
               size="icon"
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 text-muted-foreground hover:text-foreground"
               title={soundEnabled ? t('inventory.mute_beep', 'Mute Beep') : t('inventory.enable_beep', 'Enable Beep')}
             >
-              {soundEnabled ? <Volume2 className="w-4 h-4 text-primary" /> : <VolumeX className="w-4 h-4" />}
+              {soundEnabled ? <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" /> : <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             </Button>
           </div>
         </DialogHeader>
 
         {/* Mode Switch Tabs */}
-        <div className="px-6 pt-3 border-b bg-muted/20">
+        <div className="px-3 py-2 sm:px-6 sm:pt-3 border-b bg-muted/20 flex-shrink-0">
           <Tabs
             value={activeTab}
             onValueChange={(val) => setActiveTab(val as any)}
             className="w-full"
           >
-            <TabsList className="bg-muted w-full sm:w-auto grid grid-cols-2">
-              <TabsTrigger value="CAMERA" className="gap-2 text-xs">
+            <TabsList className="bg-muted w-full sm:w-auto grid grid-cols-2 h-8 sm:h-9">
+              <TabsTrigger value="CAMERA" className="gap-1.5 text-xs py-1">
                 <Camera className="w-3.5 h-3.5" />
-                <span>{t('inventory.tab_camera_scanner', 'Camera Viewfinder')}</span>
+                <span className="truncate">{t('inventory.tab_camera_scanner', 'Camera Viewfinder')}</span>
               </TabsTrigger>
-              <TabsTrigger value="MANUAL_LASER" className="gap-2 text-xs">
+              <TabsTrigger value="MANUAL_LASER" className="gap-1.5 text-xs py-1">
                 <Barcode className="w-3.5 h-3.5" />
-                <span>{t('inventory.tab_manual_laser', 'Laser Gun & SKU Input')}</span>
+                <span className="truncate">{t('inventory.tab_manual_laser', 'Laser & Manual')}</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4">
           {/* CAMERA TAB */}
           {activeTab === 'CAMERA' && (
-            <div className="space-y-3">
+            <div className="space-y-2.5 sm:space-y-3">
               {/* Camera Device Status Badge Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-card border text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 sm:p-2.5 rounded-lg bg-card border text-xs">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2.5 w-2.5">
                     {isCameraActive ? (
