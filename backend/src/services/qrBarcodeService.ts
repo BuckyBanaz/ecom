@@ -14,26 +14,19 @@ export class QrBarcodeService {
    * Generates a standardized JSON payload string for machine QR scanners.
    */
   public static buildPayload(data: QrPayloadInput): string {
-    return JSON.stringify({
-      typ: 'IMS_PRODUCT',
-      sku: data.sku,
-      varId: data.variantId,
-      name: data.name.slice(0, 40),
-      bin: data.binLocation || 'UNASSIGNED',
-      wh: data.warehouseCode || 'WH-MAIN',
-    });
+    return data.sku;
   }
 
   /**
-   * Generates an Ultra-High-Resolution (1024x1024) base64 Data URL for web UI and downloads.
-   * Uses Error Correction Level 'H' (High - 30% damage recovery) for maximum scan reliability.
+   * Generates a high-contrast base64 Data URL for web UI and downloads.
+   * Uses Error Correction Level 'M' for large, crisp blocks that scan instantly.
    */
   public static async generateQrDataUrl(payload: string): Promise<string> {
     return QRCode.toDataURL(payload, {
-      errorCorrectionLevel: 'H',
-      margin: 2,
-      width: 1024,
-      scale: 10,
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 512,
+      scale: 8,
       color: {
         dark: '#000000',
         light: '#ffffff',
@@ -42,15 +35,15 @@ export class QrBarcodeService {
   }
 
   /**
-   * Generates a high-density (800+ px) PNG Buffer of the QR code for crisp 300+ DPI PDF embedding.
+   * Generates a high-density PNG Buffer of the QR code for crisp 300+ DPI PDF embedding.
    */
-  public static async generateQrBuffer(payload: string, width: number = 800): Promise<Buffer> {
+  public static async generateQrBuffer(payload: string, width: number = 600): Promise<Buffer> {
     return QRCode.toBuffer(payload, {
       type: 'png',
-      errorCorrectionLevel: 'H',
-      margin: 2,
-      width: Math.max(800, width),
-      scale: 8,
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: Math.max(600, width),
+      scale: 6,
       color: {
         dark: '#000000',
         light: '#ffffff',

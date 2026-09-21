@@ -265,15 +265,8 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
         }
       } catch (_) {}
 
-      const qrConfig = {
+      const qrConfig: any = {
         fps: 15,
-        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const minDim = Math.min(viewfinderWidth, viewfinderHeight);
-          return {
-            width: Math.floor(minDim * 0.9),
-            height: Math.floor(minDim * 0.9),
-          };
-        },
         aspectRatio: 1.333333,
         disableFlip: false,
       };

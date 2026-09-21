@@ -397,14 +397,7 @@ export class InventoryController {
         throw new AppError('Inventory item not found', 404);
       }
 
-      const payload = item.qrCodePayload || QrBarcodeService.buildPayload({
-        sku: item.variant.sku,
-        variantId: item.variantId,
-        name: item.variant.product.name,
-        binLocation: item.binLocation,
-        warehouseCode: item.warehouse.code,
-      });
-
+      const payload = item.variant.sku;
       const qrDataUrl = await QrBarcodeService.generateQrDataUrl(payload);
 
       res.status(200).json({
