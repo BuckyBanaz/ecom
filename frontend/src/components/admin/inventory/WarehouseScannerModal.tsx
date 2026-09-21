@@ -712,19 +712,46 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
               </div>
 
               <div className="relative rounded-2xl overflow-hidden bg-slate-950 aspect-[4/3] sm:aspect-[16/9] flex items-center justify-center border border-border shadow-inner">
+                {/* CSS Override to suppress duplicate html5-qrcode default box */}
+                <style>{`
+                  #warehouse-qr-reader {
+                    border: none !important;
+                    position: relative !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                  }
+                  #warehouse-qr-reader video {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: cover !important;
+                    border-radius: 0.75rem;
+                  }
+                  #warehouse-qr-reader__scan_region,
+                  #warehouse-qr-reader__scan_region > div {
+                    border: none !important;
+                    box-shadow: none !important;
+                  }
+                  #warehouse-qr-reader__scan_region canvas,
+                  #warehouse-qr-reader__scan_region img {
+                    display: none !important;
+                  }
+                `}</style>
+
                 {/* Viewfinder Mount Target */}
                 <div id="warehouse-qr-reader" className="w-full h-full overflow-hidden" />
 
-                {/* Laser Animation Overlay Line */}
+                {/* Single Crisp Laser Scan Box Overlay */}
                 {isCameraActive && (
-                  <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center">
-                    <div className="w-48 sm:w-64 h-48 sm:h-64 border-2 border-primary/70 rounded-2xl relative overflow-hidden flex items-center justify-center">
-                      <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_8px_#f59e0b] animate-pulse" />
-                      {/* Corner Target Marks */}
-                      <span className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-primary" />
-                      <span className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-primary" />
-                      <span className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-primary" />
-                      <span className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-primary" />
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="w-48 sm:w-60 h-48 sm:h-60 border-2 border-primary/80 rounded-2xl relative overflow-hidden flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                      {/* Laser scanning beam line */}
+                      <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_10px_#f59e0b] animate-pulse" />
+                      
+                      {/* Glowing Corner Accents */}
+                      <span className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-amber-400 rounded-tl-sm" />
+                      <span className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-amber-400 rounded-tr-sm" />
+                      <span className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-amber-400 rounded-bl-sm" />
+                      <span className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-amber-400 rounded-br-sm" />
                     </div>
                   </div>
                 )}
