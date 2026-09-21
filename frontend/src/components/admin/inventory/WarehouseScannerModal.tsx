@@ -100,6 +100,8 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [activeCameraLabel, setActiveCameraLabel] = useState<string>('Standard Camera');
+  const [availableCameras, setAvailableCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   // Scanned Item State
@@ -142,8 +144,8 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
   useEffect(() => {
     if (isOpen && activeTab === 'CAMERA') {
       const timer = setTimeout(() => {
-        startCamera();
-      }, 100);
+        startCamera(selectedCameraId || undefined);
+      }, 150);
       return () => {
         clearTimeout(timer);
         stopCamera();
@@ -151,7 +153,7 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
     } else {
       stopCamera();
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, selectedCameraId]);
 
   // Hardware Laser Gun Keydown Listener (detects ultra-fast burst keystrokes from USB / Bluetooth HID gun)
   useEffect(() => {
@@ -198,19 +200,24 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isOpen]);
 
-  // Start Ultra-Fast Hardware-Accelerated Camera
-  const startCamera = async () => {
+  // Start Ultra-Fast & Resilient Camera Scanner
+  const startCamera = async (overrideCameraId?: string) => {
     try {
       setCameraError(null);
       if (scannerRef.current) {
         try {
-          await scannerRef.current.stop();
+          if (scannerRef.current.isScanning) {
+            await scannerRef.current.stop();
+          }
+          await scannerRef.current.clear();
         } catch (_) {}
+        scannerRef.current = null;
       }
 
       const readerElement = document.getElementById('warehouse-qr-reader');
       if (!readerElement) return;
 
+      // Pure ZXing engine (disabling experimental browser detector for universal reliability across screen glare & dense QR codes)
       const html5QrCode = new Html5Qrcode('warehouse-qr-reader', {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.QR_CODE,
@@ -221,12 +228,7 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
           Html5QrcodeSupportedFormats.EAN_8,
           Html5QrcodeSupportedFormats.UPC_A,
           Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
         ],
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true, // Native C++ OS hardware barcode decoder (Zero lag)
-        },
         verbose: false,
       });
       scannerRef.current = html5QrCode;
@@ -235,21 +237,31 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
       try {
         const cameras = await Html5Qrcode.getCameras();
         if (cameras && cameras.length > 0) {
-          const backCam = cameras.find((c) => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('rear')) || cameras[0];
-          setActiveCameraLabel(backCam.label || 'Default Camera');
-          cameraToUse = backCam.id;
+          setAvailableCameras(cameras.map((c) => ({ id: c.id, label: c.label || `Camera ${c.id.slice(0, 5)}` })));
+          
+          if (overrideCameraId) {
+            cameraToUse = overrideCameraId;
+            const chosen = cameras.find((c) => c.id === overrideCameraId);
+            if (chosen) setActiveCameraLabel(chosen.label || 'Selected Camera');
+          } else {
+            const backCam = cameras.find((c) => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('rear')) || cameras[0];
+            setActiveCameraLabel(backCam.label || 'Default Camera');
+            cameraToUse = backCam.id;
+            setSelectedCameraId(backCam.id);
+          }
         }
       } catch (_) {}
 
       const qrConfig = {
-        fps: 25,
+        fps: 15,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const minDim = Math.min(viewfinderWidth, viewfinderHeight);
           return {
-            width: Math.floor(viewfinderWidth * 0.88),
-            height: Math.floor(Math.min(viewfinderHeight * 0.78, viewfinderWidth * 0.65)),
+            width: Math.floor(minDim * 0.85),
+            height: Math.floor(minDim * 0.85),
           };
         },
-        aspectRatio: 1.333,
+        aspectRatio: 1.333333,
         disableFlip: false,
       };
 
@@ -263,7 +275,7 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
           () => {}
         );
       } catch (firstErr) {
-        console.warn('First start attempt failed, retrying with generic device config:', firstErr);
+        console.warn('First camera start failed, retrying with fallback constraint:', firstErr);
         await html5QrCode.start(
           { facingMode: 'user' },
           qrConfig,
@@ -391,10 +403,20 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
     playBeep(soundEnabled);
 
     let parsedSku = cleanRaw;
-    if (cleanRaw.startsWith('{') && cleanRaw.endsWith('}')) {
+    const firstBrace = cleanRaw.indexOf('{');
+    const lastBrace = cleanRaw.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
       try {
-        const json = JSON.parse(cleanRaw);
+        const json = JSON.parse(cleanRaw.substring(firstBrace, lastBrace + 1));
         if (json.sku) parsedSku = json.sku;
+        else if (json.varId) parsedSku = json.varId;
+        else if (json.id) parsedSku = json.id;
+      } catch (_) {}
+    } else if (cleanRaw.includes('/product/') || cleanRaw.includes('/shop/')) {
+      try {
+        const parts = cleanRaw.split('/');
+        const lastPart = parts[parts.length - 1].split('?')[0];
+        if (lastPart) parsedSku = decodeURIComponent(lastPart);
       } catch (_) {}
     }
 
@@ -640,7 +662,7 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
           {activeTab === 'CAMERA' && (
             <div className="space-y-3">
               {/* Camera Device Status Badge Bar */}
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-card border text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-card border text-xs">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2.5 w-2.5">
                     {isCameraActive ? (
@@ -655,9 +677,27 @@ export const WarehouseScannerModal: React.FC<Props> = ({ isOpen, onClose, onSucc
                   <span className="font-semibold text-foreground">
                     {t('inventory.camera_status_label', 'Camera:')} {isCameraActive ? t('inventory.status_connected', 'CONNECTED') : t('inventory.status_initializing', 'INITIALIZING...')}
                   </span>
-                  <span className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-xs">
-                    ({activeCameraLabel})
-                  </span>
+                  {availableCameras.length > 1 ? (
+                    <select
+                      value={selectedCameraId}
+                      onChange={(e) => {
+                        const newId = e.target.value;
+                        setSelectedCameraId(newId);
+                        startCamera(newId);
+                      }}
+                      className="bg-muted text-[11px] font-medium border border-border rounded px-2 py-0.5 max-w-[180px] sm:max-w-[220px] truncate focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                    >
+                      {availableCameras.map((cam) => (
+                        <option key={cam.id} value={cam.id}>
+                          {cam.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-xs">
+                      ({activeCameraLabel})
+                    </span>
+                  )}
                 </div>
 
                 <Badge variant="outline" className={`text-[10px] font-mono font-medium ${isCameraActive ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20' : 'bg-muted text-muted-foreground'}`}>
