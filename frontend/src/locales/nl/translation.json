@@ -169,6 +169,10 @@
     "button_my_orders": "Mijn bestellingen",
     "contact_info_heading": "Contactgegevens",
     "contact_info_desc": "Vooringevuld vanuit je account",
+    "guest_checkout_badge": "Gast afrekenen",
+    "guest_contact_desc": "Voer je contactgegevens in voor orderbevestiging en tracking",
+    "guest_shipping_desc": "Voer hieronder je bezorgadres in",
+    "guest_email_hint": "Orderbevestiging en trackinglink worden naar dit e-mailadres verzonden",
     "field_first_name": "Voornaam",
     "field_last_name": "Achternaam",
     "field_email": "E-mailadres",
@@ -2529,7 +2533,10 @@
       "toast_otp_sent": "OTP succesvol verzonden!",
       "toast_otp_failed": "OTP verzenden mislukt",
       "toast_otp_short": "Voer de 6-cijferige OTP in",
-      "toast_otp_invalid": "Ongeldige OTP / Inloggen mislukt"
+      "toast_otp_invalid": "Ongeldige OTP / Inloggen mislukt",
+      "continue_as_guest": "Doorgaan als gast",
+      "guest_subtitle": "Afrekenen zonder een account aan te maken",
+      "or_divider": "OF"
     },
     "register": {
       "title": "Account aanmaken",

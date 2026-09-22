@@ -39,7 +39,7 @@ const router = Router();
  *       400:
  *         description: Coupon invalid or expired
  */
-router.post("/validate", authenticateJWT, validateCoupon);
+router.post("/validate", validateCoupon);
 
 // Admin-only CRUD operations
 router.use(authenticateJWT);

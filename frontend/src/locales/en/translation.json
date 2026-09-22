@@ -169,6 +169,10 @@
     "button_my_orders": "My Orders",
     "contact_info_heading": "Contact information",
     "contact_info_desc": "Pre-filled from your account",
+    "guest_checkout_badge": "Guest Checkout",
+    "guest_contact_desc": "Enter your contact information for order confirmation and tracking",
+    "guest_shipping_desc": "Enter your delivery address below",
+    "guest_email_hint": "Order receipt and tracking link will be sent to this email",
     "field_first_name": "First name",
     "field_last_name": "Last name",
     "field_email": "Email",
@@ -2521,7 +2525,10 @@
       "toast_otp_sent": "OTP sent successfully!",
       "toast_otp_failed": "Failed to send OTP",
       "toast_otp_short": "Please enter the 6-digit OTP",
-      "toast_otp_invalid": "Invalid OTP / Login failed"
+      "toast_otp_invalid": "Invalid OTP / Login failed",
+      "continue_as_guest": "Continue as Guest",
+      "guest_subtitle": "Checkout without creating an account",
+      "or_divider": "OR"
     },
     "register": {
       "title": "Create Account",

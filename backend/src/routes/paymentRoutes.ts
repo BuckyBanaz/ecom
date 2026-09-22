@@ -21,7 +21,7 @@ const router = Router();
  *       200:
  *         description: Stripe publishable key configuration object
  */
-router.get("/config", authenticateJWT, getPaymentConfig);
+router.get("/config", getPaymentConfig);
 
 /**
  * @swagger
