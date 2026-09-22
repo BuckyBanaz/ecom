@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, MapPin, Search, LocateFixed } from "lucide-react";
+import { toast } from "sonner";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -44,6 +45,7 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
   const leafletMarkerInstance = useRef<L.Marker | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // Search state
@@ -111,7 +113,8 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
               marker.setLatLng([latitude, longitude]);
               setSelectedCoords({ lat: latitude, lng: longitude });
             },
-            () => setSelectedCoords({ lat: initialLat, lng: initialLng })
+            () => setSelectedCoords({ lat: initialLat, lng: initialLng }),
+            { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
           );
         } else {
           setSelectedCoords({ lat: initialLat, lng: initialLng });
@@ -204,15 +207,63 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
   };
 
   const handleUseMyLocation = () => {
-    if (!("geolocation" in navigator)) return;
+    if (!("geolocation" in navigator)) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setLocating(true);
+    toast.info("Fetching your location...", { duration: 2000 });
+
+    const processLocation = async (lat: number, lng: number) => {
+      goToLocation(lat, lng);
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.display_name) setSearchQuery(data.display_name);
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setLocating(false);
+        toast.success("Location set to your current position");
+      }
+    };
+
+    const tryLowAccuracy = () => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          processLocation(position.coords.latitude, position.coords.longitude);
+        },
+        (err) => {
+          setLocating(false);
+          if (err.code === err.PERMISSION_DENIED) {
+            toast.error("Location permission denied. Please enable location access in browser settings.");
+          } else {
+            toast.error("Unable to get current location. Please pick location manually on map.");
+          }
+        },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 30000 }
+      );
+    };
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
-        goToLocation(latitude, longitude);
+        processLocation(position.coords.latitude, position.coords.longitude);
       },
-      () => {
-        /* ignore */
-      }
+      (err) => {
+        if (err.code === err.TIMEOUT) {
+          tryLowAccuracy();
+        } else {
+          setLocating(false);
+          if (err.code === err.PERMISSION_DENIED) {
+            toast.error("Location permission denied. Please enable location access in browser settings.");
+          } else {
+            toast.error("Unable to get current location. Please pick location manually on map.");
+          }
+        }
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
     );
   };
 
@@ -288,10 +339,11 @@ export function MapSelector({ onSelect, onCancel }: MapSelectorProps) {
               variant="outline"
               size="icon"
               onClick={handleUseMyLocation}
+              disabled={locating}
               title={t("map_selector.use_my_location")}
               className="rounded-full shrink-0"
             >
-              <LocateFixed size={16} />
+              {locating ? <Loader2 size={16} className="animate-spin text-primary" /> : <LocateFixed size={16} />}
             </Button>
           </div>
 
