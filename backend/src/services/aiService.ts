@@ -83,35 +83,42 @@ async function callGeminiWithFallback(
   parts: any[],
   temperature: number = 0.5
 ): Promise<string> {
-  // Build model list: user-selected first, then safe fallbacks
-  const configured = process.env.AI_MODEL || "gemini-2.0-flash";
+  // Build model list: user-selected first, then safe valid fallbacks
+  const configured = process.env.AI_MODEL || "gemini-flash-latest";
   const modelsToTry = [...new Set([
     configured,
+    "gemini-flash-latest",
+    "gemini-2.5-flash-latest",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-001",
     "gemini-1.5-flash",
-    "gemini-1.5-flash-001",
+    "gemini-1.5-pro",
   ])];
 
   let lastError: any = null;
   for (const model of modelsToTry) {
-    try {
-      console.log(`🔄 Trying Gemini model: ${model}`);
-      const text = await callGeminiRest(model, parts, temperature);
-      console.log(`✅ Gemini model ${model} succeeded.`);
-      return text;
-    } catch (err: any) {
-      console.warn(`⚠️  Model ${model} failed: ${err.message?.slice(0, 120)}`);
-      lastError = err;
-      // Continue fallback on 404, 429, or 503 errors
-      const msg = (err.message || "").toLowerCase();
-      if (msg.includes("404") || msg.includes("not found") || msg.includes("429") || msg.includes("503")) {
-        await new Promise((r) => setTimeout(r, 1500));
-        continue;
+    for (let retry = 1; retry <= 3; retry++) {
+      try {
+        console.log(`🔄 Trying Gemini model: ${model}${retry > 1 ? ` (attempt ${retry})` : ""}`);
+        const text = await callGeminiRest(model, parts, temperature);
+        console.log(`✅ Gemini model ${model} succeeded.`);
+        return text;
+      } catch (err: any) {
+        console.warn(`⚠️  Model ${model} failed (attempt ${retry}): ${err.message?.slice(0, 120)}`);
+        lastError = err;
+        const msg = (err.message || "").toLowerCase();
+
+        // If 404 Not Found, model doesn't exist — break to try next model in list
+        if (msg.includes("404") || msg.includes("not found")) {
+          break;
+        }
+
+        // If 429 Rate Limit or 503 Service Unavailable, wait before retrying
+        if (retry < 3 && (msg.includes("429") || msg.includes("503") || msg.includes("resource_exhausted") || msg.includes("overloaded"))) {
+          await new Promise((r) => setTimeout(r, 2000 * retry));
+          continue;
+        }
+        break;
       }
-      break;
     }
   }
   throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);

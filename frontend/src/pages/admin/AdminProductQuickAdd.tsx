@@ -89,13 +89,9 @@ const AdminProductQuickAdd = () => {
   const [bulkLimit, setBulkLimit] = useState(5);
   const [imageCountLimit, setImageCountLimit] = useState(1);
   const [aiOutputLanguageLabel, setAiOutputLanguageLabel] = useState("Dutch (Nederlands)");
-  const [rowProgress, setRowProgress] = useState<Record<string, RowProgress>>(
-    (restoredSession?.rowProgress as Record<string, RowProgress>) || {},
-  );
+  const [rowProgress, setRowProgress] = useState<Record<string, RowProgress>>({});
   const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
-  const [batchSummary, setBatchSummary] = useState<{ ok: number; failed: number; total: number } | null>(
-    restoredSession?.batchSummary || null,
-  );
+  const [batchSummary, setBatchSummary] = useState<{ ok: number; failed: number; total: number } | null>(null);
   
   // Media Picker states for specific rows
   const [mediaPickerRowKey, setMediaPickerRowKey] = useState<string | null>(null);
