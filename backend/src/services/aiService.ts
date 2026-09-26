@@ -39,25 +39,41 @@ async function callGeminiRest(
     }
   };
 
-  // If the prompt explicitly asks for JSON, or it's a known JSON function, we could pass responseMimeType: "application/json".
-  // But many of our prompts (llms.txt, email generation, blog generation) ask for Markdown or plain text.
-  // We'll let the prompt handle the format request, removing the hardcoded responseMimeType constraint.
-  
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
+  let lastErr = "";
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`[${response.status} ${response.statusText}] ${errText}`);
+      if (response.ok) {
+        const result: any = await response.json();
+        const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error("Empty response from Gemini REST API.");
+        return text;
+      }
+
+      const errText = await response.text();
+      lastErr = `[${response.status} ${response.statusText}] ${errText}`;
+
+      // Retry on 429 Rate Limit, 503 Service Unavailable, or 500 Internal Error
+      if ((response.status === 429 || response.status === 503 || response.status === 500) && attempt < 3) {
+        console.warn(`⚠️ Gemini REST (${modelName}) returned ${response.status} (attempt ${attempt}/3). Retrying in 2s...`);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+        continue;
+      }
+      break;
+    } catch (err: any) {
+      lastErr = err.message || String(err);
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
   }
 
-  const result: any = await response.json();
-  const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Empty response from Gemini REST API.");
-  return text;
+  throw new Error(lastErr || "Gemini REST API failed.");
 }
 
 // ---------------------------------------------------------------------------
@@ -89,10 +105,13 @@ async function callGeminiWithFallback(
     } catch (err: any) {
       console.warn(`⚠️  Model ${model} failed: ${err.message?.slice(0, 120)}`);
       lastError = err;
-      // Only continue fallback on 404 / not-found errors
-      if (!err.message?.includes("404") && !err.message?.includes("not found") && !err.message?.includes("Not Found")) {
-        break;
+      // Continue fallback on 404, 429, or 503 errors
+      const msg = (err.message || "").toLowerCase();
+      if (msg.includes("404") || msg.includes("not found") || msg.includes("429") || msg.includes("503")) {
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
       }
+      break;
     }
   }
   throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);
@@ -346,6 +365,21 @@ export const aiService = {
         }).join("\n        ");
 
 
+      // Fetch series from DB
+      const seriesList = await prisma.series.findMany({
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          brandId: true,
+          brand: { select: { id: true, name: true } },
+        },
+      });
+
+      const seriesContext = seriesList
+        .map((s) => `- ${s.name} (slug: "${s.slug}") ${s.brand?.name ? `[Brand: ${s.brand.name}]` : ""}`)
+        .join("\n        ");
+
       const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
 
       const dynamicAttributesSchema: Record<string, any> = {};
@@ -383,14 +417,36 @@ export const aiService = {
         - Use the hierarchy below to understand which parent this product belongs to, then pick the right child:
         ${hierarchyContext}
         - Valid category slugs you can use (child categories only): ${categorySlugs}
-        
+
+        SERIES / COLLECTION SELECTION RULES (Schip en Ster Brand Architecture Matrix):
+        1. SOP Brand Collections Matrix:
+           - "Royale": Models (Royale Noir, Royale Silver, Gold XL, Royale Gold) | Style: Luxury crystal look with G9 prisms
+           - "Marrakech": Models (Royale Noir, Royale Silver, Gold XL, Royale Gold) | Style: Luxury crystal look with G9 prisms / Oriental warm
+           - "Lisboa": Models (Cascade, Royale 4, 5, 6-light) | Style: Glass globes with acrylic bubble cylinders, brass/gold
+           - "Sofia": Models (Silver, Gold) | Style: Curved chrome/gold loops, metallic spheres, crystal flowers
+           - "Iceland Tech": Models (Breeze Black, Breeze Gold) | Style: Ceiling fans with LED ring (dimmable, 3 light colors + remote)
+           - "Stockholm": Models (Orbit Black, Orbit XL, Orbit Coffee, Orbit Bronze) | Style: Modern geometric ring design, dimmable, 3 light colors + remote
+        2. Database Registered Series:
+        ${seriesContext || "(No extra database series)"}
+
+        RULE FOR SERIES SELECTION:
+        - If the product clearly matches one of the collections/series in the SOP Matrix or DB list, set "seriesSlug" to its exact name or slug (e.g. "royale", "lisboa", "sofia", "iceland-tech", "stockholm", "marrakech").
+        - CRITICAL: If the product does NOT match any collection/series in the rules or DB list, you MUST set "seriesSlug" to null. DO NOT force or guess a series if there is no match!
+
+        PRODUCT DESCRIPTION & LAYOUT TEMPLATE (SOP Standard):
+        - Description MUST follow a clean markdown structure:
+          1. Concise product summary (1 paragraph)
+          2. **Key Features** (bulleted list)
+          3. **Specifications** (specifying fixture type: Integrated LED vs Socket fixture with G9/E27 details)
+
         {
           "name": "Full product title",
           "shortDescription": "1-2 sentences summarizing the product",
-          "description": "A detailed multi-paragraph description suitable for a product page.",
+          "description": "A detailed multi-paragraph description following the SOP template.",
           "price": "number",
           "brand": "string",
           "category": "string (MUST be one of EXACTLY: ${categorySlugs} — pick the most specific child category)",
+          "seriesSlug": "string slug or name of matching Series/Collection OR null if no match",
           "seoTitle": "A catchy SEO title for the product page (max 60 chars)",
           "seoDescription": "A compelling meta description for search engines (max 160 chars)",
           "seoKeywords": "comma separated keywords like 'modern, lighting, pendant'",
@@ -417,6 +473,42 @@ export const aiService = {
 
       const responseText = await callGeminiWithFallback(parts, 0.5);
       const parsedData = extractJson(responseText);
+
+      // Post-process series matching
+      const rawSeries = parsedData.seriesSlug || parsedData.series;
+      if (rawSeries && String(rawSeries).toLowerCase() !== "null" && String(rawSeries).toLowerCase() !== "none") {
+        const strVal = String(rawSeries).trim();
+        const matched = seriesList.find(
+          s => s.slug.toLowerCase() === strVal.toLowerCase() ||
+               s.name.toLowerCase() === strVal.toLowerCase() ||
+               s.slug.toLowerCase().includes(strVal.toLowerCase()) ||
+               strVal.toLowerCase().includes(s.slug.toLowerCase())
+        );
+        if (matched) {
+          parsedData.seriesId = matched.id;
+          parsedData.seriesSlug = matched.slug;
+          parsedData.series = matched.name;
+        } else {
+          parsedData.seriesSlug = strVal.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          parsedData.series = strVal;
+        }
+
+        // Add/update Series in specs array if not already present
+        if (!Array.isArray(parsedData.specs)) parsedData.specs = [];
+        const existingSpecIdx = parsedData.specs.findIndex((s: any) => s && s.key === "Series");
+        if (existingSpecIdx >= 0) {
+          parsedData.specs[existingSpecIdx].value = parsedData.series;
+        } else {
+          parsedData.specs.push({ key: "Series", value: parsedData.series });
+        }
+      } else {
+        parsedData.seriesId = null;
+        parsedData.seriesSlug = null;
+        parsedData.series = null;
+        if (Array.isArray(parsedData.specs)) {
+          parsedData.specs = parsedData.specs.filter((s: any) => s && s.key !== "Series");
+        }
+      }
 
       // ── Image handling ────────────────────────────────────────────────────
       const aiImagesDir = path.join(__dirname, "../../public/uploads/ai-images");

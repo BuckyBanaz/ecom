@@ -173,6 +173,22 @@ const AdminProductQuickAdd = () => {
     }
   }, [t]);
 
+  // Listen to localStorage changes across tabs for live progress sync
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "admin_quick_add_session" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.rowProgress) setRowProgress(parsed.rowProgress);
+          if (parsed.batchSummary) setBatchSummary(parsed.batchSummary);
+          if (parsed.isProcessing !== undefined) setIsGenerating(parsed.isProcessing);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
   useEffect(() => {
     const hasContent = rows.some((r) => r.hint.trim() || r.imagePreview || r.price.trim());
     const hasProgress = Object.keys(rowProgress).length > 0 || batchSummary;
@@ -189,27 +205,42 @@ const AdminProductQuickAdd = () => {
       imagePromptOverride,
       rowProgress,
       batchSummary,
+      isProcessing: isGenerating,
     });
+  }, [rows, imagePromptOverride, rowProgress, batchSummary, isGenerating]);
+
+  const latestStateRef = useRef({ rows, imagePromptOverride, rowProgress, batchSummary });
+  useEffect(() => {
+    latestStateRef.current = { rows, imagePromptOverride, rowProgress, batchSummary };
   }, [rows, imagePromptOverride, rowProgress, batchSummary]);
 
   useEffect(() => {
-    return () => {
-      if (!generatingRef.current) return;
-      saveQuickAddSession({
-        rows: rows.map(({ key, hint, price, brand, imagePreview }) => ({
-          key,
-          hint,
-          price,
-          brand,
-          imagePreview,
-        })),
-        imagePromptOverride,
-        rowProgress,
-        batchSummary,
-        interrupted: true,
-      });
+    const handleUnload = () => {
+      if (generatingRef.current) {
+        const { rows, imagePromptOverride, rowProgress, batchSummary } = latestStateRef.current;
+        saveQuickAddSession({
+          rows: rows.map(({ key, hint, price, brand, imagePreview }) => ({
+            key,
+            hint,
+            price,
+            brand,
+            imagePreview,
+          })),
+          imagePromptOverride,
+          rowProgress,
+          batchSummary,
+          interrupted: true,
+        });
+      }
     };
-  }, [rows, imagePromptOverride, rowProgress, batchSummary]);
+
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+      handleUnload();
+    };
+  }, []);
 
   if (!hasPermission("products") && !hasPermission("ai")) {
     return (
@@ -301,6 +332,7 @@ const AdminProductQuickAdd = () => {
       return;
     }
 
+    clearQuickAddSession();
     setBatchSummary(null);
     setIsGenerating(true);
     generatingRef.current = true;
@@ -312,10 +344,12 @@ const AdminProductQuickAdd = () => {
     });
     setRowProgress(initial);
 
-    let ok = 0;
+    const processRow = async (row: ProductRow, index: number): Promise<boolean> => {
+      // Stagger request start by 600ms per row to prevent API rate spikes while running in parallel
+      if (index > 0) {
+        await new Promise((r) => setTimeout(r, index * 600));
+      }
 
-    for (const row of validRows) {
-      setActiveRowKey(row.key);
       patchRowProgress(row.key, { status: "analyzing", error: undefined });
       startImagePhaseTimer(row.key);
 
@@ -327,32 +361,55 @@ const AdminProductQuickAdd = () => {
       if (row.brand.trim()) formData.append("brandName", row.brand.trim());
       if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
 
-      try {
-        const response = await fetch(`${apiUrl}/ai/products/quick-add`, {
-          method: "POST",
-          body: formData,
-          headers: authHeaders,
-        });
-        const data = await response.json();
-        clearImagePhaseTimer(row.key);
+      let lastErrorMsg = "";
 
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || "Failed");
+      // Allow 1 retry per row in case of transient network or rate limit error
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          if (attempt > 1) {
+            await new Promise((r) => setTimeout(r, 3000));
+          }
+
+          const response = await fetch(`${apiUrl}/ai/products/quick-add`, {
+            method: "POST",
+            body: formData,
+            headers: authHeaders,
+          });
+          const data = await response.json();
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || "Failed");
+          }
+
+          clearImagePhaseTimer(row.key);
+          patchRowProgress(row.key, {
+            status: "done",
+            draftId: data.draftId,
+            productName: data.draft?.name || row.hint.trim() || t("admin_drafts.untitled"),
+          });
+          return true;
+        } catch (error: any) {
+          lastErrorMsg = error.message || t("admin_quick_add.toast_failed");
         }
-
-        patchRowProgress(row.key, {
-          status: "done",
-          draftId: data.draftId,
-          productName: data.draft?.name || row.hint.trim() || t("admin_drafts.untitled"),
-        });
-        ok += 1;
-      } catch (error: any) {
-        clearImagePhaseTimer(row.key);
-        patchRowProgress(row.key, {
-          status: "failed",
-          error: error.message || t("admin_quick_add.toast_failed"),
-        });
       }
+
+      clearImagePhaseTimer(row.key);
+      patchRowProgress(row.key, {
+        status: "failed",
+        error: lastErrorMsg,
+      });
+      return false;
+    };
+
+    let ok = 0;
+    for (let rowIndex = 0; rowIndex < validRows.length; rowIndex++) {
+      const row = validRows[rowIndex];
+      setActiveRowKey(row.key);
+      if (rowIndex > 0) {
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+      const success = await processRow(row, rowIndex);
+      if (success) ok += 1;
     }
 
     setActiveRowKey(null);

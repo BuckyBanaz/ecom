@@ -20,21 +20,45 @@ export type QuickAddSession = {
   imagePromptOverride: string;
   rowProgress: Record<string, StoredProgress>;
   batchSummary: { ok: number; failed: number; total: number } | null;
+  isProcessing?: boolean;
   interrupted?: boolean;
   savedAt: number;
 };
 
 export function loadQuickAddSession(): QuickAddSession | null {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as QuickAddSession;
     if (!parsed?.rows?.length) return null;
     // Expire after 24h
     if (Date.now() - (parsed.savedAt || 0) > 24 * 60 * 60 * 1000) {
-      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
       return null;
     }
+
+    // If another tab is actively generating (isProcessing: true) within last 90 seconds,
+    // preserve in-progress statuses so the new tab shows live progress!
+    const isActivelyProcessing = parsed.isProcessing && Date.now() - (parsed.savedAt || 0) < 90000;
+
+    if (!isActivelyProcessing && parsed.rowProgress) {
+      Object.keys(parsed.rowProgress).forEach((key) => {
+        const prog = parsed.rowProgress[key];
+        if (
+          prog.status === "queued" ||
+          prog.status === "analyzing" ||
+          prog.status === "images" ||
+          prog.status === "saving"
+        ) {
+          parsed.rowProgress[key] = {
+            ...prog,
+            status: "failed",
+            error: "Batch interrupted when page refreshed or reloaded",
+          };
+        }
+      });
+    }
+
     return parsed;
   } catch {
     return null;
@@ -43,7 +67,7 @@ export function loadQuickAddSession(): QuickAddSession | null {
 
 export function saveQuickAddSession(data: Omit<QuickAddSession, "savedAt">) {
   try {
-    sessionStorage.setItem(
+    localStorage.setItem(
       SESSION_KEY,
       JSON.stringify({ ...data, savedAt: Date.now() }),
     );
@@ -56,7 +80,7 @@ export function saveQuickAddSession(data: Omit<QuickAddSession, "savedAt">) {
           ...data,
           rows: data.rows.map(r => ({ ...r, imagePreview: null }))
         };
-        sessionStorage.setItem(
+        localStorage.setItem(
           SESSION_KEY,
           JSON.stringify({ ...textOnlyData, savedAt: Date.now() }),
         );
@@ -68,7 +92,7 @@ export function saveQuickAddSession(data: Omit<QuickAddSession, "savedAt">) {
 }
 
 export function clearQuickAddSession() {
-  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_KEY);
 }
 
 /** Restore a File from session-stored data URL (imageFile is not persisted). */

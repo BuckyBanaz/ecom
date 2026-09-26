@@ -575,12 +575,25 @@ const AdminProductForm = () => {
     setSeoTitle(draft.seoTitle || "");
     setSeoDescription(draft.seoDescription || "");
     setSeoKeywords(draft.seoKeywords || "");
-    setSelectedAttributeValues(draft.attributes || {});
     const parsed = parseSpecs(draft.specs || {});
     parsed.forEach((s) => {
       if (s.key === "Number of lights") setNumberOfLights(s.value);
-      if (s.key === "Series") setSelectedSeries(s.value);
     });
+
+    let draftSeries = "";
+    if (draft.series) draftSeries = draft.series;
+    else if (draft.seriesName) draftSeries = draft.seriesName;
+    else if (draft.seriesSlug) draftSeries = draft.seriesSlug;
+    else if (Array.isArray(draft.specs)) {
+      const sItem = draft.specs.find((s: any) => s && s.key === "Series");
+      if (sItem) draftSeries = sItem.value;
+    }
+    if (draftSeries && draftSeries !== "null" && draftSeries !== "none") {
+      setSelectedSeries(draftSeries);
+    } else {
+      setSelectedSeries("none");
+    }
+
     setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
     if (draft.storageStock !== undefined) setStorageStock(String(draft.storageStock));
     if (draft.webshopStock !== undefined) setWebshopStock(String(draft.webshopStock));
