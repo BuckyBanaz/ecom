@@ -2031,7 +2031,7 @@ const AdminProductForm = () => {
                 <Save className="h-4 w-4" />
                 {isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}
               </Button>
-              {canRegenerate && (
+              {canRegenerate && isEdit && (
                 <Button
                   type="button"
                   onClick={(e) => {

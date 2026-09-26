@@ -83,15 +83,14 @@ async function callGeminiWithFallback(
   parts: any[],
   temperature: number = 0.5
 ): Promise<string> {
-  // Build model list: user-selected first, then safe valid fallbacks
-  const configured = process.env.AI_MODEL || "gemini-flash-latest";
+  // Build model list: user-selected first, then top-tier vision fallbacks
+  const configured = process.env.AI_MODEL || "gemini-2.5-flash";
   const modelsToTry = [...new Set([
     configured,
+    "gemini-2.5-flash",
+    "gemini-3.8-flash",
+    "gemini-2.5-pro",
     "gemini-flash-latest",
-    "gemini-2.5-flash-latest",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
   ])];
 
   let lastError: any = null;
@@ -247,7 +246,7 @@ async function generateTextToImage(prompt: string, filenamePrefix: string): Prom
   return null;
 }
 
-function buildLifestylePrompt(productName: string, scene: string): string {
+export function buildLifestylePrompt(productName: string, scene: string): string {
   return `You are creating a product gallery photo for an e-commerce lighting store.
 
 REFERENCE IMAGE: The attached photo is the EXACT product being sold (${productName}).
@@ -295,7 +294,7 @@ function extractJson(raw: string): any {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-function stripPlainAiText(raw: string): string {
+export function stripPlainAiText(raw: string): string {
   return raw
     .trim()
     .replace(/^```(?:txt|text|markdown|robots|json)?\s*/i, "")
@@ -395,7 +394,7 @@ function normalizeLlmsTxtOutput(raw: string, siteName: string): string {
 }
 
 /** Fast robust search for duplicate or similar products across published products & drafts */
-export async function findDuplicateProducts(text: string, imageFile?: any): Promise<Array<{
+export async function findDuplicateProducts(text: string, _imageFile?: any): Promise<Array<{
   id: string;
   name: string;
   slug: string;
@@ -614,16 +613,37 @@ export const aiService = {
         return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}`;
       }).join("\n");
 
-      // Built-in SOP matrix — always used (no external override)
+      // Built-in Schip en Ster SOP Brand & Collection Architecture
       const activeSopRules = `
-        BRAND COLLECTION MATRIX (use image + hint to match the correct one):
-        - "Royale": Luxury pendant with G9 crystal prisms, glamorous multi-arm design
-        - "Marrakech": G9 prisms, oriental-warm style with arches or lantern silhouette
-        - "Lisboa": Glass globes or acrylic bubble cylinders, brass/gold, cascading design
-        - "Sofia": Curved chrome/gold loops, metallic spheres or crystal flowers
-        - "Marbella": Cylindrical pendant(s), brass/gold or messing finish, modern-classic
-        - "Iceland Tech": Ceiling fan with LED ring, dimmable, 3 light colors + remote
-        - "Stockholm": Modern geometric ring design (Orbit), dimmable, 3 light colors + remote
+        SCHIP EN STER BRAND & COLLECTION ARCHITECTURE (STRICT SOP):
+        Assign each product strictly to its corresponding collection based on the uploaded image:
+
+        1. "Ambiance" (or "Marrakech"):
+           - Key Models: Royale Noir, Royale Silver, Gold XL, Royale Gold
+           - Style / Baseline Features: Luxury crystal look with G9 prisms, faceted glass bars, sparkling crystal prisms.
+           - Product Types: Hanglamp (chandelier/pendant), Tafellamp (table lamp with crystal), Wandlamp.
+           - RULE: IF THE IMAGE SHOWS CRYSTAL PRISMS OR GLASS RODS, IT BELONGS TO "Ambiance" (Royale). NEVER CALL IT MARBELLA!
+
+        2. "Lisboa":
+           - Key Models: Cascade, Royale (4, 5, 6-lichts)
+           - Style / Baseline Features: Glass globes (glazen bollen) with acrylic bubble cylinders, brass/gold or chrome metalwork.
+
+        3. "Sofia":
+           - Key Models: Silver, Gold (formerly Porto)
+           - Style / Baseline Features: Curved chrome/gold loops, swirling ribbon arms, metallic spheres, crystal flowers.
+
+        4. "Stockholm":
+           - Key Models: Orbit Black, Orbit XL, Orbit Coffee, Orbit Bronze
+           - Style / Baseline Features: Modern geometric ring design (Orbit circular/elliptical halos), dimmable integrated LED, 3 light colors + remote.
+
+        5. "Iceland Tech":
+           - Key Models: Breeze Black, Breeze Gold
+           - Style / Baseline Features: Ceiling fans with LED ring (dimmable, 3 light colors + remote control).
+
+        6. "Marbella":
+           - Key Models: Cilinder, Modern Spot
+           - Style / Baseline Features: Modern architectural minimalist cylindrical or tubular pipe canisters.
+           - RULE: ONLY use "Marbella" if the lamp is composed of straight cylindrical tubes or canisters. NEVER use Marbella for crystal lamps!
       `;
 
       const userSystemPrompt = process.env.AI_SYSTEM_PROMPT || "You are an expert e-commerce catalog manager for a Dutch lighting webshop.";
@@ -636,63 +656,133 @@ export const aiService = {
 
         === YOUR TASK ===
         Carefully analyze the provided product image (if supplied) and the hint below.
-        Generate a COMPLETE and UNIQUE product listing for this specific item.
+        Generate a COMPLETE, ACCURATE, and 100% UNIQUE product listing for this specific item following the official Schip en Ster SOP.
+        Do NOT copy generic defaults. Every image represents a DIFFERENT physical lamp!
 
-        Hint: ${hint}
-        Price: ${price}
-        Brand: ${brandName}
+        Hint: ${hint || "(No hint provided — rely 100% on the image)"}
+        Price: ${price || "89.95"}
+        Brand: ${brandName || "Schip en Ster"}
 
-        === IMAGE ANALYSIS (do this first) ===
-        Look at the image closely and identify:
-        1. LAMP TYPE: pendant / ceiling / wall / floor / table lamp? How many light points?
-        2. FINISH/COLOR: exact color/finish visible (e.g. messing goud / brass gold / black / chrome)
-        3. SHAPE/DESIGN: cylinder / globe / ring / arm / lantern / fan shape?
-        4. MATERIAL: metal / glass / fabric / crystal / acrylic?
-        5. SERIES MATCH: compare the visual design against the Brand Collection Matrix below to pick the correct series
+        === CRITICAL VISUAL GROUNDING (THE IMAGE IS THE 100% GROUND TRUTH) ===
+        Inspect the uploaded photo closely before generating any text. You must detect:
 
-        === BRAND COLLECTION MATRIX ===
-        ${activeSopRules}
+        1. LAMP TYPE & MOUNTING (CRITICAL — NEVER CONFUSE TAFELLAMP WITH HANGLAMP):
+           - TAFELLAMP (Table Lamp): The lamp rests on a flat base/stand on a table, desk, or bedside surface. Has a short stem or table-height base with cord/plug.
+             * Category MUST be: "table-lamps"
+             * Name MUST contain: "Tafellamp"
+             * NEVER call a table lamp a "hanglamp" or "pendant"!
+           - HANGLAMP (Pendant Light): The lamp is suspended from the ceiling by long cables, chains, or suspension wires.
+             * Category MUST be: "pendant-lights"
+             * Name MUST contain: "Hanglamp"
+           - PLAFONDLAMP (Ceiling Light): Mounted flush or semi-flush directly to the ceiling with no hanging cable.
+             * Category MUST be: "ceiling-lights"
+             * Name MUST contain: "Plafondlamp"
+           - WANDLAMP (Wall Light): Mounted on a vertical wall bracket.
+             * Category MUST be: "wall-lights"
+             * Name MUST contain: "Wandlamp"
+           - VLOERLAMP (Floor Lamp): Tall standing lamp with long pole reaching the floor.
+             * Category MUST be: "floor-lamps"
+             * Name MUST contain: "Vloerlamp"
+           - SPOTLIGHTS: Directional canister or spotlight.
+             * Category MUST be: "spotlights"
+             * Name MUST contain: "Spot" or "Opbouwspot"
 
-        === DATABASE SERIES (match slug exactly if found) ===
-        ${seriesContext || "(No series in database yet)"}
+        2. FINISH / COLOR (CRITICAL — NEVER CALL SILVER GOLD):
+           - Look at the actual color of the metal, body, and shades in the photo:
+             * ZILVER / CHROOM / NIKKEL (Silver / Chrome / Polished Nickel): Cool metallic, polished silver mirror finish, chrome, brushed nickel -> Attribute "color" MUST be "Silver". Name MUST contain "Zilver" or "Chroom". NEVER call this gold!
+             * GOUD / MESSING (Gold / Brass): Warm golden, brass, champagne, or bronze-gold finish -> Attribute "color" MUST be "Gold". Name MUST contain "Goud" or "Messing".
+             * ZWART (Black): Black metal, dark anthracite -> Attribute "color" MUST be "Black". Name MUST contain "Zwart".
+             * WIT (White): White metal, opal glass -> Attribute "color" MUST be "White". Name MUST contain "Wit".
+             * KOPER (Copper): Warm reddish metallic -> Attribute "color" MUST be "Copper". Name MUST contain "Koper".
 
-        === RULES ===
-        1. TITLE: Use format "[Series] [Model/Variant] [Finish] – [Short Dutch description]"
-           - Example: "Marbella Cilinder 3-Lichts Messing Goud – Elegante Hanglamp"
-           - MUST be unique per product — derive model name and finish from the IMAGE, not from examples
-        2. CATEGORY: Pick ONLY a leaf category from the valid list below
-           - Hierarchy: ${hierarchyContext}
-           - Valid slugs: ${categorySlugs}
-        3. ATTRIBUTES: Use EXACTLY these DB slug keys (see guide below). Pick allowed values only.
+        3. SHAPE & SILHOUETTE (CRITICAL):
+           - Inspect the geometric shape of the shades and body:
+             * OVAAL (Oval): Elliptical, stretched rounded form, oval rings -> Name & specs MUST include "Ovaal".
+             * ROND / BOL (Round / Sphere): Circular globes, round balls, circular drum -> Name & specs MUST include "Rond" or "Bol".
+             * CILINDER (Cylinder): Straight tube, pipe, canister -> Name & specs MUST include "Cilinder".
+             * RING / ORBIT: Circular or elliptical continuous halo/loop -> Name & specs MUST include "Ring".
+             * KROONLUCHTER / MEERVOUDIG: Multi-arm crystal chandelier or branched fixture.
+
+        4. NUMBER OF LIGHTS:
+           - Visually count the bulbs/light points:
+             * Single bulb / table lamp -> "1" (1-lichts)
+             * Multi-bulb -> count accurately: "2", "3", "4", "5", etc.
+
+        5. COLLECTION SELECTION (STRICT SOP):
+           ${activeSopRules}
+           - Existing DB series:
+           ${seriesContext || "(No series in database yet)"}
+           - If image has crystal prisms / faceted glass: Collection is "Ambiance" (Royale), NOT Marbella!
+
+        6. PRODUCT TITLE FORMAT (SOP SECTION 4):
+           Format: "[Collection Name] [Model Name] [Color] – [Short Description]"
+           - If the lamp is a table lamp, include "Tafellamp" in the title!
+           - Realistic SOP Examples:
+             * Gold crystal chandelier: "Ambiance Royale Gold – Luxe Hanglamp met Kristallen Prisma's"
+             * Silver crystal chandelier: "Ambiance Royale Silver – Elegante Hanglamp Chroom met Kristalglas"
+             * Gold crystal table lamp: "Ambiance Royale Gold Tafellamp – Exclusieve Tafellamp met Kristallen Prisma's"
+             * Silver crystal table lamp: "Ambiance Royale Silver Tafellamp – Moderne Tafellamp Chroom Zilver"
+             * Curved chrome loops: "Sofia Silver – Moderne Design Hanglamp Chroom"
+             * Geometric LED ring: "Stockholm Orbit Zwart – Moderne LED Ring Hanglamp"
+             * Ceiling fan: "Iceland Tech Breeze Zwart – Plafondventilator met LED Ring"
+             * Cylindrical canister spot: "Marbella Cilinder Zwart – Minimalistische Opbouwspot"
+           - EVERY SINGLE PRODUCT MUST BE UNIQUE AND MATCH ITS EXACT VISUAL IMAGE! NEVER NAME EVERYTHING MARBELLA!
+
+        7. CATEGORY SELECTION:
+           - MUST match the detected lamp type:
+             * table lamp -> "table-lamps"
+             * pendant lamp -> "pendant-lights"
+             * ceiling lamp -> "ceiling-lights"
+             * wall lamp -> "wall-lights"
+             * floor lamp -> "floor-lamps"
+             * spotlight -> "spotlights"
+           - Hierarchy:
+             ${hierarchyContext}
+           - Valid leaf category slugs: ${categorySlugs}
+
+        8. ATTRIBUTES:
+           - Use EXACTLY these DB slug keys with allowed values:
            ${attributeGuide}
-        4. FITTING: Never set fitting to "Integrated LED" unless hint explicitly says so.
-           If hint says G10/GU10/E27/E14/G9, use that in the fitting attribute and specs.
-        5. DIMMABLE/REMOTE: Only set dimmable=Yes or mention remote if explicitly confirmed.
-        6. DESCRIPTION: Clean HTML only — <p>, <h3>, <ul>, <li>. No markdown. No specs section inside description.
-        7. LANGUAGE: All text fields (name, description, shortDescription, seoTitle, seoDescription) MUST be in ${getAiOutputLanguage() === "nl" ? "Dutch (Nederlands)" : getAiOutputLanguage()}.
+
+        9. SPECS ARRAY:
+           - Provide rich, realistic specifications matching the detected lamp type, color, shape, materials, fitting, and light points.
+
+        10. LANGUAGE: All customer-facing text (name, description, shortDescription, seoTitle, seoDescription, specs) MUST be in ${getAiOutputLanguage() === "nl" ? "Dutch (Nederlands)" : getAiOutputLanguage()}.
 
         Return ONLY a valid JSON object — no markdown, no backticks:
 
         {
-          "name": "Unique product title derived from image analysis + hint",
+          "visualInspection": {
+            "lampType": "tafellamp | hanglamp | plafondlamp | wandlamp | vloerlamp | spotlights",
+            "finishColor": "Silver | Gold | Black | White | Copper",
+            "shape": "Ovaal | Rond | Cilinder | Ring | Meervoudig",
+            "lightPoints": 1,
+            "materials": ["Metaal", "Glas"]
+          },
+          "name": "Unique Dutch product title based on visual inspection",
           "series": "Collection name or null",
           "seriesSlug": "collection-slug or null",
-          "shortDescription": "1-2 sentence Dutch product summary",
-          "description": "<p>Dutch product description...</p><h3>Belangrijkste kenmerken</h3><ul><li>Kenmerk 1</li></ul>",
+          "shortDescription": "1-2 sentence Dutch product summary describing the exact lamp type and finish",
+          "description": "<p>Detailed Dutch description accurately describing the lamp type, color, shape, and styling...</p><h3>Belangrijkste kenmerken</h3><ul><li>Exacte eigenschap 1</li><li>Exacte eigenschap 2</li></ul>",
           "price": ${price || 89.95},
-          "brand": "${brandName}",
-          "category": "exact-category-slug",
-          "seoTitle": "Dutch SEO title max 60 chars",
-          "seoDescription": "Dutch meta description max 160 chars",
+          "brand": "${brandName || "Schip en Ster"}",
+          "category": "table-lamps | pendant-lights | ceiling-lights | wall-lights | floor-lamps | spotlights",
+          "seoTitle": "Unique Dutch SEO title max 60 chars",
+          "seoDescription": "Unique Dutch meta description max 160 chars",
           "seoKeywords": "dutch,comma,separated,keywords",
           "inStock": true,
           "attributes": ${JSON.stringify(dynamicAttributesSchema, null, 10).trim()},
           "specs": [
             { "key": "Collectie", "value": "Series Name" },
-            { "key": "Fitting", "value": "GU10" },
-            { "key": "Aantal lichtpunten", "value": "3" }
+            { "key": "Type verlichting", "value": "Tafellamp | Hanglamp | Plafondlamp | Wandlamp | Vloerlamp" },
+            { "key": "Kleur", "value": "Zilver / Chroom | Goud / Messing | Zwart | Wit" },
+            { "key": "Vorm", "value": "Ovaal | Rond | Cilinder | Ring" },
+            { "key": "Materiaal", "value": "Metaal / Glas" },
+            { "key": "Fitting", "value": "E27 | E14 | G9 | GU10 | Geïntegreerd LED" },
+            { "key": "Aantal lichtpunten", "value": "1" },
+            { "key": "Dimbaar", "value": "Ja (met geschikte dimmer en lichtbron) | Nee" }
           ],
-          "needsReview": ["list any fields you are uncertain about"]
+          "needsReview": []
         }
       `;
 
@@ -708,7 +798,7 @@ export const aiService = {
       }
       parts.push({ text: promptText });
 
-      const responseText = await callGeminiWithFallback(parts, 0.5);
+      const responseText = await callGeminiWithFallback(parts, 0.4);
       const parsedData = extractJson(responseText);
 
       // Sanitize price
@@ -815,7 +905,119 @@ export const aiService = {
         });
       }
 
-      // Early Duplicate Check (during analysis phase, before heavy image generation!)
+      // ── Safety Guardrails: Force visual synchronization between image facts, categories & attributes ──
+      const detectedType = (parsedData.visualInspection?.lampType || "").toLowerCase();
+      const detectedColor = (parsedData.visualInspection?.finishColor || "").toLowerCase();
+      const detectedShape = (parsedData.visualInspection?.shape || "").toLowerCase();
+      const titleLower = (parsedData.name || "").toLowerCase();
+
+      // 1. Force Category to match actual Lamp Type
+      if (detectedType.includes("tafel") || titleLower.includes("tafellamp") || titleLower.includes("table lamp")) {
+        parsedData.category = "table-lamps";
+      } else if (detectedType.includes("hang") || titleLower.includes("hanglamp") || titleLower.includes("pendant")) {
+        parsedData.category = "pendant-lights";
+      } else if (detectedType.includes("plafond") || titleLower.includes("plafondlamp") || titleLower.includes("ceiling")) {
+        parsedData.category = "ceiling-lights";
+      } else if (detectedType.includes("wand") || titleLower.includes("wandlamp") || titleLower.includes("wall")) {
+        parsedData.category = "wall-lights";
+      } else if (detectedType.includes("vloer") || titleLower.includes("vloerlamp") || titleLower.includes("floor")) {
+        parsedData.category = "floor-lamps";
+      } else if (detectedType.includes("spot") || titleLower.includes("spot")) {
+        parsedData.category = "spotlights";
+      }
+
+      // 2. Force Color Attribute to match actual Visual Finish (Silver vs Gold vs Black vs White)
+      if (!parsedData.attributes || typeof parsedData.attributes !== "object") {
+        parsedData.attributes = {};
+      }
+
+      const isSilver = detectedColor.includes("silver") || detectedColor.includes("zilver") || detectedColor.includes("chroom") || detectedColor.includes("chrome") || titleLower.includes("zilver") || titleLower.includes("chroom") || titleLower.includes("silver");
+      const isGold = detectedColor.includes("gold") || detectedColor.includes("goud") || detectedColor.includes("messing") || detectedColor.includes("brass") || titleLower.includes("goud") || titleLower.includes("messing");
+      const isBlack = detectedColor.includes("black") || detectedColor.includes("zwart") || titleLower.includes("zwart");
+      const isWhite = detectedColor.includes("white") || detectedColor.includes("wit") || titleLower.includes("wit");
+
+      if (isSilver && !isGold) {
+        parsedData.attributes.color = "Silver";
+      } else if (isGold && !isSilver) {
+        parsedData.attributes.color = "Gold";
+      } else if (isBlack) {
+        parsedData.attributes.color = "Black";
+      } else if (isWhite) {
+        parsedData.attributes.color = "White";
+      }
+
+      // 3. Synchronize Specs Array with Visual Facts
+      if (!Array.isArray(parsedData.specs)) parsedData.specs = [];
+
+      const setOrUpdateSpec = (key: string, value: string) => {
+        const idx = parsedData.specs.findIndex((s: any) => s && s.key && s.key.toLowerCase() === key.toLowerCase());
+        if (idx >= 0) {
+          parsedData.specs[idx].value = value;
+        } else {
+          parsedData.specs.push({ key, value });
+        }
+      };
+
+      if (parsedData.category === "table-lamps") {
+        setOrUpdateSpec("Type verlichting", "Tafellamp");
+      } else if (parsedData.category === "pendant-lights") {
+        setOrUpdateSpec("Type verlichting", "Hanglamp");
+      } else if (parsedData.category === "ceiling-lights") {
+        setOrUpdateSpec("Type verlichting", "Plafondlamp");
+      } else if (parsedData.category === "wall-lights") {
+        setOrUpdateSpec("Type verlichting", "Wandlamp");
+      } else if (parsedData.category === "floor-lamps") {
+        setOrUpdateSpec("Type verlichting", "Vloerlamp");
+      } else if (parsedData.category === "spotlights") {
+        setOrUpdateSpec("Type verlichting", "Spot");
+      }
+
+      if (isSilver && !isGold) {
+        setOrUpdateSpec("Kleur", "Zilver / Chroom");
+      } else if (isGold && !isSilver) {
+        setOrUpdateSpec("Kleur", "Goud / Messing");
+      } else if (isBlack) {
+        setOrUpdateSpec("Kleur", "Zwart");
+      } else if (isWhite) {
+        setOrUpdateSpec("Kleur", "Wit");
+      }
+
+      if (detectedShape.includes("ovaal") || titleLower.includes("ovaal") || titleLower.includes("oval")) {
+        setOrUpdateSpec("Vorm", "Ovaal");
+      } else if (detectedShape.includes("rond") || titleLower.includes("rond") || titleLower.includes("bol") || titleLower.includes("round")) {
+        setOrUpdateSpec("Vorm", "Rond");
+      } else if (detectedShape.includes("cilinder") || titleLower.includes("cilinder") || titleLower.includes("cylinder")) {
+        setOrUpdateSpec("Vorm", "Cilinder");
+      } else if (detectedShape.includes("ring") || titleLower.includes("ring")) {
+        setOrUpdateSpec("Vorm", "Ring");
+      }
+
+      // 4. Force Series: Crystal / glass prism lamps belong to Ambiance (or Royale), NEVER Marbella!
+      const hasCrystal = titleLower.includes("kristal") || titleLower.includes("crystal") || titleLower.includes("prisma") || (parsedData.description || "").toLowerCase().includes("kristal") || (parsedData.description || "").toLowerCase().includes("prisma");
+      if (hasCrystal && (!parsedData.series || parsedData.series.toLowerCase().includes("marbella"))) {
+        parsedData.series = "Ambiance";
+        parsedData.seriesSlug = "ambiance";
+        if (parsedData.name && parsedData.name.toLowerCase().includes("marbella")) {
+          parsedData.name = parsedData.name.replace(/marbella\s*cilinder/gi, "Ambiance Royale").replace(/marbella/gi, "Ambiance");
+        }
+      }
+
+      // 5. Table Lamp Title & Description Guardrail: Never let a table lamp say "Hanglamp"
+      if (parsedData.category === "table-lamps") {
+        if (parsedData.name && parsedData.name.toLowerCase().includes("hanglamp")) {
+          parsedData.name = parsedData.name.replace(/hanglamp/gi, "Tafellamp");
+        }
+        if (parsedData.shortDescription) {
+          parsedData.shortDescription = parsedData.shortDescription.replace(/hanglamp/gi, "tafellamp");
+        }
+      }
+
+      // 6. Silver Color Guardrail: Never let a silver lamp say "Goud" or "Messing"
+      if (isSilver && !isGold && parsedData.name) {
+        if (parsedData.name.toLowerCase().includes("messing goud") || parsedData.name.toLowerCase().includes("goud")) {
+          parsedData.name = parsedData.name.replace(/messing\s*goud/gi, "Zilver Chroom").replace(/goud/gi, "Zilver");
+        }
+      }
       try {
         const textToSearch = [parsedData.name, hint].filter(Boolean).join(" ");
         const dupMatches = await findDuplicateProducts(textToSearch, imageFile);
@@ -963,7 +1165,6 @@ export const aiService = {
     if (overridePrompt) {
         scene = overridePrompt;
     }
-    const textOnlyPrompt = `Generate a photorealistic product photo of: ${productName}. Setting: ${scene}. Professional e-commerce photography, high quality, no text, no watermark.`;
 
     let referenceImageBuffer: Buffer | null = null;
     let referenceMimeType = "image/jpeg";
