@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes } from "lucide-react";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,13 +22,45 @@ import { cn } from "@/lib/utils";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { getApiV1Url } from "@/utils/endpoints";
 
-
 export interface SpecItem {
   id: string;
   key: string;
   value: string;
   link?: string;
 }
+
+const CATEGORY_ALIAS_MAP: Record<string, string> = {
+  "hanglampen": "pendant-lights",
+  "hanglamp": "pendant-lights",
+  "pendant": "pendant-lights",
+  "pendant-lamps": "pendant-lights",
+  "pendant-lights": "pendant-lights",
+  "tafellampen": "table-lamps",
+  "tafellamp": "table-lamps",
+  "table-lamps": "table-lamps",
+  "table-lamp": "table-lamps",
+  "table-lights": "table-lamps",
+  "plafondlampen": "ceiling-lights",
+  "plafondlamp": "ceiling-lights",
+  "ceiling-lamps": "ceiling-lights",
+  "ceiling-lights": "ceiling-lights",
+  "wandlampen": "wall-lights",
+  "wandlamp": "wall-lights",
+  "wall-lamps": "wall-lights",
+  "wall-lights": "wall-lights",
+  "vloerlampen": "floor-lamps",
+  "vloerlamp": "floor-lamps",
+  "floor-lamps": "floor-lamps",
+  "floor-lights": "floor-lamps",
+  "spots": "spotlights",
+  "spot": "spotlights",
+  "spotlights": "spotlights",
+  "opbouwspots": "spotlights",
+  "buitenverlichting": "outdoor-lighting",
+  "outdoor-lighting": "outdoor-lighting",
+  "lichtbronnen": "light-sources",
+  "light-sources": "light-sources",
+};
 
 const AdminProductForm = () => {
   const { t } = useTranslation();
@@ -60,6 +92,8 @@ const AdminProductForm = () => {
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
   const [isProductLoading, setIsProductLoading] = useState(isEdit || isDraftMode);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [mediaDialogTarget, setMediaDialogTarget] = useState<"thumbnail" | "gallery" | null>(null);
 
   // Lightbox & Zoom states
@@ -112,17 +146,38 @@ const AdminProductForm = () => {
   const [lowStockThreshold, setLowStockThreshold] = useState("5");
   const [currentInventoryItem, setCurrentInventoryItem] = useState<any>(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const resolveCategorySlug = (raw: string, list: any[] = categoriesList): string => {
+    if (!raw) return "";
+    const clean = raw.toLowerCase().trim().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+    const aliased = CATEGORY_ALIAS_MAP[clean] || CATEGORY_ALIAS_MAP[raw.toLowerCase().trim()] || clean;
+
+    // Check if directly in list by slug
+    const directMatch = list.find((c: any) => c.slug?.toLowerCase() === aliased.toLowerCase());
+    if (directMatch) return directMatch.slug;
+
+    // Check if matches by name
+    const nameMatch = list.find((c: any) => c.name?.toLowerCase() === raw.toLowerCase().trim() || c.name?.toLowerCase() === aliased.toLowerCase());
+    if (nameMatch) return nameMatch.slug;
+
+    // Check if partial slug match
+    const partialMatch = list.find((c: any) => c.slug?.toLowerCase().includes(aliased.toLowerCase()) || aliased.toLowerCase().includes(c.slug?.toLowerCase()));
+    if (partialMatch) return partialMatch.slug;
+
+    return aliased;
+  };
+
   // Prevent parent categories from being set — auto-resolves to first child
   const safeSetCategory = (slug: string, cats?: any[]) => {
     const list = cats || categoriesList;
     if (!slug) { setSelectedCategory(""); return; }
-    const parent = (list as any[]).find((p: any) => p.slug === slug);
+    const resolved = resolveCategorySlug(slug, list);
+    const parent = (list as any[]).find((p: any) => p.slug === resolved);
     const isParent = parent && (list as any[]).some((ch: any) => ch.parentId === parent.id);
     if (isParent) {
       const firstChild = (list as any[]).find((ch: any) => ch.parentId === parent.id);
       setSelectedCategory((firstChild as any)?.slug || "");
     } else {
-      setSelectedCategory(slug);
+      setSelectedCategory(resolved);
     }
   };
   const [selectedBrand, setSelectedBrand] = useState("");
@@ -258,12 +313,18 @@ const AdminProductForm = () => {
     try {
       const activeRegen = JSON.parse(activeRegenStr);
       const currentId = draftId || id;
+      const isFresh = activeRegen.timestamp && Date.now() - activeRegen.timestamp < 60000;
+      if (!isFresh || activeRegen.id !== currentId) {
+        localStorage.removeItem("active_regen");
+        return;
+      }
       if (activeRegen.id === currentId) {
         if (activeRegen.targetIndex !== null) {
           setRegeneratingIndexes([activeRegen.targetIndex]);
         } else {
           setIsGlobalRegenerating(true);
         }
+
 
         let attempts = 0;
         const intervalId = setInterval(async () => {
@@ -474,13 +535,20 @@ const AdminProductForm = () => {
         // 2. Categories
         try {
           const data = await categoryRepository.getAll();
-          if (data.success && data.categories) setCategoriesList(data.categories);
+          if (data.success && data.categories) {
+            setCategoriesList(data.categories);
+            setSelectedCategory((prev) => prev ? resolveCategorySlug(prev, data.categories) : prev);
+          }
         } catch (e) {
           const saved = localStorage.getItem("categories_data");
-          if (saved) setCategoriesList(JSON.parse(saved));
-          else {
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            setCategoriesList(parsed);
+            setSelectedCategory((prev) => prev ? resolveCategorySlug(prev, parsed) : prev);
+          } else {
             const { categories: initialCategories } = await import("@/data/categories");
             setCategoriesList(initialCategories);
+            setSelectedCategory((prev) => prev ? resolveCategorySlug(prev, initialCategories) : prev);
           }
         }
 
@@ -619,13 +687,10 @@ const AdminProductForm = () => {
     setShortDescription(draft.shortDescription || "");
     setInStock(draft.inStock ?? true);
 
-    // Resolve category slug — match by slug OR name (case-insensitive)
+    // Resolve category slug — match by slug, alias OR name (case-insensitive)
     const rawCat = (draft.category || "").trim();
     if (rawCat) {
-      const matchCat = categoriesList.find(
-        (c: any) => c.slug?.toLowerCase() === rawCat.toLowerCase() || c.name?.toLowerCase() === rawCat.toLowerCase()
-      );
-      safeSetCategory(matchCat ? matchCat.slug : rawCat);
+      safeSetCategory(rawCat);
     } else {
       safeSetCategory("");
     }
@@ -1089,6 +1154,10 @@ const AdminProductForm = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (submittingRef.current || isSubmitting) {
+      return;
+    }
+
     if (!name.trim()) {
       toast.error(t("admin_product_form.toast_name_required"));
       return;
@@ -1098,103 +1167,111 @@ const AdminProductForm = () => {
       return;
     }
 
-    const serializedSpecs = serializeSpecs(specs);
-    if (numberOfLights) {
-      serializedSpecs.push({ key: "Number of lights", value: numberOfLights, link: "" });
-    }
-    if (selectedSeries && selectedSeries !== "none") {
-      serializedSpecs.push({ key: "Series", value: selectedSeries, link: "" });
-    }
+    submittingRef.current = true;
+    setIsSubmitting(true);
 
-    // Build flat parameters payload & backend relational EAV mapping
-    const finalBrand = selectedBrand && selectedBrand !== "none" ? selectedBrand : "";
-    const finalBrandId = selectedBrand && selectedBrand !== "none" ? brands.find((b) => b.name === selectedBrand)?.id || null : null;
-
-    const payload = {
-      title: name,
-      name: name,
-      brand: finalBrand,
-      brandId: finalBrandId,
-      category: selectedCategory,
-      categoryId: categoriesList.find((c) => c.slug === selectedCategory)?.id || null,
-      price: parseFloat(price) || 0,
-      oldPrice: oldPrice ? parseFloat(oldPrice) : null,
-      inStock,
-      isNewArrival,
-      isBestSelling,
-      storageStock: Math.max(0, parseInt(storageStock, 10) || 0),
-      webshopStock: Math.min(Math.max(0, parseInt(storageStock, 10) || 0), Math.max(0, parseInt(webshopStock, 10) || 0)),
-      binLocation: binLocation.trim() || "A-01-1",
-      lowStockThreshold: Math.max(1, parseInt(lowStockThreshold, 10) || 5),
-      description,
-      shortDescription,
-      seoTitle,
-      seoDescription,
-      seoKeywords,
-      image: thumbnail || "",
-      images: galleryImages,
-      attributes: selectedAttributeValues, // EAV dynamic mapping
-      specs: serializedSpecs,
-    };
-
-    // 1. Try saving to backend API
     try {
-      const data = isEdit
-        ? await productRepository.update(id, payload)
-        : await productRepository.create(payload);
-
-      if (data.success) {
-        if (isDraftMode && draftId) {
-          try {
-            const apiUrl = getApiV1Url();
-            await fetch(`${apiUrl}/ai/drafts/${draftId}/published`, {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
-            });
-          } catch {
-            /* non-blocking */
-          }
-        }
-        toast.success(isEdit ? t("admin_product_form.toast_product_updated", { name }) : t("admin_product_form.toast_product_created", { name }));
-        navigate("/admin/products");
-        return;
+      const serializedSpecs = serializeSpecs(specs);
+      if (numberOfLights) {
+        serializedSpecs.push({ key: "Number of lights", value: numberOfLights, link: "" });
       }
-    } catch (err) {
-      console.warn("Backend API save failed, syncing to local storage / mock data only.");
+      if (selectedSeries && selectedSeries !== "none") {
+        serializedSpecs.push({ key: "Series", value: selectedSeries, link: "" });
+      }
+
+      // Build flat parameters payload & backend relational EAV mapping
+      const finalBrand = selectedBrand && selectedBrand !== "none" ? selectedBrand : "";
+      const finalBrandId = selectedBrand && selectedBrand !== "none" ? brands.find((b) => b.name === selectedBrand)?.id || null : null;
+
+      const payload = {
+        title: name,
+        name: name,
+        brand: finalBrand,
+        brandId: finalBrandId,
+        category: selectedCategory,
+        categoryId: categoriesList.find((c) => c.slug === selectedCategory)?.id || null,
+        price: parseFloat(price) || 0,
+        oldPrice: oldPrice ? parseFloat(oldPrice) : null,
+        inStock,
+        isNewArrival,
+        isBestSelling,
+        storageStock: Math.max(0, parseInt(storageStock, 10) || 0),
+        webshopStock: Math.min(Math.max(0, parseInt(storageStock, 10) || 0), Math.max(0, parseInt(webshopStock, 10) || 0)),
+        binLocation: binLocation.trim() || "A-01-1",
+        lowStockThreshold: Math.max(1, parseInt(lowStockThreshold, 10) || 5),
+        description,
+        shortDescription,
+        seoTitle,
+        seoDescription,
+        seoKeywords,
+        image: thumbnail || "",
+        images: galleryImages,
+        attributes: selectedAttributeValues, // EAV dynamic mapping
+        specs: serializedSpecs,
+      };
+
+      // 1. Try saving to backend API
+      try {
+        const data = isEdit
+          ? await productRepository.update(id, payload)
+          : await productRepository.create(payload);
+
+        if (data.success) {
+          if (isDraftMode && draftId) {
+            try {
+              const apiUrl = getApiV1Url();
+              await fetch(`${apiUrl}/ai/drafts/${draftId}/published`, {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+              });
+            } catch {
+              /* non-blocking */
+            }
+          }
+          toast.success(isEdit ? t("admin_product_form.toast_product_updated", { name }) : t("admin_product_form.toast_product_created", { name }));
+          navigate("/admin/products");
+          return;
+        }
+      } catch (err) {
+        console.warn("Backend API save failed, syncing to local storage / mock data only.");
+      }
+
+      // 2. Sync to local storage for static mockup fallback
+      const savedProducts = localStorage.getItem("products_data");
+      let allProducts = [];
+      if (savedProducts) {
+        try { allProducts = JSON.parse(savedProducts); } catch (e) { }
+      } else {
+        const { products: initialProducts } = await import("@/data/products");
+        allProducts = initialProducts;
+      }
+
+      // Flatten values for legacy compatibility
+      const flatProduct = {
+        ...payload,
+        id: isEdit ? id : `p-${Date.now()}`,
+        color: selectedAttributeValues["color"]?.[0] || "",
+        material: selectedAttributeValues["material"]?.[0] || "",
+        style: selectedAttributeValues["style"]?.[0] || "",
+        fitting: selectedAttributeValues["fitting"]?.[0] || "",
+        dimmable: selectedAttributeValues["dimmable"]?.[0] || "",
+        shortDescription,
+      };
+
+      let updatedProducts = [];
+      if (isEdit) {
+        updatedProducts = allProducts.map((p: any) => String(p.id) === id ? flatProduct : p);
+      } else {
+        updatedProducts = [...allProducts, flatProduct];
+      }
+
+      localStorage.setItem("products_data", JSON.stringify(updatedProducts));
+      toast.success(isEdit ? t("admin_product_form.toast_local_updated") : t("admin_product_form.toast_local_created"));
+      navigate("/admin/products");
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
-
-    // 2. Sync to local storage for static mockup fallback
-    const savedProducts = localStorage.getItem("products_data");
-    let allProducts = [];
-    if (savedProducts) {
-      try { allProducts = JSON.parse(savedProducts); } catch (e) { }
-    } else {
-      const { products: initialProducts } = await import("@/data/products");
-      allProducts = initialProducts;
-    }
-
-    // Flatten values for legacy compatibility
-    const flatProduct = {
-      ...payload,
-      id: isEdit ? id : `p-${Date.now()}`,
-      color: selectedAttributeValues["color"]?.[0] || "",
-      material: selectedAttributeValues["material"]?.[0] || "",
-      style: selectedAttributeValues["style"]?.[0] || "",
-      fitting: selectedAttributeValues["fitting"]?.[0] || "",
-      dimmable: selectedAttributeValues["dimmable"]?.[0] || "",
-      shortDescription,
-    };
-
-    let updatedProducts = [];
-    if (isEdit) {
-      updatedProducts = allProducts.map((p: any) => String(p.id) === id ? flatProduct : p);
-    } else {
-      updatedProducts = [...allProducts, flatProduct];
-    }
-
-    localStorage.setItem("products_data", JSON.stringify(updatedProducts));
-    toast.success(isEdit ? t("admin_product_form.toast_local_updated") : t("admin_product_form.toast_local_created"));
-    navigate("/admin/products");
   };
 
   return (
@@ -1802,7 +1879,7 @@ const AdminProductForm = () => {
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_category")}</Label>
                   {isMounted && (
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <Select value={selectedCategory || undefined} onValueChange={setSelectedCategory}>
                       <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
                         <SelectValue placeholder={t("admin_product_form.placeholder_category")} />
                       </SelectTrigger>
@@ -1821,16 +1898,16 @@ const AdminProductForm = () => {
                           .map((parent: any) => {
                             const children = categoriesList.filter((ch: any) => ch.parentId === parent.id);
                             return (
-                              <div key={parent.id}>
-                                <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50">
+                              <SelectGroup key={parent.id}>
+                                <SelectLabel className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50">
                                   {parent.name}
-                                </div>
+                                </SelectLabel>
                                 {children.map((child: any) => (
                                   <SelectItem key={child.slug} value={child.slug} className="text-xs rounded-lg pl-5">
                                     ↳ {child.name}
                                   </SelectItem>
                                 ))}
-                              </div>
+                              </SelectGroup>
                             );
                           })}
                       </SelectContent>
@@ -2027,9 +2104,22 @@ const AdminProductForm = () => {
 
             {/* Actions Card */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl p-6 space-y-3">
-              <Button type="submit" className="w-full gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300">
-                <Save className="h-4 w-4" />
-                {isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>{isEdit ? (t("admin_product_form.action_saving") || "Opslaan...") : (t("admin_product_form.action_creating") || "Product aanmaken...")}</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    <span>{isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}</span>
+                  </>
+                )}
               </Button>
               {canRegenerate && isEdit && (
                 <Button
@@ -2040,7 +2130,7 @@ const AdminProductForm = () => {
                   }}
                   variant="outline"
                   className="w-full gap-2 h-10 text-xs font-bold rounded-lg border-amber-600/30 text-amber-700 bg-amber-600/5 hover:bg-amber-600/15 hover:text-amber-800 transition-all duration-300"
-                  disabled={isGlobalRegenerating || regeneratingIndexes.length > 0 || isOptimizing}
+                  disabled={isSubmitting || isGlobalRegenerating || regeneratingIndexes.length > 0 || isOptimizing}
                 >
                   {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 animate-bounce" />}
                   {t("admin_product_form.action_optimize")}
@@ -2049,7 +2139,8 @@ const AdminProductForm = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-10 text-xs font-bold rounded-lg border-muted-foreground/25 hover:bg-destructive/10 hover:text-destructive transition-all duration-300"
+                disabled={isSubmitting}
+                className="w-full h-10 text-xs font-bold rounded-lg border-muted-foreground/25 hover:bg-destructive/10 hover:text-destructive transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={() => navigate("/admin/products")}
               >
                 {t("admin_product_form.action_cancel")}

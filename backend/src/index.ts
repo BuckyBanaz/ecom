@@ -1,9 +1,22 @@
+// Ensure Node libuv threadpool is large enough for concurrent DB, fs, and image I/O
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || "64";
+
+import sharp from "sharp";
+// Restrict sharp concurrency so image compression never starves CPU cores or event loop
+try {
+  sharp.concurrency(1);
+  sharp.cache({ files: 50, memory: 100, items: 200 });
+} catch {
+  /* non-blocking */
+}
+
 import app from "./app";
 import { env } from "./config/env";
 import { addLog } from "./services/logStore";
 import { loadPersistedSettings } from "./services/settingsStore";
 import { execSync } from "child_process";
 import path from "path";
+
 
 // Programmatic DB schema sync and Prisma generation to avoid sandboxed CLI limitations
 try {

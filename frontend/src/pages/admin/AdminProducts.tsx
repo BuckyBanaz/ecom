@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plus, Pencil, Trash2, Search, MessageSquare, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, MessageSquare, Eye, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,28 +17,35 @@ const AdminProducts = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [productsList, setProductsList] = useState<any[]>([]);
+  const [totalServerCount, setTotalServerCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [aiEnabled, setAiEnabled] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch with limit: 500 so all products in the catalog are loaded for admin management
+      const data = await productRepository.getAll({ limit: 500 });
+      if (data.success && data.products) {
+        setProductsList(data.products);
+        setTotalServerCount(data.pagination?.totalItems ?? data.products.length);
+      } else {
+        setProductsList([]);
+        setTotalServerCount(0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch products from API:", err);
+      toast.error(t("admin_products.toast_load_failed"));
+      setProductsList([]);
+      setTotalServerCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      setIsLoading(true);
-      try {
-        const data = await productRepository.getAll();
-        if (data.success && data.products) {
-          setProductsList(data.products);
-        } else {
-          setProductsList([]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch products from API:", err);
-        toast.error(t("admin_products.toast_load_failed"));
-        setProductsList([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     const fetchAiStatus = async () => {
       try {
         const res = await adminSettingsRepository.getAiSettings();
@@ -54,14 +61,24 @@ const AdminProducts = () => {
     fetchAiStatus();
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, pageSize]);
+
   const filtered = productsList.filter((p) => {
     const nameStr = p.name || "";
     const brandStr = typeof p.brand === "object" ? p.brand?.name : p.brand;
+    const catStr = typeof p.category === "object" ? p.category?.name : p.category;
+    const q = search.toLowerCase();
     return (
-      nameStr.toLowerCase().includes(search.toLowerCase()) ||
-      (brandStr || "").toLowerCase().includes(search.toLowerCase())
+      nameStr.toLowerCase().includes(q) ||
+      (brandStr || "").toLowerCase().includes(q) ||
+      (catStr || "").toLowerCase().includes(q)
     );
   });
+
+  const totalPages = pageSize === -1 ? 1 : Math.ceil(filtered.length / pageSize) || 1;
+  const paginatedProducts = pageSize === -1 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleDelete = async (p: any) => {
     if (!hasPermission("products")) {
@@ -74,6 +91,7 @@ const AdminProducts = () => {
         if (data.success) {
           toast.success(t("admin_products.toast_deleted", { name: p.name }));
           setProductsList((prev) => prev.filter((x) => x.id !== p.id));
+          setTotalServerCount((prev) => Math.max(0, prev - 1));
           return;
         } else {
           toast.error(t("admin_products.toast_delete_failed"));
@@ -88,7 +106,20 @@ const AdminProducts = () => {
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">{t("admin_products.total_count", { count: productsList.length })}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted-foreground font-medium">
+            {t("admin_products.total_count", { count: totalServerCount || productsList.length })}
+          </p>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            title="Refresh products"
+            onClick={fetchProducts}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         {hasPermission("products") && (
           <div className="flex flex-wrap gap-2">
             <Button
@@ -165,8 +196,14 @@ const AdminProducts = () => {
                   </td>
                 </tr>
               ))
+            ) : paginatedProducts.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-12 text-center text-muted-foreground text-sm">
+                  {search.trim() ? "No products matching your search." : "No products found."}
+                </td>
+              </tr>
             ) : (
-              filtered.map((p) => {
+              paginatedProducts.map((p) => {
                 const brandName = typeof p.brand === "object" ? p.brand?.name : p.brand;
                 const catName = typeof p.category === "object" ? p.category?.name : p.category;
                 return (
@@ -243,8 +280,57 @@ const AdminProducts = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Footer */}
+      {!isLoading && filtered.length > 0 && (
+        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span>Rows per page:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={-1}>All ({filtered.length})</option>
+            </select>
+            <span>
+              Showing {pageSize === -1 ? 1 : Math.min((currentPage - 1) * pageSize + 1, filtered.length)}–
+              {pageSize === -1 ? filtered.length : Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+            </span>
+          </div>
+
+          {pageSize !== -1 && totalPages > 1 && (
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-lg"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="px-2 font-medium">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-lg"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
-export default AdminProducts;
+export default AdminProducts;

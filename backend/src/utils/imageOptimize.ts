@@ -60,11 +60,11 @@ export async function optimizeImageAtPath(fullPath: string): Promise<OptimizeRes
 
     let buffer: Buffer;
     if (ext === ".png") {
-      buffer = await pipeline.png({ compressionLevel: 9, effort: 6 }).toBuffer();
+      buffer = await pipeline.png({ compressionLevel: 6, effort: 2 }).toBuffer();
     } else if (ext === ".webp") {
-      buffer = await pipeline.webp({ quality: 82 }).toBuffer();
+      buffer = await pipeline.webp({ quality: 82, effort: 2 }).toBuffer();
     } else {
-      buffer = await pipeline.jpeg({ quality: 78, mozjpeg: true }).toBuffer();
+      buffer = await pipeline.jpeg({ quality: 78, mozjpeg: false }).toBuffer();
     }
 
     if (buffer.length >= beforeBytes - MIN_SAVINGS_BYTES) {
@@ -129,10 +129,10 @@ export async function compressImageBuffer(input: Buffer): Promise<Buffer> {
 
     try {
       return await pipeline
-        .webp({ quality: AI_WEBP_QUALITY, effort: 5, smartSubsample: true })
+        .webp({ quality: AI_WEBP_QUALITY, effort: 2, smartSubsample: false })
         .toBuffer();
     } catch {
-      return await pipeline.jpeg({ quality: AI_WEBP_QUALITY, mozjpeg: true }).toBuffer();
+      return await pipeline.jpeg({ quality: AI_WEBP_QUALITY, mozjpeg: false }).toBuffer();
     }
   } catch (error) {
     console.warn("⚠️  Image optimization failed, falling back to original buffer", error);
@@ -155,14 +155,15 @@ export async function compressBlogCoverBuffer(input: Buffer): Promise<Buffer> {
 
     try {
       return await pipeline
-        .webp({ quality: BLOG_COVER_QUALITY, effort: 6, smartSubsample: true })
+        .webp({ quality: BLOG_COVER_QUALITY, effort: 2, smartSubsample: false })
         .toBuffer();
     } catch {
-      return await pipeline.jpeg({ quality: BLOG_COVER_QUALITY, mozjpeg: true }).toBuffer();
+      return await pipeline.jpeg({ quality: BLOG_COVER_QUALITY, mozjpeg: false }).toBuffer();
     }
   } catch (error) {
     console.warn("⚠️  Blog cover optimization failed, falling back to original buffer", error);
     return input; // Fallback to raw unoptimized buffer
+
   }
 }
 

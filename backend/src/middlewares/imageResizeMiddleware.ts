@@ -50,12 +50,13 @@ export async function serveResizedUpload(req: Request, res: Response, next: Next
     });
 
     if (ext === ".png") {
-      await pipeline.png({ compressionLevel: 9 }).toFile(cachePath);
+      await pipeline.png({ compressionLevel: 6 }).toFile(cachePath);
     } else if (ext === ".webp") {
-      await pipeline.webp({ quality: 82 }).toFile(cachePath);
+      await pipeline.webp({ quality: 82, effort: 2 }).toFile(cachePath);
     } else {
-      await pipeline.jpeg({ quality: 78, mozjpeg: true }).toFile(cachePath);
+      await pipeline.jpeg({ quality: 78, mozjpeg: false }).toFile(cachePath);
     }
+
 
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     res.setHeader("Content-Type", contentTypeForPath(cachePath));

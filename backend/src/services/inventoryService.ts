@@ -1,7 +1,7 @@
-import { PrismaClient, WarehouseType, StockMovementType } from '@prisma/client';
+import { WarehouseType, StockMovementType } from '@prisma/client';
 import { QrBarcodeService } from './qrBarcodeService';
+import { prisma } from '../config/db';
 
-const prisma = new PrismaClient();
 
 export class InventoryService {
   /**

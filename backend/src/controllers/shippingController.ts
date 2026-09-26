@@ -1,9 +1,8 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
 import { AppError } from "../middlewares/errorMiddleware";
 import { saveSettings } from "../services/settingsStore";
+import { prisma } from "../config/db";
 
-const prisma = new PrismaClient();
 
 // ----------------------------------------------------
 // 1. GET PUBLIC SHIPPING SETTINGS

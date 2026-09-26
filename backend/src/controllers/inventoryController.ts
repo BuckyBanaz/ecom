@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, StockMovementType } from '@prisma/client';
+import { StockMovementType } from '@prisma/client';
 import { AppError } from '../middlewares/errorMiddleware';
 import { QrBarcodeService } from '../services/qrBarcodeService';
 import { LabelPrintService, LabelLayoutType } from '../services/labelPrintService';
+import { prisma } from '../config/db';
 
-const prisma = new PrismaClient();
 
 export class InventoryController {
   /**
