@@ -90,17 +90,21 @@ const AdminProducts = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">{t("admin_products.total_count", { count: productsList.length })}</p>
         {hasPermission("products") && (
-          <div className="flex gap-2">
-            {aiEnabled && (
-              <>
-                <Button variant="outline" className="rounded-full gap-2 border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary" onClick={() => navigate("/admin/products/quick-add")}>
-                  <span className="text-base leading-none">✨</span> Quick Add (AI)
-                </Button>
-                <Button variant="outline" className="rounded-full gap-2" onClick={() => navigate("/admin/product-drafts")}>
-                  Drafts
-                </Button>
-              </>
-            )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              className="rounded-full gap-2 border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary"
+              onClick={() => navigate("/admin/products/quick-add")}
+            >
+              <span className="text-base leading-none">✨</span> Quick Add (AI)
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-full gap-2"
+              onClick={() => navigate("/admin/product-drafts")}
+            >
+              Drafts
+            </Button>
             <Button className="rounded-full gap-2" onClick={() => navigate("/admin/products/new")}>
               <Plus className="h-4 w-4" /> {t("admin_products.add_product")}
             </Button>
