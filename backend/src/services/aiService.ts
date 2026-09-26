@@ -640,6 +640,7 @@ export const aiService = {
         3. TITLE & COLLECTION RULES:
         - If the hint, brand rules, or SOP specifies a Collection (e.g. "Marbella", "Royale", "Lisboa"), set "series" and "seriesSlug" to that collection name.
         - Title structure MUST follow the SOP rule structure if specified (e.g. "[Collection] [Model Name] [Color] – [Short Description]").
+        - CRITICAL: Do NOT copy example titles literally for every item! You MUST analyze the SPECIFIC image and hint provided for THIS item to derive its unique model name, finish/color, light count, and short description.
 
         4. LIGHT SOURCE & SOCKET RESTRICTIONS (STRICT):
         - If input/SOP specifies a socket/light bulb type (e.g. G10, GU10, E27, E14, G9, bulb included/excluded, or "Integrated LED: No"), set "Type lichtbron" / socket strictly to that socket (e.g. "G10").
@@ -657,12 +658,12 @@ export const aiService = {
         - DO NOT include a "Specifications" section or list inside description (specs belong in the specs JSON array).
 
         {
-          "name": "Full product title following SOP structure",
+          "name": "Unique full product title for this specific image/hint following SOP structure",
           "series": "Name of Collection/Series (e.g. Marbella) or null if none",
           "seriesSlug": "Slug of Collection/Series (e.g. marbella) or null if none",
           "shortDescription": "1-2 sentences summarizing the product",
           "description": "<p>Engaging product description...</p><h3>Belangrijkste kenmerken</h3><ul><li>Feature 1</li><li>Feature 2</li></ul>",
-          "price": "number",
+          "price": 89.95,
           "brand": "string",
           "category": "string (MUST be one of EXACTLY: ${categorySlugs})",
           "seoTitle": "A catchy SEO title for the product page (max 60 chars)",
@@ -692,6 +693,13 @@ export const aiService = {
 
       const responseText = await callGeminiWithFallback(parts, 0.5);
       const parsedData = extractJson(responseText);
+
+      // Sanitize price
+      let finalPrice = parseFloat(String(parsedData.price || "").replace(/[^0-9.]/g, ""));
+      if (isNaN(finalPrice) || finalPrice <= 0) {
+        finalPrice = parseFloat(price) || 89.95;
+      }
+      parsedData.price = finalPrice;
 
       // Clean HTML formatting of description
       if (parsedData.description) {

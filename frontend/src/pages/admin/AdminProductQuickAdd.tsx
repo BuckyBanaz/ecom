@@ -593,6 +593,9 @@ const AdminProductQuickAdd = () => {
               {validRows.map((row, index) => {
                 const prog = rowProgress[row.key];
                 const isActive = row.key === activeRowKey;
+                const origIdx = rows.findIndex((r) => r.key === row.key);
+                const displayNum = origIdx >= 0 ? origIdx + 1 : index + 1;
+
                 return (
                   <div
                     key={`prog-${row.key}`}
@@ -609,7 +612,7 @@ const AdminProductQuickAdd = () => {
                     <StatusIcon status={prog?.status} />
                     <div className="min-w-0 flex-1 overflow-hidden">
                       <p className="font-semibold truncate">
-                        {t("admin_quick_add.product_row", { n: index + 1 })}
+                        {t("admin_quick_add.product_row", { n: displayNum })}
                         {row.hint.trim() ? `: ${row.hint.trim()}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">{statusLabel(prog?.status)}</p>

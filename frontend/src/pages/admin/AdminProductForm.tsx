@@ -570,11 +570,48 @@ const AdminProductForm = () => {
     setDescription(draft.description || "");
     setShortDescription(draft.shortDescription || "");
     setInStock(draft.inStock ?? true);
-    safeSetCategory(draft.category || "");
+
+    // Resolve category slug
+    const rawCat = (draft.category || "").trim();
+    if (rawCat) {
+      const matchCat = categoriesList.find(
+        (c: any) => c.slug?.toLowerCase() === rawCat.toLowerCase() || c.name?.toLowerCase() === rawCat.toLowerCase()
+      );
+      safeSetCategory(matchCat ? matchCat.slug : rawCat);
+    } else {
+      safeSetCategory("");
+    }
+
     setSelectedBrand(draft.brand || "");
     setSeoTitle(draft.seoTitle || "");
     setSeoDescription(draft.seoDescription || "");
     setSeoKeywords(draft.seoKeywords || "");
+
+    // Parse EAV Attribute Values from draft.attributes & draft.specs
+    const initialAttrVals: Record<string, string[]> = {};
+
+    if (draft.attributes && typeof draft.attributes === "object") {
+      Object.entries(draft.attributes).forEach(([key, val]) => {
+        const slugKey = key.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const valArr = Array.isArray(val) ? val.map(String) : [String(val)];
+        initialAttrVals[slugKey] = valArr;
+        initialAttrVals[key] = valArr;
+      });
+    }
+
+    if (Array.isArray(draft.specs)) {
+      draft.specs.forEach((s: any) => {
+        if (s && s.key && s.value) {
+          const keySlug = s.key.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          if (!initialAttrVals[keySlug] || initialAttrVals[keySlug].length === 0) {
+            initialAttrVals[keySlug] = [String(s.value)];
+          }
+        }
+      });
+    }
+
+    setSelectedAttributeValues(initialAttrVals);
+
     const parsed = parseSpecs(draft.specs || {});
     parsed.forEach((s) => {
       if (s.key === "Number of lights") setNumberOfLights(s.value);
@@ -585,7 +622,7 @@ const AdminProductForm = () => {
     else if (draft.seriesName) draftSeries = draft.seriesName;
     else if (draft.seriesSlug) draftSeries = draft.seriesSlug;
     else if (Array.isArray(draft.specs)) {
-      const sItem = draft.specs.find((s: any) => s && s.key === "Series");
+      const sItem = draft.specs.find((s: any) => s && (s.key === "Series" || s.key === "Collection" || s.key === "Collectie"));
       if (sItem) draftSeries = sItem.value;
     }
     if (draftSeries && draftSeries !== "null" && draftSeries !== "none") {
