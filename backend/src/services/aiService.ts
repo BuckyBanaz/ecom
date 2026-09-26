@@ -611,7 +611,7 @@ export const aiService = {
       // Build a readable attribute guide for the AI
       const attributeGuide = attributes.map(attr => {
         const vals = attr.attributeValues.map(v => v.value).join(", ");
-        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` → allowed: ${vals}` : ""}`;
+        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}`;
       }).join("\n");
 
       // Built-in SOP matrix — always used (no external override)
@@ -936,8 +936,8 @@ export const aiService = {
 
       return parsedData;
 
-    } catch (error) {
-      console.error("AI Quick-Add Generation failed:", error);
+    } catch (error: any) {
+      console.error("[QuickAdd ERROR]", error?.message || String(error));
       throw error;
     }
   },

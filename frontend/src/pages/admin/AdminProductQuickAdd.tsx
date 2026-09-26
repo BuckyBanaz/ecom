@@ -628,8 +628,10 @@ const AdminProductQuickAdd = () => {
                           <ExternalLink className="h-3 w-3 shrink-0" />
                         </a>
                       )}
-                      {prog?.status === "failed" && prog.error && (
-                        <p className="text-xs text-destructive mt-1 line-clamp-2">{prog.error}</p>
+                      {prog?.status === "failed" && (
+                        <p className="text-xs text-destructive mt-1 break-all">
+                          {prog.error || "Unknown error — check backend logs"}
+                        </p>
                       )}
                     </div>
                   </div>
