@@ -157,6 +157,49 @@ const AdminProductQuickAdd = () => {
       .catch(() => {});
   }, []);
 
+  const [liveDuplicates, setLiveDuplicates] = useState<Record<string, Array<{ id: string; name: string; slug: string; price: number }>>>({});
+
+  // Real-time debounced check as admin types in product hint
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    rows.forEach((row) => {
+      const hintText = row.hint.trim();
+      if (hintText.length >= 3) {
+        const timer = setTimeout(() => {
+          fetch(`${apiUrl}/ai/products/check-duplicate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({ text: hintText }),
+          })
+            .then((r) => r.json())
+            .then((res) => {
+              if (res.success && res.existingMatches?.length) {
+                setLiveDuplicates((prev) => ({ ...prev, [row.key]: res.existingMatches }));
+              } else {
+                setLiveDuplicates((prev) => {
+                  const next = { ...prev };
+                  delete next[row.key];
+                  return next;
+                });
+              }
+            })
+            .catch(() => {});
+        }, 400);
+        timers.push(timer);
+      } else {
+        setLiveDuplicates((prev) => {
+          const next = { ...prev };
+          delete next[row.key];
+          return next;
+        });
+      }
+    });
+
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+    };
+  }, [rows.map((r) => `${r.key}:${r.hint}`).join("|")]);
+
   useEffect(() => {
     return () => {
       imagePhaseTimers.current.forEach((timer) => clearTimeout(timer));
@@ -416,6 +459,7 @@ const AdminProductQuickAdd = () => {
     setIsGenerating(false);
     generatingRef.current = false;
     setBatchSummary({ ok, failed: validRows.length - ok, total: validRows.length });
+    clearQuickAddSession();
 
     if (ok > 0) {
       toast.success(t("admin_quick_add.toast_bulk_success", { ok, total: validRows.length }));
@@ -723,6 +767,31 @@ const AdminProductQuickAdd = () => {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {((prog?.existingMatches && prog.existingMatches.length > 0) || (liveDuplicates[row.key] && liveDuplicates[row.key].length > 0)) && (
+                        <div className="mt-3 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 text-xs space-y-1.5">
+                          <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                            <span>⚠️</span> Similar product already exists in catalog or drafts:
+                          </p>
+                          <div className="space-y-1 pt-1">
+                            {(prog?.existingMatches || liveDuplicates[row.key] || []).map((m) => (
+                              <div key={m.id} className="flex items-center justify-between gap-2 border-t border-amber-500/20 pt-1.5">
+                                <span className="font-semibold truncate max-w-[260px]" title={m.name}>
+                                  • {m.name} (€{m.price})
+                                </span>
+                                <a
+                                  href={m.slug.startsWith("drafts/") ? `/admin/product-drafts/${m.id}` : `/product/${m.slug}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] text-amber-900 underline hover:text-amber-950 font-bold shrink-0 flex items-center gap-1"
+                                >
+                                  View Product ↗
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

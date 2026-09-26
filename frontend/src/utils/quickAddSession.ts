@@ -13,6 +13,8 @@ export type StoredProgress = {
   error?: string;
   draftId?: string;
   productName?: string;
+  duplicateWarning?: boolean;
+  existingMatches?: Array<{ id: string; name: string; slug: string; image: string; price: number }>;
 };
 
 export type QuickAddSession = {
@@ -25,30 +27,64 @@ export type QuickAddSession = {
   savedAt: number;
 };
 
+export function sanitizeSession(parsed: QuickAddSession): QuickAddSession {
+  const age = Date.now() - (parsed.savedAt || 0);
+  const progress = parsed.rowProgress || {};
+  const rowKeys = Object.keys(progress);
+
+  const allTerminal =
+    rowKeys.length > 0 &&
+    rowKeys.every((k) => ["done", "failed"].includes(progress[k]?.status));
+
+  // If all rows are finished or session is > 12s old without active generator, batch is done
+  if (allTerminal || age > 12000) {
+    parsed.isProcessing = false;
+    rowKeys.forEach((k) => {
+      if (["queued", "analyzing", "images", "saving"].includes(progress[k]?.status)) {
+        if (progress[k]?.draftId) {
+          progress[k].status = "done";
+        } else {
+          progress[k].status = "failed";
+          progress[k].error = progress[k].error || "Batch completed";
+        }
+      }
+    });
+  }
+
+  const ok = rowKeys.filter((k) => progress[k]?.status === "done").length;
+  const failed = rowKeys.filter((k) => progress[k]?.status === "failed").length;
+  if (rowKeys.length > 0) {
+    parsed.batchSummary = { ok, failed, total: rowKeys.length };
+  }
+
+  return parsed;
+}
+
 export function loadQuickAddSession(): QuickAddSession | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as QuickAddSession;
+    let parsed = JSON.parse(raw) as QuickAddSession;
     if (!parsed?.rows?.length) return null;
 
-    // Expire session after 10 minutes
     const age = Date.now() - (parsed.savedAt || 0);
-    if (age > 10 * 60 * 1000) {
+
+    // If batch has finished or is not actively generating within last 12s, clear and start clean
+    if (parsed.batchSummary || !parsed.isProcessing || age > 12000) {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
 
-    // If another tab is actively generating (isProcessing: true) within last 90 seconds, restore live progress!
-    const isActivelyProcessing = parsed.isProcessing && age < 90000;
+    parsed = sanitizeSession(parsed);
 
-    // If batch has already finished or is not actively generating, do not restore old session on fresh tabs
-    if (!isActivelyProcessing && (parsed.batchSummary || !parsed.isProcessing)) {
+    if (!parsed.isProcessing) {
+      localStorage.removeItem(SESSION_KEY);
       return null;
     }
 
     return parsed;
   } catch {
+    localStorage.removeItem(SESSION_KEY);
     return null;
   }
 }

@@ -58,6 +58,20 @@ router.post("/products/:id/regenerate-images", async (req, res) => {
   }
 });
 
+router.post("/products/check-duplicate", async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    const matches = await aiService.findDuplicateProducts(text || "");
+    res.json({
+      success: true,
+      duplicateWarning: matches.length > 0,
+      existingMatches: matches,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post("/products/quick-add", upload.single("image"), async (req, res) => {
   try {
     const { hint, price, brandName, imagePromptOverride } = req.body;
