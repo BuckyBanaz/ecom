@@ -36,8 +36,14 @@ export function sanitizeSession(parsed: QuickAddSession): QuickAddSession {
     rowKeys.length > 0 &&
     rowKeys.every((k) => ["done", "failed"].includes(progress[k]?.status));
 
-  // If all rows are finished or session is > 12s old without active generator, batch is done
-  if (allTerminal || age > 12000) {
+  // If actively processing and not all rows terminal, batchSummary MUST be null
+  if (parsed.isProcessing && !allTerminal) {
+    parsed.batchSummary = null;
+    return parsed;
+  }
+
+  // If all rows are finished or session is stale (> 2 mins) without active generator, batch is done
+  if (allTerminal || parsed.isProcessing === false || age > 120000) {
     parsed.isProcessing = false;
     rowKeys.forEach((k) => {
       if (["queued", "analyzing", "images", "saving"].includes(progress[k]?.status)) {
@@ -49,12 +55,14 @@ export function sanitizeSession(parsed: QuickAddSession): QuickAddSession {
         }
       }
     });
-  }
 
-  const ok = rowKeys.filter((k) => progress[k]?.status === "done").length;
-  const failed = rowKeys.filter((k) => progress[k]?.status === "failed").length;
-  if (rowKeys.length > 0) {
-    parsed.batchSummary = { ok, failed, total: rowKeys.length };
+    const ok = rowKeys.filter((k) => progress[k]?.status === "done").length;
+    const failed = rowKeys.filter((k) => progress[k]?.status === "failed").length;
+    if (rowKeys.length > 0) {
+      parsed.batchSummary = { ok, failed, total: rowKeys.length };
+    } else {
+      parsed.batchSummary = null;
+    }
   }
 
   return parsed;
@@ -69,15 +77,15 @@ export function loadQuickAddSession(): QuickAddSession | null {
 
     const age = Date.now() - (parsed.savedAt || 0);
 
-    // If batch has finished or is not actively generating within last 12s, clear and start clean
-    if (parsed.batchSummary || !parsed.isProcessing || age > 12000) {
+    // If batch is already completed or stale (> 2 mins), clear session so page opens fresh
+    if (parsed.batchSummary || age > 120000) {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
 
     parsed = sanitizeSession(parsed);
 
-    if (!parsed.isProcessing) {
+    if (parsed.batchSummary || !parsed.isProcessing) {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }

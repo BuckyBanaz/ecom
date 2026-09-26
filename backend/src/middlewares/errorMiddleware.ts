@@ -21,13 +21,20 @@ export class AppError extends Error {
  * Express Global Error Handling Middleware
  */
 export const errorHandler = (
-  err: Error | AppError,
+  err: any,
   _req: Request,
   res: Response,
   _next: NextFunction
 ) => {
-  const statusCode = err instanceof AppError ? err.statusCode : 500;
-  const message = err.message || "Something went wrong on the server";
+  let statusCode = err instanceof AppError ? err.statusCode : 500;
+  let message = err.message || "Something went wrong on the server";
+
+  if (err.name === "MulterError" || err.code === "LIMIT_FILE_SIZE") {
+    statusCode = 400;
+    message = err.code === "LIMIT_FILE_SIZE"
+      ? "Uploaded image file is too large (maximum size is 50MB)."
+      : `Upload error: ${err.message}`;
+  }
 
   addLog({
     level: statusCode >= 500 ? "error" : "warn",

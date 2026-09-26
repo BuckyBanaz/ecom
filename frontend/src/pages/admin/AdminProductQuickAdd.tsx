@@ -309,7 +309,7 @@ const AdminProductQuickAdd = () => {
         if (!current || current.status !== "analyzing") return prev;
         return { ...prev, [key]: { ...current, status: "images" } };
       });
-    }, 3500);
+    }, 7000);
     imagePhaseTimers.current.set(key, timer);
   };
 
@@ -323,6 +323,10 @@ const AdminProductQuickAdd = () => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error(t("admin_quick_add.toast_invalid_image"));
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Image file is too large (maximum 50MB limit).");
       return;
     }
     const reader = new FileReader();
@@ -373,6 +377,7 @@ const AdminProductQuickAdd = () => {
 
     clearQuickAddSession();
     setBatchSummary(null);
+    setRowProgress({});
     setIsGenerating(true);
     generatingRef.current = true;
     setActiveRowKey(null);
@@ -670,13 +675,17 @@ const AdminProductQuickAdd = () => {
 
                   {(prog?.status === "analyzing" || prog?.status === "images") && row.key === activeRowKey && (
                     <div className="flex flex-wrap gap-2 text-[11px]">
-                      <StepPill done={true} active={prog.status === "analyzing"} label={t("admin_quick_add.step_analyze")} />
                       <StepPill
-                        done={prog.status === "images"}
+                        done={prog.status === "images" || prog.status === "done"}
+                        active={prog.status === "analyzing"}
+                        label={t("admin_quick_add.step_analyze")}
+                      />
+                      <StepPill
+                        done={prog.status === "done"}
                         active={prog.status === "images"}
                         label={t("admin_quick_add.step_images", { count: imageCountLimit })}
                       />
-                      <StepPill done={false} active={false} label={t("admin_quick_add.step_save")} />
+                      <StepPill done={prog.status === "done"} active={false} label={t("admin_quick_add.step_save")} />
                     </div>
                   )}
 
