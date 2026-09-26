@@ -247,6 +247,7 @@ export const getAiSettings = async (
       enabled: process.env.AI_ENABLED === "true",
       googleApiKey: apiKey ? "••••••••••••••••••••" : "",
       systemPrompt: process.env.AI_SYSTEM_PROMPT || "",
+      sopRules: process.env.AI_SOP_RULES || "",
       model: process.env.AI_MODEL || "llama-3.3-70b-versatile",
       imageGenerationCount: clampAiImageCount(parseInt(process.env.AI_IMAGE_COUNT || "1", 10)),
       bulkProductLimit: clampAiBulkLimit(parseInt(process.env.AI_BULK_LIMIT || "5", 10)),
@@ -270,7 +271,7 @@ export const updateAiSettings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { enabled, googleApiKey, systemPrompt, model, imageGenerationCount, bulkProductLimit, defaultImagePrompt, outputLanguage } = req.body;
+    const { enabled, googleApiKey, systemPrompt, sopRules, model, imageGenerationCount, bulkProductLimit, defaultImagePrompt, outputLanguage } = req.body;
 
     const updates: Record<string, string> = {};
     if (enabled !== undefined) updates.AI_ENABLED = enabled ? "true" : "false";
@@ -281,6 +282,10 @@ export const updateAiSettings = async (
 
     if (systemPrompt !== undefined) {
       updates.AI_SYSTEM_PROMPT = systemPrompt;
+    }
+
+    if (sopRules !== undefined) {
+      updates.AI_SOP_RULES = sopRules;
     }
 
     if (model !== undefined) {

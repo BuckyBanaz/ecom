@@ -31,32 +31,20 @@ export function loadQuickAddSession(): QuickAddSession | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as QuickAddSession;
     if (!parsed?.rows?.length) return null;
-    // Expire after 24h
-    if (Date.now() - (parsed.savedAt || 0) > 24 * 60 * 60 * 1000) {
+
+    // Expire session after 10 minutes
+    const age = Date.now() - (parsed.savedAt || 0);
+    if (age > 10 * 60 * 1000) {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
 
-    // If another tab is actively generating (isProcessing: true) within last 90 seconds,
-    // preserve in-progress statuses so the new tab shows live progress!
-    const isActivelyProcessing = parsed.isProcessing && Date.now() - (parsed.savedAt || 0) < 90000;
+    // If another tab is actively generating (isProcessing: true) within last 90 seconds, restore live progress!
+    const isActivelyProcessing = parsed.isProcessing && age < 90000;
 
-    if (!isActivelyProcessing && parsed.rowProgress) {
-      Object.keys(parsed.rowProgress).forEach((key) => {
-        const prog = parsed.rowProgress[key];
-        if (
-          prog.status === "queued" ||
-          prog.status === "analyzing" ||
-          prog.status === "images" ||
-          prog.status === "saving"
-        ) {
-          parsed.rowProgress[key] = {
-            ...prog,
-            status: "failed",
-            error: "Batch interrupted when page refreshed or reloaded",
-          };
-        }
-      });
+    // If batch has already finished or is not actively generating, do not restore old session on fresh tabs
+    if (!isActivelyProcessing && (parsed.batchSummary || !parsed.isProcessing)) {
+      return null;
     }
 
     return parsed;

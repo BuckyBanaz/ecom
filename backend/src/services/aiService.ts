@@ -394,6 +394,18 @@ export const aiService = {
         }
       });
 
+      const customSopRules = process.env.AI_SOP_RULES?.trim();
+      const defaultSopMatrix = `
+           - "Royale": Models (Royale Noir, Royale Silver, Gold XL, Royale Gold) | Style: Luxury crystal look with G9 prisms
+           - "Marrakech": Models (Royale Noir, Royale Silver, Gold XL, Royale Gold) | Style: Luxury crystal look with G9 prisms / Oriental warm
+           - "Lisboa": Models (Cascade, Royale 4, 5, 6-light) | Style: Glass globes with acrylic bubble cylinders, brass/gold
+           - "Sofia": Models (Silver, Gold) | Style: Curved chrome/gold loops, metallic spheres, crystal flowers
+           - "Iceland Tech": Models (Breeze Black, Breeze Gold) | Style: Ceiling fans with LED ring (dimmable, 3 light colors + remote)
+           - "Stockholm": Models (Orbit Black, Orbit XL, Orbit Coffee, Orbit Bronze) | Style: Modern geometric ring design, dimmable, 3 light colors + remote
+      `;
+
+      const activeSopRules = customSopRules || defaultSopMatrix;
+
       const userSystemPrompt = process.env.AI_SYSTEM_PROMPT || "You are an expert e-commerce catalog manager.";
       const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
 
@@ -418,14 +430,10 @@ export const aiService = {
         ${hierarchyContext}
         - Valid category slugs you can use (child categories only): ${categorySlugs}
 
-        SERIES / COLLECTION SELECTION RULES (Schip en Ster Brand Architecture Matrix):
-        1. SOP Brand Collections Matrix:
-           - "Royale": Models (Royale Noir, Royale Silver, Gold XL, Royale Gold) | Style: Luxury crystal look with G9 prisms
-           - "Marrakech": Models (Royale Noir, Royale Silver, Gold XL, Royale Gold) | Style: Luxury crystal look with G9 prisms / Oriental warm
-           - "Lisboa": Models (Cascade, Royale 4, 5, 6-light) | Style: Glass globes with acrylic bubble cylinders, brass/gold
-           - "Sofia": Models (Silver, Gold) | Style: Curved chrome/gold loops, metallic spheres, crystal flowers
-           - "Iceland Tech": Models (Breeze Black, Breeze Gold) | Style: Ceiling fans with LED ring (dimmable, 3 light colors + remote)
-           - "Stockholm": Models (Orbit Black, Orbit XL, Orbit Coffee, Orbit Bronze) | Style: Modern geometric ring design, dimmable, 3 light colors + remote
+        SERIES / COLLECTION SELECTION RULES & DYNAMIC BRAND SOP:
+        1. SOP Brand Rules & Collections Matrix:
+        ${activeSopRules}
+
         2. Database Registered Series:
         ${seriesContext || "(No extra database series)"}
 
