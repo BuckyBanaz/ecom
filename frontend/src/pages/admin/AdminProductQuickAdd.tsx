@@ -233,6 +233,15 @@ const AdminProductQuickAdd = () => {
     const hasProgress = Object.keys(rowProgress).length > 0 || batchSummary;
     if (!hasContent && !hasProgress) return;
 
+    // Filter rowProgress to only include keys for current active rows
+    const validKeys = new Set(rows.map((r) => r.key));
+    const cleanRowProgress: Record<string, RowProgress> = {};
+    Object.keys(rowProgress).forEach((k) => {
+      if (validKeys.has(k)) {
+        cleanRowProgress[k] = rowProgress[k];
+      }
+    });
+
     saveQuickAddSession({
       rows: rows.map(({ key, hint, price, brand, imagePreview }) => ({
         key,
@@ -242,7 +251,7 @@ const AdminProductQuickAdd = () => {
         imagePreview,
       })),
       imagePromptOverride,
-      rowProgress,
+      rowProgress: cleanRowProgress,
       batchSummary,
       isProcessing: isGenerating,
     });

@@ -29,9 +29,20 @@ export type QuickAddSession = {
 
 export function sanitizeSession(parsed: QuickAddSession): QuickAddSession {
   const age = Date.now() - (parsed.savedAt || 0);
-  const progress = parsed.rowProgress || {};
-  const rowKeys = Object.keys(progress);
+  const activeKeys = new Set((parsed.rows || []).map((r) => r.key));
+  const progress: Record<string, StoredProgress> = {};
 
+  // Purge any old or orphaned row keys from previous sessions/batches
+  if (parsed.rowProgress) {
+    Object.keys(parsed.rowProgress).forEach((k) => {
+      if (activeKeys.has(k)) {
+        progress[k] = parsed.rowProgress[k];
+      }
+    });
+  }
+  parsed.rowProgress = progress;
+
+  const rowKeys = Object.keys(progress);
   const allTerminal =
     rowKeys.length > 0 &&
     rowKeys.every((k) => ["done", "failed"].includes(progress[k]?.status));
