@@ -147,12 +147,15 @@ const ProductPage = () => {
           const pCatSlug = p.category?.slug;
           const pBrandName = getProductBrandName(p.brand);
 
-          let pSeriesName = null;
-          if (p.specs) {
+          let pSeriesName: string | null = null;
+          if (p.series?.name) {
+            pSeriesName = p.series.name;
+          } else if (p.specs) {
             if (Array.isArray(p.specs)) {
-              pSeriesName = p.specs.find((s: any) => s.key === "Series")?.value;
+              pSeriesName = p.specs.find((s: any) => s && (s.key === "Series" || s.key === "Collection" || s.key === "Collectie" || s.key === "Serie"))?.value || null;
             } else {
-              pSeriesName = Object.entries(p.specs).find(([k]) => k === "Series" || k.includes("::Series"))?.[1] as string;
+              const entry = Object.entries(p.specs).find(([k]) => k === "Series" || k === "Collection" || k === "Collectie" || k.includes("::Series") || k.includes("::Collection"));
+              if (entry) pSeriesName = String(entry[1]);
             }
           }
 
@@ -238,6 +241,65 @@ const ProductPage = () => {
 
   const fav = has(product.id);
   const galleryImages = [product.image, ...(product.images ?? [])].filter(Boolean);
+
+  const formatDescriptionHtml = (raw: string): string => {
+    if (!raw) return "";
+    let cleaned = raw.trim();
+
+    // Strip duplicate specifications section if present
+    cleaned = cleaned.replace(/\*\*Specificaties\*\*[\s\S]*$/i, "");
+    cleaned = cleaned.replace(/Specificaties:[\s\S]*$/i, "");
+    cleaned = cleaned.replace(/<h3>Specificaties<\/h3>[\s\S]*$/i, "");
+
+    // Convert markdown bold **text** to <strong>text</strong>
+    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+    // Format section headers
+    cleaned = cleaned.replace(/<strong>Belangrijkste kenmerken<\/strong>/gi, "<h3 className=\"font-bold mt-4 mb-2 text-base\">Belangrijkste kenmerken</h3>");
+    cleaned = cleaned.replace(/Belangrijkste kenmerken:/gi, "<h3 className=\"font-bold mt-4 mb-2 text-base\">Belangrijkste kenmerken</h3>");
+
+    // Convert bullet points (- item or • item) to HTML lists if present
+    if (cleaned.includes("- ") || cleaned.includes("• ")) {
+      const lines = cleaned.split("\n");
+      let inList = false;
+      const resultLines: string[] = [];
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+          if (!inList) {
+            resultLines.push("<ul className=\"list-disc pl-5 my-3 space-y-1\">");
+            inList = true;
+          }
+          const text = trimmed.replace(/^[-•]\s*/, "").trim();
+          resultLines.push(`  <li>${text}</li>`);
+        } else {
+          if (inList) {
+            resultLines.push("</ul>");
+            inList = false;
+          }
+          if (trimmed) {
+            if (!trimmed.startsWith("<")) {
+              resultLines.push(`<p className="mb-3">${trimmed}</p>`);
+            } else {
+              resultLines.push(trimmed);
+            }
+          }
+        }
+      }
+      if (inList) resultLines.push("</ul>");
+      cleaned = resultLines.join("\n");
+    } else if (!cleaned.includes("<p>")) {
+      cleaned = cleaned
+        .split(/\n\s*\n/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => (p.startsWith("<") ? p : `<p className="mb-3">${p}</p>`))
+        .join("\n");
+    }
+
+    return cleaned;
+  };
 
   const renderSpecs = () => {
     const renderSpecItems = (items: any[]) => (
@@ -548,7 +610,7 @@ const ProductPage = () => {
         {/* Left: Description */}
         <div>
           <h2 className="text-xl font-bold mb-6">{t("product.section_description")}</h2>
-          <div className={`text-foreground/90 leading-relaxed ${product.description?.includes('<style') ? '' : 'prose prose-sm max-w-none dark:prose-invert'}`} dangerouslySetInnerHTML={{ __html: product.description }} />
+          <div className={`text-foreground/90 leading-relaxed ${product.description?.includes('<style') ? '' : 'prose prose-sm max-w-none dark:prose-invert'}`} dangerouslySetInnerHTML={{ __html: formatDescriptionHtml(product.description || "") }} />
         </div>
 
         {/* Right: Specifications */}

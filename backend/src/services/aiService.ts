@@ -15,7 +15,7 @@ import {
   sanitizeCmsAiHtml,
 } from "../utils/cmsAiContent";
 import { saveCompressedBlogCoverToDir, saveCompressedImageToDir } from "../utils/imageOptimize";
-import { sanitizeRobotsTxt, normalizeRobotsTxtFromAi } from "../utils/robotsTxt";
+import { normalizeRobotsTxtFromAi } from "../utils/robotsTxt";
 import { unwrapAiPlainTextPayload } from "../utils/aiPlainTextOutput";
 import { getSeoCanonicalBaseUrl } from "./settingsStore";
 
@@ -321,6 +321,68 @@ function fixUtf8Mojibake(text: string): string {
     .replace(/\u00c3\u00b6/g, "\u00f6");
 }
 
+/** Clean & format AI-generated markdown product description into proper HTML paragraphs and lists. */
+function cleanAndFormatDescription(rawDesc: string): string {
+  if (!rawDesc) return "";
+
+  let cleaned = rawDesc.trim();
+
+  // Strip duplicate specifications section if Gemini inserted it into description
+  cleaned = cleaned.replace(/\*\*Specificaties\*\*[\s\S]*$/i, "");
+  cleaned = cleaned.replace(/Specificaties:[\s\S]*$/i, "");
+  cleaned = cleaned.replace(/<h3>Specificaties<\/h3>[\s\S]*$/i, "");
+
+  // Convert markdown bold **text** to <strong>text</strong>
+  cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // Format key features section header
+  cleaned = cleaned.replace(/<strong>Belangrijkste kenmerken<\/strong>/gi, "<h3 className=\"text-base font-semibold mt-4 mb-2\">Belangrijkste kenmerken</h3>");
+  cleaned = cleaned.replace(/Belangrijkste kenmerken:/gi, "<h3 className=\"text-base font-semibold mt-4 mb-2\">Belangrijkste kenmerken</h3>");
+
+  // Convert bullet lines (- item or • item) to HTML <ul><li>
+  if (cleaned.includes("- ") || cleaned.includes("• ")) {
+    const lines = cleaned.split("\n");
+    let inList = false;
+    const resultLines: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+        if (!inList) {
+          resultLines.push("<ul className=\"list-disc pl-5 my-3 space-y-1\">");
+          inList = true;
+        }
+        const text = trimmed.replace(/^[-•]\s*/, "").trim();
+        resultLines.push(`  <li>${text}</li>`);
+      } else {
+        if (inList) {
+          resultLines.push("</ul>");
+          inList = false;
+        }
+        if (trimmed) {
+          if (!trimmed.startsWith("<")) {
+            resultLines.push(`<p className="mb-3">${trimmed}</p>`);
+          } else {
+            resultLines.push(trimmed);
+          }
+        }
+      }
+    }
+    if (inList) resultLines.push("</ul>");
+    cleaned = resultLines.join("\n");
+  } else if (!cleaned.includes("<p>")) {
+    cleaned = cleaned
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => (p.startsWith("<") ? p : `<p className="mb-3">${p}</p>`))
+      .join("\n");
+  }
+
+  return cleaned.trim();
+}
+
+
 /** Gemini sometimes wraps llms.txt in JSON — unwrap to plain markdown. */
 function normalizeLlmsTxtOutput(raw: string, siteName: string): string {
   let text = fixUtf8Mojibake(unwrapAiPlainTextPayload(raw, ["llms_txt", "llms", "content", "text", "body"]));
@@ -494,7 +556,6 @@ export const aiService = {
       const childCats = categories.filter(c => c.parentId);
       
       // Leaf categories = categories with no children of their own
-      const parentIds = new Set(categories.filter(c => !c.parentId).map(c => c.id));
       const hasChildren = new Set(childCats.map(c => c.parentId));
       const leafCategories = categories.filter(c => c.parentId && !hasChildren.has(c.id));
       // Also include root-level categories that have NO children (standalone)
@@ -569,47 +630,51 @@ export const aiService = {
         Please extract and infer the complete product details to fill an e-commerce product form.
         Return ONLY a valid JSON object with the following structure, and nothing else (no markdown wrapping, no backticks).
         
-        CATEGORY SELECTION RULES:
-        - The store has a 2-level category hierarchy: Parent → Children
-        - You MUST pick a SPECIFIC CHILD category (not a parent)
-        - Use the hierarchy below to understand which parent this product belongs to, then pick the right child:
-        ${hierarchyContext}
-        - Valid category slugs you can use (child categories only): ${categorySlugs}
-
-        SERIES / COLLECTION SELECTION RULES & DYNAMIC BRAND SOP:
-        1. SOP Brand Rules & Collections Matrix:
+        CRITICAL SOP COMPLIANCE & ACCURACY RULES:
+        1. SOP & Brand Upload Matrix:
         ${activeSopRules}
 
         2. Database Registered Series:
         ${seriesContext || "(No extra database series)"}
 
-        RULE FOR SERIES SELECTION:
-        - If the product clearly matches one of the collections/series in the SOP Matrix or DB list, set "seriesSlug" to its exact name or slug (e.g. "royale", "lisboa", "sofia", "iceland-tech", "stockholm", "marrakech").
-        - CRITICAL: If the product does NOT match any collection/series in the rules or DB list, you MUST set "seriesSlug" to null. DO NOT force or guess a series if there is no match!
+        3. TITLE & COLLECTION RULES:
+        - If the hint, brand rules, or SOP specifies a Collection (e.g. "Marbella", "Royale", "Lisboa"), set "series" and "seriesSlug" to that collection name.
+        - Title structure MUST follow the SOP rule structure if specified (e.g. "[Collection] [Model Name] [Color] – [Short Description]").
 
-        PRODUCT DESCRIPTION & LAYOUT TEMPLATE (SOP Standard):
-        - Description MUST follow a clean markdown structure:
-          1. Concise product summary (1 paragraph)
-          2. **Key Features** (bulleted list)
-          3. **Specifications** (specifying fixture type: Integrated LED vs Socket fixture with G9/E27 details)
+        4. LIGHT SOURCE & SOCKET RESTRICTIONS (STRICT):
+        - If input/SOP specifies a socket/light bulb type (e.g. G10, GU10, E27, E14, G9, bulb included/excluded, or "Integrated LED: No"), set "Type lichtbron" / socket strictly to that socket (e.g. "G10").
+        - NEVER call the product "Geïntegreerd LED" unless the input explicitly states integrated LED!
+        - DO NOT mention dimming, remote control, or 3 light colors unless explicitly confirmed.
+
+        5. CATEGORY SELECTION RULES:
+        - You MUST pick a SPECIFIC CHILD category (not a parent)
+        - Hierarchy context: ${hierarchyContext}
+        - Valid category slugs: ${categorySlugs}
+
+        6. DESCRIPTION FORMATTING (HTML ONLY):
+        - "description" MUST be clean HTML using <p>, <h3>, <ul>, and <li> tags for Key Features.
+        - DO NOT put markdown symbols like ** or - in description.
+        - DO NOT include a "Specifications" section or list inside description (specs belong in the specs JSON array).
 
         {
-          "name": "Full product title",
+          "name": "Full product title following SOP structure",
+          "series": "Name of Collection/Series (e.g. Marbella) or null if none",
+          "seriesSlug": "Slug of Collection/Series (e.g. marbella) or null if none",
           "shortDescription": "1-2 sentences summarizing the product",
-          "description": "A detailed multi-paragraph description following the SOP template.",
+          "description": "<p>Engaging product description...</p><h3>Belangrijkste kenmerken</h3><ul><li>Feature 1</li><li>Feature 2</li></ul>",
           "price": "number",
           "brand": "string",
-          "category": "string (MUST be one of EXACTLY: ${categorySlugs} — pick the most specific child category)",
-          "seriesSlug": "string slug or name of matching Series/Collection OR null if no match",
+          "category": "string (MUST be one of EXACTLY: ${categorySlugs})",
           "seoTitle": "A catchy SEO title for the product page (max 60 chars)",
           "seoDescription": "A compelling meta description for search engines (max 160 chars)",
-          "seoKeywords": "comma separated keywords like 'modern, lighting, pendant'",
+          "seoKeywords": "comma separated keywords",
           "inStock": true,
           "attributes": ${JSON.stringify(dynamicAttributesSchema, null, 12).trim()},
           "specs": [
-            { "key": "string", "value": "string" }
+            { "key": "Collection", "value": "Collection Name" },
+            { "key": "Type lichtbron", "value": "G10" }
           ],
-          "needsReview": ["array of keys like 'price', 'category' that you are unsure about"]
+          "needsReview": ["array of keys requiring verification"]
         }
       `;
 
@@ -628,40 +693,101 @@ export const aiService = {
       const responseText = await callGeminiWithFallback(parts, 0.5);
       const parsedData = extractJson(responseText);
 
-      // Post-process series matching
-      const rawSeries = parsedData.seriesSlug || parsedData.series;
+      // Clean HTML formatting of description
+      if (parsedData.description) {
+        parsedData.description = cleanAndFormatDescription(parsedData.description);
+      }
+
+      // Check if Collection / Series was mentioned in specs or hint/SOP
+      if (!Array.isArray(parsedData.specs)) parsedData.specs = [];
+
+      const collectionSpec = parsedData.specs.find(
+        (s: any) => s && (s.key === "Collection" || s.key === "Series" || s.key === "Collectie" || s.key === "Serie")
+      );
+      
+      let rawSeries = parsedData.seriesSlug || parsedData.series || collectionSpec?.value;
+
+      // Also scan hint and activeSopRules for explicit Collection: [Name] pattern if AI missed it
+      if (!rawSeries) {
+        const sopMatch = (hint + "\n" + activeSopRules).match(/Collection:\s*([A-Za-z0-9\s-]+)/i);
+        if (sopMatch && sopMatch[1]) {
+          rawSeries = sopMatch[1].trim();
+        }
+      }
+
       if (rawSeries && String(rawSeries).toLowerCase() !== "null" && String(rawSeries).toLowerCase() !== "none") {
         const strVal = String(rawSeries).trim();
-        const matched = seriesList.find(
-          s => s.slug.toLowerCase() === strVal.toLowerCase() ||
+        const slugVal = strVal.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+        let matched = seriesList.find(
+          s => s.slug.toLowerCase() === slugVal ||
                s.name.toLowerCase() === strVal.toLowerCase() ||
-               s.slug.toLowerCase().includes(strVal.toLowerCase()) ||
-               strVal.toLowerCase().includes(s.slug.toLowerCase())
+               s.slug.toLowerCase().includes(slugVal) ||
+               slugVal.includes(s.slug.toLowerCase())
         );
+
+        // Auto-create Series in DB if it does not exist yet so relational queries work!
+        if (!matched && strVal.length >= 2) {
+          try {
+            const firstBrand = await prisma.brand.findFirst({
+              where: brandName ? { name: { contains: brandName, mode: "insensitive" } } : undefined,
+            });
+
+            if (firstBrand) {
+              matched = await prisma.series.create({
+                data: {
+                  name: strVal,
+                  slug: slugVal,
+                  brandId: firstBrand.id,
+                },
+                select: { id: true, name: true, slug: true, brandId: true, brand: { select: { id: true, name: true } } },
+              });
+              console.log(`✨ Auto-created new Series in DB: "${matched.name}" (${matched.id})`);
+            }
+          } catch (createSeriesErr) {
+            console.warn("Could not auto-create Series:", createSeriesErr);
+          }
+        }
+
         if (matched) {
           parsedData.seriesId = matched.id;
           parsedData.seriesSlug = matched.slug;
           parsedData.series = matched.name;
         } else {
-          parsedData.seriesSlug = strVal.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          parsedData.seriesSlug = slugVal;
           parsedData.series = strVal;
         }
 
-        // Add/update Series in specs array if not already present
-        if (!Array.isArray(parsedData.specs)) parsedData.specs = [];
-        const existingSpecIdx = parsedData.specs.findIndex((s: any) => s && s.key === "Series");
-        if (existingSpecIdx >= 0) {
-          parsedData.specs[existingSpecIdx].value = parsedData.series;
-        } else {
-          parsedData.specs.push({ key: "Series", value: parsedData.series });
-        }
+        // Sync Series / Collection / Collectie in specs array
+        const syncKeys = ["Collection", "Series", "Collectie"];
+        syncKeys.forEach((k) => {
+          const idx = parsedData.specs.findIndex((s: any) => s && s.key === k);
+          if (idx >= 0) {
+            parsedData.specs[idx].value = parsedData.series;
+          } else {
+            parsedData.specs.push({ key: k, value: parsedData.series });
+          }
+        });
       } else {
         parsedData.seriesId = null;
         parsedData.seriesSlug = null;
         parsedData.series = null;
-        if (Array.isArray(parsedData.specs)) {
-          parsedData.specs = parsedData.specs.filter((s: any) => s && s.key !== "Series");
-        }
+      }
+
+      // Audit Light Source / Socket: Fix "Geïntegreerd LED" if hint/SOP specified socket like G10, GU10, E27, E14, G9
+      const combinedInput = (hint + "\n" + activeSopRules).toLowerCase();
+      const socketMatch = combinedInput.match(/\b(g10|gu10|e27|e14|g9|e12|b22)\b/i);
+      const isExplicitNoLed = combinedInput.includes("integrated led: no") || combinedInput.includes("geïntegreerd led: nee") || combinedInput.includes("geen geïntegreerde led");
+
+      if (socketMatch || isExplicitNoLed) {
+        const correctSocket = socketMatch ? socketMatch[1].toUpperCase() : "Fitting (G10/E27)";
+        parsedData.specs.forEach((s: any) => {
+          if (s && s.key && (s.key.toLowerCase().includes("lichtbron") || s.key.toLowerCase().includes("type"))) {
+            if (s.value && s.value.toLowerCase().includes("geïntegreerd")) {
+              s.value = correctSocket;
+            }
+          }
+        });
       }
 
       // Early Duplicate Check (during analysis phase, before heavy image generation!)
