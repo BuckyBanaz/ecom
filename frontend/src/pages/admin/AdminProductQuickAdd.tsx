@@ -765,6 +765,9 @@ const AdminProductQuickAdd = () => {
       {mediaPickerRowKey && (
         <MediaLibraryDialog
           open={Boolean(mediaPickerRowKey)}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setMediaPickerRowKey(null);
+          }}
           onClose={() => setMediaPickerRowKey(null)}
           onSelect={handleSelectMediaImage}
         />
