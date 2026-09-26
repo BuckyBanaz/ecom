@@ -115,7 +115,6 @@ const AdminSettings = () => {
     enabled: false,
     googleApiKey: "",
     systemPrompt: "",
-    sopRules: "",
     model: "gemini-1.5-flash",
     imageGenerationCount: 1,
     bulkProductLimit: 5,
@@ -1034,18 +1033,6 @@ const AdminSettings = () => {
                   </p>
                 </div>
 
-                <div>
-                  <Label>SOP Rules & Brand Architecture (Markdown / .md)</Label>
-                  <textarea
-                    value={aiSettings.sopRules || ""}
-                    onChange={e => setAiSettings({ ...aiSettings, sopRules: e.target.value })}
-                    className="flex min-h-[180px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm font-mono text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 mt-1"
-                    placeholder="Paste your SOP Markdown (.md) rules here... e.g. Collections Matrix, Brand Guidelines, Light fixture specs"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Paste your custom SOP rules or brand markdown file here. AI reads these rules dynamically during quick-add to auto-select series and structure product details.
-                  </p>
-                </div>
 
                 <div className="space-y-4 pt-4 border-t border-muted-foreground/10">
                   <h4 className="text-sm font-bold flex items-center gap-2">

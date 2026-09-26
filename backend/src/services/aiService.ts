@@ -589,31 +589,44 @@ export const aiService = {
 
       const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
 
+      // Build attribute schema using EXACT DB slugs as keys so the AI returns slug-keyed JSON
       const dynamicAttributesSchema: Record<string, any> = {};
+      const attributeSlugMap: Record<string, string[]> = {}; // slug -> allowed values
       attributes.forEach(attr => {
+        const allowed = attr.attributeValues.map(v => v.value);
+        attributeSlugMap[attr.slug] = allowed;
         if (attr.type === "boolean") {
-          dynamicAttributesSchema[attr.slug] = ["string array containing exactly 'Yes' or 'No'"];
+          dynamicAttributesSchema[attr.slug] = ["'Yes' or 'No'"];
         } else if (attr.type === "select") {
-          const allowedVals = attr.attributeValues.map(v => v.value).join(", ");
-          dynamicAttributesSchema[attr.slug] = [`string array containing one of exactly: ${allowedVals}`];
+          const allowedVals = allowed.join(" | ");
+          dynamicAttributesSchema[attr.slug] = [`one of: ${allowedVals}`];
+        } else if (attr.type === "multi_select") {
+          const allowedVals = allowed.join(" | ");
+          dynamicAttributesSchema[attr.slug] = [`array of: ${allowedVals}`];
         } else {
-          dynamicAttributesSchema[attr.slug] = [`string array of values for ${attr.name} in Title Case`];
+          dynamicAttributesSchema[attr.slug] = [`value for ${attr.name}`];
         }
       });
 
-      const customSopRules = process.env.AI_SOP_RULES?.trim();
-      const defaultSopMatrix = `
-           - "Royale": Models (Royale Noir, Royale Silver, Gold XL, Royale Gold) | Style: Luxury crystal look with G9 prisms
-           - "Marrakech": Models (Royale Noir, Royale Silver, Gold XL, Royale Gold) | Style: Luxury crystal look with G9 prisms / Oriental warm
-           - "Lisboa": Models (Cascade, Royale 4, 5, 6-light) | Style: Glass globes with acrylic bubble cylinders, brass/gold
-           - "Sofia": Models (Silver, Gold) | Style: Curved chrome/gold loops, metallic spheres, crystal flowers
-           - "Iceland Tech": Models (Breeze Black, Breeze Gold) | Style: Ceiling fans with LED ring (dimmable, 3 light colors + remote)
-           - "Stockholm": Models (Orbit Black, Orbit XL, Orbit Coffee, Orbit Bronze) | Style: Modern geometric ring design, dimmable, 3 light colors + remote
+      // Build a readable attribute guide for the AI
+      const attributeGuide = attributes.map(attr => {
+        const vals = attr.attributeValues.map(v => v.value).join(", ");
+        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` → allowed: ${vals}` : ""}`;
+      }).join("\n");
+
+      // Built-in SOP matrix — always used (no external override)
+      const activeSopRules = `
+        BRAND COLLECTION MATRIX (use image + hint to match the correct one):
+        - "Royale": Luxury pendant with G9 crystal prisms, glamorous multi-arm design
+        - "Marrakech": G9 prisms, oriental-warm style with arches or lantern silhouette
+        - "Lisboa": Glass globes or acrylic bubble cylinders, brass/gold, cascading design
+        - "Sofia": Curved chrome/gold loops, metallic spheres or crystal flowers
+        - "Marbella": Cylindrical pendant(s), brass/gold or messing finish, modern-classic
+        - "Iceland Tech": Ceiling fan with LED ring, dimmable, 3 light colors + remote
+        - "Stockholm": Modern geometric ring design (Orbit), dimmable, 3 light colors + remote
       `;
 
-      const activeSopRules = customSopRules || defaultSopMatrix;
-
-      const userSystemPrompt = process.env.AI_SYSTEM_PROMPT || "You are an expert e-commerce catalog manager.";
+      const userSystemPrompt = process.env.AI_SYSTEM_PROMPT || "You are an expert e-commerce catalog manager for a Dutch lighting webshop.";
       const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
 
       const promptText = `
@@ -621,61 +634,65 @@ export const aiService = {
 
         ${languageInstruction}
 
-        I am providing you with an image (if applicable) and a short descriptive hint, along with a target price and brand.
-        
+        === YOUR TASK ===
+        Carefully analyze the provided product image (if supplied) and the hint below.
+        Generate a COMPLETE and UNIQUE product listing for this specific item.
+
         Hint: ${hint}
         Price: ${price}
         Brand: ${brandName}
 
-        Please extract and infer the complete product details to fill an e-commerce product form.
-        Return ONLY a valid JSON object with the following structure, and nothing else (no markdown wrapping, no backticks).
-        
-        CRITICAL SOP COMPLIANCE & ACCURACY RULES:
-        1. SOP & Brand Upload Matrix:
+        === IMAGE ANALYSIS (do this first) ===
+        Look at the image closely and identify:
+        1. LAMP TYPE: pendant / ceiling / wall / floor / table lamp? How many light points?
+        2. FINISH/COLOR: exact color/finish visible (e.g. messing goud / brass gold / black / chrome)
+        3. SHAPE/DESIGN: cylinder / globe / ring / arm / lantern / fan shape?
+        4. MATERIAL: metal / glass / fabric / crystal / acrylic?
+        5. SERIES MATCH: compare the visual design against the Brand Collection Matrix below to pick the correct series
+
+        === BRAND COLLECTION MATRIX ===
         ${activeSopRules}
 
-        2. Database Registered Series:
-        ${seriesContext || "(No extra database series)"}
+        === DATABASE SERIES (match slug exactly if found) ===
+        ${seriesContext || "(No series in database yet)"}
 
-        3. TITLE & COLLECTION RULES:
-        - If the hint, brand rules, or SOP specifies a Collection (e.g. "Marbella", "Royale", "Lisboa"), set "series" and "seriesSlug" to that collection name.
-        - Title structure MUST follow the SOP rule structure if specified (e.g. "[Collection] [Model Name] [Color] – [Short Description]").
-        - CRITICAL: Do NOT copy example titles literally for every item! You MUST analyze the SPECIFIC image and hint provided for THIS item to derive its unique model name, finish/color, light count, and short description.
+        === RULES ===
+        1. TITLE: Use format "[Series] [Model/Variant] [Finish] – [Short Dutch description]"
+           - Example: "Marbella Cilinder 3-Lichts Messing Goud – Elegante Hanglamp"
+           - MUST be unique per product — derive model name and finish from the IMAGE, not from examples
+        2. CATEGORY: Pick ONLY a leaf category from the valid list below
+           - Hierarchy: ${hierarchyContext}
+           - Valid slugs: ${categorySlugs}
+        3. ATTRIBUTES: Use EXACTLY these DB slug keys (see guide below). Pick allowed values only.
+           ${attributeGuide}
+        4. FITTING: Never set fitting to "Integrated LED" unless hint explicitly says so.
+           If hint says G10/GU10/E27/E14/G9, use that in the fitting attribute and specs.
+        5. DIMMABLE/REMOTE: Only set dimmable=Yes or mention remote if explicitly confirmed.
+        6. DESCRIPTION: Clean HTML only — <p>, <h3>, <ul>, <li>. No markdown. No specs section inside description.
+        7. LANGUAGE: All text fields (name, description, shortDescription, seoTitle, seoDescription) MUST be in ${getAiOutputLanguage() === "nl" ? "Dutch (Nederlands)" : getAiOutputLanguage()}.
 
-        4. LIGHT SOURCE & SOCKET RESTRICTIONS (STRICT):
-        - If input/SOP specifies a socket/light bulb type (e.g. G10, GU10, E27, E14, G9, bulb included/excluded, or "Integrated LED: No"), set "Type lichtbron" / socket strictly to that socket (e.g. "G10").
-        - NEVER call the product "Geïntegreerd LED" unless the input explicitly states integrated LED!
-        - DO NOT mention dimming, remote control, or 3 light colors unless explicitly confirmed.
-
-        5. CATEGORY SELECTION RULES:
-        - You MUST pick a SPECIFIC CHILD category (not a parent)
-        - Hierarchy context: ${hierarchyContext}
-        - Valid category slugs: ${categorySlugs}
-
-        6. DESCRIPTION FORMATTING (HTML ONLY):
-        - "description" MUST be clean HTML using <p>, <h3>, <ul>, and <li> tags for Key Features.
-        - DO NOT put markdown symbols like ** or - in description.
-        - DO NOT include a "Specifications" section or list inside description (specs belong in the specs JSON array).
+        Return ONLY a valid JSON object — no markdown, no backticks:
 
         {
-          "name": "Unique full product title for this specific image/hint following SOP structure",
-          "series": "Name of Collection/Series (e.g. Marbella) or null if none",
-          "seriesSlug": "Slug of Collection/Series (e.g. marbella) or null if none",
-          "shortDescription": "1-2 sentences summarizing the product",
-          "description": "<p>Engaging product description...</p><h3>Belangrijkste kenmerken</h3><ul><li>Feature 1</li><li>Feature 2</li></ul>",
-          "price": 89.95,
-          "brand": "string",
-          "category": "string (MUST be one of EXACTLY: ${categorySlugs})",
-          "seoTitle": "A catchy SEO title for the product page (max 60 chars)",
-          "seoDescription": "A compelling meta description for search engines (max 160 chars)",
-          "seoKeywords": "comma separated keywords",
+          "name": "Unique product title derived from image analysis + hint",
+          "series": "Collection name or null",
+          "seriesSlug": "collection-slug or null",
+          "shortDescription": "1-2 sentence Dutch product summary",
+          "description": "<p>Dutch product description...</p><h3>Belangrijkste kenmerken</h3><ul><li>Kenmerk 1</li></ul>",
+          "price": ${price || 89.95},
+          "brand": "${brandName}",
+          "category": "exact-category-slug",
+          "seoTitle": "Dutch SEO title max 60 chars",
+          "seoDescription": "Dutch meta description max 160 chars",
+          "seoKeywords": "dutch,comma,separated,keywords",
           "inStock": true,
-          "attributes": ${JSON.stringify(dynamicAttributesSchema, null, 12).trim()},
+          "attributes": ${JSON.stringify(dynamicAttributesSchema, null, 10).trim()},
           "specs": [
-            { "key": "Collection", "value": "Collection Name" },
-            { "key": "Type lichtbron", "value": "G10" }
+            { "key": "Collectie", "value": "Series Name" },
+            { "key": "Fitting", "value": "GU10" },
+            { "key": "Aantal lichtpunten", "value": "3" }
           ],
-          "needsReview": ["array of keys requiring verification"]
+          "needsReview": ["list any fields you are uncertain about"]
         }
       `;
 

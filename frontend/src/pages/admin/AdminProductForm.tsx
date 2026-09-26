@@ -562,6 +562,54 @@ const AdminProductForm = () => {
     }));
   };
 
+  // Maps Dutch/alternative attribute names → canonical DB slug
+  const ATTR_ALIAS_MAP: Record<string, string> = {
+    // fitting / bulb socket
+    "fitting": "fitting", "bulb-fitting": "fitting", "socket": "fitting",
+    "type-lichtbron": "fitting", "lichtbron": "fitting", "fitting-type": "fitting",
+    "lamp-fitting": "fitting", "lampfitting": "fitting", "fassung": "fitting",
+    // color
+    "color": "color", "colour": "color", "kleur": "color", "farbe": "color",
+    "afwerking": "color", "finish": "color",
+    // dimmable
+    "dimmable": "dimmable", "dimbaar": "dimmable", "dimmbar": "dimmable",
+    // material
+    "material": "material", "materiaal": "material", "materials": "material",
+    // style
+    "style": "style", "stijl": "style", "stil": "style",
+    // room
+    "room": "room", "ruimte": "room", "kamer": "room", "rooms": "room",
+    // ip-rating
+    "ip-rating": "ip-rating", "ip": "ip-rating", "ip-waarde": "ip-rating",
+    // diameter
+    "diameter": "diameter",
+    // length
+    "length": "length", "lengte": "length",
+    // width
+    "width": "width", "breedte": "width",
+  };
+
+  // Normalize fitting values: G10 not in DB → closest match GU10
+  const FITTING_ALIAS: Record<string, string> = {
+    "g10": "GU10", "gu10": "GU10",
+    "e27": "E27", "e14": "E14", "g9": "G9",
+    "integrated led": "Integrated LED", "integrated-led": "Integrated LED",
+    "geïntegreerd led": "Integrated LED",
+  };
+
+  const resolveAttrSlug = (raw: string): string => {
+    const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    return ATTR_ALIAS_MAP[slug] || ATTR_ALIAS_MAP[raw.toLowerCase()] || slug;
+  };
+
+  const normalizeAttrValue = (slug: string, val: string): string => {
+    if (slug === "fitting") {
+      const normalized = FITTING_ALIAS[val.toLowerCase().trim()];
+      return normalized || val;
+    }
+    return val;
+  };
+
   const applyDraftToForm = (draft: Record<string, any>) => {
     setName(draft.name || "");
     setPrice(String(draft.price || ""));
@@ -571,7 +619,7 @@ const AdminProductForm = () => {
     setShortDescription(draft.shortDescription || "");
     setInStock(draft.inStock ?? true);
 
-    // Resolve category slug
+    // Resolve category slug — match by slug OR name (case-insensitive)
     const rawCat = (draft.category || "").trim();
     if (rawCat) {
       const matchCat = categoriesList.find(
@@ -587,24 +635,36 @@ const AdminProductForm = () => {
     setSeoDescription(draft.seoDescription || "");
     setSeoKeywords(draft.seoKeywords || "");
 
-    // Parse EAV Attribute Values from draft.attributes & draft.specs
+    // ── Parse EAV Attribute Values ──────────────────────────────────────────
+    // Use alias map to normalize keys → DB slugs and values → allowed values
     const initialAttrVals: Record<string, string[]> = {};
 
+    const addAttrVal = (rawKey: string, rawVals: string[]) => {
+      const slug = resolveAttrSlug(rawKey);
+      const normalized = rawVals.map(v => normalizeAttrValue(slug, v)).filter(Boolean);
+      if (normalized.length > 0) {
+        initialAttrVals[slug] = normalized;
+      }
+    };
+
+    // 1. From draft.attributes (AI-generated, should now use DB slugs directly)
     if (draft.attributes && typeof draft.attributes === "object") {
       Object.entries(draft.attributes).forEach(([key, val]) => {
-        const slugKey = key.toLowerCase().replace(/[^a-z0-9]+/g, "-");
         const valArr = Array.isArray(val) ? val.map(String) : [String(val)];
-        initialAttrVals[slugKey] = valArr;
-        initialAttrVals[key] = valArr;
+        addAttrVal(key, valArr);
       });
     }
 
+    // 2. From draft.specs (fallback: scan for known attribute keys)
     if (Array.isArray(draft.specs)) {
       draft.specs.forEach((s: any) => {
         if (s && s.key && s.value) {
-          const keySlug = s.key.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-          if (!initialAttrVals[keySlug] || initialAttrVals[keySlug].length === 0) {
-            initialAttrVals[keySlug] = [String(s.value)];
+          const slug = resolveAttrSlug(s.key);
+          // Only add if slug is a known DB attribute and not already set from draft.attributes
+          if (ATTR_ALIAS_MAP[slug] !== undefined || Object.values(ATTR_ALIAS_MAP).includes(slug)) {
+            if (!initialAttrVals[slug]) {
+              addAttrVal(s.key, [String(s.value)]);
+            }
           }
         }
       });
