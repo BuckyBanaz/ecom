@@ -24,7 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
-import { brandRepository } from "@/client/apiClient";
+import { brandRepository, seriesRepository } from "@/client/apiClient";
 import {
   clearQuickAddSession,
   fileFromDataUrl,
@@ -40,6 +40,7 @@ interface ProductRow {
   hint: string;
   price: string;
   brand: string;
+  series?: string;
   imageFile: File | null;
   imagePreview: string | null;
 }
@@ -65,6 +66,7 @@ const emptyRow = (): ProductRow => ({
   hint: "",
   price: "",
   brand: "",
+  series: "",
   imageFile: null,
   imagePreview: null,
 });
@@ -126,6 +128,7 @@ const AdminProductQuickAdd = () => {
     }
   };
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
+  const [seriesList, setSeriesList] = useState<Array<{ id: string; name: string; brandId: string }>>([]);
   const imagePhaseTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const generatingRef = useRef(false);
   const sessionNotified = useRef(false);
@@ -149,6 +152,13 @@ const AdminProductQuickAdd = () => {
       .getAll()
       .then((data) => {
         if (data.success && data.brands) setBrands(data.brands);
+      })
+      .catch(() => {});
+
+    seriesRepository
+      .getAll()
+      .then((data) => {
+        if (data.success && data.series) setSeriesList(data.series);
       })
       .catch(() => {});
   }, []);
@@ -412,6 +422,7 @@ const AdminProductQuickAdd = () => {
       if (row.hint.trim()) formData.append("hint", row.hint.trim());
       if (row.price.trim()) formData.append("price", row.price.trim());
       if (row.brand.trim()) formData.append("brandName", row.brand.trim());
+      if (row.series?.trim()) formData.append("seriesName", row.series.trim());
       if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
 
       let lastErrorMsg = "";
@@ -761,28 +772,68 @@ const AdminProductQuickAdd = () => {
                           ))}
                         </div>
                       )}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {/* Price */}
                         <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
-                          <Input value={row.price} onChange={(e) => updateRow(row.key, { price: e.target.value })} placeholder="89.95" className="pl-6 h-9 text-sm" disabled={isGenerating} />
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">€</span>
+                          <Input
+                            value={row.price}
+                            onChange={(e) => updateRow(row.key, { price: e.target.value })}
+                            placeholder="89.95"
+                            className="pl-7 h-9 text-xs"
+                            disabled={isGenerating}
+                          />
                         </div>
+
+                        {/* Brand */}
                         <Select
                           value={row.brand || "none"}
-                          onValueChange={(v) => updateRow(row.key, { brand: v === "none" ? "" : v })}
+                          onValueChange={(v) => {
+                            const brandVal = v === "none" ? "" : v;
+                            updateRow(row.key, { brand: brandVal });
+                          }}
                           disabled={isGenerating}
                         >
-                          <SelectTrigger className="h-9 text-sm">
-                            <SelectValue placeholder={t("admin_product_form.placeholder_brand")} />
+                          <SelectTrigger className="h-9 text-xs truncate">
+                            <SelectValue placeholder={t("admin_product_form.placeholder_brand", "Select Brand")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none" className="text-sm italic text-muted-foreground">
-                              {t("admin_product_form.brand_none")}
+                            <SelectItem value="none" className="text-xs italic text-muted-foreground">
+                              {t("admin_product_form.brand_none", "Auto / No Brand")}
                             </SelectItem>
                             {brands.map((b) => (
-                              <SelectItem key={b.id} value={b.name} className="text-sm">
+                              <SelectItem key={b.id} value={b.name} className="text-xs">
                                 {b.name}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+
+                        {/* Series (Collection) */}
+                        <Select
+                          value={row.series || "auto"}
+                          onValueChange={(v) => updateRow(row.key, { series: v === "auto" ? "" : v })}
+                          disabled={isGenerating}
+                        >
+                          <SelectTrigger className="h-9 text-xs truncate">
+                            <SelectValue placeholder="Collection / Series (Auto)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto" className="text-xs italic text-muted-foreground">
+                              ✨ Auto (AI Picks Collection)
+                            </SelectItem>
+                            {(() => {
+                              const selectedBrandId = brands.find((b) => b.name === row.brand)?.id;
+                              const filteredSeries = selectedBrandId
+                                ? seriesList.filter((s) => s.brandId === selectedBrandId)
+                                : seriesList;
+                              const listToShow = filteredSeries.length > 0 ? filteredSeries : seriesList;
+                              return listToShow.map((s) => (
+                                <SelectItem key={s.id} value={s.name} className="text-xs">
+                                  {s.name}
+                                </SelectItem>
+                              ));
+                            })()}
                           </SelectContent>
                         </Select>
                       </div>

@@ -538,7 +538,8 @@ export const aiService = {
     hint: string,
     price: string,
     brandName: string,
-    imagePromptOverride?: string
+    imagePromptOverride?: string,
+    seriesName?: string
   ) {
     try {
       const imageCount = getAiImageCount();
@@ -662,6 +663,7 @@ export const aiService = {
         Hint: ${hint || "(No hint provided — rely 100% on the image)"}
         Price: ${price || "89.95"}
         Brand: ${brandName || "Schip en Ster"}
+        ${seriesName ? `Series / Collection: "${seriesName}" (MANDATORY REQUIREMENT: This product belongs to the "${seriesName}" series. You must set "series": "${seriesName}" in your response)` : `Available Series / Collections in Database:\n        ${seriesContext || "(No series created yet)"}\n        Rule for Series: If the image or hint matches one of the above series/collections (e.g. an anime franchise, product line), set "series" to the exact matching series name and "seriesSlug" to its slug.`}
 
         === CRITICAL VISUAL GROUNDING (THE IMAGE IS THE 100% GROUND TRUTH) ===
         Inspect the uploaded photo closely before generating any text. You must detect:
@@ -820,7 +822,7 @@ export const aiService = {
         (s: any) => s && (s.key === "Collection" || s.key === "Series" || s.key === "Collectie" || s.key === "Serie")
       );
       
-      let rawSeries = parsedData.seriesSlug || parsedData.series || collectionSpec?.value;
+      let rawSeries = seriesName?.trim() || parsedData.seriesSlug || parsedData.series || collectionSpec?.value;
 
       // Also scan hint and activeSopRules for explicit Collection: [Name] pattern if AI missed it
       if (!rawSeries) {

@@ -152,16 +152,25 @@ const AdminProductForm = () => {
   const [siblingSearchQuery, setSiblingSearchQuery] = useState("");
   const [siblingSearchResults, setSiblingSearchResults] = useState<any[]>([]);
   const [isSearchingSiblings, setIsSearchingSiblings] = useState(false);
+  const [isBrowseCatalogOpen, setIsBrowseCatalogOpen] = useState(false);
+  const [catalogFilterCategory, setCatalogFilterCategory] = useState<string>("all");
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [siblingFilterCategory, setSiblingFilterCategory] = useState<string>("same"); // "same" | "all"
 
-  const searchSiblings = async (query: string) => {
+  const searchSiblings = async (query = siblingSearchQuery, categoryMode = siblingFilterCategory) => {
     setSiblingSearchQuery(query);
-    if (!query || query.trim().length < 2) {
-      setSiblingSearchResults([]);
-      return;
-    }
     setIsSearchingSiblings(true);
     try {
-      const res = await productRepository.getAll({ search: query.trim(), limit: 8 });
+      const filters: Record<string, any> = { limit: 50 };
+      if (query && query.trim().length > 0) {
+        filters.search = query.trim();
+      }
+      if (categoryMode === "same" && selectedCategory) {
+        filters.category = selectedCategory;
+      }
+      const res = await productRepository.getAll(filters);
       if (res.success && res.products) {
         const currentId = id || "";
         const linkedIds = new Set(linkedSiblings.map((s) => s.id));
@@ -174,6 +183,28 @@ const AdminProductForm = () => {
       console.error("Failed to search siblings:", err);
     } finally {
       setIsSearchingSiblings(false);
+    }
+  };
+
+  const loadCatalogProducts = async (catSlug = catalogFilterCategory, search = catalogSearchQuery) => {
+    setIsLoadingCatalog(true);
+    try {
+      const filters: Record<string, any> = { limit: 100 };
+      if (catSlug && catSlug !== "all") {
+        filters.category = catSlug;
+      }
+      if (search && search.trim()) {
+        filters.search = search.trim();
+      }
+      const res = await productRepository.getAll(filters);
+      if (res.success && res.products) {
+        const currentId = id || "";
+        setCatalogProducts(res.products.filter((p: any) => p.id !== currentId));
+      }
+    } catch (err) {
+      console.error("Failed to load catalog products:", err);
+    } finally {
+      setIsLoadingCatalog(false);
     }
   };
 
@@ -2302,17 +2333,84 @@ const AdminProductForm = () => {
                 )}
 
                 {/* Search & Add Sibling */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-foreground/80">
-                    {t("admin_product_form.search_sibling_label", "Search other products to link as color:")}
-                  </Label>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs font-bold text-foreground/80">
+                      {t("admin_product_form.search_sibling_label", "Search or browse products to link as color:")}
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsBrowseCatalogOpen(true);
+                        loadCatalogProducts(selectedCategory || "all");
+                      }}
+                      className="h-7 text-xs font-bold border-primary/30 text-primary hover:bg-primary/10 gap-1.5 shadow-2xs"
+                    >
+                      <Boxes className="h-3.5 w-3.5" />
+                      <span>Browse All Products</span>
+                    </Button>
+                  </div>
+
+                  {/* Quick Category Filter Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="text-muted-foreground font-medium">Show:</span>
+                    {selectedCategory && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSiblingFilterCategory("same");
+                          searchSiblings(siblingSearchQuery, "same");
+                        }}
+                        className={cn(
+                          "px-2.5 py-0.5 rounded-full border transition-all font-medium",
+                          siblingFilterCategory === "same"
+                            ? "bg-primary text-white border-primary shadow-xs"
+                            : "bg-muted/50 text-muted-foreground hover:bg-muted border-border"
+                        )}
+                      >
+                        Same Category ({selectedCategory})
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSiblingFilterCategory("all");
+                        searchSiblings(siblingSearchQuery, "all");
+                      }}
+                      className={cn(
+                        "px-2.5 py-0.5 rounded-full border transition-all font-medium",
+                        siblingFilterCategory === "all"
+                          ? "bg-primary text-white border-primary shadow-xs"
+                          : "bg-muted/50 text-muted-foreground hover:bg-muted border-border"
+                      )}
+                    >
+                      All Products Catalog
+                    </button>
+                  </div>
+
                   <div className="relative">
                     <Input
                       value={siblingSearchQuery}
-                      onChange={(e) => searchSiblings(e.target.value)}
-                      placeholder={t("admin_product_form.search_sibling_placeholder", "Type product name or SKU (e.g. Hanglamp Bol Goud)...")}
+                      onFocus={() => {
+                        if (siblingSearchResults.length === 0) {
+                          searchSiblings(siblingSearchQuery, siblingFilterCategory);
+                        }
+                      }}
+                      onChange={(e) => searchSiblings(e.target.value, siblingFilterCategory)}
+                      placeholder={t("admin_product_form.search_sibling_placeholder", "Click to see products, or type name/SKU...")}
                       className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg pr-9"
                     />
+                    {siblingSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => searchSiblings("", siblingFilterCategory)}
+                        className="absolute right-8 top-3 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     {isSearchingSiblings && (
                       <div className="absolute right-3 top-3">
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -2322,7 +2420,17 @@ const AdminProductForm = () => {
 
                   {/* Search results dropdown */}
                   {siblingSearchResults.length > 0 && (
-                    <div className="rounded-xl border border-border bg-card p-2 shadow-lg space-y-1 max-h-56 overflow-y-auto">
+                    <div className="rounded-xl border border-border bg-card p-2 shadow-lg space-y-1 max-h-64 overflow-y-auto">
+                      <div className="flex items-center justify-between px-2 py-1 text-[11px] text-muted-foreground border-b border-border/40 font-medium">
+                        <span>{siblingSearchResults.length} product(s) available to link:</span>
+                        <button
+                          type="button"
+                          onClick={() => setSiblingSearchResults([])}
+                          className="text-[10px] hover:text-foreground font-semibold"
+                        >
+                          ✕ Close
+                        </button>
+                      </div>
                       {siblingSearchResults.map((sr) => {
                         const colorVal = sr.productAttributeValues?.find(
                           (pav: any) =>
@@ -2350,7 +2458,7 @@ const AdminProductForm = () => {
                                         className="w-2.5 h-2.5 rounded-full border border-black/15 inline-block shrink-0"
                                         style={{ background: colorVal.colorCode || "#666" }}
                                       />
-                                      <span>{colorVal.value}</span>
+                                      <span className="font-medium text-foreground">{colorVal.value}</span>
                                     </span>
                                   )}
                                   <span>·</span>
@@ -2677,6 +2785,148 @@ const AdminProductForm = () => {
           onClose={() => setQrModalOpen(false)}
         />
       )}
+
+      {/* Browse All Products Dialog for Manual Sibling Linking */}
+      <Dialog open={isBrowseCatalogOpen} onOpenChange={setIsBrowseCatalogOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl">
+          <DialogHeader className="p-5 border-b bg-muted/30">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Boxes className="h-5 w-5 text-primary" />
+              Browse Product Catalog to Link as Color
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Select any product from your catalog to link as a color variation sibling.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-4 border-b bg-background flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1">
+              <Input
+                placeholder="Filter catalog by product name or SKU..."
+                value={catalogSearchQuery}
+                onChange={(e) => {
+                  setCatalogSearchQuery(e.target.value);
+                  loadCatalogProducts(catalogFilterCategory, e.target.value);
+                }}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="w-full sm:w-56">
+              <Select
+                value={catalogFilterCategory}
+                onValueChange={(val) => {
+                  setCatalogFilterCategory(val);
+                  loadCatalogProducts(val, catalogSearchQuery);
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categoriesList.map((c) => (
+                    <SelectItem key={c.id || c.slug} value={c.slug}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {isLoadingCatalog ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground text-xs gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span>Loading catalog products...</span>
+              </div>
+            ) : catalogProducts.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                No products found in this category or search query.
+              </div>
+            ) : (
+              catalogProducts.map((p) => {
+                const isAlreadyLinked = linkedSiblings.some((ls) => ls.id === p.id);
+                const colorVal = p.productAttributeValues?.find(
+                  (pav: any) =>
+                    pav.attribute?.slug === "color" ||
+                    pav.attribute?.name?.toLowerCase() === "color" ||
+                    pav.attribute?.name?.toLowerCase() === "kleur"
+                )?.attributeValue;
+
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border transition-all text-xs",
+                      isAlreadyLinked
+                        ? "bg-muted/40 border-border/40 opacity-75"
+                        : "bg-card hover:bg-muted/50 border-border/70 shadow-2xs"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={resolveImgUrl(p.image)}
+                        alt=""
+                        className="w-10 h-10 rounded-lg object-cover border border-border/50 shrink-0"
+                      />
+                      <div className="truncate">
+                        <p className="font-semibold text-foreground truncate">{p.name}</p>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                          {colorVal && (
+                            <span className="flex items-center gap-1 font-medium text-foreground">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                style={{ background: colorVal.colorCode || "#666" }}
+                              />
+                              {colorVal.value}
+                            </span>
+                          )}
+                          <span>·</span>
+                          <span className="font-mono">€{Number(p.price).toFixed(2)}</span>
+                          {p.category?.name && (
+                            <>
+                              <span>·</span>
+                              <span className="text-muted-foreground/80">{p.category.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isAlreadyLinked ? (
+                      <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-200 dark:border-emerald-900/50">
+                        ✓ Linked
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 text-xs font-bold gap-1 rounded-lg"
+                        onClick={() => addSibling(p)}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Link as Color</span>
+                      </Button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter className="p-4 border-t bg-muted/20">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBrowseCatalogOpen(false)}
+            >
+              Done Linking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
