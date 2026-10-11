@@ -3,6 +3,88 @@ import { prisma } from "../config/db";
 import { sanitizeProductForClient, sanitizeProductsForClient } from "../utils/productSerializer";
 import { InventoryService } from "../services/inventoryService";
 
+const CATEGORY_ALIASES: Record<string, string> = {
+  // Indoor lighting / Parent / All
+  "binnenverlichting": "interior-lighting",
+  "binnen-verlichting": "interior-lighting",
+  "indoor-lighting": "interior-lighting",
+  "indoor": "interior-lighting",
+  "interior-lighting": "interior-lighting",
+  "interior": "interior-lighting",
+  "all-lamps": "interior-lighting",
+  "alle-lampen": "interior-lighting",
+  "all-products": "interior-lighting",
+  "alle-producten": "interior-lighting",
+  "all-lights": "interior-lighting",
+  "all": "interior-lighting",
+
+  // Pendant lights / Hanglampen
+  "hanglampen": "pendant-lights",
+  "hanglamp": "pendant-lights",
+  "pendant": "pendant-lights",
+  "pendants": "pendant-lights",
+  "pendant-lamps": "pendant-lights",
+  "pendant-lights": "pendant-lights",
+
+  // Table lamps / Tafellampen
+  "tafellampen": "table-lamps",
+  "tafellamp": "table-lamps",
+  "table-lamps": "table-lamps",
+  "table-lamp": "table-lamps",
+  "table-lights": "table-lamps",
+
+  // Ceiling lights / Plafondlampen
+  "plafondlampen": "ceiling-lights",
+  "plafondlamp": "ceiling-lights",
+  "ceiling-lamps": "ceiling-lights",
+  "ceiling-lights": "ceiling-lights",
+
+  // Wall lights / Wandlampen
+  "wandlampen": "wall-lights",
+  "wandlamp": "wall-lights",
+  "wall-lamps": "wall-lights",
+  "wall-lights": "wall-lights",
+
+  // Floor lamps / Vloerlampen
+  "vloerlampen": "floor-lamps",
+  "vloerlamp": "floor-lamps",
+  "floor-lamps": "floor-lamps",
+  "floor-lights": "floor-lamps",
+
+  // Spots / Spotlights
+  "spots": "spotlights",
+  "spot": "spotlights",
+  "spotlights": "spotlights",
+  "opbouwspots": "spotlights",
+  "opbouwspot": "spotlights",
+
+  // Light sources / Lichtbronnen
+  "lichtbronnen": "light-sources",
+  "lichtbron": "light-sources",
+  "light-sources": "light-sources",
+  "light-source": "light-sources",
+  "smart-bulbs": "light-sources",
+  "led-bulbs": "light-sources",
+  "bulbs": "light-sources",
+
+  // Outdoor / Buitenverlichting
+  "buitenverlichting": "outdoor-lighting",
+  "outdoor-lighting": "outdoor-lighting",
+  "outdoor-lamps": "outdoor-lighting",
+  "outdoor": "outdoor-lighting",
+
+  // Commercial / Kantoorverlichting
+  "kantoorverlichting": "office-lighting",
+  "office-lighting": "office-lighting",
+  "commercial-lighting": "office-lighting",
+
+  // Chandeliers / Kroonluchters
+  "kroonluchters": "chandeliers",
+  "kroonluchter": "chandeliers",
+  "chandeliers": "chandeliers",
+  "chandelier": "chandeliers",
+};
+
 // Helper to extract filters from query parameters
 const parseFilters = (query: any) => {
   const {
@@ -82,18 +164,100 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       });
     }
 
-    // Category filter (includes subcategories recursively if applicable)
+    // Category filter (includes subcategories recursively, aliases, and master indoor group)
     if (categorySlug && categorySlug !== "deals") {
-      const category = await prisma.category.findUnique({
-        where: { slug: categorySlug },
-        include: { children: true },
-      });
+      const cleanSlug = (categorySlug as string).trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+      const aliasedSlug = CATEGORY_ALIASES[cleanSlug] || cleanSlug;
 
-      if (category) {
-        const catIds = [category.id, ...category.children.map((c) => c.id)];
-        whereConditions.AND.push({
-          categoryId: { in: catIds },
+      if (
+        aliasedSlug === "interior-lighting" ||
+        cleanSlug === "binnenverlichting" ||
+        cleanSlug === "indoor-lighting" ||
+        cleanSlug === "all-lamps" ||
+        cleanSlug === "alle-producten" ||
+        cleanSlug === "all-products"
+      ) {
+        // Master Indoor lighting / Binnenverlichting: match all indoor categories & subcategories
+        const indoorCats = await prisma.category.findMany({
+          where: {
+            OR: [
+              { group: { in: ["indoor", "interior-lighting", "binnenverlichting"] } },
+              {
+                slug: {
+                  in: [
+                    "pendant-lights", "table-lamps", "ceiling-lights", "wall-lights",
+                    "floor-lamps", "spotlights", "chandeliers", "interior-lighting",
+                    "indoor-lighting", "binnenverlichting", "pendant-lamps", "table-lamp",
+                    "ceiling-lamps", "wall-lamps", "floor-lamps", "spots", "hanglampen",
+                    "tafellampen", "plafondlampen", "wandlampen", "vloerlampen"
+                  ],
+                },
+              },
+              {
+                parent: {
+                  slug: {
+                    in: ["indoor-lighting", "interior-lighting", "binnenverlichting"],
+                  },
+                },
+              },
+            ],
+          },
+          select: { id: true },
         });
+
+        const indoorIds = indoorCats.map((c) => c.id);
+        if (indoorIds.length > 0) {
+          whereConditions.AND.push({
+            categoryId: { in: indoorIds },
+          });
+        }
+      } else {
+        const category = await prisma.category.findFirst({
+          where: {
+            OR: [
+              { slug: { equals: aliasedSlug, mode: "insensitive" } },
+              { slug: { equals: cleanSlug, mode: "insensitive" } },
+              { slug: { equals: categorySlug, mode: "insensitive" } },
+              { name: { equals: categorySlug.replace(/-/g, " "), mode: "insensitive" } },
+              { name: { equals: cleanSlug.replace(/-/g, " "), mode: "insensitive" } },
+            ],
+          },
+          include: { children: true },
+        });
+
+        if (category) {
+          const catIds = new Set<string>([category.id]);
+          let currentParentIds = [category.id, ...category.children.map((c) => c.id)];
+          category.children.forEach((c) => catIds.add(c.id));
+
+          while (currentParentIds.length > 0) {
+            const nextChildren = await prisma.category.findMany({
+              where: { parentId: { in: currentParentIds } },
+              select: { id: true },
+            });
+            const unvisited = nextChildren.map((c) => c.id).filter((id) => !catIds.has(id));
+            if (unvisited.length === 0) break;
+            unvisited.forEach((id) => catIds.add(id));
+            currentParentIds = unvisited;
+          }
+
+          whereConditions.AND.push({
+            categoryId: { in: Array.from(catIds) },
+          });
+        } else {
+          // Check if it's a known group in DB
+          const groupCats = await prisma.category.findMany({
+            where: {
+              group: { equals: aliasedSlug, mode: "insensitive" },
+            },
+            select: { id: true },
+          });
+          if (groupCats.length > 0) {
+            whereConditions.AND.push({
+              categoryId: { in: groupCats.map((c) => c.id) },
+            });
+          }
+        }
       }
     } else if (categorySlug === "deals") {
       whereConditions.AND.push({

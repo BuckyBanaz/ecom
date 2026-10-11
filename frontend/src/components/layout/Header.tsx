@@ -20,26 +20,36 @@ import { labelT } from "@/utils/i18nLabel";
 import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
 
 function getMenuLink(parentSlug: string, child: any, allCategories: any[]) {
-  if (child.isDynamic) {
-    // Find the real parent category slug from the database categories
-    const childCat = allCategories.find((c: any) => c.slug === child.slug);
-    let realParentSlug = "category";
-    
-    if (childCat?.parentId) {
-      const parentCat = allCategories.find((c: any) => c.id === childCat.parentId);
-      if (parentCat) {
-        realParentSlug = parentCat.slug;
-      }
-    } else if (childCat?.parent?.slug) {
-      realParentSlug = childCat.parent.slug;
-    }
-
-    return `/${realParentSlug}/${child.slug}`;
+  const rawSlug = (child?.slug || "").trim();
+  if (rawSlug.startsWith("http") || rawSlug.startsWith("/deals") || rawSlug.startsWith("/sale") || rawSlug.startsWith("/blogs") || rawSlug.startsWith("/relief")) {
+    return rawSlug;
   }
-  // Custom links: assume slug is a valid path/URL
-  return child.slug.startsWith('/') || child.slug.startsWith('http') 
-    ? child.slug 
-    : `/${child.slug}`;
+
+  if (rawSlug.startsWith("/category/")) {
+    return rawSlug;
+  }
+
+  const [basePart, queryPart] = rawSlug.replace(/^\/+/, "").split("?");
+  const cleanChildSlug = basePart.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  const querySuffix = queryPart ? `?${queryPart}` : "";
+
+  const childCat = allCategories.find((c: any) => c.slug?.toLowerCase() === cleanChildSlug);
+  let realParentSlug = parentSlug ? parentSlug.replace(/^\/+/, "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") : "";
+
+  if (childCat?.parentId) {
+    const parentCat = allCategories.find((c: any) => c.id === childCat.parentId);
+    if (parentCat?.slug) {
+      realParentSlug = parentCat.slug.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+    }
+  } else if (childCat?.parent?.slug) {
+    realParentSlug = childCat.parent.slug.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+
+  if (realParentSlug) {
+    return `/${realParentSlug}/${cleanChildSlug}${querySuffix}`;
+  }
+
+  return `/category/${cleanChildSlug}${querySuffix}`;
 }
 
 function HeaderTopBarText({ text, icon }: { text: string; icon?: string }) {

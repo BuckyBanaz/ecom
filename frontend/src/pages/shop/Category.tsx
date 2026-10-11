@@ -29,6 +29,7 @@ import {
   removeJsonLd,
   upsertJsonLd,
 } from "@/utils/seoMeta";
+import { normalizeCategorySlug, isIndoorParentCategory } from "@/utils/categoryAliases";
 
 
 
@@ -168,19 +169,20 @@ const Category = () => {
 
   // Load products for the active category (server-filtered when possible)
   useEffect(() => {
-    const targetCategory = landingPage?.categorySlug || slug;
+    const rawTarget = landingPage?.categorySlug || slug;
+    const targetCategory = normalizeCategorySlug(rawTarget);
     const searchQuery = searchParams.get("search");
 
     const loadProducts = async () => {
       setProductsLoading(true);
       try {
-        const filters: Record<string, string | number | boolean> = { limit: 120 };
+        const filters: Record<string, string | number | boolean> = { limit: 500 };
         if (targetCategory === "bestsellers") {
           filters.isBestSelling = true;
         } else if (targetCategory && targetCategory !== "deals") {
-          filters.category = targetCategory;
+          filters.category = rawTarget || targetCategory;
         } else {
-          filters.limit = 180;
+          filters.limit = 500;
         }
 
         if (searchQuery) {
@@ -365,8 +367,50 @@ const Category = () => {
   }, [resolvedSlug, categoriesList, attributes, productsList, landingPage]);
 
   // Faceted item counts calculator relative to the current category listing
+  const isProductInActiveCategory = (p: any, rawTarget: string) => {
+    if (!rawTarget) return true;
+    const targetCategory = normalizeCategorySlug(rawTarget);
+    if (!targetCategory || targetCategory === "deals" || targetCategory === "bestsellers") return true;
+
+    // Master Indoor lighting / Binnenverlichting
+    if (isIndoorParentCategory(rawTarget) || isIndoorParentCategory(targetCategory)) {
+      const pCatSlug = normalizeCategorySlug(getProductCategorySlug(p.category));
+      const categoryObj = categoriesList.find(c => normalizeCategorySlug(c.slug) === pCatSlug) || categories.find(c => normalizeCategorySlug(c.slug) === pCatSlug);
+      if (!categoryObj || categoryObj.group === "interior-lighting" || categoryObj.group === "indoor" || categoryObj.group === "commercial-lighting") {
+        return true;
+      }
+      return true;
+    }
+
+    const pCatSlug = normalizeCategorySlug(getProductCategorySlug(p.category));
+    if (pCatSlug === targetCategory || pCatSlug === normalizeCategorySlug(rawTarget)) {
+      return true;
+    }
+
+    // Check if product's category is a child of targetCategory
+    const parentCat = categoriesList.find(c => normalizeCategorySlug(c.slug) === targetCategory || c.id === rawTarget || normalizeCategorySlug(c.name) === targetCategory);
+    if (parentCat) {
+      const productCatObj = categoriesList.find(c => normalizeCategorySlug(c.slug) === pCatSlug || c.id === p.categoryId);
+      if (productCatObj?.parentId === parentCat.id) return true;
+    }
+
+    // Check group match
+    const categoryObj = categoriesList.find(c => normalizeCategorySlug(c.slug) === pCatSlug) || categories.find(c => normalizeCategorySlug(c.slug) === pCatSlug);
+    if (categoryObj && (normalizeCategorySlug(categoryObj.group) === targetCategory || categoryObj.group === rawTarget)) {
+      return true;
+    }
+
+    // If productsList was already returned specifically by backend for this category, retain it
+    if (productsList.length > 0 && productsList.some(item => item.id === p.id)) {
+      return true;
+    }
+
+    return false;
+  };
+
   const getOptionCount = (type: "brand" | "attribute", slugName: string, value: string, attributeName?: string) => {
-    const targetCategory = landingPage?.categorySlug || resolvedSlug;
+    const rawTarget = landingPage?.categorySlug || resolvedSlug;
+    const targetCategory = normalizeCategorySlug(rawTarget);
     const isDeals = targetCategory === "deals";
     const isBestsellers = targetCategory === "bestsellers";
 
@@ -377,22 +421,7 @@ const Category = () => {
       : isBestsellers
         ? allProductsList.filter((p) => p.isBestSelling)
         : targetCategory
-          ? allProductsList.filter((p) => {
-              const pCatSlug = getProductCategorySlug(p.category);
-              if (pCatSlug === targetCategory) return true;
-              
-              if (targetCategory === "interior-lighting" || targetCategory === "all-lamps") {
-                const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
-                return categoryObj?.group === "interior-lighting";
-              }
-
-              const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
-              if (categoryObj && categoryObj.group === targetCategory) {
-                return true;
-              }
-
-              return false;
-            })
+          ? allProductsList.filter((p) => isProductInActiveCategory(p, rawTarget))
           : allProductsList;
     
     if (isBestsellers && list.length === 0) {
@@ -433,7 +462,8 @@ const Category = () => {
   };
 
   const filtered = useMemo(() => {
-    const targetCategory = landingPage?.categorySlug || resolvedSlug;
+    const rawTarget = landingPage?.categorySlug || resolvedSlug;
+    const targetCategory = normalizeCategorySlug(rawTarget);
     const isDeals = targetCategory === "deals";
     const isBestsellers = targetCategory === "bestsellers";
 
@@ -445,22 +475,7 @@ const Category = () => {
       : isBestsellers
         ? allProductsList.filter((p) => p.isBestSelling)
         : targetCategory
-          ? allProductsList.filter((p) => {
-              const pCatSlug = getProductCategorySlug(p.category);
-              if (pCatSlug === targetCategory) return true;
-              
-              if (targetCategory === "interior-lighting" || targetCategory === "all-lamps") {
-                const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
-                return categoryObj?.group === "interior-lighting";
-              }
-
-              const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
-              if (categoryObj && categoryObj.group === targetCategory) {
-                return true;
-              }
-
-              return false;
-            })
+          ? allProductsList.filter((p) => isProductInActiveCategory(p, rawTarget))
           : allProductsList;
     
     if (isBestsellers && list.length === 0) {
@@ -556,11 +571,11 @@ const Category = () => {
       ? getDealsTitle()
       : slug === "bestsellers" 
         ? t("category.bestsellers", { defaultValue: "Bestsellers" }) 
-        : slug === "interior-lighting"
-          ? t("category.interior_lighting", { defaultValue: "Interior Lighting" })
+        : isIndoorParentCategory(slug)
+          ? cat?.name || t("category.interior_lighting", { defaultValue: "Binnenverlichting" })
           : slug === "light-sources"
             ? t("category.light_sources", { defaultValue: "Light Sources" })
-            : cat?.name ?? t("category.all_products")
+            : cat?.name || categoriesList.find((c) => normalizeCategorySlug(c.slug) === normalizeCategorySlug(slug))?.name || categories.find((c) => c.slug === normalizeCategorySlug(slug))?.name || (slug ? slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, " ") : t("category.all_products", { defaultValue: "Alle producten" }))
   );
 
   useEffect(() => {
@@ -704,7 +719,7 @@ const Category = () => {
       )}
       
       {landingPage?.content || landingPage?.blocks?.length > 0 ? (
-        <div className="mt-8">
+        <div className="mt-8 mb-6">
           <ShortcodeRenderer 
             content={
               landingPage.content || 
@@ -715,8 +730,7 @@ const Category = () => {
             prefetchedData={{ products: productsList, categories: categoriesList, blogs: blogsList }}
           />
         </div>
-      ) : (
-        <>
+      ) : null}
           <p className="mt-1 text-sm text-muted-foreground">{t("category.products_count", { count: filtered.length })}</p>
           <div className="mt-6 grid gap-8 lg:grid-cols-[260px_1fr]">
             
@@ -775,8 +789,6 @@ const Category = () => {
                 )}
             </div>
           </div>
-        </>
-      )}
     </div>
   );
 };
