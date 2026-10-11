@@ -170,15 +170,65 @@ const AdminProductForm = () => {
       if (categoryMode === "same" && selectedCategory) {
         filters.category = selectedCategory;
       }
-      const res = await productRepository.getAll(filters);
+      const currentId = id || draftId || "";
+      const linkedIds = new Set(linkedSiblings.map((s) => s.id));
+
+      const [res, draftsData] = await Promise.all([
+        productRepository.getAll(filters).catch(() => ({ success: false, products: [] })),
+        fetch(`${getApiV1Url()}/ai/drafts`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+        })
+          .then((r) => r.json())
+          .catch(() => ({ success: false, drafts: [] })),
+      ]);
+
+      let combined: any[] = [];
       if (res.success && res.products) {
-        const currentId = id || "";
-        const linkedIds = new Set(linkedSiblings.map((s) => s.id));
-        const filtered = res.products.filter(
+        combined = res.products.filter(
           (p: any) => p.id !== currentId && !linkedIds.has(p.id)
         );
-        setSiblingSearchResults(filtered);
       }
+
+      if (draftsData.success && Array.isArray(draftsData.drafts)) {
+        const queryLower = query ? query.toLowerCase().trim() : "";
+        const formattedDrafts = draftsData.drafts
+          .filter((d: any) => {
+            if (d.id === currentId || linkedIds.has(d.id) || d.status === "published") return false;
+            const p = d.payload || {};
+            const dName = (d.name || p.name || "").toLowerCase();
+            const dCat = (p.category || "").toLowerCase();
+            if (categoryMode === "same" && selectedCategory && dCat && !dCat.includes(selectedCategory.toLowerCase()) && !selectedCategory.toLowerCase().includes(dCat)) {
+              return false;
+            }
+            if (queryLower && !dName.includes(queryLower)) return false;
+            return true;
+          })
+          .map((d: any) => {
+            const p = d.payload || {};
+            const colorVal = p.visualInspection?.finishColor || p.attributes?.color?.[0] || "";
+            return {
+              id: d.id,
+              name: `${d.name || p.name || "Draft Product"} (Draft)`,
+              slug: `drafts/${d.id}`,
+              price: Number(p.price) || 0,
+              image: p.image || p.images?.[0] || "",
+              isDraft: true,
+              category: { name: p.category || "Draft", slug: p.category || "" },
+              productAttributeValues: colorVal
+                ? [
+                    {
+                      attribute: { slug: "color", name: "Color" },
+                      attributeValue: { value: colorVal, colorCode: "#333333" },
+                    },
+                  ]
+                : [],
+            };
+          });
+
+        combined = [...combined, ...formattedDrafts];
+      }
+
+      setSiblingSearchResults(combined);
     } catch (err) {
       console.error("Failed to search siblings:", err);
     } finally {
@@ -196,11 +246,62 @@ const AdminProductForm = () => {
       if (search && search.trim()) {
         filters.search = search.trim();
       }
-      const res = await productRepository.getAll(filters);
+      const currentId = id || draftId || "";
+
+      const [res, draftsData] = await Promise.all([
+        productRepository.getAll(filters).catch(() => ({ success: false, products: [] })),
+        fetch(`${getApiV1Url()}/ai/drafts`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+        })
+          .then((r) => r.json())
+          .catch(() => ({ success: false, drafts: [] })),
+      ]);
+
+      let combined: any[] = [];
       if (res.success && res.products) {
-        const currentId = id || "";
-        setCatalogProducts(res.products.filter((p: any) => p.id !== currentId));
+        combined = res.products.filter((p: any) => p.id !== currentId);
       }
+
+      if (draftsData.success && Array.isArray(draftsData.drafts)) {
+        const searchLower = search ? search.toLowerCase().trim() : "";
+        const formattedDrafts = draftsData.drafts
+          .filter((d: any) => {
+            if (d.id === currentId || d.status === "published") return false;
+            const p = d.payload || {};
+            const dName = (d.name || p.name || "").toLowerCase();
+            const dCat = (p.category || "").toLowerCase();
+            if (catSlug && catSlug !== "all" && dCat && !dCat.includes(catSlug.toLowerCase()) && !catSlug.toLowerCase().includes(dCat)) {
+              return false;
+            }
+            if (searchLower && !dName.includes(searchLower)) return false;
+            return true;
+          })
+          .map((d: any) => {
+            const p = d.payload || {};
+            const colorVal = p.visualInspection?.finishColor || p.attributes?.color?.[0] || "";
+            return {
+              id: d.id,
+              name: `${d.name || p.name || "Draft Product"} (Draft)`,
+              slug: `drafts/${d.id}`,
+              price: Number(p.price) || 0,
+              image: p.image || p.images?.[0] || "",
+              isDraft: true,
+              category: { name: p.category || "Draft", slug: p.category || "" },
+              productAttributeValues: colorVal
+                ? [
+                    {
+                      attribute: { slug: "color", name: "Color" },
+                      attributeValue: { value: colorVal, colorCode: "#333333" },
+                    },
+                  ]
+                : [],
+            };
+          });
+
+        combined = [...combined, ...formattedDrafts];
+      }
+
+      setCatalogProducts(combined);
     } catch (err) {
       console.error("Failed to load catalog products:", err);
     } finally {
@@ -1321,13 +1422,18 @@ const AdminProductForm = () => {
       const finalBrand = selectedBrand && selectedBrand !== "none" ? selectedBrand : "";
       const finalBrandId = selectedBrand && selectedBrand !== "none" ? brands.find((b) => b.name === selectedBrand)?.id || null : null;
 
+      const matchedCat = categoriesList.find(
+        (c) => c.slug === selectedCategory || c.id === selectedCategory || c.name?.toLowerCase() === selectedCategory?.toLowerCase()
+      );
+      const finalCategoryId = matchedCat?.id || categoriesList[0]?.id || null;
+
       const payload = {
         title: name,
         name: name,
         brand: finalBrand,
         brandId: finalBrandId,
-        category: selectedCategory,
-        categoryId: categoriesList.find((c) => c.slug === selectedCategory)?.id || null,
+        category: matchedCat?.slug || selectedCategory || "",
+        categoryId: finalCategoryId,
         price: parseFloat(price) || 0,
         oldPrice: oldPrice ? parseFloat(oldPrice) : null,
         inStock,
@@ -1370,43 +1476,14 @@ const AdminProductForm = () => {
           toast.success(isEdit ? t("admin_product_form.toast_product_updated", { name }) : t("admin_product_form.toast_product_created", { name }));
           navigate("/admin/products");
           return;
+        } else {
+          throw new Error(data.message || data.error || "Failed to save product");
         }
-      } catch (err) {
-        console.warn("Backend API save failed, syncing to local storage / mock data only.");
+      } catch (err: any) {
+        console.error("Backend API save failed:", err);
+        toast.error(err.message || "Failed to save product to database. Please check required fields.");
+        return;
       }
-
-      // 2. Sync to local storage for static mockup fallback
-      const savedProducts = localStorage.getItem("products_data");
-      let allProducts = [];
-      if (savedProducts) {
-        try { allProducts = JSON.parse(savedProducts); } catch (e) { }
-      } else {
-        const { products: initialProducts } = await import("@/data/products");
-        allProducts = initialProducts;
-      }
-
-      // Flatten values for legacy compatibility
-      const flatProduct = {
-        ...payload,
-        id: isEdit ? id : `p-${Date.now()}`,
-        color: selectedAttributeValues["color"]?.[0] || "",
-        material: selectedAttributeValues["material"]?.[0] || "",
-        style: selectedAttributeValues["style"]?.[0] || "",
-        fitting: selectedAttributeValues["fitting"]?.[0] || "",
-        dimmable: selectedAttributeValues["dimmable"]?.[0] || "",
-        shortDescription,
-      };
-
-      let updatedProducts = [];
-      if (isEdit) {
-        updatedProducts = allProducts.map((p: any) => String(p.id) === id ? flatProduct : p);
-      } else {
-        updatedProducts = [...allProducts, flatProduct];
-      }
-
-      localStorage.setItem("products_data", JSON.stringify(updatedProducts));
-      toast.success(isEdit ? t("admin_product_form.toast_local_updated") : t("admin_product_form.toast_local_created"));
-      navigate("/admin/products");
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -2450,7 +2527,14 @@ const AdminProductForm = () => {
                                 className="w-8 h-8 rounded-md object-cover border border-border/50 shrink-0"
                               />
                               <div className="truncate">
-                                <p className="font-semibold text-foreground truncate">{sr.name}</p>
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <p className="font-semibold text-foreground truncate">{sr.name}</p>
+                                  {sr.isDraft && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                                      Draft
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                                   {colorVal && (
                                     <span className="flex items-center gap-1">
@@ -2871,7 +2955,14 @@ const AdminProductForm = () => {
                         className="w-10 h-10 rounded-lg object-cover border border-border/50 shrink-0"
                       />
                       <div className="truncate">
-                        <p className="font-semibold text-foreground truncate">{p.name}</p>
+                        <div className="flex items-center gap-1.5 truncate">
+                          <p className="font-semibold text-foreground truncate">{p.name}</p>
+                          {p.isDraft && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                              Draft
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
                           {colorVal && (
                             <span className="flex items-center gap-1 font-medium text-foreground">

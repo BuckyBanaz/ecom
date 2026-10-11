@@ -433,15 +433,63 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       variants, // e.g. [{ sku: "SKU1", stock: 10, price: 19.99, attributes: { "color": "Black" } }]
     } = req.body;
 
+    let finalCategoryId = categoryId;
+    if (!finalCategoryId && req.body.category) {
+      const catMatch = await prisma.category.findFirst({
+        where: {
+          OR: [
+            { slug: String(req.body.category).trim() },
+            { name: { equals: String(req.body.category).trim(), mode: "insensitive" } },
+            { slug: { contains: String(req.body.category).trim(), mode: "insensitive" } },
+          ],
+        },
+      });
+      if (catMatch) finalCategoryId = catMatch.id;
+    }
+
+    if (finalCategoryId) {
+      const exists = await prisma.category.findUnique({ where: { id: finalCategoryId } });
+      if (!exists) finalCategoryId = null;
+    }
+
+    if (!finalCategoryId) {
+      const firstCat = await prisma.category.findFirst({ orderBy: { sortOrder: "asc" } });
+      if (firstCat) finalCategoryId = firstCat.id;
+    }
+
+    let finalBrandId = brandId || null;
+    if (finalBrandId === "" || finalBrandId === "none") finalBrandId = null;
+    if (finalBrandId) {
+      const bExists = await prisma.brand.findUnique({ where: { id: finalBrandId } });
+      if (!bExists) finalBrandId = null;
+    }
+    if (!finalBrandId && req.body.brand) {
+      const brandMatch = await prisma.brand.findFirst({
+        where: { name: { equals: String(req.body.brand).trim(), mode: "insensitive" } },
+      });
+      if (brandMatch) finalBrandId = brandMatch.id;
+    }
+
+    const cleanPrice = isNaN(parseFloat(price)) ? 0 : parseFloat(price);
+    const cleanOldPrice = oldPrice && !isNaN(parseFloat(oldPrice)) ? parseFloat(oldPrice) : null;
+
+    let baseSlug = (slug || name || `product-${Date.now()}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    if (!baseSlug) baseSlug = `product-${Date.now()}`;
+    let finalSlug = baseSlug;
+    const existingSlug = await prisma.product.findUnique({ where: { slug: finalSlug } });
+    if (existingSlug) {
+      finalSlug = `${baseSlug}-${Date.now()}`;
+    }
+
     // Create the base product
     const product = await prisma.product.create({
       data: {
-        name,
-        slug: slug || `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
-        brandId,
-        categoryId,
-        price: parseFloat(price),
-        oldPrice: oldPrice ? parseFloat(oldPrice) : null,
+        name: name || "Untitled Product",
+        slug: finalSlug,
+        brandId: finalBrandId,
+        categoryId: finalCategoryId as string,
+        price: cleanPrice,
+        oldPrice: cleanOldPrice,
         image: image || "/assets/cat-pendant.jpg",
         images: Array.isArray(images) ? images : [],
         inStock: inStock !== undefined ? inStock : true,
@@ -470,7 +518,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
           let attrValue = await prisma.attributeValue.findFirst({
             where: {
               attributeId: attribute.id,
-              value: { equals: singleVal, mode: "insensitive" },
+              value: { equals: String(singleVal).trim(), mode: "insensitive" },
             },
           });
 
@@ -479,17 +527,25 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
             attrValue = await prisma.attributeValue.create({
               data: {
                 attributeId: attribute.id,
-                value: singleVal,
+                value: String(singleVal).trim(),
               },
             });
           }
 
-          await prisma.productAttributeValue.create({
-            data: {
+          await prisma.productAttributeValue.upsert({
+            where: {
+              productId_attributeId_attributeValueId: {
+                productId: product.id,
+                attributeId: attribute.id,
+                attributeValueId: attrValue.id,
+              },
+            },
+            create: {
               productId: product.id,
               attributeId: attribute.id,
               attributeValueId: attrValue.id,
             },
+            update: {},
           });
         }
       }
@@ -607,16 +663,46 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       return;
     }
 
+    let finalCategoryId = categoryId;
+    if (!finalCategoryId && req.body.category) {
+      const catMatch = await prisma.category.findFirst({
+        where: {
+          OR: [
+            { slug: String(req.body.category).trim() },
+            { name: { equals: String(req.body.category).trim(), mode: "insensitive" } },
+          ],
+        },
+      });
+      if (catMatch) finalCategoryId = catMatch.id;
+    }
+    if (finalCategoryId) {
+      const exists = await prisma.category.findUnique({ where: { id: finalCategoryId } });
+      if (!exists) finalCategoryId = undefined;
+    }
+
+    let finalBrandId = brandId;
+    if (finalBrandId === "" || finalBrandId === "none") finalBrandId = null;
+    if (finalBrandId) {
+      const bExists = await prisma.brand.findUnique({ where: { id: finalBrandId } });
+      if (!bExists) finalBrandId = null;
+    }
+    if (!finalBrandId && req.body.brand) {
+      const brandMatch = await prisma.brand.findFirst({
+        where: { name: { equals: String(req.body.brand).trim(), mode: "insensitive" } },
+      });
+      if (brandMatch) finalBrandId = brandMatch.id;
+    }
+
     // Update base details
     const product = await prisma.product.update({
       where: { id },
       data: {
         name,
         slug,
-        brandId,
-        categoryId,
-        price: price !== undefined ? parseFloat(price) : undefined,
-        oldPrice: oldPrice !== undefined ? (oldPrice ? parseFloat(oldPrice) : null) : undefined,
+        brandId: finalBrandId,
+        categoryId: finalCategoryId,
+        price: price !== undefined ? (!isNaN(parseFloat(price)) ? parseFloat(price) : undefined) : undefined,
+        oldPrice: oldPrice !== undefined ? (oldPrice && !isNaN(parseFloat(oldPrice)) ? parseFloat(oldPrice) : null) : undefined,
         image,
         images: Array.isArray(images) ? images : undefined,
         inStock,
@@ -648,7 +734,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
           let attrValue = await prisma.attributeValue.findFirst({
             where: {
               attributeId: attribute.id,
-              value: { equals: singleVal, mode: "insensitive" },
+              value: { equals: String(singleVal).trim(), mode: "insensitive" },
             },
           });
 
@@ -656,17 +742,25 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
             attrValue = await prisma.attributeValue.create({
               data: {
                 attributeId: attribute.id,
-                value: singleVal,
+                value: String(singleVal).trim(),
               },
             });
           }
 
-          await prisma.productAttributeValue.create({
-            data: {
+          await prisma.productAttributeValue.upsert({
+            where: {
+              productId_attributeId_attributeValueId: {
+                productId: id,
+                attributeId: attribute.id,
+                attributeValueId: attrValue.id,
+              },
+            },
+            create: {
               productId: id,
               attributeId: attribute.id,
               attributeValueId: attrValue.id,
             },
+            update: {},
           });
         }
       }

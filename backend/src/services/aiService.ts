@@ -2023,15 +2023,35 @@ ${contextBlock.slice(0, 50000)}
       },
     });
 
-    if (!targetProduct) return [];
+    let targetName = "";
+    let targetColor = "";
+    let targetCategoryId: string | null = null;
+    let targetBrandId: string | null = null;
+    let targetColorGroupId: string | null = null;
 
-    const targetColorAttr = targetProduct.productAttributeValues.find(
-      (pav) =>
-        pav.attribute.slug === "color" ||
-        pav.attribute.name.toLowerCase() === "color" ||
-        pav.attribute.name.toLowerCase() === "kleur"
-    );
-    const targetColor = targetColorAttr?.attributeValue?.value || "";
+    if (targetProduct) {
+      targetName = targetProduct.name;
+      targetCategoryId = targetProduct.categoryId;
+      targetBrandId = targetProduct.brandId;
+      targetColorGroupId = targetProduct.colorGroupId;
+      const targetColorAttr = targetProduct.productAttributeValues.find(
+        (pav) =>
+          pav.attribute.slug === "color" ||
+          pav.attribute.name.toLowerCase() === "color" ||
+          pav.attribute.name.toLowerCase() === "kleur"
+      );
+      targetColor = targetColorAttr?.attributeValue?.value || "";
+    } else {
+      // Check if productId is a ProductDraft ID
+      const targetDraft = await prisma.productDraft.findUnique({
+        where: { id: productId },
+      });
+      if (!targetDraft) return [];
+      const payload: any = targetDraft.payload || {};
+      targetName = targetDraft.name || payload.name || "";
+      if (!targetName) return [];
+      targetColor = payload.visualInspection?.finishColor || payload.attributes?.color?.[0] || "";
+    }
 
     // Common color words in Dutch & English
     const colorRegex = /\b(zwart|black|wit|white|goud|gold|brons|bronze|nikkel|nickel|staal|steel|chroom|chrome|messing|brass|koper|copper|antraciet|anthracite|zilver|silver|grijs|grey|gray|taupe|beige|groen|green|blauw|blue|rood|red|geel|yellow|oranje|orange|amber|smoke|rookglas|helder|clear|mat|matte|glans|glossy|hout|wood|naturel|natural)\b/gi;
@@ -2044,15 +2064,16 @@ ${contextBlock.slice(0, 50000)}
         .trim();
     };
 
-    const targetBase = cleanBaseName(targetProduct.name);
+    const targetBase = cleanBaseName(targetName);
     const firstWord = targetBase.split(" ")[0] || "";
 
-    const candidates = await prisma.product.findMany({
+    // 1. Fetch published Product candidates
+    const candidateProducts = await prisma.product.findMany({
       where: {
-        id: { not: targetProduct.id },
+        id: { not: productId },
         OR: [
-          ...(targetProduct.categoryId ? [{ categoryId: targetProduct.categoryId }] : []),
-          ...(targetProduct.brandId ? [{ brandId: targetProduct.brandId }] : []),
+          ...(targetCategoryId ? [{ categoryId: targetCategoryId }] : []),
+          ...(targetBrandId ? [{ brandId: targetBrandId }] : []),
           ...(firstWord.length > 2 ? [{ name: { contains: firstWord, mode: "insensitive" as const } }] : []),
         ],
       },
@@ -2070,23 +2091,74 @@ ${contextBlock.slice(0, 50000)}
           },
         },
       },
-      take: 50,
+      take: 40,
     });
 
-    if (candidates.length === 0) return [];
+    // 2. Fetch candidate ProductDrafts
+    const candidateDrafts = await prisma.productDraft.findMany({
+      where: {
+        id: { not: productId },
+        status: { not: "published" },
+      },
+      take: 25,
+      orderBy: { createdAt: "desc" },
+    });
 
-    const scoredCandidates = candidates
+    const combinedCandidates: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      price: number;
+      image: string;
+      colorName: string;
+      colorCode: string;
+      colorGroupId?: string | null;
+      isDraft?: boolean;
+    }> = [];
+
+    // Map published products
+    candidateProducts.forEach((c) => {
+      const cColorAttr = c.productAttributeValues.find(
+        (pav) =>
+          pav.attribute.slug === "color" ||
+          pav.attribute.name.toLowerCase() === "color" ||
+          pav.attribute.name.toLowerCase() === "kleur"
+      );
+      combinedCandidates.push({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        price: c.price,
+        image: c.image || "",
+        colorName: cColorAttr?.attributeValue?.value || "Variant",
+        colorCode: cColorAttr?.attributeValue?.colorCode || "#333333",
+        colorGroupId: c.colorGroupId,
+        isDraft: false,
+      });
+    });
+
+    // Map drafts
+    candidateDrafts.forEach((d) => {
+      const payload: any = d.payload || {};
+      const draftColor = payload.visualInspection?.finishColor || payload.attributes?.color?.[0] || "";
+      combinedCandidates.push({
+        id: d.id,
+        name: `${d.name || payload.name || "Draft Product"} (Draft)`,
+        slug: `drafts/${d.id}`,
+        price: Number(payload.price) || 0,
+        image: payload.image || payload.images?.[0] || "",
+        colorName: draftColor || "Draft Variant",
+        colorCode: "#333333",
+        colorGroupId: null,
+        isDraft: true,
+      });
+    });
+
+    if (combinedCandidates.length === 0) return [];
+
+    const scoredCandidates = combinedCandidates
       .map((c) => {
-        const cColorAttr = c.productAttributeValues.find(
-          (pav) =>
-            pav.attribute.slug === "color" ||
-            pav.attribute.name.toLowerCase() === "color" ||
-            pav.attribute.name.toLowerCase() === "kleur"
-        );
-        const cColor = cColorAttr?.attributeValue?.value || "";
-        const cColorCode = cColorAttr?.attributeValue?.colorCode || "#333333";
         const cBase = cleanBaseName(c.name);
-
         const targetWords = new Set(targetBase.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
         const cWords = new Set(cBase.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
         let matchCount = 0;
@@ -2102,26 +2174,27 @@ ${contextBlock.slice(0, 50000)}
           slug: c.slug,
           price: c.price,
           image: c.image,
-          colorName: cColor || "Variant",
-          colorCode: cColorCode,
+          colorName: c.colorName,
+          colorCode: c.colorCode,
           score: Math.round(overlapScore),
-          alreadyLinked: c.colorGroupId === targetProduct.colorGroupId && Boolean(targetProduct.colorGroupId),
+          alreadyLinked: Boolean(targetColorGroupId && c.colorGroupId === targetColorGroupId),
+          isDraft: Boolean(c.isDraft),
         };
       })
-      .filter((c) => c.score >= 40 && !c.alreadyLinked)
+      .filter((c) => c.score >= 35 && !c.alreadyLinked)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 12);
+      .slice(0, 15);
 
     if (scoredCandidates.length === 0) return [];
 
     // Use Gemini AI for semantic verification & accurate confidence score
     try {
       const prompt = `You are an expert e-commerce catalog AI.
-We are matching "Color Siblings" for a lighting product.
-Color Siblings are products that represent the EXACT SAME physical fixture/lamp model, but differ only in color finish or surface material (e.g. Black vs Gold vs White).
+We are matching "Color Siblings" for a product.
+Color Siblings are products/drafts that represent the EXACT SAME physical model, but differ only in color finish or surface material (e.g. Black vs Gold vs White).
 
 Target Product:
-Name: "${targetProduct.name}"
+Name: "${targetName}"
 Color: "${targetColor}"
 
 Candidates:
