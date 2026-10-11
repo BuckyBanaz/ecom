@@ -711,27 +711,8 @@ const Category = () => {
       </nav>
       <h1 className="text-3xl font-bold md:text-4xl mb-2">{title}</h1>
       
-      {landingPage?.description && (
-        <div 
-          className="mt-4 mb-6 p-6 border rounded-xl bg-card shadow-xs prose max-w-none dark:prose-invert"
-          dangerouslySetInnerHTML={{ __html: landingPage.description }}
-        />
-      )}
-      
-      {landingPage?.content || landingPage?.blocks?.length > 0 ? (
-        <div className="mt-8 mb-6">
-          <ShortcodeRenderer 
-            content={
-              landingPage.content || 
-              (Array.isArray(landingPage.blocks) 
-                ? landingPage.blocks.map((b: any) => b.description || "").filter(Boolean).join("<br/>") 
-                : "")
-            } 
-            prefetchedData={{ products: productsList, categories: categoriesList, blogs: blogsList }}
-          />
-        </div>
-      ) : null}
-          <p className="mt-1 text-sm text-muted-foreground">{t("category.products_count", { count: filtered.length })}</p>
+      {/* Title & Product Count */}
+      <p className="mt-1 text-sm text-muted-foreground">{t("category.products_count", { count: filtered.length })}</p>
           <div className="mt-6 grid gap-8 lg:grid-cols-[260px_1fr]">
             
             {/* SIDEBAR FILTERS - DESKTOP */}

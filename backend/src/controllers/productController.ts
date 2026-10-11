@@ -19,12 +19,13 @@ const CATEGORY_ALIASES: Record<string, string> = {
   "all": "interior-lighting",
 
   // Pendant lights / Hanglampen
-  "hanglampen": "pendant-lights",
-  "hanglamp": "pendant-lights",
-  "pendant": "pendant-lights",
-  "pendants": "pendant-lights",
-  "pendant-lamps": "pendant-lights",
-  "pendant-lights": "pendant-lights",
+  "hanglampen": "pendant-light",
+  "hanglamp": "pendant-light",
+  "pendant": "pendant-light",
+  "pendants": "pendant-light",
+  "pendant-lamps": "pendant-light",
+  "pendant-lights": "pendant-light",
+  "pendant-light": "pendant-light",
 
   // Table lamps / Tafellampen
   "tafellampen": "table-lamps",
@@ -34,10 +35,11 @@ const CATEGORY_ALIASES: Record<string, string> = {
   "table-lights": "table-lamps",
 
   // Ceiling lights / Plafondlampen
-  "plafondlampen": "ceiling-lights",
-  "plafondlamp": "ceiling-lights",
-  "ceiling-lamps": "ceiling-lights",
-  "ceiling-lights": "ceiling-lights",
+  "plafondlampen": "plafondlamp",
+  "plafondlamp": "plafondlamp",
+  "ceiling-lamps": "plafondlamp",
+  "ceiling-lights": "plafondlamp",
+  "ceiling-light": "plafondlamp",
 
   // Wall lights / Wandlampen
   "wandlampen": "wall-lights",
