@@ -633,6 +633,24 @@ export const mediaRepository = {
   deleteDuplicates: async () => {
     return request<any>(`${ENDPOINTS.MEDIA}/duplicates`, { method: "DELETE" });
   },
+
+  audit: async () => {
+    return request<any>(`${ENDPOINTS.MEDIA}/audit`, { method: "GET" });
+  },
+
+  deleteUnused: async (options: { paths?: string[]; all?: boolean }) => {
+    return request<any>(`${ENDPOINTS.MEDIA}/unused`, {
+      method: "DELETE",
+      body: JSON.stringify(options),
+    });
+  },
+
+  deduplicate: async (options: { hash?: string } = {}) => {
+    return request<any>(`${ENDPOINTS.MEDIA}/deduplicate`, {
+      method: "POST",
+      body: JSON.stringify(options),
+    });
+  },
 };
 
 // 11. Blogs Repository

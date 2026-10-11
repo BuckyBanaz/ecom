@@ -353,7 +353,56 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
       return;
     }
 
-    res.status(200).json({ success: true, product: sanitizeProductForClient(product) });
+    let siblings: any[] = [];
+    if (product.colorGroupId) {
+      const siblingProducts = await prisma.product.findMany({
+        where: {
+          colorGroupId: product.colorGroupId,
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          image: true,
+          inStock: true,
+          productAttributeValues: {
+            include: {
+              attribute: true,
+              attributeValue: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      siblings = siblingProducts.map((s) => {
+        const colorAttr = s.productAttributeValues?.find(
+          (pav) =>
+            pav.attribute?.slug === "color" ||
+            pav.attribute?.name?.toLowerCase() === "color" ||
+            pav.attribute?.name?.toLowerCase() === "kleur"
+        );
+        return {
+          id: s.id,
+          name: s.name,
+          slug: s.slug,
+          price: s.price,
+          image: s.image,
+          inStock: s.inStock,
+          colorName: colorAttr?.attributeValue?.value || s.name,
+          colorCode: colorAttr?.attributeValue?.colorCode || "#333333",
+          isCurrent: s.id === product.id,
+        };
+      });
+    }
+
+    const clientProduct = {
+      ...sanitizeProductForClient(product),
+      siblings,
+    };
+
+    res.status(200).json({ success: true, product: clientProduct });
   } catch (error) {
     next(error);
   }
@@ -501,6 +550,25 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       binLocation: req.body.binLocation,
       lowStockThreshold: req.body.lowStockThreshold !== undefined ? parseInt(req.body.lowStockThreshold) : undefined,
     });
+
+    // Handle Sibling / Color Group synchronization
+    if (req.body.siblingProductIds && Array.isArray(req.body.siblingProductIds)) {
+      const siblingIds = req.body.siblingProductIds.filter((sid: string) => sid && sid !== product.id);
+      if (siblingIds.length > 0) {
+        const existingGroupedSibling = await prisma.product.findFirst({
+          where: {
+            id: { in: siblingIds },
+            colorGroupId: { not: null },
+          },
+        });
+        const groupId = existingGroupedSibling?.colorGroupId || `grp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        await prisma.product.updateMany({
+          where: { id: { in: [product.id, ...siblingIds] } },
+          data: { colorGroupId: groupId },
+        });
+      }
+    }
 
     res.status(201).json({ success: true, product });
   } catch (error) {
@@ -661,6 +729,68 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       binLocation: req.body.binLocation,
       lowStockThreshold: req.body.lowStockThreshold !== undefined ? parseInt(req.body.lowStockThreshold) : undefined,
     });
+
+    // Handle Sibling / Color Group synchronization
+    if (req.body.siblingProductIds !== undefined) {
+      const siblingIds: string[] = Array.isArray(req.body.siblingProductIds)
+        ? req.body.siblingProductIds.filter((sid: string) => sid && sid !== id)
+        : [];
+
+      if (siblingIds.length === 0) {
+        if (existingProduct.colorGroupId) {
+          const oldGroupId = existingProduct.colorGroupId;
+          await prisma.product.update({
+            where: { id },
+            data: { colorGroupId: null },
+          });
+
+          // If 1 or 0 products remain in that group, nullify them as well
+          const remaining = await prisma.product.findMany({
+            where: { colorGroupId: oldGroupId },
+          });
+          if (remaining.length <= 1) {
+            await prisma.product.updateMany({
+              where: { colorGroupId: oldGroupId },
+              data: { colorGroupId: null },
+            });
+          }
+        }
+      } else {
+        let groupId = existingProduct.colorGroupId;
+        if (!groupId) {
+          const existingGroupedSibling = await prisma.product.findFirst({
+            where: {
+              id: { in: siblingIds },
+              colorGroupId: { not: null },
+            },
+          });
+          groupId = existingGroupedSibling?.colorGroupId || null;
+        }
+
+        if (!groupId) {
+          groupId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        }
+
+        const allIds = [id, ...siblingIds];
+        await prisma.product.updateMany({
+          where: { id: { in: allIds } },
+          data: { colorGroupId: groupId },
+        });
+
+        // If product switched from an old group, clean up old group if only 1 remains
+        if (existingProduct.colorGroupId && existingProduct.colorGroupId !== groupId) {
+          const oldGroupRemaining = await prisma.product.findMany({
+            where: { colorGroupId: existingProduct.colorGroupId },
+          });
+          if (oldGroupRemaining.length <= 1) {
+            await prisma.product.updateMany({
+              where: { colorGroupId: existingProduct.colorGroupId },
+              data: { colorGroupId: null },
+            });
+          }
+        }
+      }
+    }
 
     res.status(200).json({ success: true, product });
   } catch (error) {

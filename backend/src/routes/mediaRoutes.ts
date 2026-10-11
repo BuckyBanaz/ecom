@@ -2,11 +2,30 @@ import { Router } from "express";
 import path from "path";
 import { toPublicMediaUrl } from "../utils/mediaUrl";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
-import { listMedia, createFolder, deleteMedia, upload, renameMedia, moveMedia, copyMedia, optimizeMedia, deleteDuplicates } from "../controllers/mediaController";
+import {
+  listMedia,
+  createFolder,
+  deleteMedia,
+  upload,
+  renameMedia,
+  moveMedia,
+  copyMedia,
+  optimizeMedia,
+  deleteDuplicates,
+  auditMedia,
+  deleteUnusedMedia,
+  deduplicateMedia,
+} from "../controllers/mediaController";
 
 const UPLOADS_DIR = path.join(__dirname, "../../public/uploads");
 
 const router = Router();
+
+// Storage Audit & Cleaning routes
+router.get("/audit", auditMedia);
+router.delete("/unused", deleteUnusedMedia);
+router.post("/deduplicate", deduplicateMedia);
+
 
 /**
  * @swagger

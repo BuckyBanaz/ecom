@@ -4,8 +4,10 @@ import {
   Folder, Image as ImageIcon, Upload, Plus, Trash2, ArrowLeft, ChevronRight, Copy, Check,
   RefreshCw, Filter, LayoutGrid, List, PanelRightClose, PanelRightOpen, Search, Edit2,
   X, RotateCcw, StopCircle, ChevronDown, ChevronUp, Scissors, ClipboardPaste, FolderInput, Minimize2,
+  Sparkles, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { mediaRepository } from "@/client/apiClient";
+import { StorageHealthDialog, MediaAuditReport } from "./StorageHealthDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -174,6 +176,22 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
   const [itemToRename, setItemToRename] = useState<MediaItem | null>(null);
   const [newName, setNewName] = useState("");
 
+  // Storage Health & Cleaner
+  const [storageHealthOpen, setStorageHealthOpen] = useState(false);
+  const [auditReport, setAuditReport] = useState<MediaAuditReport | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "unused" | "duplicates">("all");
+
+  const loadAudit = async () => {
+    try {
+      const res = await mediaRepository.audit();
+      if (res.success && res.data) {
+        setAuditReport(res.data);
+      }
+    } catch {
+      // background scan silent fail
+    }
+  };
+
   // ─── Load ────────────────────────────────────────────────────────────────────
   const loadMedia = async (path: string) => {
     setLoading(true);
@@ -181,6 +199,7 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
     try {
       const res = await mediaRepository.list(path);
       if (res.success) setItems(res.data);
+      loadAudit();
     } catch {
       toast.error("Failed to load media");
     } finally {
@@ -476,7 +495,16 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
     }
   };
 
-  const filteredItems = items.filter((i) => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredItems = items
+    .filter((i) => i.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter((i) => {
+      if (filterStatus === "all") return true;
+      if (i.isFolder) return false;
+      const status = auditReport?.fileStatusMap[i.path];
+      if (filterStatus === "unused") return status?.isUnused;
+      if (filterStatus === "duplicates") return status?.isDuplicate;
+      return true;
+    });
   const lastSelectedPath = Array.from(selectedItems).pop();
   const selectedItemDetails = items.find((i) => i.path === lastSelectedPath);
   const showWidget = uploadTasks.length > 0;
@@ -506,6 +534,22 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
             </div>
             <Button variant="default" className="bg-[#1a56db] hover:bg-[#1e4ebd] text-white px-3" onClick={() => setIsFolderDialogOpen(true)} title="New Folder"><Plus className="h-4 w-4" /></Button>
             <Button variant="default" className="bg-[#1a56db] hover:bg-[#1e4ebd] text-white px-3" onClick={() => loadMedia(currentPath)} title="Refresh"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /></Button>
+
+            {/* Storage Health & Cleaner trigger button */}
+            <Button
+              variant="outline"
+              onClick={() => setStorageHealthOpen(true)}
+              className="gap-2 border-indigo-200 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100/80 shadow-sm"
+              title="Audit unreferenced files & duplicate photos"
+            >
+              <Sparkles className="h-4 w-4 text-indigo-600" />
+              Storage Health & Cleaner
+              {auditReport && (auditReport.summary.unusedFilesCount > 0 || auditReport.summary.duplicateFilesCount > 0) && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-bold leading-none">
+                  {auditReport.summary.unusedFilesCount + auditReport.summary.duplicateFilesCount}
+                </span>
+              )}
+            </Button>
 
             {/* Paste button — shows when clipboard has items */}
             {clipboard && (
@@ -549,9 +593,47 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
             </div>
           )}
         </div>
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search in current folder" className="pl-9 bg-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search in current folder" className="pl-9 bg-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          </div>
+
+          {/* Quick Filter Status Pills */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-lg border text-xs shadow-sm">
+            <button
+              type="button"
+              className={cn(
+                "px-2.5 py-1 rounded-md font-medium transition-colors",
+                filterStatus === "all" ? "bg-gray-900 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
+              )}
+              onClick={() => setFilterStatus("all")}
+            >
+              All Files
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "px-2.5 py-1 rounded-md font-medium transition-colors flex items-center gap-1.5",
+                filterStatus === "unused" ? "bg-amber-600 text-white shadow-sm" : "text-gray-600 hover:text-amber-800"
+              )}
+              onClick={() => setFilterStatus("unused")}
+            >
+              <AlertTriangle className="h-3 w-3" />
+              Unused {auditReport ? `(${auditReport.summary.unusedFilesCount})` : ""}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "px-2.5 py-1 rounded-md font-medium transition-colors flex items-center gap-1.5",
+                filterStatus === "duplicates" ? "bg-purple-600 text-white shadow-sm" : "text-gray-600 hover:text-purple-800"
+              )}
+              onClick={() => setFilterStatus("duplicates")}
+            >
+              <Copy className="h-3 w-3" />
+              Duplicates {auditReport ? `(${auditReport.summary.duplicateGroupsCount})` : ""}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -710,6 +792,19 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
                       )}>
                         {isSelected && <Check className="h-3 w-3 text-white" />}
                       </div>
+
+                      {/* Status Badges */}
+                      {!item.isFolder && auditReport?.fileStatusMap[item.path]?.isUnused && (
+                        <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white shadow-sm flex items-center gap-1">
+                          <AlertTriangle className="h-2.5 w-2.5" /> Unused
+                        </div>
+                      )}
+                      {!item.isFolder && auditReport?.fileStatusMap[item.path]?.isDuplicate && (
+                        <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-600 text-white shadow-sm flex items-center gap-1">
+                          <Copy className="h-2.5 w-2.5" /> Dup
+                        </div>
+                      )}
+
                       {item.isFolder ? (
                         <div className="flex-1 flex items-center justify-center bg-gray-50/50 p-6">
                           <Folder strokeWidth={1} className={cn("h-16 w-16", isSelected ? "text-primary" : "text-gray-700")} />
@@ -754,6 +849,16 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
                           : <ImageIcon className="h-5 w-5 text-gray-400" />}
                       </div>
                       <span className="flex-1 text-sm font-medium text-gray-800 truncate">{item.name}</span>
+                      {!item.isFolder && auditReport?.fileStatusMap[item.path]?.isUnused && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          Unused
+                        </span>
+                      )}
+                      {!item.isFolder && auditReport?.fileStatusMap[item.path]?.isDuplicate && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                          Duplicate
+                        </span>
+                      )}
                       <span className="text-xs text-gray-400 flex-shrink-0">{item.isFolder ? "Folder" : `${(item.size / 1024).toFixed(1)} KB`}</span>
                       <span className="text-xs text-gray-400 flex-shrink-0 hidden sm:block">{new Date(item.updatedAt).toLocaleDateString()}</span>
                       {isSelected && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
@@ -788,6 +893,75 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
                     <p className="text-xs text-muted-foreground">Modified</p>
                     <p className="font-medium text-xs">{new Date(selectedItemDetails.updatedAt).toLocaleString()}</p>
                   </div>
+
+                  {/* Storage & Usage Status Inspector */}
+                  {!selectedItemDetails.isFolder && auditReport?.fileStatusMap[selectedItemDetails.path] && (
+                    <div className="pt-2">
+                      {auditReport.fileStatusMap[selectedItemDetails.path].isUnused ? (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-2">
+                          <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                            Unused Media File
+                          </div>
+                          <p className="text-[11px] text-amber-700 leading-relaxed">
+                            Not referenced in any product, category, blog, or CMS page. Safe to delete.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="w-full text-xs h-7 shadow-sm"
+                            onClick={async () => {
+                              if (!confirm(`Delete unused image "${selectedItemDetails.name}"?`)) return;
+                              try {
+                                const res = await mediaRepository.deleteUnused({ paths: [selectedItemDetails.path] });
+                                if (res.success) {
+                                  toast.success("Deleted unused image");
+                                  loadMedia(currentPath);
+                                }
+                              } catch (err: any) {
+                                toast.error(err.message || "Failed to delete");
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" /> Delete Unused File
+                          </Button>
+                        </div>
+                      ) : auditReport.fileStatusMap[selectedItemDetails.path].isDuplicate ? (
+                        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs space-y-2">
+                          <div className="flex items-center gap-1.5 font-semibold text-purple-800">
+                            <Copy className="h-4 w-4 text-purple-600 shrink-0" />
+                            Duplicate File ({auditReport.fileStatusMap[selectedItemDetails.path].duplicateCount} copies)
+                          </div>
+                          <p className="text-[11px] text-purple-700 leading-relaxed">
+                            Identical duplicate copy found in storage.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full text-xs h-7 border-purple-300 text-purple-800 hover:bg-purple-100"
+                            onClick={() => setStorageHealthOpen(true)}
+                          >
+                            View in Deduplicator
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1.5">
+                          <div className="flex items-center gap-1.5 font-semibold text-emerald-800">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                            In Use ({auditReport.fileStatusMap[selectedItemDetails.path].usagesCount} reference{auditReport.fileStatusMap[selectedItemDetails.path].usagesCount > 1 ? "s" : ""})
+                          </div>
+                          <div className="space-y-1 max-h-24 overflow-y-auto">
+                            {auditReport.fileStatusMap[selectedItemDetails.path].usages.map((u, i) => (
+                              <div key={i} className="text-[10px] text-emerald-800 bg-white/80 p-1.5 rounded border border-emerald-100 truncate" title={`${u.model}: ${u.label} (${u.field})`}>
+                                <span className="font-semibold">{u.model}:</span> {u.label} <span className="opacity-70">({u.field})</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="pt-2 space-y-2">
                     <Button variant="outline" size="sm" className="w-full" onClick={() => { setItemToRename(selectedItemDetails); setNewName(selectedItemDetails.name); setIsRenameDialogOpen(true); }}>
                       <Edit2 className="h-3.5 w-3.5 mr-2" /> Rename
@@ -937,6 +1111,16 @@ export function MediaLibraryCore({ isDialog = false, onSelect, onCancel, allowMu
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Storage Health & Cleaner Dialog */}
+      <StorageHealthDialog
+        open={storageHealthOpen}
+        onOpenChange={setStorageHealthOpen}
+        onRefreshMedia={() => {
+          loadMedia(currentPath);
+          loadAudit();
+        }}
+      />
     </div>
   );
 }

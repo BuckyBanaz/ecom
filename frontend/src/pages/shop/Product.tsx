@@ -139,6 +139,7 @@ const ProductPage = () => {
             seoTitle: p.seoTitle,
             seoDescription: p.seoDescription,
             seoKeywords: p.seoKeywords,
+            siblings: p.siblings || [],
           });
           setSelectedImageIndex(0);
           setColor(mappedColor);
@@ -482,6 +483,46 @@ const ProductPage = () => {
               </>
             )}
           </div>
+
+          {/* Color Sibling Variations (Kies een kleur - Reference Photo Style) */}
+          {product.siblings && product.siblings.length > 1 && (
+            <div className="mt-5 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <span>{t("product.choose_color", "Kies een kleur")}:</span>
+                <span className="font-bold text-primary">
+                  {product.siblings.find((s: any) => s.isCurrent)?.colorName || product.color || ""}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {product.siblings.map((sibling: any) => {
+                  const isCurrent = Boolean(sibling.isCurrent || sibling.id === product.id);
+                  return (
+                    <Link
+                      key={sibling.id}
+                      to={`/product/${sibling.slug}`}
+                      className={cn(
+                        "group relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 bg-white dark:bg-muted p-1 transition-all duration-200 overflow-hidden shadow-xs cursor-pointer",
+                        isCurrent
+                          ? "border-amber-500 ring-2 ring-amber-500/30 shadow-md scale-105"
+                          : "border-border/80 hover:border-foreground/50 hover:shadow-sm hover:scale-102"
+                      )}
+                      title={sibling.name || sibling.colorName}
+                    >
+                      <SafeImage
+                        src={sibling.image}
+                        alt={sibling.name}
+                        fallbackType="product"
+                        className="w-full h-full object-contain"
+                      />
+                      {isCurrent && (
+                        <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <div className="flex items-center rounded-full border border-border shadow-sm bg-background">

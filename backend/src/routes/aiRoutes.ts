@@ -72,6 +72,17 @@ router.post("/products/check-duplicate", async (req, res) => {
   }
 });
 
+router.get("/products/:id/suggest-siblings", async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const suggestions = await aiService.suggestSiblingsForProduct(productId);
+    res.json({ success: true, suggestions });
+  } catch (error: any) {
+    console.error("AI Sibling Suggestion Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post("/products/quick-add", upload.single("image"), async (req, res) => {
   try {
     const { hint, price, brandName, imagePromptOverride } = req.body;

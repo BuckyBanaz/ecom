@@ -2002,4 +2002,161 @@ ${contextBlock.slice(0, 50000)}
     return normalizeLlmsTxtOutput(responseText, playbook.siteName);
   },
 
+  /**
+   * AI-powered Color Siblings Auto-Detection
+   * Analyzes product title, attributes, category, and uses Gemini to find sibling variations.
+   */
+  async suggestSiblingsForProduct(productId: string): Promise<any[]> {
+    const targetProduct = await prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        category: true,
+        brand: true,
+        productAttributeValues: {
+          include: {
+            attribute: true,
+            attributeValue: true,
+          },
+        },
+      },
+    });
+
+    if (!targetProduct) return [];
+
+    const targetColorAttr = targetProduct.productAttributeValues.find(
+      (pav) =>
+        pav.attribute.slug === "color" ||
+        pav.attribute.name.toLowerCase() === "color" ||
+        pav.attribute.name.toLowerCase() === "kleur"
+    );
+    const targetColor = targetColorAttr?.attributeValue?.value || "";
+
+    // Common color words in Dutch & English
+    const colorRegex = /\b(zwart|black|wit|white|goud|gold|brons|bronze|nikkel|nickel|staal|steel|chroom|chrome|messing|brass|koper|copper|antraciet|anthracite|zilver|silver|grijs|grey|gray|taupe|beige|groen|green|blauw|blue|rood|red|geel|yellow|oranje|orange|amber|smoke|rookglas|helder|clear|mat|matte|glans|glossy|hout|wood|naturel|natural)\b/gi;
+
+    const cleanBaseName = (name: string) => {
+      return name
+        .replace(colorRegex, "")
+        .replace(/[|\-\/,]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+
+    const targetBase = cleanBaseName(targetProduct.name);
+    const firstWord = targetBase.split(" ")[0] || "";
+
+    const candidates = await prisma.product.findMany({
+      where: {
+        id: { not: targetProduct.id },
+        OR: [
+          ...(targetProduct.categoryId ? [{ categoryId: targetProduct.categoryId }] : []),
+          ...(targetProduct.brandId ? [{ brandId: targetProduct.brandId }] : []),
+          ...(firstWord.length > 2 ? [{ name: { contains: firstWord, mode: "insensitive" as const } }] : []),
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        image: true,
+        colorGroupId: true,
+        productAttributeValues: {
+          include: {
+            attribute: true,
+            attributeValue: true,
+          },
+        },
+      },
+      take: 50,
+    });
+
+    if (candidates.length === 0) return [];
+
+    const scoredCandidates = candidates
+      .map((c) => {
+        const cColorAttr = c.productAttributeValues.find(
+          (pav) =>
+            pav.attribute.slug === "color" ||
+            pav.attribute.name.toLowerCase() === "color" ||
+            pav.attribute.name.toLowerCase() === "kleur"
+        );
+        const cColor = cColorAttr?.attributeValue?.value || "";
+        const cColorCode = cColorAttr?.attributeValue?.colorCode || "#333333";
+        const cBase = cleanBaseName(c.name);
+
+        const targetWords = new Set(targetBase.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
+        const cWords = new Set(cBase.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
+        let matchCount = 0;
+        targetWords.forEach((tw) => {
+          if (cWords.has(tw)) matchCount++;
+        });
+
+        const overlapScore = targetWords.size > 0 ? (matchCount / Math.max(targetWords.size, cWords.size)) * 100 : 0;
+
+        return {
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          price: c.price,
+          image: c.image,
+          colorName: cColor || "Variant",
+          colorCode: cColorCode,
+          score: Math.round(overlapScore),
+          alreadyLinked: c.colorGroupId === targetProduct.colorGroupId && Boolean(targetProduct.colorGroupId),
+        };
+      })
+      .filter((c) => c.score >= 40 && !c.alreadyLinked)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12);
+
+    if (scoredCandidates.length === 0) return [];
+
+    // Use Gemini AI for semantic verification & accurate confidence score
+    try {
+      const prompt = `You are an expert e-commerce catalog AI.
+We are matching "Color Siblings" for a lighting product.
+Color Siblings are products that represent the EXACT SAME physical fixture/lamp model, but differ only in color finish or surface material (e.g. Black vs Gold vs White).
+
+Target Product:
+Name: "${targetProduct.name}"
+Color: "${targetColor}"
+
+Candidates:
+${scoredCandidates.map((c, i) => `[${i}] ID: ${c.id} | Name: "${c.name}" | Extracted Color: "${c.colorName}"`).join("\n")}
+
+Determine which candidates are true color variations of the Target Product.
+Return a valid JSON array of matches with confidence score (0-100) and short reason.
+Format:
+[
+  { "id": "candidate-id", "confidence": 95, "colorName": "Goud", "reason": "Identical model in Gold finish" }
+]
+Output ONLY the JSON array. No markdown code blocks.`;
+
+      const aiResponse = await callGeminiWithFallback([{ text: prompt }], 0.1);
+      const cleaned = aiResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
+      const verified = JSON.parse(cleaned);
+
+      if (Array.isArray(verified) && verified.length > 0) {
+        return scoredCandidates
+          .filter((c) => verified.some((v: any) => v.id === c.id && v.confidence >= 60))
+          .map((c) => {
+            const vMatch = verified.find((v: any) => v.id === c.id);
+            return {
+              ...c,
+              confidence: vMatch.confidence || c.score,
+              matchReason: vMatch.reason || "Identical model with different color finish",
+            };
+          });
+      }
+    } catch (aiErr) {
+      console.warn("Gemini refinement failed, falling back to rule-based scored candidates:", aiErr);
+    }
+
+    return scoredCandidates.map((c) => ({
+      ...c,
+      confidence: c.score,
+      matchReason: `High title similarity (${c.score}%) with different color`,
+    }));
+  },
 };
