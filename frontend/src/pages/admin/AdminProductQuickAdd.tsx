@@ -24,7 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
-import { brandRepository, seriesRepository } from "@/client/apiClient";
+import { brandRepository, seriesRepository, categoryRepository } from "@/client/apiClient";
 import {
   clearQuickAddSession,
   fileFromDataUrl,
@@ -39,6 +39,7 @@ interface ProductRow {
   key: string;
   hint: string;
   price: string;
+  category?: string;
   brand: string;
   series?: string;
   imageFile: File | null;
@@ -65,6 +66,7 @@ const emptyRow = (): ProductRow => ({
   key: `row-${Date.now()}-${Math.random()}`,
   hint: "",
   price: "",
+  category: "",
   brand: "",
   series: "",
   imageFile: null,
@@ -129,6 +131,7 @@ const AdminProductQuickAdd = () => {
   };
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
   const [seriesList, setSeriesList] = useState<Array<{ id: string; name: string; brandId: string }>>([]);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; slug: string; parentId?: string | null }>>([]);
   const imagePhaseTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const generatingRef = useRef(false);
   const sessionNotified = useRef(false);
@@ -159,6 +162,13 @@ const AdminProductQuickAdd = () => {
       .getAll()
       .then((data) => {
         if (data.success && data.series) setSeriesList(data.series);
+      })
+      .catch(() => {});
+
+    categoryRepository
+      .getAll()
+      .then((data) => {
+        if (data.success && data.categories) setCategories(data.categories);
       })
       .catch(() => {});
   }, []);
@@ -423,6 +433,7 @@ const AdminProductQuickAdd = () => {
       if (row.price.trim()) formData.append("price", row.price.trim());
       if (row.brand.trim()) formData.append("brandName", row.brand.trim());
       if (row.series?.trim()) formData.append("seriesName", row.series.trim());
+      if (row.category?.trim()) formData.append("category", row.category.trim());
       if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
 
       let lastErrorMsg = "";
@@ -772,7 +783,7 @@ const AdminProductQuickAdd = () => {
                           ))}
                         </div>
                       )}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {/* Price */}
                         <div className="relative">
                           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">€</span>
@@ -784,6 +795,32 @@ const AdminProductQuickAdd = () => {
                             disabled={isGenerating}
                           />
                         </div>
+
+                        {/* Category */}
+                        <Select
+                          value={row.category || "auto"}
+                          onValueChange={(v) => updateRow(row.key, { category: v === "auto" ? "" : v })}
+                          disabled={isGenerating}
+                        >
+                          <SelectTrigger className="h-9 text-xs truncate">
+                            <SelectValue placeholder="Category (Auto)" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            <SelectItem value="auto" className="text-xs italic text-muted-foreground">
+                              ✨ Auto (AI Detects Category)
+                            </SelectItem>
+                            {(() => {
+                              const hasChildren = new Set(categories.filter((c) => c.parentId).map((c) => c.parentId));
+                              const selectable = categories.filter((c) => !hasChildren.has(c.id));
+                              const list = selectable.length > 0 ? selectable : categories;
+                              return list.map((c) => (
+                                <SelectItem key={c.id || c.slug} value={c.slug} className="text-xs">
+                                  {c.name}
+                                </SelectItem>
+                              ));
+                            })()}
+                          </SelectContent>
+                        </Select>
 
                         {/* Brand */}
                         <Select

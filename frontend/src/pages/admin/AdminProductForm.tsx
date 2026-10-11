@@ -382,6 +382,10 @@ const AdminProductForm = () => {
     const clean = raw.toLowerCase().trim().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
     const aliased = CATEGORY_ALIAS_MAP[clean] || CATEGORY_ALIAS_MAP[raw.toLowerCase().trim()] || clean;
 
+    // Check if matches by id directly
+    const idMatch = list.find((c: any) => c.id === raw);
+    if (idMatch) return idMatch.slug;
+
     // Check if directly in list by slug
     const directMatch = list.find((c: any) => c.slug?.toLowerCase() === aliased.toLowerCase());
     if (directMatch) return directMatch.slug;
@@ -402,7 +406,7 @@ const AdminProductForm = () => {
     const list = cats || categoriesList;
     if (!slug) { setSelectedCategory(""); return; }
     const resolved = resolveCategorySlug(slug, list);
-    const parent = (list as any[]).find((p: any) => p.slug === resolved);
+    const parent = (list as any[]).find((p: any) => p.slug === resolved || p.id === slug);
     const isParent = parent && (list as any[]).some((ch: any) => ch.parentId === parent.id);
     if (isParent) {
       const firstChild = (list as any[]).find((ch: any) => ch.parentId === parent.id);
@@ -772,7 +776,17 @@ const AdminProductForm = () => {
           const data = await categoryRepository.getAll();
           if (data.success && data.categories) {
             setCategoriesList(data.categories);
-            setSelectedCategory((prev) => prev ? resolveCategorySlug(prev, data.categories) : prev);
+            setSelectedCategory((prev) => {
+              if (!prev) return prev;
+              const resolved = resolveCategorySlug(prev, data.categories);
+              const parent = data.categories.find((p: any) => p.slug === resolved || p.id === prev);
+              const isParent = parent && data.categories.some((ch: any) => ch.parentId === parent.id);
+              if (isParent) {
+                const firstChild = data.categories.find((ch: any) => ch.parentId === parent.id);
+                return (firstChild as any)?.slug || resolved;
+              }
+              return resolved;
+            });
           }
         } catch (e) {
           const saved = localStorage.getItem("categories_data");
@@ -922,8 +936,8 @@ const AdminProductForm = () => {
     setShortDescription(draft.shortDescription || "");
     setInStock(draft.inStock ?? true);
 
-    // Resolve category slug — match by slug, alias OR name (case-insensitive)
-    const rawCat = (draft.category || "").trim();
+    // Resolve category slug — match by slug, alias, id OR name (case-insensitive)
+    const rawCat = (draft.category || draft.categorySlug || draft.categoryId || "").trim();
     if (rawCat) {
       safeSetCategory(rawCat);
     } else {

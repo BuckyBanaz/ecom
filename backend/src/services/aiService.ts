@@ -539,7 +539,8 @@ export const aiService = {
     price: string,
     brandName: string,
     imagePromptOverride?: string,
-    seriesName?: string
+    seriesName?: string,
+    categoryName?: string
   ) {
     try {
       const imageCount = getAiImageCount();
@@ -663,6 +664,7 @@ export const aiService = {
         Hint: ${hint || "(No hint provided — rely 100% on the image)"}
         Price: ${price || "89.95"}
         Brand: ${brandName || "Schip en Ster"}
+        ${categoryName ? `Target Category: "${categoryName}" (MANDATORY: Assign this exact category to the product in "category" field)` : `Category Selection: Pick the best matching leaf category from the available store categories: ${categorySlugs}`}
         ${seriesName ? `Series / Collection: "${seriesName}" (MANDATORY REQUIREMENT: This product belongs to the "${seriesName}" series. You must set "series": "${seriesName}" in your response)` : `Available Series / Collections in Database:\n        ${seriesContext || "(No series created yet)"}\n        Rule for Series: If the image or hint matches one of the above series/collections (e.g. an anime franchise, product line), set "series" to the exact matching series name and "seriesSlug" to its slug.`}
 
         === CRITICAL VISUAL GROUNDING (THE IMAGE IS THE 100% GROUND TRUTH) ===
@@ -913,20 +915,79 @@ export const aiService = {
       const detectedShape = (parsedData.visualInspection?.shape || "").toLowerCase();
       const titleLower = (parsedData.name || "").toLowerCase();
 
-      // 1. Force Category to match actual Lamp Type
-      if (detectedType.includes("tafel") || titleLower.includes("tafellamp") || titleLower.includes("table lamp")) {
-        parsedData.category = "table-lamps";
-      } else if (detectedType.includes("hang") || titleLower.includes("hanglamp") || titleLower.includes("pendant")) {
-        parsedData.category = "pendant-lights";
-      } else if (detectedType.includes("plafond") || titleLower.includes("plafondlamp") || titleLower.includes("ceiling")) {
-        parsedData.category = "ceiling-lights";
-      } else if (detectedType.includes("wand") || titleLower.includes("wandlamp") || titleLower.includes("wall")) {
-        parsedData.category = "wall-lights";
-      } else if (detectedType.includes("vloer") || titleLower.includes("vloerlamp") || titleLower.includes("floor")) {
-        parsedData.category = "floor-lamps";
-      } else if (detectedType.includes("spot") || titleLower.includes("spot")) {
-        parsedData.category = "spotlights";
+      // 1. Resolve & Force Category
+      let resolvedCategorySlug = "";
+      let resolvedCategoryId: string | null = null;
+
+      // Check if user explicitly provided a category from Quick Add
+      if (categoryName && categoryName.trim() && categoryName !== "auto") {
+        const catStr = categoryName.trim();
+        const matched = categories.find(
+          (c) => c.slug.toLowerCase() === catStr.toLowerCase() ||
+                 c.name.toLowerCase() === catStr.toLowerCase() ||
+                 c.id === catStr
+        );
+        if (matched) {
+          resolvedCategorySlug = matched.slug;
+          resolvedCategoryId = matched.id;
+        } else {
+          resolvedCategorySlug = catStr.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        }
       }
+
+      // If no explicit category or not matched, use visual inspection & AI output
+      if (!resolvedCategorySlug) {
+        const aiCat = (parsedData.category || "").toLowerCase();
+
+        // Try to match AI's category directly against DB categories
+        const directCatMatch = selectableCategories.find(
+          (c) => c.slug.toLowerCase() === aiCat ||
+                 c.name.toLowerCase() === aiCat ||
+                 aiCat.includes(c.slug.toLowerCase()) ||
+                 c.slug.toLowerCase().includes(aiCat)
+        );
+
+        if (directCatMatch) {
+          resolvedCategorySlug = directCatMatch.slug;
+          resolvedCategoryId = directCatMatch.id;
+        } else if (detectedType.includes("tafel") || titleLower.includes("tafellamp") || titleLower.includes("table lamp")) {
+          resolvedCategorySlug = "table-lamps";
+        } else if (detectedType.includes("hang") || titleLower.includes("hanglamp") || titleLower.includes("pendant")) {
+          resolvedCategorySlug = "pendant-lights";
+        } else if (detectedType.includes("plafond") || titleLower.includes("plafondlamp") || titleLower.includes("ceiling")) {
+          resolvedCategorySlug = "ceiling-lights";
+        } else if (detectedType.includes("wand") || titleLower.includes("wandlamp") || titleLower.includes("wall")) {
+          resolvedCategorySlug = "wall-lights";
+        } else if (detectedType.includes("vloer") || titleLower.includes("vloerlamp") || titleLower.includes("floor")) {
+          resolvedCategorySlug = "floor-lamps";
+        } else if (detectedType.includes("spot") || titleLower.includes("spot")) {
+          resolvedCategorySlug = "spotlights";
+        } else if (selectableCategories.length > 0) {
+          resolvedCategorySlug = selectableCategories[0].slug;
+          resolvedCategoryId = selectableCategories[0].id;
+        }
+      }
+
+      // Guarantee categoryId is mapped to real category in DB
+      if (!resolvedCategoryId && resolvedCategorySlug) {
+        const matchedDbCat = categories.find(
+          (c) => c.slug.toLowerCase() === resolvedCategorySlug.toLowerCase() ||
+                 c.name.toLowerCase() === resolvedCategorySlug.toLowerCase() ||
+                 resolvedCategorySlug.toLowerCase().includes(c.slug.toLowerCase()) ||
+                 c.slug.toLowerCase().includes(resolvedCategorySlug.toLowerCase())
+        );
+        if (matchedDbCat) {
+          resolvedCategoryId = matchedDbCat.id;
+          resolvedCategorySlug = matchedDbCat.slug;
+        } else if (selectableCategories.length > 0) {
+          resolvedCategoryId = selectableCategories[0].id;
+          resolvedCategorySlug = selectableCategories[0].slug;
+        }
+      }
+
+      parsedData.category = resolvedCategorySlug;
+      parsedData.categoryId = resolvedCategoryId;
+      parsedData.categorySlug = resolvedCategorySlug;
 
       // 2. Force Color Attribute to match actual Visual Finish (Silver vs Gold vs Black vs White)
       if (!parsedData.attributes || typeof parsedData.attributes !== "object") {

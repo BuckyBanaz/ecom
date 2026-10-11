@@ -85,7 +85,7 @@ router.get("/products/:id/suggest-siblings", async (req, res) => {
 
 router.post("/products/quick-add", upload.single("image"), async (req, res) => {
   try {
-    const { hint, price, brandName, seriesName, imagePromptOverride } = req.body;
+    const { hint, price, brandName, seriesName, category, categorySlug, imagePromptOverride } = req.body;
     const imageFile = req.file;
 
     if (imageFile) {
@@ -104,7 +104,8 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       price || "",
       brandName || "",
       imagePromptOverride || "",
-      seriesName || ""
+      seriesName || "",
+      category || categorySlug || ""
     );
 
     const saved = await saveProductDraft(draft, { createdBy: (req as any).user?.id });
@@ -123,7 +124,7 @@ router.post(
   async (req, res) => {
     try {
       const bulkLimit = getAiBulkLimit();
-      let items: Array<{ hint?: string; price?: string; brandName?: string; seriesName?: string }> = [];
+      let items: Array<{ hint?: string; price?: string; brandName?: string; seriesName?: string; category?: string }> = [];
 
       try {
         items = JSON.parse(req.body.items || "[]");
@@ -168,7 +169,8 @@ router.post(
             row.price || "",
             row.brandName || "",
             imagePromptOverride,
-            row.seriesName || ""
+            row.seriesName || "",
+            row.category || ""
           );
           const saved = await saveProductDraft(draft, { batchId, createdBy: userId });
           results.push({ status: "draft", draftId: saved.id, draft });
