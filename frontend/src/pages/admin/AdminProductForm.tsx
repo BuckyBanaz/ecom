@@ -273,10 +273,10 @@ const AdminProductForm = () => {
   // Quick Generate Sizes Modal State
   const [isGenerateSizesModalOpen, setIsGenerateSizesModalOpen] = useState(false);
   const [isCreatingSizeVariants, setIsCreatingSizeVariants] = useState(false);
+  const [currentProductSizeInModal, setCurrentProductSizeInModal] = useState("Small");
   const [sizeVariantsToCreate, setSizeVariantsToCreate] = useState<Array<{ id: string; label: string; price: string }>>([
-    { id: "sz-1", label: "Small", price: "" },
-    { id: "sz-2", label: "Medium", price: "" },
-    { id: "sz-3", label: "Large", price: "" },
+    { id: "sz-1", label: "Medium", price: "" },
+    { id: "sz-2", label: "Large", price: "" },
   ]);
 
   const extractSizeFromNameOrSpecs = (name: string, specs?: any, pavs?: any[]): string => {
@@ -781,10 +781,17 @@ const AdminProductForm = () => {
   };
 
   const applyGenerateSizePreset = (presetSizes: string[]) => {
+    if (!presetSizes || presetSizes.length === 0) return;
     const baseP = parseFloat(price) || 89.95;
+
+    // First size is assigned to the current product!
+    setCurrentProductSizeInModal(presetSizes[0]);
+
+    // Remaining sizes are created as new siblings
+    const remainingSizes = presetSizes.slice(1);
     setSizeVariantsToCreate(
-      presetSizes.map((sz, idx) => {
-        const mult = idx === 0 ? 0.85 : idx === 1 ? 1 : 1 + idx * 0.25;
+      remainingSizes.map((sz, idx) => {
+        const mult = 1 + (idx + 1) * 0.25;
         return {
           id: `sz-${Date.now()}-${idx}`,
           label: sz,
@@ -797,7 +804,7 @@ const AdminProductForm = () => {
   const handleCreateAndLinkSizeVariants = async () => {
     const validSizes = sizeVariantsToCreate.filter((s) => s.label.trim().length > 0);
     if (validSizes.length === 0) {
-      toast.error(t("admin_product_form.toast_min_one_size", "Voeg minimaal 1 maat toe"));
+      toast.error(t("admin_product_form.toast_min_one_size", "Voeg minimaal 1 nieuwe maat toe"));
       return;
     }
     if (!name.trim()) {
@@ -819,6 +826,48 @@ const AdminProductForm = () => {
       const dimensionRegex = /(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b)/i;
       const cleanBaseTitle = name.replace(/[-–—]?\s*(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b).*$/i, "").trim() || name.trim();
 
+      // 1. Update CURRENT product on form (and DB if saved) with currentProductSizeInModal
+      const curSizeClean = currentProductSizeInModal.trim();
+      let updatedCurName = name;
+      if (curSizeClean) {
+        if (dimensionRegex.test(name)) {
+          updatedCurName = name.replace(dimensionRegex, curSizeClean);
+        } else {
+          updatedCurName = `${cleanBaseTitle} - ${curSizeClean}`;
+        }
+        setName(updatedCurName);
+
+        const updatedCurAttrs = {
+          ...selectedAttributeValues,
+          size: [curSizeClean],
+          afmeting: [curSizeClean],
+        };
+        setSelectedAttributeValues(updatedCurAttrs);
+
+        const updatedCurSpecs = specs.map((sp) => {
+          const k = (sp.key || "").toLowerCase();
+          if (k.includes("afmeting") || k.includes("maat") || k.includes("size") || k.includes("diameter")) {
+            return { ...sp, value: curSizeClean };
+          }
+          return sp;
+        });
+        if (!updatedCurSpecs.some((sp) => (sp.key || "").toLowerCase().includes("afmeting") || (sp.key || "").toLowerCase().includes("maat"))) {
+          updatedCurSpecs.push({ id: `sp-${Date.now()}`, key: "Afmeting", value: curSizeClean });
+        }
+        setSpecs(updatedCurSpecs);
+
+        // If product already exists in DB, update it immediately with new name, size and group
+        if (id && id !== "new") {
+          await productRepository.update(id, {
+            name: updatedCurName,
+            colorGroupId: baseGroupId,
+            attributes: updatedCurAttrs,
+            specs: updatedCurSpecs,
+          }).catch((e) => console.warn("Failed to auto-update current product in DB:", e));
+        }
+      }
+
+      // 2. Create NEW size variants
       const createdItems: any[] = [];
       const newLinkedSiblings: any[] = [...linkedSizeSiblings];
 
@@ -850,7 +899,7 @@ const AdminProductForm = () => {
           images: galleryImages,
           attributes: variantAttributes,
           specs: specs.map((sp) => {
-            const k = sp.key.toLowerCase();
+            const k = (sp.key || "").toLowerCase();
             if (k.includes("afmeting") || k.includes("maat") || k.includes("size") || k.includes("diameter")) {
               return { ...sp, value: item.label };
             }
@@ -2641,10 +2690,10 @@ const AdminProductForm = () => {
                     size="sm"
                     onClick={() => {
                       const baseP = parseFloat(price) || 89.95;
+                      const detected = currentSizeName || "Small";
+                      setCurrentProductSizeInModal(detected);
                       setSizeVariantsToCreate([
-                        { id: `sz-${Date.now()}-1`, label: "Small", price: (baseP * 0.85).toFixed(2) },
-                        { id: `sz-${Date.now()}-2`, label: "Medium", price: baseP.toFixed(2) },
-                        { id: `sz-${Date.now()}-3`, label: "Large", price: (baseP * 1.25).toFixed(2) },
+                        { id: `sz-${Date.now()}-1`, label: detected.toLowerCase() === "small" ? "Medium" : "Large", price: (baseP * 1.25).toFixed(2) },
                       ]);
                       setIsGenerateSizesModalOpen(true);
                     }}
@@ -4257,11 +4306,33 @@ const AdminProductForm = () => {
               </div>
             </div>
 
+            {/* Current Product Size Box */}
+            <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                  <Ruler className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span>{t("admin_product_form.current_prod_size_title", "Maat van DIT huidige product:")}</span>
+                </Label>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                  Huidig Product
+                </span>
+              </div>
+              <Input
+                value={currentProductSizeInModal}
+                onChange={(e) => setCurrentProductSizeInModal(e.target.value)}
+                placeholder="bijv. Small of 40 cm"
+                className="h-8.5 text-xs font-semibold bg-background border-amber-500/30"
+              />
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Dit huidige product krijgt maat <span className="font-semibold text-foreground">"{currentProductSizeInModal || "..."}"</span> en de naam wordt <span className="font-semibold text-foreground">"{name.replace(/[-–—]?\s*(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b).*$/i, "").trim()} - {currentProductSizeInModal || "..."}"</span>.
+              </p>
+            </div>
+
             {/* List of sizes */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold">
-                  {t("admin_product_form.sizes_to_generate", "Aan te maken maten:")}
+                  {t("admin_product_form.sizes_to_generate", "Aan te maken NIEUWE maten:")}
                 </Label>
                 <Button
                   type="button"
