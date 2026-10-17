@@ -602,8 +602,35 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
       });
     }
 
+    const mappedVariants = (product as any).variants?.map((v: any) => {
+      const sizeAttr = v.variantAttributeValues?.find((vav: any) => {
+        const slug = vav.attributeValue?.attribute?.slug?.toLowerCase();
+        const name = vav.attributeValue?.attribute?.name?.toLowerCase();
+        return (
+          slug === "size" ||
+          slug === "afmeting" ||
+          name === "size" ||
+          name === "afmeting" ||
+          name === "maat" ||
+          name === "diameter"
+        );
+      });
+      const sizeFromName =
+        v.sku?.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:small|medium|large|xl)\b)/i)?.[0] || "";
+      const sizeVal = sizeAttr?.attributeValue?.value || sizeFromName || "";
+      return {
+        id: v.id,
+        sku: v.sku,
+        stock: v.stock,
+        price: v.price ?? product.price,
+        sizeName: sizeVal || v.sku || "Default",
+        inStock: (v.stock ?? 0) > 0,
+      };
+    }) || [];
+
     const clientProduct = {
       ...sanitizeProductForClient(product),
+      variants: mappedVariants,
       siblings,
     };
 
@@ -760,47 +787,65 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     // Insert Product Variants
     if (variants && Array.isArray(variants)) {
       for (const v of variants) {
+        const variantSku =
+          v.sku && String(v.sku).trim()
+            ? String(v.sku).trim()
+            : `${product.slug || product.id}-var-${Math.random().toString(36).substring(2, 7)}`;
+
         const variant = await prisma.productVariant.create({
           data: {
             productId: product.id,
-            sku: v.sku,
+            sku: variantSku,
             stock: parseInt(v.stock, 10) || 0,
-            price: v.price ? parseFloat(v.price) : null,
+            price: v.price !== null && v.price !== undefined && !isNaN(parseFloat(v.price)) ? parseFloat(v.price) : null,
           },
         });
 
-        // Link variant attributes
-        if (v.attributes && typeof v.attributes === "object") {
-          for (const [attrSlug, val] of Object.entries(v.attributes)) {
-            const attribute = await prisma.attribute.findUnique({
-              where: { slug: attrSlug },
-            });
-            if (!attribute) continue;
-
-            const singleVal = val as string;
-            let attrValue = await prisma.attributeValue.findFirst({
-              where: {
-                attributeId: attribute.id,
-                value: { equals: singleVal, mode: "insensitive" },
-              },
-            });
-
-            if (!attrValue) {
-              attrValue = await prisma.attributeValue.create({
-                data: {
-                  attributeId: attribute.id,
-                  value: singleVal,
-                },
-              });
-            }
-
-            await prisma.variantAttributeValue.create({
+        const sizeVal = v.sizeName || v.size || (v.attributes ? (v.attributes.size || v.attributes.afmeting) : null);
+        if (sizeVal) {
+          let attribute = await prisma.attribute.findFirst({
+            where: {
+              OR: [
+                { slug: "size" },
+                { slug: "afmeting" },
+                { name: { equals: "Size", mode: "insensitive" } },
+                { name: { equals: "Afmeting", mode: "insensitive" } },
+              ],
+            },
+          });
+          if (!attribute) {
+            attribute = await prisma.attribute.create({
               data: {
-                variantId: variant.id,
-                attributeValueId: attrValue.id,
+                name: "Afmeting",
+                slug: "size",
+                type: "select",
+                visibility: "both",
               },
             });
           }
+
+          let attrValue = await prisma.attributeValue.findFirst({
+            where: {
+              attributeId: attribute.id,
+              value: { equals: String(sizeVal).trim(), mode: "insensitive" },
+            },
+          });
+
+          if (!attrValue) {
+            attrValue = await prisma.attributeValue.create({
+              data: {
+                attributeId: attribute.id,
+                value: String(sizeVal).trim(),
+              },
+            });
+          }
+
+          await prisma.variantAttributeValue.create({
+            data: {
+              variantId: variant.id,
+              attributeValueId: attrValue.id,
+            },
+          });
         }
       }
     }
@@ -979,46 +1024,65 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       await prisma.productVariant.deleteMany({ where: { productId: id } });
 
       for (const v of variants) {
+        const variantSku =
+          v.sku && String(v.sku).trim()
+            ? String(v.sku).trim()
+            : `${existingProduct.slug || id}-var-${Math.random().toString(36).substring(2, 7)}`;
+
         const variant = await prisma.productVariant.create({
           data: {
             productId: id,
-            sku: v.sku,
+            sku: variantSku,
             stock: parseInt(v.stock, 10) || 0,
-            price: v.price ? parseFloat(v.price) : null,
+            price: v.price !== null && v.price !== undefined && !isNaN(parseFloat(v.price)) ? parseFloat(v.price) : null,
           },
         });
 
-        if (v.attributes && typeof v.attributes === "object") {
-          for (const [attrSlug, val] of Object.entries(v.attributes)) {
-            const attribute = await prisma.attribute.findUnique({
-              where: { slug: attrSlug },
-            });
-            if (!attribute) continue;
-
-            const singleVal = val as string;
-            let attrValue = await prisma.attributeValue.findFirst({
-              where: {
-                attributeId: attribute.id,
-                value: { equals: singleVal, mode: "insensitive" },
-              },
-            });
-
-            if (!attrValue) {
-              attrValue = await prisma.attributeValue.create({
-                data: {
-                  attributeId: attribute.id,
-                  value: singleVal,
-                },
-              });
-            }
-
-            await prisma.variantAttributeValue.create({
+        const sizeVal = v.sizeName || v.size || (v.attributes ? (v.attributes.size || v.attributes.afmeting) : null);
+        if (sizeVal) {
+          let attribute = await prisma.attribute.findFirst({
+            where: {
+              OR: [
+                { slug: "size" },
+                { slug: "afmeting" },
+                { name: { equals: "Size", mode: "insensitive" } },
+                { name: { equals: "Afmeting", mode: "insensitive" } },
+              ],
+            },
+          });
+          if (!attribute) {
+            attribute = await prisma.attribute.create({
               data: {
-                variantId: variant.id,
-                attributeValueId: attrValue.id,
+                name: "Afmeting",
+                slug: "size",
+                type: "select",
+                visibility: "both",
               },
             });
           }
+
+          let attrValue = await prisma.attributeValue.findFirst({
+            where: {
+              attributeId: attribute.id,
+              value: { equals: String(sizeVal).trim(), mode: "insensitive" },
+            },
+          });
+
+          if (!attrValue) {
+            attrValue = await prisma.attributeValue.create({
+              data: {
+                attributeId: attribute.id,
+                value: String(sizeVal).trim(),
+              },
+            });
+          }
+
+          await prisma.variantAttributeValue.create({
+            data: {
+              variantId: variant.id,
+              attributeValueId: attrValue.id,
+            },
+          });
         }
       }
     }

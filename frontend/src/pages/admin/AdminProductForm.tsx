@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes, Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +60,22 @@ export interface SpecItem {
   value: string;
   link?: string;
 }
+
+export interface FormProductVariant {
+  id?: string;
+  sizeName: string;
+  price: string;
+  stock: string;
+  sku: string;
+}
+
+const VARIANT_SIZE_PRESETS = [
+  { label: "🔘 Diameter (Ø 40cm, 60cm, 80cm)", sizes: ["Ø 40 cm", "Ø 60 cm", "Ø 80 cm"] },
+  { label: "📏 Lengte (80cm, 100cm, 120cm)", sizes: ["80 cm", "100 cm", "120 cm"] },
+  { label: "💍 Ringen (2-Ring, 3-Ring, 4-Ring)", sizes: ["2-Ring", "3-Ring", "4-Ring"] },
+  { label: "💡 Lichts (3-Lichts, 5-Lichts, 7-Lichts)", sizes: ["3-Lichts", "5-Lichts", "7-Lichts"] },
+  { label: "🏷️ Maten (S, M, L)", sizes: ["Small (S)", "Medium (M)", "Large (L)"] },
+];
 
 const CATEGORY_ALIAS_MAP: Record<string, string> = {
   "hanglampen": "pendant-lights",
@@ -187,6 +203,44 @@ const AdminProductForm = () => {
   const [lowStockThreshold, setLowStockThreshold] = useState("5");
   const [currentInventoryItem, setCurrentInventoryItem] = useState<any>(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+
+  // Internal Size Variants State
+  const [hasVariants, setHasVariants] = useState(false);
+  const [productVariants, setProductVariants] = useState<FormProductVariant[]>([]);
+
+  const applyVariantPreset = (presetSizes: string[]) => {
+    const baseP = parseFloat(price) || 89.95;
+    const cleanPrefix = (name || "PROD").toUpperCase().replace(/[^A-Z0-9]+/g, "-").slice(0, 10);
+    const newItems: FormProductVariant[] = presetSizes.map((sz, idx) => {
+      const multiplier = idx === 0 ? 0.85 : idx === 1 ? 1 : 1 + idx * 0.3;
+      const sizeSlug = sz.replace(/[^a-zA-Z0-9]+/g, "").toUpperCase();
+      return {
+        id: `var-${Date.now()}-${idx}`,
+        sizeName: sz,
+        price: (baseP * multiplier).toFixed(2),
+        stock: storageStock || "10",
+        sku: `${cleanPrefix}-${sizeSlug}`,
+      };
+    });
+    setProductVariants(newItems);
+    setHasVariants(true);
+    toast.success(`Applied ${presetSizes.length} size variants!`);
+  };
+
+  const addVariantRow = () => {
+    const baseP = parseFloat(price) || 89.95;
+    setProductVariants((prev) => [
+      ...prev,
+      {
+        id: `var-${Date.now()}`,
+        sizeName: "",
+        price: baseP.toFixed(2),
+        stock: storageStock || "10",
+        sku: "",
+      },
+    ]);
+    setHasVariants(true);
+  };
 
   // Color Siblings & Linked Variants States
   const [colorGroupId, setColorGroupId] = useState<string | null>(null);
@@ -358,6 +412,22 @@ const AdminProductForm = () => {
         pav.attribute?.name?.toLowerCase() === "color" ||
         pav.attribute?.name?.toLowerCase() === "kleur"
     );
+    let sizeVal = productToAdd.sizeName || "";
+    if (!sizeVal) {
+      const sizeAttr = productToAdd.productAttributeValues?.find(
+        (pav: any) =>
+          pav.attribute?.slug === "size" ||
+          pav.attribute?.slug === "afmeting" ||
+          pav.attribute?.name?.toLowerCase() === "size" ||
+          pav.attribute?.name?.toLowerCase() === "afmeting"
+      );
+      if (sizeAttr?.attributeValue?.value) {
+        sizeVal = sizeAttr.attributeValue.value;
+      } else {
+        const nameMatch = productToAdd.name?.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b)/i);
+        if (nameMatch) sizeVal = nameMatch[0].trim();
+      }
+    }
     const formattedSibling = {
       id: productToAdd.id,
       name: productToAdd.name,
@@ -366,6 +436,7 @@ const AdminProductForm = () => {
       price: productToAdd.price,
       colorName: colorAttr?.attributeValue?.value || "Color",
       colorCode: colorAttr?.attributeValue?.colorCode || "#333333",
+      sizeName: sizeVal || undefined,
     };
     setLinkedSiblings((prev) => [...prev, formattedSibling]);
     setSiblingSearchResults((prev) => prev.filter((p) => p.id !== productToAdd.id));
@@ -1066,6 +1137,18 @@ const AdminProductForm = () => {
     if (draft.binLocation) setBinLocation(draft.binLocation);
     if (draft.lowStockThreshold !== undefined) setLowStockThreshold(String(draft.lowStockThreshold));
     if (draft.colorGroupId) setColorGroupId(draft.colorGroupId);
+    if (draft.variants && Array.isArray(draft.variants) && draft.variants.length > 0) {
+      setHasVariants(true);
+      setProductVariants(
+        draft.variants.map((v: any) => ({
+          id: v.id,
+          sizeName: v.sizeName || v.sku || "",
+          price: v.price !== null && v.price !== undefined ? String(v.price) : "",
+          stock: v.stock !== undefined ? String(v.stock) : "10",
+          sku: v.sku || "",
+        }))
+      );
+    }
     toast.info(t("admin_product_form.draft_loaded"));
   };
 
@@ -1193,6 +1276,22 @@ const AdminProductForm = () => {
 
             if (p.colorGroupId) {
               setColorGroupId(p.colorGroupId);
+            }
+
+            if (p.variants && Array.isArray(p.variants) && p.variants.length > 0) {
+              const hasMultipleOrSized = p.variants.length > 1 || p.variants.some((v: any) => v.sizeName && v.sizeName !== "Default");
+              if (hasMultipleOrSized) {
+                setHasVariants(true);
+                setProductVariants(
+                  p.variants.map((v: any) => ({
+                    id: v.id,
+                    sizeName: v.sizeName && v.sizeName !== "Default" ? v.sizeName : (v.sku || ""),
+                    price: v.price !== null && v.price !== undefined ? String(v.price) : "",
+                    stock: v.stock !== undefined ? String(v.stock) : "10",
+                    sku: v.sku || "",
+                  }))
+                );
+              }
             }
 
             if (p.siblings && Array.isArray(p.siblings)) {
@@ -1528,6 +1627,18 @@ const AdminProductForm = () => {
         specs: serializedSpecs,
         colorGroupId: colorGroupId || undefined,
         siblingProductIds: linkedSiblings.map((s) => s.id),
+        variants: hasVariants
+          ? productVariants
+              .filter((v) => v.sizeName.trim().length > 0)
+              .map((v) => ({
+                id: v.id,
+                sku: v.sku.trim() || undefined,
+                price: v.price.trim() ? parseFloat(v.price) : null,
+                stock: parseInt(v.stock, 10) || 0,
+                sizeName: v.sizeName.trim(),
+                attributes: { size: v.sizeName.trim() },
+              }))
+          : [],
       };
 
       // 1. Try saving to backend API
@@ -2412,16 +2523,176 @@ const AdminProductForm = () => {
               </CardContent>
             </Card>
 
+            {/* Internal Product Variants (Sizes & Dimensions) Card */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
+              <CardHeader className="border-b pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <Ruler className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <span>{t("admin_product_form.variants_title", "Product Variants (Sizes / Dimensions)")}</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    {t(
+                      "admin_product_form.variants_desc",
+                      "Manage different sizes/diameters for this single product (e.g. 40cm, 60cm, 80cm) with their own prices and stock, displayed as clickable size pills on the storefront."
+                    )}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Label htmlFor="has-variants-switch" className="text-xs font-semibold cursor-pointer">
+                    {hasVariants ? "Variants Enabled" : "Single Size"}
+                  </Label>
+                  <Switch
+                    id="has-variants-switch"
+                    checked={hasVariants}
+                    onCheckedChange={(checked) => {
+                      setHasVariants(checked);
+                      if (checked && productVariants.length === 0) {
+                        applyVariantPreset(VARIANT_SIZE_PRESETS[0].sizes);
+                      }
+                    }}
+                  />
+                </div>
+              </CardHeader>
+
+              {hasVariants && (
+                <CardContent className="space-y-4">
+                  {/* Quick Preset Buttons */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                      Quick Size Presets:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {VARIANT_SIZE_PRESETS.map((p, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => applyVariantPreset(p.sizes)}
+                          className="text-[11px] rounded-full border border-border bg-muted/50 px-2.5 py-1 hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-800 dark:hover:text-amber-300 transition-colors font-medium"
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Variants Table */}
+                  <div className="rounded-xl border border-border/80 bg-background/50 overflow-hidden">
+                    <div className="grid grid-cols-12 gap-2 p-2.5 bg-muted/40 border-b text-[11px] font-bold text-muted-foreground">
+                      <div className="col-span-4">Size / Option Name</div>
+                      <div className="col-span-3">Price (€)</div>
+                      <div className="col-span-2">Stock</div>
+                      <div className="col-span-2">SKU (Optional)</div>
+                      <div className="col-span-1 text-right">Del</div>
+                    </div>
+
+                    <div className="divide-y divide-border/50">
+                      {productVariants.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-muted-foreground">
+                          No variants added yet. Choose a preset above or click Add Variant.
+                        </div>
+                      ) : (
+                        productVariants.map((v, idx) => (
+                          <div key={idx} className="grid grid-cols-12 gap-2 p-2.5 items-center text-xs hover:bg-muted/20">
+                            <div className="col-span-4">
+                              <Input
+                                value={v.sizeName}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setProductVariants((prev) =>
+                                    prev.map((item, i) => (i === idx ? { ...item, sizeName: val } : item))
+                                  );
+                                }}
+                                placeholder="e.g. Ø 60 cm"
+                                className="h-8 text-xs font-medium"
+                              />
+                            </div>
+                            <div className="col-span-3 relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">€</span>
+                              <Input
+                                value={v.price}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setProductVariants((prev) =>
+                                    prev.map((item, i) => (i === idx ? { ...item, price: val } : item))
+                                  );
+                                }}
+                                placeholder="89.95"
+                                className="pl-6 h-8 text-xs font-mono"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Input
+                                value={v.stock}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setProductVariants((prev) =>
+                                    prev.map((item, i) => (i === idx ? { ...item, stock: val } : item))
+                                  );
+                                }}
+                                placeholder="10"
+                                className="h-8 text-xs font-mono"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Input
+                                value={v.sku}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setProductVariants((prev) =>
+                                    prev.map((item, i) => (i === idx ? { ...item, sku: val } : item))
+                                  );
+                                }}
+                                placeholder="Auto"
+                                className="h-8 text-xs font-mono text-[11px]"
+                              />
+                            </div>
+                            <div className="col-span-1 text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                                onClick={() => setProductVariants((prev) => prev.filter((_, i) => i !== idx))}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addVariantRow}
+                      className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 rounded-lg"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add Size Variant</span>
+                    </Button>
+                    <span className="text-[11px] text-muted-foreground">
+                      {productVariants.length} size variant(s) defined
+                    </span>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
             {/* Color Siblings & Linked Variants Card */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <Boxes className="h-5 w-5 text-primary" />
-                    <span>{t("admin_product_form.siblings_title", "Color Siblings / Linked Products")}</span>
+                    <span>{t("admin_product_form.siblings_title", "Product Siblings & Linked Variations (Color & Size)")}</span>
                   </CardTitle>
                   <CardDescription className="text-xs mt-0.5">
-                    {t("admin_product_form.siblings_desc", "Connect existing standalone products as color variations. When saved, all linked products will display clickable color swatches on their storefront pages.")}
+                    {t("admin_product_form.siblings_desc", "Connect standalone products as color or size variations. All linked products share a sibling group ID and will display clickable size pills (afmetingen) or color swatches on their storefront pages.")}
                   </CardDescription>
                 </div>
                 <Button
@@ -2672,7 +2943,7 @@ const AdminProductForm = () => {
 
                   {linkedSiblings.length === 0 ? (
                     <div className="p-4 rounded-xl border border-dashed border-muted-foreground/20 text-center text-xs text-muted-foreground">
-                      {t("admin_product_form.no_siblings_linked", "No color siblings linked yet. Search above to link other variations of this item.")}
+                      {t("admin_product_form.no_siblings_linked", "No siblings linked yet. Search above to link other size or color variations of this item.")}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -2690,16 +2961,21 @@ const AdminProductForm = () => {
                             <div className="truncate">
                               <p className="font-semibold text-xs text-foreground truncate">{sibling.name}</p>
                               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
-                                  style={{ background: sibling.colorCode || "#666" }}
-                                />
-                                <span className="font-medium text-foreground/90">{sibling.colorName}</span>
-                                {sibling.sizeName && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                                {sibling.sizeName ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                                     📏 {sibling.sizeName}
                                   </span>
+                                ) : (
+                                  <>
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                      style={{ background: sibling.colorCode || "#666" }}
+                                    />
+                                    <span className="font-medium text-foreground/90">{sibling.colorName}</span>
+                                  </>
                                 )}
+                                <span>·</span>
+                                <span className="font-semibold text-foreground/80">€{Number(sibling.price).toFixed(2)}</span>
                               </div>
                             </div>
                           </div>

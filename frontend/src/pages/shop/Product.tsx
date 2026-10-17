@@ -43,6 +43,7 @@ const ProductPage = () => {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedReview, setSelectedReview] = useState<any>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [color, setColor] = useState("");
@@ -139,8 +140,14 @@ const ProductPage = () => {
             seoTitle: p.seoTitle,
             seoDescription: p.seoDescription,
             seoKeywords: p.seoKeywords,
+            variants: p.variants || [],
             siblings: p.siblings || [],
           });
+          if (p.variants && p.variants.length > 0) {
+            setSelectedVariantId(p.variants[0].id);
+          } else {
+            setSelectedVariantId(null);
+          }
           setSelectedImageIndex(0);
           setColor(mappedColor);
           setFitting(mappedFitting);
@@ -236,7 +243,14 @@ const ProductPage = () => {
   const product = liveProduct || findProduct(slug);
   if (!product) return <NotFound />;
 
-  const availableStock = product.inStock !== false ? (product.webshopStock !== undefined ? product.webshopStock : (product.stock !== undefined ? product.stock : 10)) : 0;
+  const activeVariant = useMemo(() => {
+    if (!product?.variants || product.variants.length === 0) return null;
+    return product.variants.find((v: any) => v.id === selectedVariantId) || product.variants[0];
+  }, [product?.variants, selectedVariantId]);
+
+  const activePrice = activeVariant?.price ?? product.price;
+
+  const availableStock = product.inStock !== false ? (activeVariant ? (activeVariant.stock ?? 10) : (product.webshopStock !== undefined ? product.webshopStock : (product.stock !== undefined ? product.stock : 10))) : 0;
   const lowStockThreshold = product.lowStockThreshold ?? 10;
   const isLowStock = product.inStock !== false && availableStock > 0 && availableStock <= lowStockThreshold;
 
@@ -481,52 +495,91 @@ const ProductPage = () => {
           )}
 
           <div className="mt-6 flex flex-wrap items-baseline gap-3">
-            <span className="text-3xl sm:text-4xl font-extrabold text-primary">{formatPrice(product.price)}</span>
-            {product.oldPrice && product.oldPrice > product.price && (
+            <span className="text-3xl sm:text-4xl font-extrabold text-primary">{formatPrice(activePrice)}</span>
+            {product.oldPrice && product.oldPrice > activePrice && (
               <>
                 <span className="text-xl text-muted-foreground line-through font-medium">
                   {formatPrice(product.oldPrice)}
                 </span>
                 <Badge className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-2.5 py-0.5 rounded-full border-transparent shadow-xs">
-                  -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%
+                  -{Math.round(((product.oldPrice - activePrice) / product.oldPrice) * 100)}%
                 </Badge>
                 <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/50">
-                  Bespaar {formatPrice(product.oldPrice - product.price)}
+                  Bespaar {formatPrice(product.oldPrice - activePrice)}
                 </span>
               </>
             )}
           </div>
 
-          {/* Sibling Variations (Sizes & Colors) */}
+          {/* Sibling & Internal Variant Variations (Sizes & Colors) */}
           {(() => {
-            if (!product.siblings || product.siblings.length <= 1) return null;
+            const hasInternalVariants = Boolean(product.variants && product.variants.length > 1);
 
             // Check if siblings have distinct size names
             const sizeMap = new Map<string, any>();
-            product.siblings.forEach((s: any) => {
-              const sz = (s.sizeName || "").trim();
-              if (sz && !sizeMap.has(sz)) {
-                sizeMap.set(sz, s);
-              }
-            });
-            const hasDistinctSizes = sizeMap.size > 1;
+            if (product.siblings && product.siblings.length > 1) {
+              product.siblings.forEach((s: any) => {
+                const sz = (s.sizeName || "").trim();
+                if (sz && !sizeMap.has(sz)) {
+                  sizeMap.set(sz, s);
+                }
+              });
+            }
+            const hasDistinctSiblingSizes = sizeMap.size > 1;
 
             // Check if siblings have distinct color names
             const colorMap = new Map<string, any>();
-            product.siblings.forEach((s: any) => {
-              const cl = (s.colorName || "").trim();
-              if (cl && !colorMap.has(cl)) {
-                colorMap.set(cl, s);
-              }
-            });
-            const hasDistinctColors = colorMap.size > 1;
+            if (product.siblings && product.siblings.length > 1) {
+              product.siblings.forEach((s: any) => {
+                const cl = (s.colorName || "").trim();
+                if (cl && !colorMap.has(cl)) {
+                  colorMap.set(cl, s);
+                }
+              });
+            }
 
-            const currentSibling = product.siblings.find((s: any) => s.isCurrent || s.id === product.id) || product.siblings[0];
+            const currentSibling = product.siblings?.find((s: any) => s.isCurrent || s.id === product.id) || product.siblings?.[0];
+
+            if (!hasInternalVariants && (!product.siblings || product.siblings.length <= 1)) {
+              return null;
+            }
 
             return (
               <div className="mt-5 space-y-4">
-                {/* 1. Size Variations (Kies een afmeting / maat) */}
-                {hasDistinctSizes && (
+                {/* 1. Internal Size Variants (Kies een afmeting / maat) */}
+                {hasInternalVariants ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <span>{t("product.choose_size", "Kies een afmeting / maat")}:</span>
+                      <span className="font-bold text-primary">
+                        {activeVariant?.sizeName || ""}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {product.variants.map((v: any) => {
+                        const isSelected = activeVariant?.id === v.id;
+                        return (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => setSelectedVariantId(v.id)}
+                            className={cn(
+                              "px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all border flex items-center gap-2 shadow-2xs cursor-pointer",
+                              isSelected
+                                ? "border-amber-600 bg-amber-500/10 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/25 shadow-xs scale-102"
+                                : "border-border/80 bg-card hover:border-amber-500/50 hover:bg-muted text-foreground"
+                            )}
+                          >
+                            <span>{v.sizeName}</span>
+                            <span className={cn("text-[11px] font-normal", isSelected ? "text-amber-800 dark:text-amber-300 font-semibold" : "text-muted-foreground")}>
+                              {formatPrice(v.price ?? product.price)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : hasDistinctSiblingSizes ? (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <span>{t("product.choose_size", "Kies een afmeting / maat")}:</span>
@@ -557,10 +610,10 @@ const ProductPage = () => {
                       })}
                     </div>
                   </div>
-                )}
+                ) : null}
 
-                {/* 2. Color Variations (Kies een kleur) */}
-                {(hasDistinctColors || !hasDistinctSizes) && (
+                {/* 2. Color Variations (Kies een kleur - Color Siblings) */}
+                {product.siblings && product.siblings.length > 1 && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <span>{t("product.choose_color", "Kies een kleur")}:</span>
@@ -620,7 +673,23 @@ const ProductPage = () => {
               size="default" 
               disabled={product.inStock === false || availableStock <= 0} 
               className="flex-1 rounded-full sm:flex-none font-bold bg-primary hover:bg-primary/90 text-white px-8 shadow-sm transition-all" 
-              onClick={() => add(product, Math.min(qty, availableStock))}
+              onClick={() => {
+                const itemToAdd = activeVariant ? {
+                  ...product,
+                  id: `${product.id}-${activeVariant.id}`,
+                  variantId: activeVariant.id,
+                  price: activeVariant.price ?? product.price,
+                  name: activeVariant.sizeName && activeVariant.sizeName !== "Default"
+                    ? `${product.name} - ${activeVariant.sizeName}`
+                    : product.name,
+                  title: activeVariant.sizeName && activeVariant.sizeName !== "Default"
+                    ? `${product.title || product.name} - ${activeVariant.sizeName}`
+                    : (product.title || product.name),
+                  webshopStock: activeVariant.stock ?? product.webshopStock,
+                  stock: activeVariant.stock ?? product.webshopStock,
+                } : product;
+                add(itemToAdd, Math.min(qty, availableStock));
+              }}
             >
               {product.inStock === false || availableStock <= 0 ? t("product.button_out_of_stock") : t("product.button_add_to_cart")}
             </Button>
