@@ -243,10 +243,9 @@ const ProductPage = () => {
   const product = liveProduct || findProduct(slug);
   if (!product) return <NotFound />;
 
-  const activeVariant = useMemo(() => {
-    if (!product?.variants || product.variants.length === 0) return null;
-    return product.variants.find((v: any) => v.id === selectedVariantId) || product.variants[0];
-  }, [product?.variants, selectedVariantId]);
+  const activeVariant = product.variants?.length
+    ? product.variants.find((v: any) => v.id === selectedVariantId) || product.variants[0]
+    : null;
 
   const activePrice = activeVariant?.price ?? product.price;
 
@@ -515,30 +514,79 @@ const ProductPage = () => {
           {(() => {
             const hasInternalVariants = Boolean(product.variants && product.variants.length > 1);
 
-            // Check if siblings have distinct size names
+            // Helper to clean and validate color name
+            const getCleanColor = (s: any) => {
+              const cl = (s?.colorName || "").trim();
+              if (!cl) return "";
+              const lower = cl.toLowerCase();
+              if (
+                lower === "default" ||
+                lower === "none" ||
+                lower === "color" ||
+                lower === "kleur" ||
+                lower === "variant" ||
+                lower === "size auto"
+              ) {
+                return "";
+              }
+              if (cl.length > 25) {
+                return "";
+              }
+              // If it matches a size pattern or matches the sibling's sizeName, it is a size, NOT a color
+              if (s?.sizeName && lower === s.sizeName.toLowerCase().trim()) {
+                return "";
+              }
+              if (/(?:\d+\s*(?:cm|mm)|Ø|\b\d+-\d+)/i.test(cl)) {
+                return "";
+              }
+              return cl;
+            };
+
+            const currentSibling =
+              product.siblings?.find((s: any) => s.isCurrent || s.id === product.id) ||
+              product.siblings?.[0] ||
+              product;
+
+            const currentColorClean = getCleanColor(currentSibling) || product.color || "";
+
+            // 1. Collect distinct sizes
             const sizeMap = new Map<string, any>();
             if (product.siblings && product.siblings.length > 1) {
               product.siblings.forEach((s: any) => {
                 const sz = (s.sizeName || "").trim();
-                if (sz && !sizeMap.has(sz)) {
-                  sizeMap.set(sz, s);
+                if (sz) {
+                  const existing = sizeMap.get(sz);
+                  if (!existing) {
+                    sizeMap.set(sz, s);
+                  } else if (currentColorClean) {
+                    const sColor = getCleanColor(s);
+                    if (sColor.toLowerCase() === currentColorClean.toLowerCase()) {
+                      sizeMap.set(sz, s);
+                    }
+                  }
                 }
               });
             }
             const hasDistinctSiblingSizes = sizeMap.size > 1;
 
-            // Check if siblings have distinct color names
+            // 2. Collect distinct colors (ONLY if siblings have multiple real distinct colors)
             const colorMap = new Map<string, any>();
             if (product.siblings && product.siblings.length > 1) {
               product.siblings.forEach((s: any) => {
-                const cl = (s.colorName || "").trim();
-                if (cl && !colorMap.has(cl)) {
-                  colorMap.set(cl, s);
+                const cl = getCleanColor(s);
+                if (cl) {
+                  const lower = cl.toLowerCase();
+                  if (!colorMap.has(lower)) {
+                    colorMap.set(lower, s);
+                  } else if (currentSibling?.sizeName) {
+                    if (s.sizeName === currentSibling.sizeName) {
+                      colorMap.set(lower, s);
+                    }
+                  }
                 }
               });
             }
-
-            const currentSibling = product.siblings?.find((s: any) => s.isCurrent || s.id === product.id) || product.siblings?.[0];
+            const hasDistinctSiblingColors = colorMap.size > 1;
 
             if (!hasInternalVariants && (!product.siblings || product.siblings.length <= 1)) {
               return null;
@@ -546,7 +594,7 @@ const ProductPage = () => {
 
             return (
               <div className="mt-5 space-y-4">
-                {/* 1. Internal Size Variants (Kies een afmeting / maat) */}
+                {/* 1. Size Variants (Kies een afmeting / maat) */}
                 {hasInternalVariants ? (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -612,18 +660,23 @@ const ProductPage = () => {
                   </div>
                 ) : null}
 
-                {/* 2. Color Variations (Kies een kleur - Color Siblings) */}
-                {product.siblings && product.siblings.length > 1 && (
+                {/* 2. Color Variations (Kies een kleur - ONLY when distinct colors exist) */}
+                {hasDistinctSiblingColors && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <span>{t("product.choose_color", "Kies een kleur")}:</span>
                       <span className="font-bold text-primary">
-                        {currentSibling?.colorName || product.color || ""}
+                        {currentColorClean || currentSibling?.colorName || ""}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2.5">
-                      {product.siblings.map((sibling: any) => {
-                        const isCurrent = Boolean(sibling.isCurrent || sibling.id === product.id);
+                      {Array.from(colorMap.values()).map((sibling: any) => {
+                        const siblingColorClean = getCleanColor(sibling);
+                        const isCurrent = Boolean(
+                          sibling.isCurrent ||
+                          sibling.id === product.id ||
+                          (siblingColorClean && currentColorClean && siblingColorClean.toLowerCase() === currentColorClean.toLowerCase())
+                        );
                         return (
                           <Link
                             key={sibling.id}
@@ -634,7 +687,7 @@ const ProductPage = () => {
                                 ? "border-amber-500 ring-2 ring-amber-500/30 shadow-md scale-105"
                                 : "border-border/80 hover:border-foreground/50 hover:shadow-sm hover:scale-102"
                             )}
-                            title={sibling.name || sibling.colorName}
+                            title={sibling.colorName || sibling.name}
                           >
                             <SafeImage
                               src={sibling.image}

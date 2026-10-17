@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes, Ruler, Palette } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes, Ruler, Palette, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -203,6 +203,7 @@ const AdminProductForm = () => {
   const [lowStockThreshold, setLowStockThreshold] = useState("5");
   const [currentInventoryItem, setCurrentInventoryItem] = useState<any>(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [productDbId, setProductDbId] = useState<string | null>(null);
 
   // Internal Size Variants State
   const [hasVariants, setHasVariants] = useState(false);
@@ -244,17 +245,28 @@ const AdminProductForm = () => {
 
   // Color Siblings & Linked Variants States
   const [colorGroupId, setColorGroupId] = useState<string | null>(null);
-  const [linkedSiblings, setLinkedSiblings] = useState<any[]>([]);
+  const [linkedColorSiblings, setLinkedColorSiblings] = useState<any[]>([]);
+  const [linkedSizeSiblings, setLinkedSizeSiblings] = useState<any[]>([]);
+  const linkedSiblings = [...linkedColorSiblings, ...linkedSizeSiblings];
   const [siblingSearchQuery, setSiblingSearchQuery] = useState("");
   const [siblingSearchResults, setSiblingSearchResults] = useState<any[]>([]);
   const [isSearchingSiblings, setIsSearchingSiblings] = useState(false);
   const [isBrowseCatalogOpen, setIsBrowseCatalogOpen] = useState(false);
+  const [browseCatalogContext, setBrowseCatalogContext] = useState<"color" | "size">("size");
   const [catalogFilterCategory, setCatalogFilterCategory] = useState<string>("all");
   const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
   const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [siblingFilterCategory, setSiblingFilterCategory] = useState<string>("same"); // "same" | "all"
-  const [siblingModeTab, setSiblingModeTab] = useState<"all" | "color" | "size">("all");
+
+  // Size Siblings States
+  const [sizeVariantMode, setSizeVariantMode] = useState<"linked" | "internal">("linked");
+  const [isAiSuggestingSize, setIsAiSuggestingSize] = useState(false);
+  const [aiSizeSuggestions, setAiSizeSuggestions] = useState<any[]>([]);
+  const [sizeSearchQuery, setSizeSearchQuery] = useState("");
+  const [sizeSearchResults, setSizeSearchResults] = useState<any[]>([]);
+  const [isSearchingSizeSiblings, setIsSearchingSizeSiblings] = useState(false);
+  const [sizeFilterCategory, setSizeFilterCategory] = useState<string>("same"); // "same" | "all"
 
   const extractSizeFromNameOrSpecs = (name: string, specs?: any, pavs?: any[]): string => {
     if (pavs && Array.isArray(pavs)) {
@@ -292,7 +304,7 @@ const AdminProductForm = () => {
         filters.category = selectedCategory;
       }
       const currentId = id || draftId || "";
-      const linkedIds = new Set(linkedSiblings.map((s) => s.id));
+      const linkedIds = new Set(linkedColorSiblings.map((s) => s.id));
 
       const [res, draftsData] = await Promise.all([
         productRepository.getAll(filters).catch(() => ({ success: false, products: [] })),
@@ -442,10 +454,11 @@ const AdminProductForm = () => {
     }
   };
 
-  const addSibling = (productToAdd: any) => {
+  const formatSiblingObject = (productToAdd: any) => {
     const colorAttr = productToAdd.productAttributeValues?.find(
       (pav: any) =>
         pav.attribute?.slug === "color" ||
+        pav.attribute?.slug === "kleur" ||
         pav.attribute?.name?.toLowerCase() === "color" ||
         pav.attribute?.name?.toLowerCase() === "kleur"
     );
@@ -463,7 +476,7 @@ const AdminProductForm = () => {
       sizeAttr?.attributeValue?.value ||
       extractSizeFromNameOrSpecs(productToAdd.name, productToAdd.specs, productToAdd.productAttributeValues);
 
-    const formattedSibling = {
+    return {
       id: productToAdd.id,
       name: productToAdd.name,
       slug: productToAdd.slug,
@@ -473,13 +486,108 @@ const AdminProductForm = () => {
       colorCode: colorAttr?.attributeValue?.colorCode || productToAdd.colorCode || "#333333",
       sizeName: inferredSize || undefined,
     };
-    setLinkedSiblings((prev) => [...prev, formattedSibling]);
+  };
+
+  const addColorSibling = (productToAdd: any) => {
+    const item = formatSiblingObject(productToAdd);
+    setLinkedColorSiblings((prev) => (prev.some((s) => s.id === item.id) ? prev : [...prev, item]));
     setSiblingSearchResults((prev) => prev.filter((p) => p.id !== productToAdd.id));
     setSiblingSearchQuery("");
   };
 
+  const removeColorSibling = (siblingId: string) => {
+    setLinkedColorSiblings((prev) => prev.filter((s) => s.id !== siblingId));
+  };
+
+  const addSizeSibling = (productToAdd: any) => {
+    const item = formatSiblingObject(productToAdd);
+    setLinkedSizeSiblings((prev) => (prev.some((s) => s.id === item.id) ? prev : [...prev, item]));
+    setSizeSearchResults((prev) => prev.filter((p) => p.id !== productToAdd.id));
+    setSizeSearchQuery("");
+  };
+
+  const removeSizeSibling = (siblingId: string) => {
+    setLinkedSizeSiblings((prev) => prev.filter((s) => s.id !== siblingId));
+  };
+
+  const addSibling = (productToAdd: any) => {
+    if (browseCatalogContext === "size") {
+      addSizeSibling(productToAdd);
+    } else {
+      addColorSibling(productToAdd);
+    }
+  };
+
   const removeSibling = (siblingId: string) => {
-    setLinkedSiblings((prev) => prev.filter((s) => s.id !== siblingId));
+    removeColorSibling(siblingId);
+    removeSizeSibling(siblingId);
+  };
+
+  const separateSiblings = (siblings: any[], curProduct: any) => {
+    if (!Array.isArray(siblings)) return;
+    const otherSiblings = siblings.filter((s: any) => s.id !== curProduct.id);
+    const curColor = (
+      curProduct.productAttributeValues?.find((pav: any) =>
+        pav.attribute?.slug === "color" ||
+        pav.attribute?.slug === "kleur" ||
+        pav.attribute?.name?.toLowerCase() === "color" ||
+        pav.attribute?.name?.toLowerCase() === "kleur"
+      )?.attributeValue?.value ||
+      curProduct.colorName ||
+      ""
+    ).trim().toLowerCase();
+
+    const curSize = (
+      curProduct.productAttributeValues?.find((pav: any) =>
+        pav.attribute?.slug === "size" ||
+        pav.attribute?.slug === "afmeting" ||
+        pav.attribute?.slug === "afmetingen" ||
+        pav.attribute?.slug === "maat" ||
+        pav.attribute?.name?.toLowerCase() === "size" ||
+        pav.attribute?.name?.toLowerCase() === "maat" ||
+        pav.attribute?.name?.toLowerCase() === "afmeting"
+      )?.attributeValue?.value ||
+      curProduct.sizeName ||
+      extractSizeFromNameOrSpecs(curProduct.name, curProduct.specs) ||
+      ""
+    ).trim().toLowerCase();
+
+    const colors: any[] = [];
+    const sizes: any[] = [];
+
+    otherSiblings.forEach((s: any) => {
+      const sFormatted = formatSiblingObject(s);
+      const sSize = (sFormatted.sizeName || "").trim().toLowerCase();
+      const sColor = (sFormatted.colorName || "").trim().toLowerCase();
+
+      const hasValidColor = Boolean(sColor && sColor !== "color" && sColor !== "default" && sColor !== "none");
+      const hasValidCurColor = Boolean(curColor && curColor !== "color" && curColor !== "default" && curColor !== "none");
+      const isDiffColor = hasValidColor && hasValidCurColor && sColor !== curColor;
+
+      const hasValidSize = Boolean(sSize && sSize !== "default" && sSize !== "none");
+      const hasValidCurSize = Boolean(curSize && curSize !== "default" && curSize !== "none");
+      const isDiffSize = hasValidSize && hasValidCurSize && sSize !== curSize;
+
+      if (isDiffSize && !isDiffColor) {
+        sizes.push(sFormatted);
+      } else if (isDiffColor && !isDiffSize) {
+        colors.push(sFormatted);
+      } else if (isDiffSize) {
+        sizes.push(sFormatted);
+      } else if (isDiffColor) {
+        colors.push(sFormatted);
+      } else if (hasValidSize && !hasValidColor) {
+        sizes.push(sFormatted);
+      } else {
+        colors.push(sFormatted);
+      }
+    });
+
+    setLinkedColorSiblings(colors);
+    setLinkedSizeSiblings(sizes);
+    if (sizes.length > 0) {
+      setSizeVariantMode("linked");
+    }
   };
 
   // AI Sibling Suggestion States & Methods
@@ -488,32 +596,29 @@ const AdminProductForm = () => {
 
   const handleAiSuggestSiblings = async () => {
     if (!id || id === "new") {
-      toast.info(t("admin_product_form.save_first_for_ai", "Please save this product first before running AI sibling detection."));
+      toast.info(t("admin_product_form.save_first_for_ai", "Please save this product first before running AI color detection."));
       return;
     }
     setIsAiSuggesting(true);
     setAiSuggestions([]);
     try {
       const apiUrl = getApiV1Url();
-      const modeParam = siblingModeTab === "all" ? "" : `?mode=${siblingModeTab}`;
-      const res = await fetch(`${apiUrl}/ai/products/${id}/suggest-siblings${modeParam}`, {
+      const res = await fetch(`${apiUrl}/ai/products/${id}/suggest-siblings?mode=color`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
       });
       const data = await res.json();
       if (data.success && data.suggestions) {
         if (data.suggestions.length === 0) {
-          const typeLabel = siblingModeTab === "size" ? "size/maat" : siblingModeTab === "color" ? "kleur" : "kleur of maat";
-          toast.info(t("admin_product_form.no_ai_siblings_found", `AI analyzed your catalog but found no matching ${typeLabel} variations for this product.`));
+          toast.info(t("admin_product_form.no_ai_siblings_found", "AI analyzed your catalog but found no matching color variations for this product."));
         } else {
           setAiSuggestions(data.suggestions);
-          const typeLabel = siblingModeTab === "size" ? "maat" : siblingModeTab === "color" ? "kleur" : "sibling";
-          toast.success(t("admin_product_form.ai_siblings_found", `AI found ${data.suggestions.length} matching ${typeLabel} variation(s)!`));
+          toast.success(t("admin_product_form.ai_siblings_found", `AI found ${data.suggestions.length} matching color variation(s)!`));
         }
       } else {
         throw new Error(data.error);
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to find siblings with AI");
+      toast.error(err.message || "Failed to find color variations with AI");
     } finally {
       setIsAiSuggesting(false);
     }
@@ -521,12 +626,130 @@ const AdminProductForm = () => {
 
   const linkAllAiSuggestions = () => {
     aiSuggestions.forEach((s) => {
-      if (!linkedSiblings.some((ls) => ls.id === s.id)) {
-        addSibling(s);
-      }
+      addColorSibling(s);
     });
     setAiSuggestions([]);
-    toast.success(t("admin_product_form.linked_all_ai", "Linked all AI suggested siblings! Remember to click Save."));
+    toast.success(t("admin_product_form.linked_all_ai", "Linked all AI suggested color variations! Remember to click Save."));
+  };
+
+  const handleAiSuggestSizeSiblings = async () => {
+    if (!id || id === "new") {
+      toast.info(t("admin_product_form.save_first_for_ai", "Please save this product first before running AI detection."));
+      return;
+    }
+    setIsAiSuggestingSize(true);
+    setAiSizeSuggestions([]);
+    try {
+      const apiUrl = getApiV1Url();
+      const res = await fetch(`${apiUrl}/ai/products/${id}/suggest-siblings?mode=size`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+      });
+      const data = await res.json();
+      if (data.success && data.suggestions) {
+        if (data.suggestions.length === 0) {
+          toast.info(t("admin_product_form.no_ai_size_siblings_found", "AI analyzed your catalog but found no matching size variations for this product."));
+        } else {
+          setAiSizeSuggestions(data.suggestions);
+          toast.success(t("admin_product_form.ai_size_siblings_found", `AI found ${data.suggestions.length} matching size variation(s)!`));
+        }
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to find size variations with AI");
+    } finally {
+      setIsAiSuggestingSize(false);
+    }
+  };
+
+  const linkAllAiSizeSuggestions = () => {
+    aiSizeSuggestions.forEach((s) => {
+      addSizeSibling(s);
+    });
+    setAiSizeSuggestions([]);
+    toast.success(t("admin_product_form.linked_all_ai_sizes", "Linked all AI suggested size variations! Remember to click Save."));
+  };
+
+  const searchSizeSiblings = async (query = sizeSearchQuery, categoryMode = sizeFilterCategory) => {
+    setSizeSearchQuery(query);
+    setIsSearchingSizeSiblings(true);
+    try {
+      const filters: Record<string, any> = { limit: 50 };
+      if (query && query.trim().length > 0) {
+        filters.search = query.trim();
+      }
+      if (categoryMode === "same" && selectedCategory) {
+        filters.category = selectedCategory;
+      }
+      const currentId = id || draftId || "";
+      const linkedIds = new Set(linkedSizeSiblings.map((s) => s.id));
+
+      const [res, draftsData] = await Promise.all([
+        productRepository.getAll(filters).catch(() => ({ success: false, products: [] })),
+        fetch(`${getApiV1Url()}/ai/drafts`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+        })
+          .then((r) => r.json())
+          .catch(() => ({ success: false, drafts: [] })),
+      ]);
+
+      let combined: any[] = [];
+      if (res.success && res.products) {
+        combined = res.products
+          .filter((p: any) => p.id !== currentId && !linkedIds.has(p.id))
+          .map((p: any) => ({
+            ...p,
+            sizeName: p.sizeName || extractSizeFromNameOrSpecs(p.name, p.specs, p.productAttributeValues),
+          }));
+      }
+
+      if (draftsData.success && Array.isArray(draftsData.drafts)) {
+        const queryLower = query ? query.toLowerCase().trim() : "";
+        const formattedDrafts = draftsData.drafts
+          .filter((d: any) => {
+            if (d.id === currentId || linkedIds.has(d.id) || d.status === "published") return false;
+            const p = d.payload || {};
+            const dName = (d.name || p.name || "").toLowerCase();
+            const dCat = (p.category || "").toLowerCase();
+            if (categoryMode === "same" && selectedCategory && dCat && !dCat.includes(selectedCategory.toLowerCase()) && !selectedCategory.toLowerCase().includes(dCat)) {
+              return false;
+            }
+            if (queryLower && !dName.includes(queryLower)) return false;
+            return true;
+          })
+          .map((d: any) => {
+            const p = d.payload || {};
+            const colorVal = p.visualInspection?.finishColor || p.attributes?.color?.[0] || "";
+            const sizeVal = p.visualInspection?.dimensions || p.attributes?.size?.[0] || p.sizeLabel || extractSizeFromNameOrSpecs(d.name || p.name, p.specs);
+            return {
+              id: d.id,
+              name: `${d.name || p.name || "Draft Product"} (Draft)`,
+              slug: `drafts/${d.id}`,
+              price: Number(p.price) || 0,
+              image: p.image || p.images?.[0] || "",
+              isDraft: true,
+              category: { name: p.category || "Draft", slug: p.category || "" },
+              sizeName: sizeVal,
+              productAttributeValues: colorVal
+                ? [
+                    {
+                      attribute: { slug: "color", name: "Color" },
+                      attributeValue: { value: colorVal, colorCode: "#333333" },
+                    },
+                  ]
+                : [],
+            };
+          });
+
+        combined = [...combined, ...formattedDrafts];
+      }
+
+      setSizeSearchResults(combined);
+    } catch (err) {
+      console.error("Failed to search size siblings:", err);
+    } finally {
+      setIsSearchingSizeSiblings(false);
+    }
   };
   const resolveCategorySlug = (raw: string, list: any[] = categoriesList): string => {
     if (!raw) return "";
@@ -571,9 +794,40 @@ const AdminProductForm = () => {
   const [numberOfLights, setNumberOfLights] = useState("");
   const [selectedAttributeValues, setSelectedAttributeValues] = useState<Record<string, string[]>>({});
 
+  // Current product's active color info (derived after selectedAttributeValues is initialized)
+  const currentColorName =
+    selectedAttributeValues["color"]?.[0] ||
+    selectedAttributeValues["kleur"]?.[0] ||
+    "";
+  const colorAttributeObj = attributes.find(
+    (a) =>
+      a.slug === "color" ||
+      a.slug === "kleur" ||
+      a.name.toLowerCase() === "color" ||
+      a.name.toLowerCase() === "kleur"
+  );
+  const currentColorObj = colorAttributeObj?.values.find((v) => v.value === currentColorName);
+  const currentColorCode = currentColorObj?.colorCode || "#666666";
+
   // Dynamic Specification states
   const [specs, setSpecs] = useState<SpecItem[]>([]);
   const [newParamName, setNewParamName] = useState("");
+
+  const currentSizeName =
+    selectedAttributeValues["size"]?.[0] ||
+    selectedAttributeValues["afmeting"]?.[0] ||
+    selectedAttributeValues["afmetingen"]?.[0] ||
+    selectedAttributeValues["maat"]?.[0] ||
+    selectedAttributeValues["diameter"]?.[0] ||
+    extractSizeFromNameOrSpecs(
+      name,
+      specs,
+      Object.entries(selectedAttributeValues).map(([k, v]) => ({
+        attribute: { slug: k, name: k },
+        attributeValue: { value: v[0] },
+      }))
+    ) ||
+    "";
 
   const handleStorageStockChange = (val: string) => {
     setStorageStock(val);
@@ -623,6 +877,7 @@ const AdminProductForm = () => {
         const data = await productRepository.getByIdOrSlug(id);
         if (data.success && data.product) {
           const p = data.product;
+          setProductDbId(p.id);
           setName(p.title || p.name || "");
           setPrice(String(p.price || ""));
           setOldPrice(p.oldPrice ? String(p.oldPrice) : "");
@@ -687,7 +942,7 @@ const AdminProductForm = () => {
           }
 
           if (p.siblings && Array.isArray(p.siblings)) {
-            setLinkedSiblings(p.siblings.filter((s: any) => s.id !== p.id));
+            separateSiblings(p.siblings, p);
           }
         }
       } catch (err) {
@@ -1333,7 +1588,7 @@ const AdminProductForm = () => {
             }
 
             if (p.siblings && Array.isArray(p.siblings)) {
-              setLinkedSiblings(p.siblings.filter((s: any) => s.id !== p.id));
+              separateSiblings(p.siblings, p);
             }
             return;
           }
@@ -1664,7 +1919,9 @@ const AdminProductForm = () => {
         attributes: selectedAttributeValues, // EAV dynamic mapping
         specs: serializedSpecs,
         colorGroupId: colorGroupId || undefined,
-        siblingProductIds: linkedSiblings.map((s) => s.id),
+        siblingProductIds: Array.from(
+          new Set([...linkedColorSiblings.map((s) => s.id), ...linkedSizeSiblings.map((s) => s.id)])
+        ),
         variants: hasVariants
           ? productVariants
               .filter((v) => v.sizeName.trim().length > 0)
@@ -1681,8 +1938,9 @@ const AdminProductForm = () => {
 
       // 1. Try saving to backend API
       try {
+        const targetUpdateId = productDbId || id;
         const data = isEdit
-          ? await productRepository.update(id, payload)
+          ? await productRepository.update(targetUpdateId, payload)
           : await productRepository.create(payload);
 
         if (data.success) {
@@ -1715,7 +1973,7 @@ const AdminProductForm = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-12">
+    <div className="w-full space-y-6 pb-12">
 
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/45 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
@@ -1740,8 +1998,8 @@ const AdminProductForm = () => {
           </div>
         </div>
 
-        {isEdit && (
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isEdit && (
             <Button
               type="button"
               variant="outline"
@@ -1756,8 +2014,26 @@ const AdminProductForm = () => {
               )}
               <span>{isOptimizing ? "AI Editing..." : "Quick Edit (AI)"}</span>
             </Button>
-          </div>
-        )}
+          )}
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="gap-2 rounded-full px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md transition-all h-10"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>{isEdit ? (t("admin_product_form.action_saving") || "Opslaan...") : (t("admin_product_form.action_creating") || "Product aanmaken...")}</span>
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                <span>{isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}</span>
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -2211,6 +2487,649 @@ const AdminProductForm = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* 1. Size Schema: Size Variations (Linked Sibling Products) */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
+              <CardHeader className="border-b pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Ruler className="h-5 w-5 text-amber-500" />
+                    <CardTitle className="text-lg font-bold">
+                      {t("admin_product_form.variants_title", "Product Variants (Sizes & Dimensions)")}
+                    </CardTitle>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                      {t("admin_product_form.badge_size_schema", "Size Schema")}
+                    </span>
+                  </div>
+                  <CardDescription className="text-xs mt-1">
+                    {t(
+                      "admin_product_form.variants_desc",
+                      "Connect separate catalog products as different size/dimension variations (e.g. Ø 40cm, 60cm, 80cm, S, M, L). Clickable size pills sync on storefront."
+                    )}
+                  </CardDescription>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isAiSuggestingSize || !id || id === "new"}
+                  onClick={handleAiSuggestSizeSiblings}
+                  className="h-8.5 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 gap-1.5 rounded-lg shadow-2xs shrink-0"
+                  title={!id || id === "new" ? "Save product first to use AI detection" : "AI analyzes catalog to find matching size variations"}
+                >
+                  {isAiSuggestingSize ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
+                  <span>{isAiSuggestingSize ? t("admin_product_form.btn_ai_scanning_size", "Scanning...") : t("admin_product_form.btn_ai_find_size", "✨ AI Find Size Siblings")}</span>
+                </Button>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                  {/* Current Product Size Badge */}
+                  <div className="flex flex-wrap items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/60 gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {t("admin_product_form.current_product_size", "Current Product Size:")}
+                      </span>
+                      {currentSizeName ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/20 shadow-2xs">
+                          <Ruler className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                          <span>{currentSizeName}</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">
+                          {t("admin_product_form.current_size_not_set", "(Set dimensions in Specifications or Title)")}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-muted-foreground">
+                      {t("admin_product_form.color_group_id", "Group ID:")}{" "}
+                      <code className="font-mono text-[10px] bg-background px-1.5 py-0.5 rounded border border-border/50">
+                        {colorGroupId || t("admin_product_form.color_group_auto", "Auto-assigned on save")}
+                      </code>
+                    </div>
+                  </div>
+
+                  {/* AI Size Suggestions Box (if matches found) */}
+                  {aiSizeSuggestions.length > 0 && (
+                    <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3 animate-in fade-in-50">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-amber-500" />
+                          <span className="text-xs font-bold text-foreground">
+                            {t("admin_product_form.ai_detected_sizes", { count: aiSizeSuggestions.length })}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg gap-1 shadow-2xs"
+                          onClick={linkAllAiSizeSuggestions}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>{t("admin_product_form.btn_link_all_sizes", { count: aiSizeSuggestions.length })}</span>
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {aiSizeSuggestions.map((s) => (
+                          <div
+                            key={s.id}
+                            className="flex items-center justify-between p-2 rounded-lg bg-background border border-border/60 text-xs shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img
+                                src={resolveImgUrl(s.image)}
+                                alt=""
+                                className="w-9 h-9 rounded-md object-cover border border-border/40 shrink-0"
+                              />
+                              <div className="truncate">
+                                <p className="font-semibold text-foreground truncate">{s.name}</p>
+                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
+                                  {s.sizeName && (
+                                    <span className="inline-flex items-center gap-1 font-bold text-amber-700 dark:text-amber-300">
+                                      <Ruler className="h-3 w-3" />
+                                      <span>{s.sizeName}</span>
+                                    </span>
+                                  )}
+                                  <span>·</span>
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                    {s.confidence}% match
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs font-semibold gap-1 shrink-0 ml-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                              onClick={() => {
+                                addSizeSibling(s);
+                                setAiSizeSuggestions((prev) => prev.filter((item) => item.id !== s.id));
+                              }}
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>{t("admin_product_form.btn_link_size", "Link Size")}</span>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Search & Link Sibling Controls */}
+                  <div className="space-y-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          value={sizeSearchQuery}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            searchSizeSiblings(val, sizeFilterCategory);
+                          }}
+                          placeholder={t("admin_product_form.search_size_placeholder", "Search catalog products to link as size variation (e.g. Ø 50cm, 60cm)...")}
+                          className="h-9 text-xs pl-3 pr-8"
+                        />
+                        {isSearchingSizeSiblings && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/40 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSizeFilterCategory("same");
+                              searchSizeSiblings(sizeSearchQuery, "same");
+                            }}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
+                              sizeFilterCategory === "same"
+                                ? "bg-background text-foreground shadow-xs font-bold"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {t("admin_product_form.tab_same_category")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSizeFilterCategory("all");
+                              searchSizeSiblings(sizeSearchQuery, "all");
+                            }}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
+                              sizeFilterCategory === "all"
+                                ? "bg-background text-foreground shadow-xs font-bold"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {t("admin_product_form.tab_all_categories")}
+                          </button>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setBrowseCatalogContext("size");
+                            setIsBrowseCatalogOpen(true);
+                            loadCatalogProducts(catalogFilterCategory, "");
+                          }}
+                          className="h-8.5 text-xs font-bold gap-1.5 rounded-lg border-border hover:bg-muted/60"
+                        >
+                          <Boxes className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                          <span>{t("admin_product_form.btn_browse_catalog")}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Search results dropdown if searching */}
+                    {sizeSearchResults.length > 0 && (
+                      <div className="max-h-56 overflow-y-auto rounded-xl border border-border/80 bg-background divide-y divide-border/40 shadow-md">
+                        {sizeSearchResults.map((sr) => {
+                          const sizeDisplay =
+                            sr.sizeName ||
+                            extractSizeFromNameOrSpecs(sr.name, sr.specs, sr.productAttributeValues);
+
+                          return (
+                            <div
+                              key={sr.id}
+                              className="flex items-center justify-between p-2.5 hover:bg-muted/40 transition-colors text-xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={resolveImgUrl(sr.image)}
+                                  alt=""
+                                  className="w-8 h-8 rounded-md object-cover border border-border/50 shrink-0"
+                                />
+                                <div className="truncate">
+                                  <p className="font-semibold text-foreground truncate">{sr.name}</p>
+                                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
+                                    {sizeDisplay && (
+                                      <span className="flex items-center gap-1 font-bold text-amber-700 dark:text-amber-300">
+                                        <Ruler className="h-3 w-3" />
+                                        <span>{sizeDisplay}</span>
+                                      </span>
+                                    )}
+                                    <span>·</span>
+                                    <span>€{Number(sr.price).toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-7 text-xs font-bold gap-1 rounded-lg shrink-0 ml-2 bg-amber-600 hover:bg-amber-700 text-white"
+                                onClick={() => addSizeSibling(sr)}
+                              >
+                                <Plus className="h-3 w-3" />
+                                <span>{t("admin_product_form.btn_link_size", "Link Size")}</span>
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Linked Size Siblings Grid */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        {t("admin_product_form.linked_size_variations", "Linked Size Variations")} ({linkedSizeSiblings.length}):
+                      </span>
+                      {linkedSizeSiblings.length > 0 && (
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                          {t("admin_product_form.two_way_sync_active", "✓ 2-Way Group Sync Active")}
+                        </span>
+                      )}
+                    </div>
+
+                    {linkedSizeSiblings.length === 0 ? (
+                      <div className="p-6 rounded-xl border border-dashed border-border/70 text-center text-xs text-muted-foreground">
+                        {t("admin_product_form.no_sizes_linked", "No size variations linked yet. Use the AI button or search bar above to link other dimensions of this model.")}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                        {linkedSizeSiblings.map((sibling) => {
+                          const sizeDisplay =
+                            sibling.sizeName ||
+                            extractSizeFromNameOrSpecs(sibling.name, sibling.specs);
+
+                          return (
+                            <div
+                              key={sibling.id}
+                              className="flex items-center justify-between p-2.5 rounded-xl border border-border/70 bg-background/60 hover:bg-muted/40 transition-all shadow-2xs group"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={resolveImgUrl(sibling.image)}
+                                  alt=""
+                                  className="w-10 h-10 rounded-lg object-cover border border-border/60 shrink-0"
+                                />
+                                <div className="truncate">
+                                  <p className="font-semibold text-xs text-foreground truncate">{sibling.name}</p>
+                                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+                                    {sizeDisplay ? (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/20 font-bold text-[10px]">
+                                        <Ruler className="h-2.5 w-2.5" />
+                                        <span>{sizeDisplay}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground italic">Size auto</span>
+                                    )}
+                                    {sibling.colorName && sibling.colorName !== "Default" && sibling.colorName !== "Color" && (
+                                      <>
+                                        <span>·</span>
+                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                          <span
+                                            className="w-2 h-2 rounded-full border border-black/15 shrink-0"
+                                            style={{ background: sibling.colorCode || "#666" }}
+                                          />
+                                          <span>{sibling.colorName}</span>
+                                        </span>
+                                      </>
+                                    )}
+                                    <span>·</span>
+                                    <span className="font-mono text-[11px]">€{Number(sibling.price).toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 rounded-full ml-1"
+                                onClick={() => removeSizeSibling(sibling.id)}
+                                title="Disconnect size variation"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+            {/* 2. Color Schema: Color Variations (Linked Sibling Products) */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
+              <CardHeader className="border-b pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-5 w-5 text-indigo-500" />
+                    <CardTitle className="text-lg font-bold">
+                      {t("admin_product_form.color_variations_title")}
+                    </CardTitle>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                      {t("admin_product_form.badge_color_schema")}
+                    </span>
+                  </div>
+                  <CardDescription className="text-xs mt-1">
+                    {t("admin_product_form.color_variations_desc")}
+                  </CardDescription>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isAiSuggesting || !id || id === "new"}
+                  onClick={handleAiSuggestSiblings}
+                  className="h-8.5 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 gap-1.5 rounded-lg shadow-2xs shrink-0"
+                  title={!id || id === "new" ? "Save product first to use AI detection" : "AI analyzes catalog to find matching color variations"}
+                >
+                  {isAiSuggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
+                  <span>{isAiSuggesting ? t("admin_product_form.btn_ai_scanning") : t("admin_product_form.btn_ai_find_color")}</span>
+                </Button>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {/* Current Product Color Badge */}
+                <div className="flex flex-wrap items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/60 gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground">{t("admin_product_form.current_product_color")}</span>
+                    {currentColorName ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-background border border-border shadow-2xs">
+                        <span
+                          className="w-3 h-3 rounded-full border border-black/20 shrink-0"
+                          style={{ background: currentColorCode }}
+                        />
+                        <span>{currentColorName}</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">
+                        {t("admin_product_form.current_color_not_set")}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground">
+                    {t("admin_product_form.color_group_id")} <code className="font-mono text-[10px] bg-background px-1.5 py-0.5 rounded border border-border/50">{colorGroupId || t("admin_product_form.color_group_auto")}</code>
+                  </div>
+                </div>
+
+                {/* AI Suggestions Box (if matches found) */}
+                {aiSuggestions.length > 0 && (
+                  <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3 animate-in fade-in-50">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        <span className="text-xs font-bold text-foreground">
+                          {t("admin_product_form.ai_detected_colors", { count: aiSuggestions.length })}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg gap-1 shadow-2xs"
+                        onClick={linkAllAiSuggestions}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>{t("admin_product_form.btn_link_all", { count: aiSuggestions.length })}</span>
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {aiSuggestions.map((s) => (
+                        <div
+                          key={s.id}
+                          className="flex items-center justify-between p-2 rounded-lg bg-background border border-border/60 text-xs shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <img
+                              src={resolveImgUrl(s.image)}
+                              alt=""
+                              className="w-9 h-9 rounded-md object-cover border border-border/40 shrink-0"
+                            />
+                            <div className="truncate">
+                              <p className="font-semibold text-foreground truncate">{s.name}</p>
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
+                                {s.colorName && s.colorName !== "Default" && (
+                                  <span className="flex items-center gap-1">
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                      style={{ background: s.colorCode || "#666" }}
+                                    />
+                                    <span className="font-medium text-foreground">{s.colorName}</span>
+                                  </span>
+                                )}
+                                <span>·</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                  {s.confidence}% match
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs font-semibold gap-1 shrink-0 ml-2"
+                            onClick={() => {
+                              addColorSibling(s);
+                              setAiSuggestions((prev) => prev.filter((item) => item.id !== s.id));
+                            }}
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>{t("admin_product_form.btn_link_color")}</span>
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Search & Link Sibling Controls */}
+                <div className="space-y-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        value={siblingSearchQuery}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          searchSiblings(val, siblingFilterCategory);
+                        }}
+                        placeholder={t("admin_product_form.search_color_placeholder")}
+                        className="h-9 text-xs pl-3 pr-8"
+                      />
+                      {isSearchingSiblings && (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/40 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSiblingFilterCategory("same");
+                            searchSiblings(siblingSearchQuery, "same");
+                          }}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
+                            siblingFilterCategory === "same"
+                              ? "bg-background text-foreground shadow-xs font-bold"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {t("admin_product_form.tab_same_category")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSiblingFilterCategory("all");
+                            searchSiblings(siblingSearchQuery, "all");
+                          }}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
+                            siblingFilterCategory === "all"
+                              ? "bg-background text-foreground shadow-xs font-bold"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {t("admin_product_form.tab_all_categories")}
+                        </button>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setBrowseCatalogContext("color");
+                          setIsBrowseCatalogOpen(true);
+                          loadCatalogProducts(catalogFilterCategory, "");
+                        }}
+                        className="h-8.5 text-xs font-bold gap-1.5 rounded-lg border-border hover:bg-muted/60"
+                      >
+                        <Boxes className="h-3.5 w-3.5 text-primary" />
+                        <span>{t("admin_product_form.btn_browse_catalog")}</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Search results dropdown if searching */}
+                  {siblingSearchResults.length > 0 && (
+                    <div className="max-h-56 overflow-y-auto rounded-xl border border-border/80 bg-background divide-y divide-border/40 shadow-md">
+                      {siblingSearchResults.map((sr) => {
+                        const colorVal = sr.productAttributeValues?.find(
+                          (pav: any) =>
+                            pav.attribute?.slug === "color" ||
+                            pav.attribute?.name?.toLowerCase() === "color" ||
+                            pav.attribute?.name?.toLowerCase() === "kleur"
+                        )?.attributeValue;
+
+                        return (
+                          <div
+                            key={sr.id}
+                            className="flex items-center justify-between p-2.5 hover:bg-muted/40 transition-colors text-xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <img
+                                src={resolveImgUrl(sr.image)}
+                                alt=""
+                                className="w-8 h-8 rounded-md object-cover border border-border/50 shrink-0"
+                              />
+                              <div className="truncate">
+                                <p className="font-semibold text-foreground truncate">{sr.name}</p>
+                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
+                                  {colorVal && (
+                                    <span className="flex items-center gap-1">
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                        style={{ background: colorVal.colorCode || "#666" }}
+                                      />
+                                      <span className="font-medium text-foreground">{colorVal.value}</span>
+                                    </span>
+                                  )}
+                                  <span>·</span>
+                                  <span>€{Number(sr.price).toFixed(2)}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 text-xs font-bold gap-1 rounded-lg shrink-0 ml-2"
+                              onClick={() => addColorSibling(sr)}
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>{t("admin_product_form.btn_link_color")}</span>
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Linked Color Siblings Grid */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Linked Color Variations ({linkedColorSiblings.length}):
+                    </span>
+                    {linkedColorSiblings.length > 0 && (
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        ✓ 2-Way Group Sync Active
+                      </span>
+                    )}
+                  </div>
+
+                  {linkedColorSiblings.length === 0 ? (
+                    <div className="p-6 rounded-xl border border-dashed border-border/70 text-center text-xs text-muted-foreground">
+                      No color variations linked yet. Use the search bar above or AI suggestions to link different color versions of this product.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                      {linkedColorSiblings.map((sibling) => (
+                        <div
+                          key={sibling.id}
+                          className="flex items-center justify-between p-2.5 rounded-xl border border-border/70 bg-background/60 hover:bg-muted/40 transition-all shadow-2xs group"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={resolveImgUrl(sibling.image)}
+                              alt=""
+                              className="w-10 h-10 rounded-lg object-cover border border-border/60 shrink-0"
+                            />
+                            <div className="truncate">
+                              <p className="font-semibold text-xs text-foreground truncate">{sibling.name}</p>
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                  style={{ background: sibling.colorCode || "#666" }}
+                                />
+                                <span className="font-medium text-foreground/90 truncate">{sibling.colorName}</span>
+                                <span>·</span>
+                                <span className="font-mono text-[11px]">€{Number(sibling.price).toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 rounded-full ml-1"
+                            onClick={() => removeColorSibling(sibling.id)}
+                            title="Disconnect color variation"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* RIGHT COLUMN — Organisation, EAV Attributes & Sticky Action Panel (1/3 Width) */}
@@ -2555,543 +3474,6 @@ const AdminProductForm = () => {
                   ) : (
                     <p className="text-xs text-muted-foreground py-2 text-center">
                       {t("admin_product_form.attrs_no_category")}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Internal Product Variants (Sizes & Dimensions) Card */}
-            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
-              <CardHeader className="border-b pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Ruler className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                    <span>{t("admin_product_form.variants_title", "Product Variants (Sizes / Dimensions)")}</span>
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-0.5">
-                    {t(
-                      "admin_product_form.variants_desc",
-                      "Manage different sizes/diameters for this single product (e.g. 40cm, 60cm, 80cm) with their own prices and stock, displayed as clickable size pills on the storefront."
-                    )}
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Label htmlFor="has-variants-switch" className="text-xs font-semibold cursor-pointer">
-                    {hasVariants ? "Variants Enabled" : "Single Size"}
-                  </Label>
-                  <Switch
-                    id="has-variants-switch"
-                    checked={hasVariants}
-                    onCheckedChange={(checked) => {
-                      setHasVariants(checked);
-                      if (checked && productVariants.length === 0) {
-                        applyVariantPreset(VARIANT_SIZE_PRESETS[0].sizes);
-                      }
-                    }}
-                  />
-                </div>
-              </CardHeader>
-
-              {hasVariants && (
-                <CardContent className="space-y-4">
-                  {/* Quick Preset Buttons */}
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                      Quick Size Presets:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {VARIANT_SIZE_PRESETS.map((p, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => applyVariantPreset(p.sizes)}
-                          className="text-[11px] rounded-full border border-border bg-muted/50 px-2.5 py-1 hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-800 dark:hover:text-amber-300 transition-colors font-medium"
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Variants Table */}
-                  <div className="rounded-xl border border-border/80 bg-background/50 overflow-hidden">
-                    <div className="grid grid-cols-12 gap-2 p-2.5 bg-muted/40 border-b text-[11px] font-bold text-muted-foreground">
-                      <div className="col-span-4">Size / Option Name</div>
-                      <div className="col-span-3">Price (€)</div>
-                      <div className="col-span-2">Stock</div>
-                      <div className="col-span-2">SKU (Optional)</div>
-                      <div className="col-span-1 text-right">Del</div>
-                    </div>
-
-                    <div className="divide-y divide-border/50">
-                      {productVariants.length === 0 ? (
-                        <div className="p-4 text-center text-xs text-muted-foreground">
-                          No variants added yet. Choose a preset above or click Add Variant.
-                        </div>
-                      ) : (
-                        productVariants.map((v, idx) => (
-                          <div key={idx} className="grid grid-cols-12 gap-2 p-2.5 items-center text-xs hover:bg-muted/20">
-                            <div className="col-span-4">
-                              <Input
-                                value={v.sizeName}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setProductVariants((prev) =>
-                                    prev.map((item, i) => (i === idx ? { ...item, sizeName: val } : item))
-                                  );
-                                }}
-                                placeholder="e.g. Ø 60 cm"
-                                className="h-8 text-xs font-medium"
-                              />
-                            </div>
-                            <div className="col-span-3 relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">€</span>
-                              <Input
-                                value={v.price}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setProductVariants((prev) =>
-                                    prev.map((item, i) => (i === idx ? { ...item, price: val } : item))
-                                  );
-                                }}
-                                placeholder="89.95"
-                                className="pl-6 h-8 text-xs font-mono"
-                              />
-                            </div>
-                            <div className="col-span-2">
-                              <Input
-                                value={v.stock}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setProductVariants((prev) =>
-                                    prev.map((item, i) => (i === idx ? { ...item, stock: val } : item))
-                                  );
-                                }}
-                                placeholder="10"
-                                className="h-8 text-xs font-mono"
-                              />
-                            </div>
-                            <div className="col-span-2">
-                              <Input
-                                value={v.sku}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setProductVariants((prev) =>
-                                    prev.map((item, i) => (i === idx ? { ...item, sku: val } : item))
-                                  );
-                                }}
-                                placeholder="Auto"
-                                className="h-8 text-xs font-mono text-[11px]"
-                              />
-                            </div>
-                            <div className="col-span-1 text-right">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                                onClick={() => setProductVariants((prev) => prev.filter((_, i) => i !== idx))}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addVariantRow}
-                      className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 rounded-lg"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>Add Size Variant</span>
-                    </Button>
-                    <span className="text-[11px] text-muted-foreground">
-                      {productVariants.length} size variant(s) defined
-                    </span>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-
-            {/* Color & Size Siblings / Linked Products Card */}
-            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
-              <CardHeader className="border-b pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Boxes className="h-5 w-5 text-primary" />
-                    <span>{t("admin_product_form.siblings_title", "Product Siblings / Variations (Colors & Sizes)")}</span>
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-0.5">
-                    {t("admin_product_form.siblings_desc", "Connect standalone products as color or size variations. When saved, all linked products will display clickable color swatches and size selector pills on their storefront pages.")}
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  {/* Mode Selector Tabs */}
-                  <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/40 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setSiblingModeTab("all")}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
-                        siblingModeTab === "all" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Alle Variaties
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSiblingModeTab("color")}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1 transition-all",
-                        siblingModeTab === "color" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Palette className="h-3 w-3 text-amber-500" />
-                      <span>Kleuren</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSiblingModeTab("size")}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1 transition-all",
-                        siblingModeTab === "size" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Ruler className="h-3 w-3 text-primary" />
-                      <span>Maten</span>
-                    </button>
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isAiSuggesting || !id || id === "new"}
-                    onClick={handleAiSuggestSiblings}
-                    className="h-8 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 gap-1.5 rounded-lg shadow-2xs shrink-0"
-                    title={!id || id === "new" ? "Save product first to use AI detection" : "AI analyzes catalog to find matching variations"}
-                  >
-                    {isAiSuggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
-                    <span>
-                      {isAiSuggesting
-                        ? "AI Scanning..."
-                        : siblingModeTab === "size"
-                        ? "✨ AI Find Size Siblings"
-                        : siblingModeTab === "color"
-                        ? "✨ AI Find Color Siblings"
-                        : "✨ AI Find Siblings"}
-                    </span>
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* AI Suggestions Box (if matches found) */}
-                {aiSuggestions.length > 0 && (
-                  <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3 animate-in fade-in-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-amber-500" />
-                        <span className="text-xs font-bold text-foreground">
-                          AI Detected {aiSuggestions.length} Matching Variation{aiSuggestions.length > 1 ? "s" : ""}:
-                        </span>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-7 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg gap-1 shadow-2xs"
-                        onClick={linkAllAiSuggestions}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>Link All ({aiSuggestions.length})</span>
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {aiSuggestions.map((s) => (
-                        <div
-                          key={s.id}
-                          className="flex items-center justify-between p-2 rounded-lg bg-background border border-border/60 text-xs shadow-2xs"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <img
-                              src={resolveImgUrl(s.image)}
-                              alt=""
-                              className="w-8 h-8 rounded-md object-cover border border-border/40 shrink-0"
-                            />
-                            <div className="truncate">
-                              <p className="font-semibold text-foreground truncate">{s.name}</p>
-                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
-                                {s.colorName && s.colorName !== "Default" && (
-                                  <span className="flex items-center gap-1">
-                                    <span
-                                      className="w-2 h-2 rounded-full border border-black/15 shrink-0"
-                                      style={{ background: s.colorCode || "#666" }}
-                                    />
-                                    <span className="font-medium text-foreground">{s.colorName}</span>
-                                  </span>
-                                )}
-                                {s.sizeName && (
-                                  <span className="px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-[10px] font-bold flex items-center gap-0.5">
-                                    <Ruler className="h-2.5 w-2.5" />
-                                    <span>{s.sizeName}</span>
-                                  </span>
-                                )}
-                                <span>·</span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                                  {s.confidence}% match
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs font-bold text-primary hover:bg-primary/10 rounded-md"
-                            onClick={() => {
-                              addSibling(s);
-                              setAiSuggestions((prev) => prev.filter((item) => item.id !== s.id));
-                            }}
-                          >
-                            + Link
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Search & Add Sibling */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-xs font-bold text-foreground/80">
-                      {t("admin_product_form.search_sibling_label", "Search or browse products to link as color:")}
-                    </Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setIsBrowseCatalogOpen(true);
-                        loadCatalogProducts(selectedCategory || "all");
-                      }}
-                      className="h-7 text-xs font-bold border-primary/30 text-primary hover:bg-primary/10 gap-1.5 shadow-2xs"
-                    >
-                      <Boxes className="h-3.5 w-3.5" />
-                      <span>Browse All Products</span>
-                    </Button>
-                  </div>
-
-                  {/* Quick Category Filter Pills */}
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                    <span className="text-muted-foreground font-medium">Show:</span>
-                    {selectedCategory && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSiblingFilterCategory("same");
-                          searchSiblings(siblingSearchQuery, "same");
-                        }}
-                        className={cn(
-                          "px-2.5 py-0.5 rounded-full border transition-all font-medium",
-                          siblingFilterCategory === "same"
-                            ? "bg-primary text-white border-primary shadow-xs"
-                            : "bg-muted/50 text-muted-foreground hover:bg-muted border-border"
-                        )}
-                      >
-                        Same Category ({selectedCategory})
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSiblingFilterCategory("all");
-                        searchSiblings(siblingSearchQuery, "all");
-                      }}
-                      className={cn(
-                        "px-2.5 py-0.5 rounded-full border transition-all font-medium",
-                        siblingFilterCategory === "all"
-                          ? "bg-primary text-white border-primary shadow-xs"
-                          : "bg-muted/50 text-muted-foreground hover:bg-muted border-border"
-                      )}
-                    >
-                      All Products Catalog
-                    </button>
-                  </div>
-
-                  <div className="relative">
-                    <Input
-                      value={siblingSearchQuery}
-                      onFocus={() => {
-                        if (siblingSearchResults.length === 0) {
-                          searchSiblings(siblingSearchQuery, siblingFilterCategory);
-                        }
-                      }}
-                      onChange={(e) => searchSiblings(e.target.value, siblingFilterCategory)}
-                      placeholder={t("admin_product_form.search_sibling_placeholder", "Click to see products, or type name/SKU...")}
-                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg pr-9"
-                    />
-                    {siblingSearchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => searchSiblings("", siblingFilterCategory)}
-                        className="absolute right-8 top-3 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    {isSearchingSiblings && (
-                      <div className="absolute right-3 top-3">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Search results dropdown */}
-                  {siblingSearchResults.length > 0 && (
-                    <div className="rounded-xl border border-border bg-card p-2 shadow-lg space-y-1 max-h-64 overflow-y-auto">
-                      <div className="flex items-center justify-between px-2 py-1 text-[11px] text-muted-foreground border-b border-border/40 font-medium">
-                        <span>{siblingSearchResults.length} product(s) available to link:</span>
-                        <button
-                          type="button"
-                          onClick={() => setSiblingSearchResults([])}
-                          className="text-[10px] hover:text-foreground font-semibold"
-                        >
-                          ✕ Close
-                        </button>
-                      </div>
-                      {siblingSearchResults.map((sr) => {
-                        const colorVal = sr.productAttributeValues?.find(
-                          (pav: any) =>
-                            pav.attribute?.slug === "color" ||
-                            pav.attribute?.name?.toLowerCase() === "color" ||
-                            pav.attribute?.name?.toLowerCase() === "kleur"
-                        )?.attributeValue;
-                        return (
-                          <div
-                            key={sr.id}
-                            className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/60 transition-colors text-xs"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <img
-                                src={resolveImgUrl(sr.image)}
-                                alt=""
-                                className="w-8 h-8 rounded-md object-cover border border-border/50 shrink-0"
-                              />
-                              <div className="truncate">
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <p className="font-semibold text-foreground truncate">{sr.name}</p>
-                                  {sr.isDraft && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
-                                      Draft
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
-                                  {colorVal && (
-                                    <span className="flex items-center gap-1">
-                                      <span
-                                        className="w-2.5 h-2.5 rounded-full border border-black/15 inline-block shrink-0"
-                                        style={{ background: colorVal.colorCode || "#666" }}
-                                      />
-                                      <span className="font-medium text-foreground">{colorVal.value}</span>
-                                    </span>
-                                  )}
-                                  {sr.sizeName && (
-                                    <span className="px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-[10px] font-bold flex items-center gap-0.5">
-                                      <Ruler className="h-2.5 w-2.5" />
-                                      <span>{sr.sizeName}</span>
-                                    </span>
-                                  )}
-                                  <span>·</span>
-                                  <span>€{Number(sr.price).toFixed(2)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs font-semibold shrink-0 gap-1 rounded-lg hover:bg-primary hover:text-white"
-                              onClick={() => addSibling(sr)}
-                            >
-                              <Plus className="h-3 w-3" />
-                              <span>{t("admin_product_form.link_btn", "Link")}</span>
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Linked Siblings List */}
-                <div className="space-y-2 pt-2">
-                  <Label className="text-xs font-bold text-foreground/80 flex items-center justify-between">
-                    <span>{t("admin_product_form.currently_linked", "Currently Connected Siblings:")}</span>
-                    <span className="text-[11px] font-mono font-normal text-muted-foreground">
-                      {linkedSiblings.length} {t("admin_product_form.products_linked", "product(s) linked")}
-                    </span>
-                  </Label>
-
-                  {linkedSiblings.length === 0 ? (
-                    <div className="p-4 rounded-xl border border-dashed border-muted-foreground/20 text-center text-xs text-muted-foreground">
-                      {t("admin_product_form.no_siblings_linked", "No color siblings linked yet. Search above to link other variations of this item.")}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {linkedSiblings.map((sibling) => (
-                        <div
-                          key={sibling.id}
-                          className="flex items-center justify-between p-2.5 rounded-xl border border-border/70 bg-background/50 hover:bg-muted/40 transition-colors shadow-2xs"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <img
-                              src={resolveImgUrl(sibling.image)}
-                              alt=""
-                              className="w-9 h-9 rounded-lg object-cover border border-border/60 shrink-0"
-                            />
-                            <div className="truncate">
-                              <p className="font-semibold text-xs text-foreground truncate">{sibling.name}</p>
-                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
-                                  style={{ background: sibling.colorCode || "#666" }}
-                                />
-                                <span className="font-medium text-foreground/90">{sibling.colorName}</span>
-                                {sibling.sizeName && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                                    📏 {sibling.sizeName}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0 rounded-full"
-                            onClick={() => removeSibling(sibling.id)}
-                            title="Disconnect sibling"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {linkedSiblings.length > 0 && (
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium pt-1">
-                      ✓ {t("admin_product_form.auto_sync_hint", "2-Way Sync Active: Saving will automatically link all selected products together.")}
                     </p>
                   )}
                 </div>
@@ -3512,11 +3894,22 @@ const AdminProductForm = () => {
         <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl">
           <DialogHeader className="p-5 border-b bg-muted/30">
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
-              <Boxes className="h-5 w-5 text-primary" />
-              Browse Product Catalog to Link as Sibling (Colors & Sizes)
+              {browseCatalogContext === "size" ? (
+                <>
+                  <Ruler className="h-5 w-5 text-amber-500" />
+                  <span>{t("admin_product_form.browse_catalog_size_title", "Browse Product Catalog for Size Variations")}</span>
+                </>
+              ) : (
+                <>
+                  <Boxes className="h-5 w-5 text-indigo-500" />
+                  <span>{t("admin_product_form.browse_catalog_title", "Browse Product Catalog for Color Variations")}</span>
+                </>
+              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Select any product from your catalog to link as a color or size variation sibling.
+              {browseCatalogContext === "size"
+                ? t("admin_product_form.browse_catalog_size_desc", "Select any product from your catalog to link as a size variation.")
+                : t("admin_product_form.browse_catalog_desc", "Select any product from your catalog to link as a color variation.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -3567,7 +3960,10 @@ const AdminProductForm = () => {
               </div>
             ) : (
               catalogProducts.map((p) => {
-                const isAlreadyLinked = linkedSiblings.some((ls) => ls.id === p.id);
+                const isAlreadyLinked =
+                  browseCatalogContext === "size"
+                    ? linkedSizeSiblings.some((ls) => ls.id === p.id)
+                    : linkedColorSiblings.some((ls) => ls.id === p.id);
                 const colorVal = p.productAttributeValues?.find(
                   (pav: any) =>
                     pav.attribute?.slug === "color" ||
@@ -3636,11 +4032,26 @@ const AdminProductForm = () => {
                       <Button
                         type="button"
                         size="sm"
-                        className="h-8 text-xs font-bold gap-1 rounded-lg"
-                        onClick={() => addSibling(p)}
+                        className={cn(
+                          "h-8 text-xs font-bold gap-1 rounded-lg",
+                          browseCatalogContext === "size"
+                            ? "bg-amber-600 hover:bg-amber-700 text-white"
+                            : ""
+                        )}
+                        onClick={() => {
+                          if (browseCatalogContext === "size") {
+                            addSizeSibling(p);
+                          } else {
+                            addColorSibling(p);
+                          }
+                        }}
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        <span>Link Sibling</span>
+                        <span>
+                          {browseCatalogContext === "size"
+                            ? t("admin_product_form.btn_link_size", "Link Size")
+                            : t("admin_product_form.btn_link_color", "Link Color")}
+                        </span>
                       </Button>
                     )}
                   </div>

@@ -161,6 +161,8 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       } else {
         (draft as any).specs.unshift({ key: "Afmeting", value: sizeLabel });
       }
+      if (!(draft as any).attributes) (draft as any).attributes = {};
+      (draft as any).attributes.size = [sizeLabel];
     }
 
     // Apply explicit Specification Differences
@@ -175,6 +177,46 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
           (draft as any).specs.push({ key: "Specificatie", value: p });
         }
       });
+    }
+
+    // Ensure product name and slug reflect variation color and dimensions accurately
+    if (draft && draft.name) {
+      let updatedName = draft.name;
+
+      if (color) {
+        const commonColors = [
+          "Zwart", "Wit", "Goud", "Brons", "Koper", "Rookglas", "Amber", "Hout", "Chroom",
+          "Silver", "Zilver", "Black", "White", "Gold", "Bronze", "Copper", "Messing", "Anthracite"
+        ];
+        const conflictingColor = commonColors.find(
+          (c) => c.toLowerCase() !== color.toLowerCase() && new RegExp(`\\b${c}\\b`, "i").test(updatedName)
+        );
+        if (conflictingColor) {
+          updatedName = updatedName.replace(new RegExp(`\\b${conflictingColor}\\b`, "i"), color);
+        } else if (!new RegExp(`\\b${color}\\b`, "i").test(updatedName)) {
+          updatedName = `${updatedName} - ${color}`;
+        }
+      }
+
+      if (sizeLabel) {
+        const dimensionPattern = /(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b)/i;
+        if (dimensionPattern.test(updatedName) && !updatedName.toLowerCase().includes(sizeLabel.toLowerCase())) {
+          updatedName = updatedName.replace(dimensionPattern, sizeLabel);
+        } else if (!updatedName.toLowerCase().includes(sizeLabel.toLowerCase())) {
+          updatedName = `${updatedName} (${sizeLabel})`;
+        }
+      }
+
+      draft.name = updatedName;
+
+      // Update slug so sibling variants have distinct SEO friendly URLs
+      const newSlug = updatedName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      if (newSlug) {
+        (draft as any).slug = newSlug;
+      }
     }
 
     // Assign Sibling / Variant Group

@@ -582,10 +582,38 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
 
         // Try extracting size pattern from product name, e.g. "Ø 40 cm", "60cm", "80 cm", "3-Ring", etc.
         let sizeFromName = "";
-        const nameMatch = s.name.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:small|medium|large|xl)\b)/i);
+        const nameMatch = s.name.match(/(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:small|medium|large|xl)\b)/i);
         if (nameMatch) {
           sizeFromName = nameMatch[0].trim();
         }
+
+        // Check color attribute or specs JSON for color/kleur
+        let colorFromSpecs = "";
+        if (s.specs) {
+          if (Array.isArray(s.specs)) {
+            const found = (s.specs as any[]).find((sp) => {
+              const k = String(sp?.key || "").toLowerCase();
+              return k.includes("kleur") || k.includes("color") || k.includes("finish");
+            });
+            if (found?.value) colorFromSpecs = String(found.value);
+          } else if (typeof s.specs === "object") {
+            for (const [k, v] of Object.entries(s.specs as Record<string, any>)) {
+              const kLower = k.toLowerCase();
+              if (kLower.includes("kleur") || kLower.includes("color") || kLower.includes("finish")) {
+                colorFromSpecs = String(v);
+                break;
+              }
+            }
+          }
+        }
+
+        let colorFromName = "";
+        const colorMatch = s.name.match(/\b(zwart|black|wit|white|goud|gold|brons|bronze|nikkel|nickel|staal|steel|chroom|chrome|messing|brass|koper|copper|antraciet|anthracite|zilver|silver|grijs|grey|gray|taupe|beige|groen|green|blauw|blue|rood|red|amber|smoke|rookglas)\b/i);
+        if (colorMatch) {
+          colorFromName = colorMatch[0].trim();
+        }
+
+        const resolvedColor = colorAttr?.attributeValue?.value || colorFromSpecs || colorFromName || "";
 
         return {
           id: s.id,
@@ -594,8 +622,8 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
           price: s.price,
           image: s.image,
           inStock: s.inStock,
-          colorName: colorAttr?.attributeValue?.value || s.name,
-          colorCode: colorAttr?.attributeValue?.colorCode || "#333333",
+          colorName: resolvedColor || "Default",
+          colorCode: colorAttr?.attributeValue?.colorCode || (resolvedColor ? "#d4af37" : "#333333"),
           sizeName: sizeAttr?.attributeValue?.value || sizeFromSpecs || sizeFromName || "",
           isCurrent: s.id === product.id,
         };
@@ -908,11 +936,16 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       variants,
     } = req.body;
 
-    const existingProduct = await prisma.product.findUnique({ where: { id } });
+    const existingProduct = await prisma.product.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }],
+      },
+    });
     if (!existingProduct) {
       res.status(404).json({ success: false, message: "Product not found" });
       return;
     }
+    const realProductId = existingProduct.id;
 
     let finalCategoryId = categoryId;
     if (!finalCategoryId && req.body.category) {
@@ -946,7 +979,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
     // Update base details
     const product = await prisma.product.update({
-      where: { id },
+      where: { id: realProductId },
       data: {
         name,
         slug,
@@ -972,7 +1005,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     // Sync attribute mapping
     if (attributes && typeof attributes === "object") {
       // Clear old mappings
-      await prisma.productAttributeValue.deleteMany({ where: { productId: id } });
+      await prisma.productAttributeValue.deleteMany({ where: { productId: realProductId } });
 
       for (const [attrSlug, val] of Object.entries(attributes)) {
         const attribute = await prisma.attribute.findUnique({
@@ -1002,13 +1035,13 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
           await prisma.productAttributeValue.upsert({
             where: {
               productId_attributeId_attributeValueId: {
-                productId: id,
+                productId: realProductId,
                 attributeId: attribute.id,
                 attributeValueId: attrValue.id,
               },
             },
             create: {
-              productId: id,
+              productId: realProductId,
               attributeId: attribute.id,
               attributeValueId: attrValue.id,
             },
@@ -1021,17 +1054,17 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     // Sync variants
     if (variants && Array.isArray(variants)) {
       // Delete old variants
-      await prisma.productVariant.deleteMany({ where: { productId: id } });
+      await prisma.productVariant.deleteMany({ where: { productId: realProductId } });
 
       for (const v of variants) {
         const variantSku =
           v.sku && String(v.sku).trim()
             ? String(v.sku).trim()
-            : `${existingProduct.slug || id}-var-${Math.random().toString(36).substring(2, 7)}`;
+            : `${existingProduct.slug || realProductId}-var-${Math.random().toString(36).substring(2, 7)}`;
 
         const variant = await prisma.productVariant.create({
           data: {
-            productId: id,
+            productId: realProductId,
             sku: variantSku,
             stock: parseInt(v.stock, 10) || 0,
             price: v.price !== null && v.price !== undefined && !isNaN(parseFloat(v.price)) ? parseFloat(v.price) : null,
@@ -1088,7 +1121,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     }
 
     // Automatically synchronize inventory records for product and variants on edit
-    await InventoryService.syncProductInventory(product.id, {
+    await InventoryService.syncProductInventory(realProductId, {
       storageStock: req.body.storageStock !== undefined ? parseInt(req.body.storageStock) : undefined,
       webshopStock: req.body.webshopStock !== undefined ? parseInt(req.body.webshopStock) : undefined,
       binLocation: req.body.binLocation,
@@ -1098,14 +1131,14 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     // Handle Sibling / Color Group synchronization
     if (req.body.siblingProductIds !== undefined) {
       const siblingIds: string[] = Array.isArray(req.body.siblingProductIds)
-        ? req.body.siblingProductIds.filter((sid: string) => sid && sid !== id)
+        ? req.body.siblingProductIds.filter((sid: string) => sid && sid !== realProductId && sid !== id)
         : [];
 
       if (siblingIds.length === 0) {
         if (existingProduct.colorGroupId) {
           const oldGroupId = existingProduct.colorGroupId;
           await prisma.product.update({
-            where: { id },
+            where: { id: realProductId },
             data: { colorGroupId: null },
           });
 
@@ -1136,10 +1169,19 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
           groupId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         }
 
-        const allIds = [id, ...siblingIds];
+        const allIds = [realProductId, ...siblingIds];
         await prisma.product.updateMany({
           where: { id: { in: allIds } },
           data: { colorGroupId: groupId },
+        });
+
+        // If any product in this group was removed by the user, clear its colorGroupId
+        await prisma.product.updateMany({
+          where: {
+            colorGroupId: groupId,
+            id: { notIn: allIds },
+          },
+          data: { colorGroupId: null },
         });
 
         // If product switched from an old group, clean up old group if only 1 remains

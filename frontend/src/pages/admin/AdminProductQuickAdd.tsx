@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -96,6 +96,39 @@ const QUICK_COLOR_PRESETS = [
   { name: "Chroom", hex: "#C0C0C0" },
 ];
 
+const GROUP_THEMES = [
+  {
+    border: "border-blue-500/40",
+    bg: "bg-blue-500/10",
+    text: "text-blue-700 dark:text-blue-300",
+    dot: "bg-blue-500",
+  },
+  {
+    border: "border-purple-500/40",
+    bg: "bg-purple-500/10",
+    text: "text-purple-700 dark:text-purple-300",
+    dot: "bg-purple-500",
+  },
+  {
+    border: "border-emerald-500/40",
+    bg: "bg-emerald-500/10",
+    text: "text-emerald-700 dark:text-emerald-300",
+    dot: "bg-emerald-500",
+  },
+  {
+    border: "border-amber-500/40",
+    bg: "bg-amber-500/10",
+    text: "text-amber-700 dark:text-amber-300",
+    dot: "bg-amber-500",
+  },
+  {
+    border: "border-rose-500/40",
+    bg: "bg-rose-500/10",
+    text: "text-rose-700 dark:text-rose-300",
+    dot: "bg-rose-500",
+  },
+];
+
 const emptyRow = (): ProductRow => ({
   key: `row-${Date.now()}-${Math.random()}`,
   hint: "",
@@ -145,7 +178,7 @@ const AdminProductQuickAdd = () => {
     const rowKey = mediaPickerRowKey;
     setMediaPickerRowKey(null);
 
-    const toastId = toast.loading("Loading image from media library...");
+    const toastId = toast.loading(t("admin_quick_add.loading_media_image"));
     try {
       const resolvedUrl = resolveImgUrl(url);
       const filename = url.split("/").pop() || "media-image.jpg";
@@ -159,10 +192,10 @@ const AdminProductQuickAdd = () => {
         imageFile: file,
         imagePreview: resolvedUrl,
       });
-      toast.success("Image selected from media library", { id: toastId });
+      toast.success(t("admin_quick_add.media_image_selected"), { id: toastId });
     } catch (error) {
       console.error("Failed to load image from media library:", error);
-      toast.error("Failed to select image from media library", { id: toastId });
+      toast.error(t("admin_quick_add.media_image_failed"), { id: toastId });
     }
   };
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
@@ -436,7 +469,7 @@ const AdminProductQuickAdd = () => {
     if (!sizeTargetRowKey) return;
     const validSizes = sizeVariations.filter((s) => s.label.trim().length > 0);
     if (validSizes.length === 0) {
-      toast.error("Please enter at least one size variation.");
+      toast.error(t("admin_quick_add.toast_min_one_size"));
       return;
     }
 
@@ -473,7 +506,7 @@ const AdminProductQuickAdd = () => {
 
     const totalAfterAdding = rows.length - 1 + validSizes.length;
     if (totalAfterAdding > bulkLimit) {
-      toast.warning(`Note: Adding ${validSizes.length} sizes totals ${totalAfterAdding} products. You can raise your batch limit in Settings if needed.`);
+      toast.warning(t("admin_quick_add.toast_bulk_limit_warning", { sizes: validSizes.length, total: totalAfterAdding }));
     }
 
     // Insert new size rows immediately following the base row
@@ -482,7 +515,7 @@ const AdminProductQuickAdd = () => {
     setRows(newRows);
 
     setIsSizeModalOpen(false);
-    toast.success(`✨ Generated ${validSizes.length} size variations! All linked as siblings.`);
+    toast.success(t("admin_quick_add.toast_sizes_generated", { count: validSizes.length }));
   };
 
   const patchRowProgress = (key: string, patch: Partial<RowProgress>) => {
@@ -518,7 +551,7 @@ const AdminProductQuickAdd = () => {
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
-      toast.error("Image file is too large (maximum 50MB limit).");
+      toast.error(t("admin_quick_add.toast_image_too_large"));
       return;
     }
     const reader = new FileReader();
@@ -575,7 +608,7 @@ const AdminProductQuickAdd = () => {
     const nextRows = [...rows];
     nextRows.splice(targetIdx, 1, updatedTarget, clonedRow);
     setRows(nextRows);
-    toast.success("✨ Product gedupliceerd & gekoppeld als sibling variatie!");
+    toast.success(t("admin_quick_add.toast_duplicated"));
   };
 
   const toggleSiblingLink = (key: string) => {
@@ -584,7 +617,7 @@ const AdminProductQuickAdd = () => {
 
     if (target.siblingGroupId || target.sizeGroupId) {
       updateRow(key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined });
-      toast.info("Sibling koppeling verwijderd voor dit product");
+      toast.info(t("admin_quick_add.toast_sibling_unlinked"));
     } else {
       const otherGroup = rows.find((r) => r.key !== key && (r.siblingGroupId || r.sizeGroupId));
       const newGroup =
@@ -592,11 +625,28 @@ const AdminProductQuickAdd = () => {
         otherGroup?.sizeGroupId ||
         `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       updateRow(key, { siblingGroupId: newGroup });
-      toast.success("Gekoppeld aan sibling variatiegroep!");
+      toast.success(t("admin_quick_add.toast_sibling_linked"));
     }
   };
 
   const validRows = rows.filter((r) => r.imageFile || r.imagePreview || r.hint.trim());
+
+  const groupInfoMap = useMemo(() => {
+    const map = new Map<string, { groupNum: number; count: number; theme: (typeof GROUP_THEMES)[0] }>();
+    let num = 1;
+    rows.forEach((r) => {
+      const gid = r.siblingGroupId || r.sizeGroupId;
+      if (gid) {
+        if (!map.has(gid)) {
+          const theme = GROUP_THEMES[(num - 1) % GROUP_THEMES.length];
+          map.set(gid, { groupNum: num++, count: 1, theme });
+        } else {
+          map.get(gid)!.count++;
+        }
+      }
+    });
+    return map;
+  }, [rows]);
 
   const resolveRowImageFile = (row: ProductRow): File | null => {
     if (row.imageFile) return row.imageFile;
@@ -716,11 +766,11 @@ const AdminProductQuickAdd = () => {
     if (success) {
       toast.success(
         targetRow.sizeLabel
-          ? `Maat ${targetRow.sizeLabel} succesvol aangemaakt en als sibling gekoppeld!`
+          ? t("admin_quick_add.toast_size_success", { size: targetRow.sizeLabel })
           : t("admin_quick_add.toast_bulk_success", { ok: 1, total: 1 })
       );
     } else {
-      toast.error("Opnieuw proberen mislukt. Probeer het nogmaals.");
+      toast.error(t("admin_quick_add.toast_retry_failed"));
     }
   };
 
@@ -764,9 +814,9 @@ const AdminProductQuickAdd = () => {
     });
 
     if (newlyOk > 0) {
-      toast.success(`${newlyOk} product(en) succesvol opnieuw gegenereerd!`);
+      toast.success(t("admin_quick_add.toast_retry_success", { count: newlyOk }));
     } else {
-      toast.error("Opnieuw proberen mislukt voor resterende producten.");
+      toast.error(t("admin_quick_add.toast_retry_failed"));
     }
   };
 
@@ -980,7 +1030,7 @@ const AdminProductQuickAdd = () => {
                               className="h-6 text-[11px] text-destructive hover:bg-destructive/10 border-destructive/30 px-2 rounded-md shrink-0 flex items-center gap-1"
                               onClick={() => retrySingleRow(row.key)}
                             >
-                              <RefreshCw className="h-3 w-3" /> Retry
+                              <RefreshCw className="h-3 w-3" /> {t("admin_quick_add.btn_retry")}
                             </Button>
                           )}
                         </div>
@@ -1000,7 +1050,7 @@ const AdminProductQuickAdd = () => {
                     className="rounded-xl gap-2 shadow-sm"
                     onClick={retryAllFailedRows}
                   >
-                    <RefreshCw className="h-4 w-4" /> Opnieuw proberen ({failedCount} mislukt)
+                    <RefreshCw className="h-4 w-4" /> {t("admin_quick_add.btn_retry_all", { count: failedCount })}
                   </Button>
                 )}
                 <Button type="button" className="rounded-xl gap-2" onClick={() => navigate("/admin/product-drafts")}>
@@ -1020,6 +1070,8 @@ const AdminProductQuickAdd = () => {
           <CardContent className="p-6 space-y-6 min-w-0">
             {rows.map((row, index) => {
               const prog = rowProgress[row.key];
+              const effectiveGid = row.siblingGroupId || row.sizeGroupId;
+              const groupInfo = effectiveGid ? groupInfoMap.get(effectiveGid) : null;
               return (
                 <div key={row.key} className={`p-4 rounded-xl border space-y-4 transition-all min-w-0 overflow-hidden ${rowBorderClass(row.key)}`}>
                   <div className="flex items-center justify-between gap-2 min-w-0">
@@ -1031,10 +1083,27 @@ const AdminProductQuickAdd = () => {
                           <span>{row.sizeLabel}</span>
                         </span>
                       )}
-                      {(row.siblingGroupId || row.sizeGroupId) && !row.sizeLabel && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center gap-1 shrink-0" title="Gekoppeld als sibling variatie">
-                          <Link2 className="h-3 w-3 text-blue-600" />
-                          <span>Linked Sibling</span>
+                      {groupInfo && !row.sizeLabel && (
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 shrink-0 transition-all",
+                            groupInfo.theme.bg,
+                            groupInfo.theme.border,
+                            groupInfo.theme.text
+                          )}
+                          title={`Gekoppeld in Groep ${groupInfo.groupNum}`}
+                        >
+                          <Link2 className="h-3 w-3" />
+                          <span>
+                            {groupInfo.count > 1
+                              ? t("admin_quick_add.badge_group_linked", {
+                                  num: groupInfo.groupNum,
+                                  count: groupInfo.count,
+                                })
+                              : t("admin_quick_add.badge_group_single", {
+                                  num: groupInfo.groupNum,
+                                })}
+                          </span>
                         </span>
                       )}
                       {row.color && (
@@ -1068,15 +1137,15 @@ const AdminProductQuickAdd = () => {
                           size="sm"
                           onClick={() => retrySingleRow(row.key)}
                           className="h-7 text-xs rounded-lg gap-1.5 font-semibold shrink-0 shadow-sm"
-                          title="Opnieuw proberen voor dit product"
+                          title={t("admin_quick_add.btn_retry")}
                         >
                           <RefreshCw className="h-3.5 w-3.5" />
-                          <span>Opnieuw proberen</span>
+                          <span>{t("admin_quick_add.btn_retry")}</span>
                         </Button>
                       )}
                       {isGenerating && activeRowKey === row.key && (
                         <span className="text-xs text-primary flex items-center gap-1 font-medium px-2 py-0.5 bg-primary/10 rounded-md">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Bezig...
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("admin_quick_add.processing_indicator")}
                         </span>
                       )}
                       {!isGenerating && rows.length < bulkLimit && (
@@ -1086,10 +1155,10 @@ const AdminProductQuickAdd = () => {
                           size="sm"
                           onClick={() => duplicateRow(row.key)}
                           className="h-7 text-xs rounded-lg gap-1 border-border/80 hover:bg-muted text-foreground font-medium shrink-0"
-                          title="Dupliceer dit product als variatie (zelfde foto/merk met afwijkende specificaties)"
+                          title={t("admin_quick_add.duplicate_tooltip")}
                         >
                           <Copy className="h-3.5 w-3.5 text-primary" />
-                          <span>Kopieer</span>
+                          <span>{t("admin_quick_add.btn_duplicate")}</span>
                         </Button>
                       )}
                       {!isGenerating && (
@@ -1099,10 +1168,10 @@ const AdminProductQuickAdd = () => {
                           size="sm"
                           onClick={() => openMultiSizeModal(row)}
                           className="h-7 text-xs rounded-lg gap-1 border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium shrink-0"
-                          title="Generate size variations with linked pricing for this product"
+                          title={t("admin_quick_add.add_sizes_tooltip")}
                         >
                           <Ruler className="h-3.5 w-3.5 text-amber-500" />
-                          <span>{row.sizeLabel ? `Size: ${row.sizeLabel}` : "Add Sizes"}</span>
+                          <span>{row.sizeLabel ? t("admin_quick_add.size_label_badge", { size: row.sizeLabel }) : t("admin_quick_add.btn_add_sizes")}</span>
                         </Button>
                       )}
                       {rows.length > 1 && !isGenerating && (
@@ -1146,7 +1215,7 @@ const AdminProductQuickAdd = () => {
                             disabled={isGenerating}
                             onClick={() => openMediaSelectorForRow(row.key)}
                           >
-                            <ImageIcon className="h-3 w-3 text-primary/80" /> Media Library
+                            <ImageIcon className="h-3 w-3 text-primary/80" /> {t("admin_quick_add.btn_media_library")}
                           </Button>
                         </div>
                       ) : (
@@ -1207,11 +1276,11 @@ const AdminProductQuickAdd = () => {
                           disabled={isGenerating}
                         >
                           <SelectTrigger className="h-9 text-xs truncate">
-                            <SelectValue placeholder="Category (Auto)" />
+                            <SelectValue placeholder={t("admin_quick_add.category_placeholder")} />
                           </SelectTrigger>
                           <SelectContent className="max-h-60">
                             <SelectItem value="auto" className="text-xs italic text-muted-foreground">
-                              ✨ Auto (AI Detects Category)
+                              {t("admin_quick_add.category_auto")}
                             </SelectItem>
                             {(() => {
                               const hasChildren = new Set(categories.filter((c) => c.parentId).map((c) => c.parentId));
@@ -1257,11 +1326,11 @@ const AdminProductQuickAdd = () => {
                           disabled={isGenerating}
                         >
                           <SelectTrigger className="h-9 text-xs truncate">
-                            <SelectValue placeholder="Collection / Series (Auto)" />
+                            <SelectValue placeholder={t("admin_quick_add.series_placeholder")} />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="auto" className="text-xs italic text-muted-foreground">
-                              ✨ Auto (AI Picks Collection)
+                              {t("admin_quick_add.series_auto")}
                             </SelectItem>
                             {(() => {
                               const selectedBrandId = brands.find((b) => b.name === row.brand)?.id;
@@ -1281,29 +1350,101 @@ const AdminProductQuickAdd = () => {
 
                       {/* Color & Specification Differences (Variations / Siblings) */}
                       <div className="mt-3 p-3 rounded-xl border border-border/70 bg-muted/20 space-y-2.5">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-1.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <Palette className="h-3.5 w-3.5 text-primary" />
                             <span className="text-xs font-semibold text-foreground">
-                              Kleur & Specificaties (Variatie)
+                              {t("admin_quick_add.color_specs_title")}
                             </span>
-                            {(row.siblingGroupId || row.sizeGroupId) && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
-                                Gekoppeld als Sibling
-                              </span>
+                          </div>
+
+                          {/* Group Selector Dropdown */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Select
+                              value={effectiveGid || "none"}
+                              onValueChange={(val) => {
+                                if (val === "none") {
+                                  updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined });
+                                  toast.info(t("admin_quick_add.toast_sibling_unlinked"));
+                                } else if (val === "new_group") {
+                                  const newGid = `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+                                  updateRow(row.key, { siblingGroupId: newGid });
+                                  toast.success(t("admin_quick_add.toast_new_group_created"));
+                                } else {
+                                  updateRow(row.key, { siblingGroupId: val });
+                                  toast.success(t("admin_quick_add.toast_sibling_linked"));
+                                }
+                              }}
+                              disabled={isGenerating}
+                            >
+                              <SelectTrigger
+                                className={cn(
+                                  "h-7 text-[11px] font-semibold rounded-lg border gap-1.5 px-2.5 py-0 shadow-2xs transition-all w-auto max-w-[210px]",
+                                  groupInfo
+                                    ? cn(groupInfo.theme.bg, groupInfo.theme.border, groupInfo.theme.text)
+                                    : "bg-background/80 hover:bg-muted text-muted-foreground border-border/70 border-dashed"
+                                )}
+                              >
+                                <Link2 className="h-3 w-3 shrink-0" />
+                                <SelectValue>
+                                  {groupInfo
+                                    ? groupInfo.count > 1
+                                      ? t("admin_quick_add.badge_group_linked", {
+                                          num: groupInfo.groupNum,
+                                          count: groupInfo.count,
+                                        })
+                                      : t("admin_quick_add.badge_group_single", {
+                                          num: groupInfo.groupNum,
+                                        })
+                                    : t("admin_quick_add.select_group_none")}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent align="end">
+                                <SelectItem value="none" className="text-xs">
+                                  {t("admin_quick_add.opt_standalone")}
+                                </SelectItem>
+                                {Array.from(groupInfoMap.entries()).map(([gid, info]) => (
+                                  <SelectItem key={gid} value={gid} className="text-xs font-semibold">
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn("w-2 h-2 rounded-full", info.theme.dot)} />
+                                      <span>
+                                        {t("admin_quick_add.badge_group_linked", {
+                                          num: info.groupNum,
+                                          count: info.count,
+                                        })}
+                                      </span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                                <SelectItem value="new_group" className="text-xs text-primary font-bold">
+                                  <div className="flex items-center gap-1.5">
+                                    <Plus className="h-3 w-3" />
+                                    <span>
+                                      {t("admin_quick_add.opt_start_new_group", {
+                                        num: groupInfoMap.size + (effectiveGid && groupInfo?.count === 1 ? 0 : 1),
+                                      })}
+                                    </span>
+                                  </div>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            {effectiveGid && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined });
+                                  toast.info(t("admin_quick_add.toast_sibling_unlinked"));
+                                }}
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0"
+                                title={t("admin_quick_add.unlink_sibling_tooltip")}
+                              >
+                                <Unlink className="h-3.5 w-3.5" />
+                              </Button>
                             )}
                           </div>
-                          {(row.siblingGroupId || row.sizeGroupId) && (
-                            <button
-                              type="button"
-                              onClick={() => toggleSiblingLink(row.key)}
-                              className="text-[11px] text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors self-start sm:self-auto"
-                              title="Ontkoppel van sibling variatiegroep"
-                            >
-                              <Unlink className="h-3 w-3" />
-                              <span>Ontkoppelen</span>
-                            </button>
-                          )}
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1311,7 +1452,7 @@ const AdminProductQuickAdd = () => {
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                               <label className="text-[11px] font-medium text-muted-foreground">
-                                Kleur (optioneel):
+                                {t("admin_quick_add.color_label")}
                               </label>
                               {row.color && (
                                 <button
@@ -1319,14 +1460,14 @@ const AdminProductQuickAdd = () => {
                                   onClick={() => updateRow(row.key, { color: "" })}
                                   className="text-[10px] text-muted-foreground hover:text-foreground"
                                 >
-                                  Wissen
+                                  {t("admin_quick_add.color_clear")}
                                 </button>
                               )}
                             </div>
                             <Input
                               value={row.color || ""}
                               onChange={(e) => updateRow(row.key, { color: e.target.value })}
-                              placeholder="bijv. Zwart, Goud, Wit..."
+                              placeholder={t("admin_quick_add.color_placeholder")}
                               className="h-8 text-xs bg-background"
                               disabled={isGenerating}
                             />
@@ -1361,19 +1502,19 @@ const AdminProductQuickAdd = () => {
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                               <label className="text-[11px] font-medium text-muted-foreground">
-                                Specificatie Verschil / Extra Info:
+                                {t("admin_quick_add.specs_diff_label")}
                               </label>
-                              <span className="text-[10px] text-muted-foreground">AI neemt dit direct over</span>
+                              <span className="text-[10px] text-muted-foreground">{t("admin_quick_add.specs_diff_sub")}</span>
                             </div>
                             <Input
                               value={row.specDiff || ""}
                               onChange={(e) => updateRow(row.key, { specDiff: e.target.value })}
-                              placeholder="bijv. 3000K Warm Wit, 15W, Dimbaar, Ø 40 cm..."
+                              placeholder={t("admin_quick_add.specs_diff_placeholder")}
                               className="h-8 text-xs bg-background"
                               disabled={isGenerating}
                             />
                             <p className="text-[10px] text-muted-foreground leading-tight">
-                              Handig bij gedupliceerde rijen: vul hier in wat er afwijkt (bijv. wattage, fitting, afmeting of lichtkleur).
+                              {t("admin_quick_add.specs_diff_hint")}
                             </p>
                           </div>
                         </div>
@@ -1382,7 +1523,7 @@ const AdminProductQuickAdd = () => {
                       {((prog?.existingMatches && prog.existingMatches.length > 0) || (liveDuplicates[row.key] && liveDuplicates[row.key].length > 0)) && (
                         <div className="mt-3 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 text-xs space-y-1.5">
                           <p className="font-bold flex items-center gap-1.5 text-amber-800">
-                            <span>⚠️</span> Similar product already exists in catalog or drafts:
+                            <span>⚠️</span> {t("admin_quick_add.duplicate_warning_title")}
                           </p>
                           <div className="space-y-1 pt-1">
                             {(prog?.existingMatches || liveDuplicates[row.key] || []).map((m) => (
@@ -1396,7 +1537,7 @@ const AdminProductQuickAdd = () => {
                                   rel="noopener noreferrer"
                                   className="text-[11px] text-amber-900 underline hover:text-amber-950 font-bold shrink-0 flex items-center gap-1"
                                 >
-                                  View Product ↗
+                                  {t("admin_quick_add.view_product")}
                                 </a>
                               </div>
                             ))}
@@ -1410,10 +1551,10 @@ const AdminProductQuickAdd = () => {
                             <XCircle className="h-4 w-4 shrink-0 text-destructive" />
                             <div className="min-w-0">
                               <p className="font-bold text-sm">
-                                {row.sizeLabel ? `Maat ${row.sizeLabel} generatie mislukt` : "Product generatie mislukt"}
+                                {row.sizeLabel ? t("admin_quick_add.generation_failed_size_title", { size: row.sizeLabel }) : t("admin_quick_add.generation_failed_title")}
                               </p>
                               <p className="text-[11px] opacity-90 truncate">
-                                {prog.error || "Mogelijk tijdelijke AI-timeout of netwerkfout. Klik op retry om opnieuw te proberen."}
+                                {prog.error || t("admin_quick_add.generation_failed_desc")}
                               </p>
                             </div>
                           </div>
@@ -1426,7 +1567,7 @@ const AdminProductQuickAdd = () => {
                               onClick={() => retrySingleRow(row.key)}
                             >
                               <RefreshCw className="h-3.5 w-3.5" />
-                              <span>Opnieuw proberen (Retry)</span>
+                              <span>{t("admin_quick_add.btn_retry")}</span>
                             </Button>
                           )}
                         </div>
@@ -1478,10 +1619,10 @@ const AdminProductQuickAdd = () => {
           <DialogHeader>
             <div className="flex items-center gap-2 text-amber-600">
               <Ruler className="h-5 w-5" />
-              <DialogTitle className="text-lg font-bold">Generate Size Variations</DialogTitle>
+              <DialogTitle className="text-lg font-bold">{t("admin_quick_add.size_modal_title")}</DialogTitle>
             </div>
             <DialogDescription className="text-xs">
-              Easily generate size options (e.g. 40cm, 60cm, 80cm) for this LED lamp. All generated sizes will share the same photo, category & brand, and will be automatically linked as clickable size options on the product page.
+              {t("admin_quick_add.size_modal_desc")}
             </DialogDescription>
           </DialogHeader>
 
@@ -1501,13 +1642,13 @@ const AdminProductQuickAdd = () => {
                     />
                   )}
                   <div className="truncate flex-1">
-                    <p className="text-[11px] text-muted-foreground font-medium">Adding sizes to:</p>
+                    <p className="text-[11px] text-muted-foreground font-medium">{t("admin_quick_add.adding_sizes_to")}</p>
                     <p className="font-semibold text-foreground truncate">
-                      {hintText || "Current Product Row"}
+                      {hintText || t("admin_quick_add.current_product_row")}
                     </p>
                   </div>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 shrink-0">
-                    Sibling Group
+                    {t("admin_quick_add.badge_sibling_group")}
                   </span>
                 </div>
               );
@@ -1516,7 +1657,7 @@ const AdminProductQuickAdd = () => {
             {/* Quick Presets */}
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                Quick Size Presets
+                {t("admin_quick_add.quick_size_presets")}
               </Label>
               <div className="flex flex-wrap gap-1.5">
                 {SIZE_PRESETS.map((p, idx) => (
@@ -1535,7 +1676,7 @@ const AdminProductQuickAdd = () => {
             {/* Sizes & Prices Table */}
             <div className="space-y-2 border rounded-xl p-3 bg-muted/20">
               <div className="flex items-center justify-between text-xs font-bold text-foreground">
-                <span>Sizes & Prices to Generate:</span>
+                <span>{t("admin_quick_add.sizes_and_prices")}</span>
                 <button
                   type="button"
                   onClick={() =>
@@ -1546,7 +1687,7 @@ const AdminProductQuickAdd = () => {
                   }
                   className="text-amber-600 hover:underline flex items-center gap-1 text-[11px] font-medium"
                 >
-                  <Plus className="h-3 w-3" /> Add Size Row
+                  <Plus className="h-3 w-3" /> {t("admin_quick_add.add_size_row")}
                 </button>
               </div>
 
@@ -1562,7 +1703,7 @@ const AdminProductQuickAdd = () => {
                           prev.map((item) => (item.id === sz.id ? { ...item, label: val } : item))
                         );
                       }}
-                      placeholder="e.g. Ø 60 cm or 3-Ring"
+                      placeholder={t("admin_quick_add.size_placeholder")}
                       className="h-8 text-xs flex-1"
                     />
                     <div className="relative w-28 shrink-0">
@@ -1598,7 +1739,7 @@ const AdminProductQuickAdd = () => {
             </div>
 
             <div className="p-2.5 rounded-lg border bg-amber-500/10 border-amber-500/20 text-[11px] text-amber-900 dark:text-amber-300">
-              💡 <strong>Linked Siblings</strong>: Each size will get its own product entry with matching photos and specifications, and will display interactive size pill buttons on the storefront!
+              {t("admin_quick_add.linked_siblings_info")}
             </div>
           </div>
 
@@ -1609,7 +1750,7 @@ const AdminProductQuickAdd = () => {
               size="sm"
               onClick={() => setIsSizeModalOpen(false)}
             >
-              Cancel
+              {t("admin_quick_add.btn_cancel")}
             </Button>
             <Button
               type="button"
@@ -1618,7 +1759,7 @@ const AdminProductQuickAdd = () => {
               className="bg-amber-600 hover:bg-amber-700 text-white font-medium gap-1.5"
             >
               <Ruler className="h-3.5 w-3.5" />
-              <span>Generate {sizeVariations.filter((s) => s.label.trim()).length} Size Rows</span>
+              <span>{t("admin_quick_add.btn_generate_sizes", { count: sizeVariations.filter((s) => s.label.trim()).length })}</span>
             </Button>
           </DialogFooter>
         </DialogContent>
