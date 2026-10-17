@@ -534,24 +534,6 @@ const AdminProductQuickAdd = () => {
     setImagePromptOverride("");
   };
 
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validRows.length === 0) {
-      toast.error(t("admin_quick_add.toast_missing_info"));
-      return;
-    }
-
-    clearQuickAddSession();
-    setBatchSummary(null);
-    setRowProgress({});
-    setIsGenerating(true);
-    generatingRef.current = true;
-    setActiveRowKey(null);
-
-    const initial: Record<string, RowProgress> = {};
-    validRows.forEach((r) => {
-      initial[r.key] = { status: "queued" };
-    });
   const processRow = async (row: ProductRow, index: number = 0): Promise<boolean> => {
     // Stagger request start by 600ms per row to prevent API rate spikes while running in parallel
     if (index > 0) {
