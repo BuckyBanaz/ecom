@@ -22,6 +22,7 @@ import {
   Sliders,
   Link2,
   Unlink,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
-import { brandRepository, seriesRepository, categoryRepository } from "@/client/apiClient";
+import { brandRepository, seriesRepository, categoryRepository, productRepository } from "@/client/apiClient";
 import {
   clearQuickAddSession,
   fileFromDataUrl,
@@ -66,6 +67,15 @@ interface ProductRow {
   color?: string;
   specDiff?: string;
   siblingGroupId?: string;
+  linkedExistingProduct?: {
+    id: string;
+    name: string;
+    image?: string;
+    price?: number;
+    category?: string;
+    brand?: string;
+    colorGroupId?: string;
+  };
 }
 
 type RowProcessStatus =
@@ -206,6 +216,59 @@ const AdminProductQuickAdd = () => {
   const sessionNotified = useRef(false);
   const groupLeaderMap = useRef<Map<string, { name: string; color?: string; category?: string }>>(new Map());
 
+  // Link to Existing Live Catalog Product States
+  const [isLinkExistingModalOpen, setIsLinkExistingModalOpen] = useState(false);
+  const [linkExistingTargetRowKey, setLinkExistingTargetRowKey] = useState<string | null>(null);
+  const [existingSearchQuery, setExistingSearchQuery] = useState("");
+  const [existingFilterCategory, setExistingFilterCategory] = useState<string>("all");
+  const [existingCatalogProducts, setExistingCatalogProducts] = useState<any[]>([]);
+  const [isLoadingExistingCatalog, setIsLoadingExistingCatalog] = useState(false);
+
+  const loadExistingCatalogProducts = async (catSlug = existingFilterCategory, search = existingSearchQuery) => {
+    setIsLoadingExistingCatalog(true);
+    try {
+      const filters: Record<string, any> = { limit: 80 };
+      if (catSlug && catSlug !== "all") {
+        filters.category = catSlug;
+      }
+      if (search && search.trim()) {
+        filters.search = search.trim();
+      }
+      const res = await productRepository.getAll(filters);
+      if (res.success && res.products) {
+        setExistingCatalogProducts(res.products);
+      } else {
+        setExistingCatalogProducts([]);
+      }
+    } catch (err) {
+      console.error("Failed to load existing catalog products:", err);
+      setExistingCatalogProducts([]);
+    } finally {
+      setIsLoadingExistingCatalog(false);
+    }
+  };
+
+  const handleSelectExistingProductAsSibling = (prod: any) => {
+    if (!linkExistingTargetRowKey) return;
+    const assignedGid = prod.colorGroupId || `grp-prod-${prod.id}`;
+    updateRow(linkExistingTargetRowKey, {
+      siblingGroupId: assignedGid,
+      brand: prod.brand?.name || undefined,
+      category: prod.category?.slug || prod.category?.name || undefined,
+      linkedExistingProduct: {
+        id: prod.id,
+        name: prod.name,
+        image: prod.image,
+        price: prod.price,
+        category: prod.category?.slug || prod.category?.name,
+        colorGroupId: assignedGid,
+      },
+    });
+    setIsLinkExistingModalOpen(false);
+    setLinkExistingTargetRowKey(null);
+    toast.success(t("admin_quick_add.toast_linked_to_product", { name: prod.name }) || `Gekoppeld aan: ${prod.name}`);
+  };
+
   const apiUrl = getApiV1Url();
   const authHeaders = { Authorization: `Bearer ${localStorage.getItem("admin_token")}` };
 
@@ -333,7 +396,7 @@ const AdminProductQuickAdd = () => {
     });
 
     saveQuickAddSession({
-      rows: rows.map(({ key, hint, price, brand, series, category, imagePreview, sizeGroupId, sizeLabel, color, specDiff, siblingGroupId }) => ({
+      rows: rows.map(({ key, hint, price, brand, series, category, imagePreview, sizeGroupId, sizeLabel, color, specDiff, siblingGroupId, linkedExistingProduct }) => ({
         key,
         hint,
         price,
@@ -346,6 +409,7 @@ const AdminProductQuickAdd = () => {
         color,
         specDiff,
         siblingGroupId,
+        linkedExistingProduct,
       })),
       imagePromptOverride,
       rowProgress: cleanRowProgress,
@@ -703,6 +767,13 @@ const AdminProductQuickAdd = () => {
         if (leader.name) formData.append("baseProductTitle", leader.name);
         if (leader.color) formData.append("leaderColor", leader.color);
         if (leader.category) formData.append("leaderCategory", leader.category);
+      }
+    }
+    if (row.linkedExistingProduct) {
+      formData.append("linkedExistingProductId", row.linkedExistingProduct.id);
+      formData.append("baseProductTitle", row.linkedExistingProduct.name);
+      if (row.linkedExistingProduct.category) {
+        formData.append("leaderCategory", row.linkedExistingProduct.category);
       }
     }
     if (row.sizeGroupId) formData.append("sizeGroupId", row.sizeGroupId);
@@ -1388,17 +1459,21 @@ const AdminProductQuickAdd = () => {
                           {/* Group Selector Dropdown */}
                           <div className="flex items-center gap-1.5 shrink-0">
                             <Select
-                              value={effectiveGid || "none"}
+                              value={row.linkedExistingProduct ? "link_existing_active" : effectiveGid || "none"}
                               onValueChange={(val) => {
                                 if (val === "none") {
-                                  updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined });
+                                  updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined, linkedExistingProduct: undefined });
                                   toast.info(t("admin_quick_add.toast_sibling_unlinked"));
+                                } else if (val === "link_existing") {
+                                  setLinkExistingTargetRowKey(row.key);
+                                  setIsLinkExistingModalOpen(true);
+                                  loadExistingCatalogProducts(existingFilterCategory, "");
                                 } else if (val === "new_group") {
                                   const newGid = `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-                                  updateRow(row.key, { siblingGroupId: newGid });
+                                  updateRow(row.key, { siblingGroupId: newGid, linkedExistingProduct: undefined });
                                   toast.success(t("admin_quick_add.toast_new_group_created"));
-                                } else {
-                                  updateRow(row.key, { siblingGroupId: val });
+                                } else if (val !== "link_existing_active") {
+                                  updateRow(row.key, { siblingGroupId: val, linkedExistingProduct: undefined });
                                   toast.success(t("admin_quick_add.toast_sibling_linked"));
                                 }
                               }}
@@ -1407,15 +1482,21 @@ const AdminProductQuickAdd = () => {
                               <SelectTrigger
                                 className={cn(
                                   "h-7 text-[11px] font-semibold rounded-lg border gap-1.5 px-2.5 py-0 shadow-2xs transition-all w-auto max-w-[210px]",
-                                  groupInfo
+                                  row.linkedExistingProduct
+                                    ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                    : groupInfo
                                     ? cn(groupInfo.theme.bg, groupInfo.theme.border, groupInfo.theme.text)
                                     : "bg-background/80 hover:bg-muted text-muted-foreground border-border/70 border-dashed"
                                 )}
                               >
                                 <Link2 className="h-3 w-3 shrink-0" />
                                 <SelectValue>
-                                  {groupInfo
-                                    ? groupInfo.count > 1
+                                  {row.linkedExistingProduct ? (
+                                    <span className="truncate max-w-[140px] block">
+                                      🔗 {row.linkedExistingProduct.name}
+                                    </span>
+                                  ) : groupInfo ? (
+                                    groupInfo.count > 1
                                       ? t("admin_quick_add.badge_group_linked", {
                                           num: groupInfo.groupNum,
                                           count: groupInfo.count,
@@ -1423,7 +1504,9 @@ const AdminProductQuickAdd = () => {
                                       : t("admin_quick_add.badge_group_single", {
                                           num: groupInfo.groupNum,
                                         })
-                                    : t("admin_quick_add.select_group_none")}
+                                  ) : (
+                                    t("admin_quick_add.select_group_none")
+                                  )}
                                 </SelectValue>
                               </SelectTrigger>
                               <SelectContent align="end">
@@ -1453,16 +1536,27 @@ const AdminProductQuickAdd = () => {
                                     </span>
                                   </div>
                                 </SelectItem>
+                                {row.linkedExistingProduct && (
+                                  <SelectItem value="link_existing_active" className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                                    🔗 {row.linkedExistingProduct.name}
+                                  </SelectItem>
+                                )}
+                                <SelectItem value="link_existing" className="text-xs text-amber-600 dark:text-amber-400 font-bold border-t mt-1 pt-1.5 cursor-pointer">
+                                  <div className="flex items-center gap-1.5">
+                                    <Search className="h-3 w-3" />
+                                    <span>{t("admin_quick_add.opt_link_existing", "🔍 Koppel aan winkelproduct...")}</span>
+                                  </div>
+                                </SelectItem>
                               </SelectContent>
                             </Select>
 
-                            {effectiveGid && (
+                            {(effectiveGid || row.linkedExistingProduct) && (
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => {
-                                  updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined });
+                                  updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined, linkedExistingProduct: undefined });
                                   toast.info(t("admin_quick_add.toast_sibling_unlinked"));
                                 }}
                                 className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0"
@@ -1473,6 +1567,47 @@ const AdminProductQuickAdd = () => {
                             )}
                           </div>
                         </div>
+
+                        {/* Linked Existing Product Banner */}
+                        {row.linkedExistingProduct && (
+                          <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {row.linkedExistingProduct.image ? (
+                                <img
+                                  src={resolveImgUrl(row.linkedExistingProduct.image)}
+                                  alt=""
+                                  className="w-7 h-7 rounded object-cover border border-amber-500/30 shrink-0"
+                                />
+                              ) : (
+                                <Layers className="h-4 w-4 text-amber-500 shrink-0" />
+                              )}
+                              <div className="truncate">
+                                <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 block leading-tight">
+                                  Gekoppeld live winkelproduct
+                                </span>
+                                <span className="font-semibold text-foreground truncate block text-xs">
+                                  {row.linkedExistingProduct.name}
+                                </span>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => {
+                                updateRow(row.key, {
+                                  linkedExistingProduct: undefined,
+                                  siblingGroupId: undefined,
+                                });
+                                toast.info("Koppeling met winkelproduct verwijderd");
+                              }}
+                              title="Ontkoppel product"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           {/* Color Input & Quick Pills */}
@@ -1787,6 +1922,147 @@ const AdminProductQuickAdd = () => {
             >
               <Ruler className="h-3.5 w-3.5" />
               <span>{t("admin_quick_add.btn_generate_sizes", { count: sizeVariations.filter((s) => s.label.trim()).length })}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Link Quick-Add Row to Existing Store Product */}
+      <Dialog
+        open={isLinkExistingModalOpen}
+        onOpenChange={(open) => {
+          setIsLinkExistingModalOpen(open);
+          if (!open) setLinkExistingTargetRowKey(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b bg-muted/30">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Search className="h-5 w-5 text-amber-500" />
+              <span>{t("admin_quick_add.link_existing_title", "Koppel aan Bestaand Live Winkelproduct")}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {t(
+                "admin_quick_add.link_existing_desc",
+                "Koppel deze rij direct aan een bestaand product uit je winkelcatalogus. De naam, collectie en categorie worden als hoofdmodel overgenomen, en het nieuwe product wordt er als 2-richting broertje/variant aan gekoppeld."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Search & Category Filter */}
+          <div className="p-3 border-b bg-background flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Zoek winkelproduct op naam..."
+                value={existingSearchQuery}
+                onChange={(e) => {
+                  setExistingSearchQuery(e.target.value);
+                  loadExistingCatalogProducts(existingFilterCategory, e.target.value);
+                }}
+                className="pl-8 h-9 text-xs"
+              />
+            </div>
+            <div className="w-full sm:w-52">
+              <Select
+                value={existingFilterCategory}
+                onValueChange={(val) => {
+                  setExistingFilterCategory(val);
+                  loadExistingCatalogProducts(val, existingSearchQuery);
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Alle Categorieën" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Categorieën</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id || c.slug} value={c.slug}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Catalog Results List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {isLoadingExistingCatalog ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground text-xs gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span>Producten laden uit catalogus...</span>
+              </div>
+            ) : existingCatalogProducts.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                Geen producten gevonden voor deze zoekopdracht. Typ een naam of kies een categorie.
+              </div>
+            ) : (
+              existingCatalogProducts.map((p) => {
+                const targetRow = rows.find((r) => r.key === linkExistingTargetRowKey);
+                const isSelected = targetRow?.linkedExistingProduct?.id === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "flex items-center justify-between p-2.5 rounded-xl border transition-all text-xs",
+                      isSelected
+                        ? "bg-amber-500/10 border-amber-500/40"
+                        : "bg-card hover:bg-muted/50 border-border/70 shadow-2xs"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={resolveImgUrl(p.image)}
+                        alt=""
+                        className="w-10 h-10 rounded-lg object-cover border border-border/50 shrink-0"
+                      />
+                      <div className="truncate">
+                        <p className="font-semibold text-foreground truncate">{p.name}</p>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+                          <span className="font-mono font-medium text-foreground">€{Number(p.price).toFixed(2)}</span>
+                          {p.category?.name && (
+                            <>
+                              <span>·</span>
+                              <span>{p.category.name}</span>
+                            </>
+                          )}
+                          {p.brand?.name && (
+                            <>
+                              <span>·</span>
+                              <span className="font-medium text-foreground/80">{p.brand.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleSelectExistingProductAsSibling(p)}
+                      className="h-8 text-xs font-bold gap-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white shrink-0 ml-2"
+                    >
+                      <Link2 className="h-3.5 w-3.5" />
+                      <span>{t("admin_quick_add.btn_select_sibling", "Koppelen als broertje")}</span>
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter className="p-3 border-t bg-muted/20">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsLinkExistingModalOpen(false);
+                setLinkExistingTargetRowKey(null);
+              }}
+            >
+              {t("common.cancel", "Sluiten")}
             </Button>
           </DialogFooter>
         </DialogContent>

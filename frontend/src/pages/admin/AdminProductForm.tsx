@@ -270,6 +270,15 @@ const AdminProductForm = () => {
   const [isSearchingSizeSiblings, setIsSearchingSizeSiblings] = useState(false);
   const [sizeFilterCategory, setSizeFilterCategory] = useState<string>("same"); // "same" | "all"
 
+  // Quick Generate Sizes Modal State
+  const [isGenerateSizesModalOpen, setIsGenerateSizesModalOpen] = useState(false);
+  const [isCreatingSizeVariants, setIsCreatingSizeVariants] = useState(false);
+  const [sizeVariantsToCreate, setSizeVariantsToCreate] = useState<Array<{ id: string; label: string; price: string }>>([
+    { id: "sz-1", label: "Small", price: "" },
+    { id: "sz-2", label: "Medium", price: "" },
+    { id: "sz-3", label: "Large", price: "" },
+  ]);
+
   const extractSizeFromNameOrSpecs = (name: string, specs?: any, pavs?: any[]): string => {
     if (pavs && Array.isArray(pavs)) {
       const sizeAttr = pavs.find((pav: any) => {
@@ -768,6 +777,104 @@ const AdminProductForm = () => {
       console.error("Failed to search size siblings:", err);
     } finally {
       setIsSearchingSizeSiblings(false);
+    }
+  };
+
+  const applyGenerateSizePreset = (presetSizes: string[]) => {
+    const baseP = parseFloat(price) || 89.95;
+    setSizeVariantsToCreate(
+      presetSizes.map((sz, idx) => {
+        const mult = idx === 0 ? 0.85 : idx === 1 ? 1 : 1 + idx * 0.25;
+        return {
+          id: `sz-${Date.now()}-${idx}`,
+          label: sz,
+          price: (baseP * mult).toFixed(2),
+        };
+      })
+    );
+  };
+
+  const handleCreateAndLinkSizeVariants = async () => {
+    const validSizes = sizeVariantsToCreate.filter((s) => s.label.trim().length > 0);
+    if (validSizes.length === 0) {
+      toast.error(t("admin_product_form.toast_min_one_size", "Voeg minimaal 1 maat toe"));
+      return;
+    }
+    if (!name.trim()) {
+      toast.error(t("admin_product_form.toast_name_required", "Vul eerst een productnaam in"));
+      return;
+    }
+
+    setIsCreatingSizeVariants(true);
+    const toastId = toast.loading(t("admin_product_form.toast_creating_sizes", "Maten worden aangemaakt en gekoppeld..."));
+
+    try {
+      const currentId = id || draftId || "";
+      const baseGroupId = colorGroupId || `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      if (!colorGroupId) {
+        setColorGroupId(baseGroupId);
+      }
+
+      // Base title without size suffix
+      const dimensionRegex = /(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b)/i;
+      const cleanBaseTitle = name.replace(/[-–—]?\s*(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b).*$/i, "").trim() || name.trim();
+
+      const createdItems: any[] = [];
+      const newLinkedSiblings: any[] = [...linkedSizeSiblings];
+
+      for (const item of validSizes) {
+        let variantTitle = cleanBaseTitle;
+        if (dimensionRegex.test(name)) {
+          variantTitle = name.replace(dimensionRegex, item.label);
+        } else {
+          variantTitle = `${cleanBaseTitle} - ${item.label}`;
+        }
+
+        const variantPrice = parseFloat(item.price) || parseFloat(price) || 0;
+        const variantAttributes = {
+          ...selectedAttributeValues,
+          size: [item.label],
+          afmeting: [item.label],
+        };
+
+        const variantPayload: any = {
+          title: variantTitle,
+          name: variantTitle,
+          brand: selectedBrand && selectedBrand !== "none" ? selectedBrand : "",
+          category: selectedCategory,
+          price: variantPrice,
+          inStock: true,
+          description,
+          shortDescription,
+          image: thumbnail || "",
+          images: galleryImages,
+          attributes: variantAttributes,
+          specs: specs.map((sp) => {
+            const k = sp.key.toLowerCase();
+            if (k.includes("afmeting") || k.includes("maat") || k.includes("size") || k.includes("diameter")) {
+              return { ...sp, value: item.label };
+            }
+            return sp;
+          }),
+          colorGroupId: baseGroupId,
+          siblingProductIds: currentId ? [currentId, ...linkedSizeSiblings.map((s) => s.id), ...linkedColorSiblings.map((s) => s.id)] : [],
+        };
+
+        const res = await productRepository.create(variantPayload);
+        if (res.success && res.product) {
+          createdItems.push(res.product);
+          newLinkedSiblings.push(formatSiblingObject(res.product));
+        }
+      }
+
+      setLinkedSizeSiblings(newLinkedSiblings);
+      setIsGenerateSizesModalOpen(false);
+      toast.success(t("admin_product_form.toast_sizes_created_success", { count: createdItems.length }), { id: toastId });
+    } catch (err: any) {
+      console.error("Failed to generate size variants:", err);
+      toast.error(err.message || "Failed to create size variants", { id: toastId });
+    } finally {
+      setIsCreatingSizeVariants(false);
     }
   };
   const resolveCategorySlug = (raw: string, list: any[] = categoriesList): string => {
@@ -2528,18 +2635,38 @@ const AdminProductForm = () => {
                   </CardDescription>
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isAiSuggestingSize || !id || id === "new"}
-                  onClick={handleAiSuggestSizeSiblings}
-                  className="h-8.5 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 gap-1.5 rounded-lg shadow-2xs shrink-0"
-                  title={!id || id === "new" ? "Save product first to use AI detection" : "AI analyzes catalog to find matching size variations"}
-                >
-                  {isAiSuggestingSize ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
-                  <span>{isAiSuggestingSize ? t("admin_product_form.btn_ai_scanning_size", "Scanning...") : t("admin_product_form.btn_ai_find_size", "✨ AI Find Size Siblings")}</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      const baseP = parseFloat(price) || 89.95;
+                      setSizeVariantsToCreate([
+                        { id: `sz-${Date.now()}-1`, label: "Small", price: (baseP * 0.85).toFixed(2) },
+                        { id: `sz-${Date.now()}-2`, label: "Medium", price: baseP.toFixed(2) },
+                        { id: `sz-${Date.now()}-3`, label: "Large", price: (baseP * 1.25).toFixed(2) },
+                      ]);
+                      setIsGenerateSizesModalOpen(true);
+                    }}
+                    className="h-8.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white gap-1.5 rounded-lg shadow-2xs shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>{t("admin_product_form.btn_generate_sizes", "+ Maatvariaties Aanmaken")}</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isAiSuggestingSize || !id || id === "new"}
+                    onClick={handleAiSuggestSizeSiblings}
+                    className="h-8.5 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 gap-1.5 rounded-lg shadow-2xs shrink-0"
+                    title={!id || id === "new" ? "Save product first to use AI detection" : "AI analyzes catalog to find matching size variations"}
+                  >
+                    {isAiSuggestingSize ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
+                    <span>{isAiSuggestingSize ? t("admin_product_form.btn_ai_scanning_size", "Scanning...") : t("admin_product_form.btn_ai_find_size", "✨ AI Find Size Siblings")}</span>
+                  </Button>
+                </div>
               </CardHeader>
 
               <CardContent className="space-y-4">
@@ -4087,6 +4214,166 @@ const AdminProductForm = () => {
               onClick={() => setIsBrowseCatalogOpen(false)}
             >
               Done Linking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. Modal: Generate Size Variations from Current Product */}
+      <Dialog open={isGenerateSizesModalOpen} onOpenChange={setIsGenerateSizesModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-5 border-b bg-muted/30">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Ruler className="h-5 w-5 text-amber-500" />
+              <span>{t("admin_product_form.generate_sizes_title", "Maatvariaties Aanmaken & Koppelen")}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {t(
+                "admin_product_form.generate_sizes_desc",
+                "Genereer direct verschillende maten (bijv. Small, Medium, Large of afmetingen). Afbeeldingen, categorie en specificaties worden overgenomen en 2-richting als maat-variaties gekoppeld."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            {/* Quick Presets */}
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground block mb-2">
+                {t("admin_product_form.quick_presets", "Snelle Voorinstellingen:")}
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {VARIANT_SIZE_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.label}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[11px] px-2.5 py-1 rounded-md border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/10 text-foreground"
+                    onClick={() => applyGenerateSizePreset(preset.sizes)}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* List of sizes */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">
+                  {t("admin_product_form.sizes_to_generate", "Aan te maken maten:")}
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs font-semibold text-amber-600 dark:text-amber-400 gap-1 hover:bg-amber-500/10"
+                  onClick={() => {
+                    const baseP = parseFloat(price) || 89.95;
+                    setSizeVariantsToCreate((prev) => [
+                      ...prev,
+                      { id: `sz-${Date.now()}-${prev.length}`, label: "", price: baseP.toFixed(2) },
+                    ]);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{t("admin_product_form.btn_add_size_row", "Maat Toevoegen")}</span>
+                </Button>
+              </div>
+
+              <div className="space-y-2.5">
+                {sizeVariantsToCreate.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-border/70 bg-card shadow-2xs"
+                  >
+                    <span className="text-xs font-mono font-bold text-muted-foreground w-6 text-center">
+                      #{index + 1}
+                    </span>
+
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        {t("admin_product_form.size_name", "Maat / Afmeting (bijv. Small of Ø 60 cm)")}
+                      </Label>
+                      <Input
+                        value={item.label}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSizeVariantsToCreate((prev) =>
+                            prev.map((s) => (s.id === item.id ? { ...s, label: val } : s))
+                          );
+                        }}
+                        placeholder="bijv. Small, Medium, Large of Ø 40 cm"
+                        className="h-8.5 text-xs font-medium"
+                      />
+                    </div>
+
+                    <div className="w-28 space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        {t("admin_product_form.price", "Prijs (€)")}
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={item.price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSizeVariantsToCreate((prev) =>
+                            prev.map((s) => (s.id === item.id ? { ...s, price: val } : s))
+                          );
+                        }}
+                        placeholder="89.95"
+                        className="h-8.5 text-xs font-mono"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={sizeVariantsToCreate.length <= 1}
+                      onClick={() => {
+                        setSizeVariantsToCreate((prev) => prev.filter((s) => s.id !== item.id));
+                      }}
+                      className="h-8.5 w-8.5 text-muted-foreground hover:text-destructive shrink-0 mt-4"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 border-t bg-muted/20 flex items-center justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isCreatingSizeVariants}
+              onClick={() => setIsGenerateSizesModalOpen(false)}
+            >
+              {t("common.cancel", "Annuleren")}
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              disabled={isCreatingSizeVariants}
+              onClick={handleCreateAndLinkSizeVariants}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2"
+            >
+              {isCreatingSizeVariants ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>{t("admin_product_form.btn_creating_sizes", "Aanmaken & Koppelen...")}</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{t("admin_product_form.btn_create_sizes_confirm", "Variaties Aanmaken & Koppelen")}</span>
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

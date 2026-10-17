@@ -102,6 +102,7 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       baseProductTitle,
       leaderColor,
       leaderCategory,
+      linkedExistingProductId,
     } = req.body;
     const imageFile = req.file;
 
@@ -111,16 +112,50 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       console.warn("⚠️ Quick-add: no image uploaded — AI will invent product photos from text only");
     }
 
-    if (!hint && !imageFile && !color && !specDiff && !sizeLabel) {
-      return res.status(400).json({ success: false, error: "Please provide either a hint, color, specs or an image." });
+    if (!hint && !imageFile && !color && !specDiff && !sizeLabel && !linkedExistingProductId) {
+      return res.status(400).json({ success: false, error: "Please provide either a hint, color, specs, an image, or a linked product." });
     }
 
-    const effectiveGroupId = siblingGroupId || sizeGroupId;
-
-    // Check if an earlier sibling in this group was already generated (use it as template leader)
     let leaderDraftTitle = (baseProductTitle || "").trim();
     let leaderCategoryVal = (leaderCategory || "").trim();
+    let effectiveGroupId = siblingGroupId || sizeGroupId;
+    let linkedProductRecord: any = null;
 
+    // Check if user linked to an existing production/store product
+    if (linkedExistingProductId) {
+      try {
+        const { prisma } = await import("../lib/prisma");
+        linkedProductRecord = await prisma.product.findUnique({
+          where: { id: String(linkedExistingProductId) },
+          include: { category: true, brand: true },
+        });
+
+        if (linkedProductRecord) {
+          const targetGroupId = linkedProductRecord.colorGroupId || `grp-${linkedProductRecord.id}`;
+          if (!linkedProductRecord.colorGroupId) {
+            await prisma.product.update({
+              where: { id: linkedProductRecord.id },
+              data: { colorGroupId: targetGroupId },
+            });
+            linkedProductRecord.colorGroupId = targetGroupId;
+          }
+          effectiveGroupId = targetGroupId;
+          if (!leaderDraftTitle) {
+            leaderDraftTitle = linkedProductRecord.name;
+          }
+          if (!leaderCategoryVal && linkedProductRecord.category?.slug) {
+            leaderCategoryVal = linkedProductRecord.category.slug;
+          }
+          if (!brandName && linkedProductRecord.brand?.name) {
+            brandName = linkedProductRecord.brand.name;
+          }
+        }
+      } catch (err) {
+        console.error("Error looking up linked existing product:", err);
+      }
+    }
+
+    // Check if an earlier sibling in this group was already generated (use it as template leader)
     if (!leaderDraftTitle && effectiveGroupId) {
       try {
         const { prisma } = await import("../lib/prisma");
@@ -212,18 +247,34 @@ ${effectiveHint}`;
       (draft as any).attributes.size = [sizeLabel];
     }
 
-    // Apply explicit Specification Differences
+    // Apply explicit Specification Differences (only if formatted as Key: Value)
     if (specDiff) {
       if (!Array.isArray((draft as any).specs)) (draft as any).specs = [];
       const parts = String(specDiff).split(/[,;]/).map((p: string) => p.trim()).filter(Boolean);
       parts.forEach((p) => {
         if (p.includes(":")) {
           const [k, v] = p.split(":");
-          if (k && v) (draft as any).specs.push({ key: k.trim(), value: v.trim() });
-        } else {
-          (draft as any).specs.push({ key: "Specificatie", value: p });
+          if (k && v) {
+            const cleanKey = k.trim();
+            const cleanVal = v.trim();
+            const existingIdx = (draft as any).specs.findIndex(
+              (s: any) => String(s?.key || "").toLowerCase() === cleanKey.toLowerCase()
+            );
+            if (existingIdx >= 0) {
+              (draft as any).specs[existingIdx].value = cleanVal;
+            } else {
+              (draft as any).specs.push({ key: cleanKey, value: cleanVal });
+            }
+          }
         }
       });
+    }
+
+    // Strip any generic dummy "Specificatie" or "Specification" keys
+    if (Array.isArray((draft as any).specs)) {
+      (draft as any).specs = (draft as any).specs.filter(
+        (s: any) => s?.key && s.key.toLowerCase() !== "specificatie" && s.key.toLowerCase() !== "specification"
+      );
     }
 
     // Ensure product name and slug reflect variation color and dimensions accurately
@@ -278,6 +329,9 @@ ${effectiveHint}`;
     if (effectiveGroupId) {
       (draft as any).colorGroupId = effectiveGroupId;
       (draft as any).siblingGroupId = effectiveGroupId;
+    }
+    if (linkedProductRecord) {
+      (draft as any).siblingProductIds = [linkedProductRecord.id];
     }
 
     const saved = await saveProductDraft(draft, { createdBy: (req as any).user?.id });

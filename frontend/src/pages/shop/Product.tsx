@@ -336,7 +336,16 @@ const ProductPage = () => {
     );
 
     if (Array.isArray(product.specs)) {
-      return renderSpecItems(product.specs.filter((s: any) => s.key !== 'Number of lights' && s.key !== 'Series'));
+      return renderSpecItems(
+        product.specs.filter(
+          (s: any) =>
+            s?.key &&
+            s.key.toLowerCase() !== "specificatie" &&
+            s.key.toLowerCase() !== "specification" &&
+            s.key !== "Number of lights" &&
+            s.key !== "Series"
+        )
+      );
     }
 
     // Legacy rendering fallback
