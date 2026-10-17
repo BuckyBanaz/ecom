@@ -580,11 +580,26 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
           }
         }
 
-        // Try extracting size pattern from product name, e.g. "Ø 40 cm", "60cm", "80 cm", "3-Ring", etc.
+        // Try extracting size pattern from product name, e.g. "Ø 40 cm", "60cm", "80 cm", "3-Ring", "Small", "Large", etc.
         let sizeFromName = "";
-        const nameMatch = s.name.match(/(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:small|medium|large|xl)\b)/i);
+        const nameMatch = s.name.match(
+          /(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b)/i
+        );
         if (nameMatch) {
-          sizeFromName = nameMatch[0].trim();
+          const raw = nameMatch[0].trim();
+          const lower = raw.toLowerCase();
+          if (lower === "xs") sizeFromName = "XS";
+          else if (lower === "xl") sizeFromName = "XL";
+          else if (lower === "xxl" || lower === "2xl") sizeFromName = "XXL";
+          else if (lower === "xxxl" || lower === "3xl") sizeFromName = "3XL";
+          else if (lower === "small") sizeFromName = "Small";
+          else if (lower === "medium") sizeFromName = "Medium";
+          else if (lower === "large") sizeFromName = "Large";
+          else if (lower === "extra large") sizeFromName = "Extra Large";
+          else if (lower === "klein") sizeFromName = "Klein";
+          else if (lower === "groot") sizeFromName = "Groot";
+          else if (lower === "middel") sizeFromName = "Middel";
+          else sizeFromName = raw;
         }
 
         // Check color attribute or specs JSON for color/kleur
@@ -643,8 +658,13 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
           name === "diameter"
         );
       });
-      const sizeFromName =
-        v.sku?.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:small|medium|large|xl)\b)/i)?.[0] || "";
+      const sizeFromNameMatch =
+        v.sku?.match(/(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b)/i)?.[0] || "";
+      const sizeFromName = sizeFromNameMatch
+        ? (["xs", "xl", "xxl", "xxxl"].includes(sizeFromNameMatch.toLowerCase())
+            ? sizeFromNameMatch.toUpperCase()
+            : sizeFromNameMatch.charAt(0).toUpperCase() + sizeFromNameMatch.slice(1))
+        : "";
       const sizeVal = sizeAttr?.attributeValue?.value || sizeFromName || "";
       return {
         id: v.id,

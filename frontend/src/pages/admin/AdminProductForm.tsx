@@ -74,7 +74,9 @@ const VARIANT_SIZE_PRESETS = [
   { label: "📏 Lengte (80cm, 100cm, 120cm)", sizes: ["80 cm", "100 cm", "120 cm"] },
   { label: "💍 Ringen (2-Ring, 3-Ring, 4-Ring)", sizes: ["2-Ring", "3-Ring", "4-Ring"] },
   { label: "💡 Lichts (3-Lichts, 5-Lichts, 7-Lichts)", sizes: ["3-Lichts", "5-Lichts", "7-Lichts"] },
-  { label: "🏷️ Maten (S, M, L)", sizes: ["Small (S)", "Medium (M)", "Large (L)"] },
+  { label: "🏷️ Maten (Small, Medium, Large)", sizes: ["Small", "Medium", "Large"] },
+  { label: "🏷️ Maten (S, M, L, XL)", sizes: ["S", "M", "L", "XL"] },
+  { label: "🏷️ Maten (Klein, Groot)", sizes: ["Klein", "Groot"] },
 ];
 
 const CATEGORY_ALIAS_MAP: Record<string, string> = {
@@ -286,8 +288,25 @@ const AdminProductForm = () => {
       }
     }
     if (name) {
-      const match = name.match(/(Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+\s*cm\b|\b\d+\s*lichts\b)/i);
-      if (match) return match[0].trim();
+      const match = name.match(
+        /(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b)/i
+      );
+      if (match) {
+        const raw = match[0].trim();
+        const lower = raw.toLowerCase();
+        if (lower === "xs") return "XS";
+        if (lower === "xl") return "XL";
+        if (lower === "xxl" || lower === "2xl") return "XXL";
+        if (lower === "xxxl" || lower === "3xl") return "3XL";
+        if (lower === "small") return "Small";
+        if (lower === "medium") return "Medium";
+        if (lower === "large") return "Large";
+        if (lower === "extra large") return "Extra Large";
+        if (lower === "klein") return "Klein";
+        if (lower === "groot") return "Groot";
+        if (lower === "middel") return "Middel";
+        return raw;
+      }
     }
     return "";
   };

@@ -423,8 +423,16 @@ const AdminProductQuickAdd = () => {
       sizes: ["3-Lichts", "5-Lichts", "7-Lichts"],
     },
     {
-      label: "🏷️ Maten (S, M, L)",
-      sizes: ["Small (S)", "Medium (M)", "Large (L)"],
+      label: "🏷️ Maten (Small, Medium, Large)",
+      sizes: ["Small", "Medium", "Large"],
+    },
+    {
+      label: "🏷️ Maten (S, M, L, XL)",
+      sizes: ["S", "M", "L", "XL"],
+    },
+    {
+      label: "🏷️ Maten (Klein, Groot)",
+      sizes: ["Klein", "Groot"],
     },
   ];
 
@@ -440,7 +448,7 @@ const AdminProductQuickAdd = () => {
   const openMultiSizeModal = (row: ProductRow) => {
     setSizeTargetRowKey(row.key);
     // Strip common size suffixes from hint to get clean base title if present
-    const cleanHint = row.hint.replace(/[-–—]?\s*(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:small|medium|large|xl)\b).*$/i, "").trim();
+    const cleanHint = row.hint.replace(/[-–—]?\s*(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b).*$/i, "").trim();
     setSizeBaseHint(cleanHint || row.hint.trim());
 
     const baseP = row.price.trim() ? parseFloat(row.price) : 89.95;

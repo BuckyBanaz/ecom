@@ -536,7 +536,7 @@ const ProductPage = () => {
               if (s?.sizeName && lower === s.sizeName.toLowerCase().trim()) {
                 return "";
               }
-              if (/(?:\d+\s*(?:cm|mm)|Ø|\b\d+-\d+)/i.test(cl)) {
+              if (/(?:\d+\s*(?:cm|mm)|Ø|\b\d+-\d+|\b(?:small|medium|large|extra large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b)/i.test(cl)) {
                 return "";
               }
               return cl;
@@ -636,26 +636,56 @@ const ProductPage = () => {
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {Array.from(sizeMap.values()).map((s: any) => {
-                        const isCurrent = Boolean(s.isCurrent || s.id === product.id || s.sizeName === currentSibling?.sizeName);
-                        return (
-                          <Link
-                            key={s.id}
-                            to={`/product/${s.slug}`}
-                            className={cn(
-                              "px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all border flex items-center gap-2 shadow-2xs",
-                              isCurrent
-                                ? "border-amber-600 bg-amber-500/10 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/25 shadow-xs scale-102"
-                                : "border-border/80 bg-card hover:border-amber-500/50 hover:bg-muted text-foreground"
-                            )}
-                          >
-                            <span>{s.sizeName}</span>
-                            <span className={cn("text-[11px] font-normal", isCurrent ? "text-amber-800 dark:text-amber-300 font-semibold" : "text-muted-foreground")}>
-                              {formatPrice(s.price)}
-                            </span>
-                          </Link>
-                        );
-                      })}
+                      {(() => {
+                        const SIZE_WEIGHTS: Record<string, number> = {
+                          xs: 1, "extra small": 1,
+                          s: 2, small: 2, klein: 2,
+                          m: 3, medium: 3, middel: 3,
+                          l: 4, large: 4, groot: 4,
+                          xl: 5, "extra large": 5,
+                          xxl: 6, "2xl": 6,
+                          xxxl: 7, "3xl": 7,
+                        };
+
+                        const sortedSizes = Array.from(sizeMap.values()).sort((a: any, b: any) => {
+                          const aName = (a.sizeName || "").trim().toLowerCase();
+                          const bName = (b.sizeName || "").trim().toLowerCase();
+                          const aW = SIZE_WEIGHTS[aName];
+                          const bW = SIZE_WEIGHTS[bName];
+                          if (aW !== undefined && bW !== undefined) return aW - bW;
+                          const aNum = aName.match(/\d+/);
+                          const bNum = bName.match(/\d+/);
+                          if (aNum && bNum) {
+                            const diff = parseInt(aNum[0], 10) - parseInt(bNum[0], 10);
+                            if (diff !== 0) return diff;
+                          }
+                          if (a.price && b.price && a.price !== b.price) {
+                            return Number(a.price) - Number(b.price);
+                          }
+                          return aName.localeCompare(bName);
+                        });
+
+                        return sortedSizes.map((s: any) => {
+                          const isCurrent = Boolean(s.isCurrent || s.id === product.id || s.sizeName === currentSibling?.sizeName);
+                          return (
+                            <Link
+                              key={s.id}
+                              to={`/product/${s.slug}`}
+                              className={cn(
+                                "px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all border flex items-center gap-2 shadow-2xs",
+                                isCurrent
+                                  ? "border-amber-600 bg-amber-500/10 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/25 shadow-xs scale-102"
+                                  : "border-border/80 bg-card hover:border-amber-500/50 hover:bg-muted text-foreground"
+                              )}
+                            >
+                              <span>{s.sizeName}</span>
+                              <span className={cn("text-[11px] font-normal", isCurrent ? "text-amber-800 dark:text-amber-300 font-semibold" : "text-muted-foreground")}>
+                                {formatPrice(s.price)}
+                              </span>
+                            </Link>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 ) : null}

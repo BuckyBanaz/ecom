@@ -154,7 +154,10 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
     if (sizeLabel) {
       if (!Array.isArray((draft as any).specs)) (draft as any).specs = [];
       const existingAfmIdx = (draft as any).specs.findIndex((s: any) =>
-        String(s?.key || "").toLowerCase().includes("afmeting") || String(s?.key || "").toLowerCase().includes("diameter")
+        String(s?.key || "").toLowerCase().includes("afmeting") ||
+        String(s?.key || "").toLowerCase().includes("diameter") ||
+        String(s?.key || "").toLowerCase().includes("maat") ||
+        String(s?.key || "").toLowerCase().includes("size")
       );
       if (existingAfmIdx >= 0) {
         (draft as any).specs[existingAfmIdx].value = sizeLabel;
@@ -199,7 +202,7 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       }
 
       if (sizeLabel) {
-        const dimensionPattern = /(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b)/i;
+        const dimensionPattern = /(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b)/i;
         if (dimensionPattern.test(updatedName) && !updatedName.toLowerCase().includes(sizeLabel.toLowerCase())) {
           updatedName = updatedName.replace(dimensionPattern, sizeLabel);
         } else if (!updatedName.toLowerCase().includes(sizeLabel.toLowerCase())) {
