@@ -1006,11 +1006,11 @@ const AdminProductQuickAdd = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => openMultiSizeModal(row)}
-                          className="h-7 text-xs rounded-lg gap-1 border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium shrink-0"
+                          className="h-7 text-xs rounded-lg gap-1.5 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold shrink-0 shadow-2xs"
                           title="Generate size variations with linked pricing for this product"
                         >
-                          <Ruler className="h-3.5 w-3.5 text-amber-500" />
-                          <span>{row.sizeLabel ? `Size: ${row.sizeLabel}` : "Add Sizes"}</span>
+                          <Ruler className="h-3.5 w-3.5 text-amber-600" />
+                          <span>{row.sizeLabel ? `Size: ${row.sizeLabel}` : "+ Add Sizes"}</span>
                         </Button>
                       )}
                       {rows.length > 1 && !isGenerating && (
@@ -1186,6 +1186,26 @@ const AdminProductQuickAdd = () => {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {!isGenerating && (
+                        <div className="flex items-center justify-between pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openMultiSizeModal(row)}
+                            className="h-7 text-xs rounded-lg gap-1.5 border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-medium"
+                          >
+                            <Ruler className="h-3.5 w-3.5 text-amber-600" />
+                            <span>{row.sizeLabel ? `Size variation: ${row.sizeLabel} (Edit sizes)` : "+ Add Sizes (e.g. 40cm, 60cm, 80cm)"}</span>
+                          </Button>
+                          {row.sizeLabel && (
+                            <span className="text-[11px] text-amber-700 font-semibold flex items-center gap-1">
+                              <span>🔗 Linked sibling group</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {((prog?.existingMatches && prog.existingMatches.length > 0) || (liveDuplicates[row.key] && liveDuplicates[row.key].length > 0)) && (
                         <div className="mt-3 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 text-xs space-y-1.5">
