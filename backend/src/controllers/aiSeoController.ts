@@ -16,6 +16,7 @@ import {
   enqueueAutopilotRun,
   enqueueBlogGenerate,
   enqueueBulkOptimize,
+  enqueueBulkProductEdit,
   enqueueFaqGenerate,
   enqueueProductOptimize,
   getSeoJobStatus,
@@ -193,6 +194,50 @@ export const enqueueProductOptimizeHandler = async (req: Request, res: Response,
       message: alreadyRunning
         ? "An AI job is already running in the background."
         : "Product content optimization job queued.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const enqueueBulkProductEditHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { productIds, issuePrompt, scope, categoryId, fields } = req.body as {
+      productIds?: string[];
+      issuePrompt: string;
+      scope?: "selected" | "all" | "category";
+      categoryId?: string;
+      fields?: {
+        name?: boolean;
+        category?: boolean;
+        description?: boolean;
+        specs?: boolean;
+        attributes?: boolean;
+        seo?: boolean;
+        price?: boolean;
+      };
+    };
+
+    if (!issuePrompt || typeof issuePrompt !== "string" || !issuePrompt.trim()) {
+      res.status(400).json({ success: false, error: "Please describe the issue or changes needed." });
+      return;
+    }
+
+    const { job, alreadyRunning } = await enqueueBulkProductEdit({
+      productIds,
+      issuePrompt: issuePrompt.trim(),
+      scope,
+      categoryId,
+      fields,
+    });
+
+    res.json({
+      success: true,
+      job,
+      alreadyRunning,
+      message: alreadyRunning
+        ? "An AI job is already running in the background. Please wait for it to complete."
+        : "AI Bulk Edit job queued. The changes will process safely in the background.",
     });
   } catch (error) {
     next(error);

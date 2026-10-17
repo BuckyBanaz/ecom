@@ -21,6 +21,38 @@ import { QrCodePreviewModal } from "@/components/admin/inventory/QrCodePreviewMo
 import { cn } from "@/lib/utils";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { getApiV1Url } from "@/utils/endpoints";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const PRESET_ISSUES = [
+  {
+    label: "💎 Crystal -> Ambiance & G9",
+    text: "This is a luxury crystal lamp with faceted prisms. Move to Ambiance Royale collection, set fitting to G9, and write Dutch description highlighting crystal light refraction.",
+  },
+  {
+    label: "🏷️ Tafellamp (Table Base)",
+    text: "This product is a table lamp (Tafellamp) with a tabletop base. Set category to table-lamps (Tafellampen), change title to include Tafellamp, and update specs.",
+  },
+  {
+    label: "🔘 Hanglamp (Pendant)",
+    text: "This lamp hangs from ceiling cables as a chandelier/pendant. Set category to pendant-lights (Hanglampen), ensure title has Hanglamp, and add adjustable cable height to specs.",
+  },
+  {
+    label: "🎨 Color: Zilver / Chroom",
+    text: "The finish is cool shiny silver chrome (Zilver / Chroom). Set color attribute to Silver and update titles and specs to Zilver / Chroom. Never say Gold.",
+  },
+  {
+    label: "✨ Color: Goud / Messing",
+    text: "The finish is warm brushed gold / brass (Goud / Messing). Set color attribute to Gold and update titles and specs to Goud / Messing. Never say Silver.",
+  },
+  {
+    label: "🇳🇱 Schip en Ster SOP Standard",
+    text: "Review title, description, and specs according to Schip en Ster SOP. Ensure fluent Dutch text with 'Belangrijkste kenmerken' bullet points, valid categories, and comprehensive technical specs.",
+  },
+  {
+    label: "⚡ Fitting & Dimmer Specs",
+    text: "Verify fitting (G9 for Ambiance crystal, E27 for vintage, Integrated LED for rings/Stockholm) and mark Dimbaar: Ja with dimmable specifications in specs and attributes.",
+  },
+];
 
 export interface SpecItem {
   id: string;
@@ -88,6 +120,15 @@ const AdminProductForm = () => {
   const [optimizePromptOpen, setOptimizePromptOpen] = useState(false);
   const [optimizePromptText, setOptimizePromptText] = useState("");
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [quickEditFields, setQuickEditFields] = useState({
+    name: true,
+    category: true,
+    description: true,
+    specs: true,
+    attributes: true,
+    seo: true,
+    price: false,
+  });
 
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
@@ -645,21 +686,23 @@ const AdminProductForm = () => {
         if (data.success && data.job) {
           const { type, status, progress, targetEntityId, error } = data.job;
 
-          if (type === "product_optimize" && targetEntityId === id) {
+          if (
+            ((type === "product_optimize" || type === "bulk_product_edit") && (!targetEntityId || targetEntityId === id))
+          ) {
             if (status === "queued" || status === "running") {
               setIsOptimizing(true);
-              const label = progress.label || "Optimizing content with AI...";
+              const label = progress?.label || "AI is updating product according to SOP...";
 
               if (!toastId) {
                 toastId = "product-optimize-toast";
-                toast.loading(`AI Optimization: ${label}`, { id: toastId });
+                toast.loading(`AI Quick Edit: ${label}`, { id: toastId });
               } else {
-                toast.loading(`AI Optimization: ${label}`, { id: toastId });
+                toast.loading(`AI Quick Edit: ${label}`, { id: toastId });
               }
             } else if (status === "completed") {
               setIsOptimizing(false);
               if (toastId) {
-                toast.success(t("admin_product_form.optimize_toast_success"), { id: toastId });
+                toast.success(data.job.summary || "AI Quick Edit applied successfully! Product updated.", { id: toastId });
                 toastId = null;
               }
               await fetch(`${apiUrl}/ai/seo/job/dismiss`, {
@@ -699,27 +742,38 @@ const AdminProductForm = () => {
   }, [id, draftId]);
 
   const handleTriggerOptimize = async () => {
+    if (!optimizePromptText.trim()) {
+      toast.error("Please describe what is wrong or what needs fixing.");
+      return;
+    }
+
     setOptimizePromptOpen(false);
     setIsOptimizing(true);
     const toastId = "product-optimize-toast";
-    toast.loading(t("admin_product_form.optimize_toast_start"), { id: toastId });
+    toast.loading("Queueing AI Edit in background queue...", { id: toastId });
 
     try {
       const apiUrl = getApiV1Url();
-      const res = await fetch(`${apiUrl}/ai/seo/product-optimize`, {
+      const res = await fetch(`${apiUrl}/ai/products/bulk-edit`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          productId: id,
-          customPrompt: optimizePromptText
+          productIds: [id],
+          issuePrompt: optimizePromptText.trim(),
+          scope: "selected",
+          fields: quickEditFields
         })
       });
       const data = await res.json();
       if (data.success) {
-        toast.info(t("admin_product_form.optimize_toast_queued"), { id: toastId });
+        if (data.alreadyRunning) {
+          toast.warning("An AI job is already running in background queue. Tracking progress...", { id: toastId });
+        } else {
+          toast.info("AI Quick Edit queued in background queue scheme! Processing...", { id: toastId });
+        }
       } else {
         throw new Error(data.error);
       }
@@ -1529,6 +1583,25 @@ const AdminProductForm = () => {
             </p>
           </div>
         </div>
+
+        {isEdit && (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOptimizePromptOpen(true)}
+              disabled={isOptimizing}
+              className="gap-2 rounded-full border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium transition-all shadow-sm"
+            >
+              {isOptimizing ? (
+                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+              ) : (
+                <Sparkles className="h-4 w-4 text-amber-500" />
+              )}
+              <span>{isOptimizing ? "AI Editing..." : "Quick Edit (AI)"}</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -2672,8 +2745,8 @@ const AdminProductForm = () => {
                   className="w-full gap-2 h-10 text-xs font-bold rounded-lg border-amber-600/30 text-amber-700 bg-amber-600/5 hover:bg-amber-600/15 hover:text-amber-800 transition-all duration-300"
                   disabled={isSubmitting || isGlobalRegenerating || regeneratingIndexes.length > 0 || isOptimizing}
                 >
-                  {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 animate-bounce" />}
-                  {t("admin_product_form.action_optimize")}
+                  {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  <span>{isOptimizing ? "AI Editing..." : "Quick Edit (AI)"}</span>
                 </Button>
               )}
               <Button
@@ -2842,34 +2915,201 @@ const AdminProductForm = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Optimization Prompt Dialog */}
+      {/* Quick Edit (AI) Modal */}
       <Dialog open={optimizePromptOpen} onOpenChange={setOptimizePromptOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
-              {t("admin_product_form.optimize_prompt_title")}
-            </DialogTitle>
+            <div className="flex items-center gap-2 text-amber-600">
+              <Sparkles className="h-5 w-5" />
+              <DialogTitle className="text-xl">AI Quick Edit (Smart Fix)</DialogTitle>
+            </div>
             <DialogDescription>
-              {t("admin_product_form.optimize_prompt_desc")}
+              Specify whatever needs fixing on this product. AI will inspect the photo, specs, and Schip en Ster SOP rules to edit it directly in the background job queue.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <textarea
-              className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-              placeholder='e.g. "Focus on wooden textures", "Translate description to clear Dutch"'
-              value={optimizePromptText}
-              onChange={(e) => setOptimizePromptText(e.target.value)}
-            />
+
+          <div className="space-y-4 py-2">
+            {/* Target Product Preview */}
+            <div className="flex items-center gap-3 p-3 rounded-xl border bg-muted/30">
+              {thumbnail ? (
+                <img
+                  src={resolveImgUrl(thumbnail)}
+                  alt={name}
+                  className="h-12 w-12 rounded-lg object-cover border shrink-0"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-lg border bg-muted flex items-center justify-center shrink-0">
+                  <Sparkles className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-muted-foreground uppercase font-bold">Target Product</p>
+                <p className="font-semibold text-sm truncate">{name || "Untitled Product"}</p>
+                <p className="text-xs text-muted-foreground">
+                  €{price || "0.00"} · {selectedCategory ? selectedCategory.replace(/-/g, " ") : "No Category"}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Presets / Tags */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                Quick SOP Presets (Click to add)
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_ISSUES.map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setOptimizePromptText((prev) =>
+                        prev ? `${prev}\n${preset.text}` : preset.text
+                      );
+                    }}
+                    className="text-xs rounded-full border border-border bg-muted/60 px-2.5 py-1 hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-800 dark:hover:text-amber-300 transition-colors text-left"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Issue Description Textarea */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                  Describe what is wrong or what to fix <span className="text-destructive">*</span>
+                </label>
+                <span className="text-[11px] text-muted-foreground">Plain text in English, Hindi, or Dutch</span>
+              </div>
+              <textarea
+                value={optimizePromptText}
+                onChange={(e) => setOptimizePromptText(e.target.value)}
+                rows={4}
+                placeholder="e.g. Inka naam marbella likha hua h par ye crystal table lamp h jisme G9 bulb lagta h. Isko Ambiance collection mai move karo, category tafellamp karo, aur color gold karo."
+                className="w-full rounded-xl border border-input bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 resize-y"
+              />
+            </div>
+
+            {/* Fields to Update Selection */}
+            <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Fields to Update by AI
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuickEditFields({
+                      name: true,
+                      category: true,
+                      description: true,
+                      specs: true,
+                      attributes: true,
+                      seo: true,
+                      price: false,
+                    })
+                  }
+                  className="text-[11px] text-amber-600 hover:underline"
+                >
+                  Reset Defaults
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.name}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, name: !!c }))
+                    }
+                  />
+                  <span>Product Title (Name)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.category}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, category: !!c }))
+                    }
+                  />
+                  <span>Category & Collection</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.description}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, description: !!c }))
+                    }
+                  />
+                  <span>Dutch Descriptions</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.specs}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, specs: !!c }))
+                    }
+                  />
+                  <span>Specs Table (Fitting, etc.)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.attributes}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, attributes: !!c }))
+                    }
+                  />
+                  <span>Color & Fitting Filters</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.seo}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, seo: !!c }))
+                    }
+                  />
+                  <span>SEO Title & Meta</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.price}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, price: !!c }))
+                    }
+                  />
+                  <span className="text-muted-foreground">Price (if specified)</span>
+                </label>
+              </div>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOptimizePromptOpen(false)}>{t("admin_product_form.action_cancel")}</Button>
+
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              className="gap-2"
-              onClick={handleTriggerOptimize}
+              type="button"
+              variant="outline"
+              onClick={() => setOptimizePromptOpen(false)}
+              disabled={isOptimizing}
             >
-              <Sparkles className="h-4 w-4" />
-              {t("admin_product_form.regen_generate")}
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleTriggerOptimize}
+              disabled={isOptimizing || !optimizePromptText.trim()}
+              className="gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium"
+            >
+              {isOptimizing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Queueing Job...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Enqueue AI Edit Job
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

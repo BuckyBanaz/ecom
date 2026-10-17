@@ -2295,4 +2295,283 @@ Output ONLY the JSON array. No markdown code blocks.`;
       matchReason: `High title similarity (${c.score}%) with different color`,
     }));
   },
+
+  async quickEditProduct(input: {
+    product: any;
+    issuePrompt: string;
+    fields?: {
+      name?: boolean;
+      category?: boolean;
+      description?: boolean;
+      specs?: boolean;
+      attributes?: boolean;
+      seo?: boolean;
+      price?: boolean;
+    };
+  }) {
+    const { product, issuePrompt, fields } = input;
+    const allowFields = fields || {
+      name: true,
+      category: true,
+      description: true,
+      specs: true,
+      attributes: true,
+      seo: true,
+      price: false,
+    };
+
+    // 1. Fetch category slugs & hierarchy
+    const categories = await prisma.category.findMany({
+      select: { id: true, slug: true, name: true, parentId: true },
+    });
+    const parentCats = categories.filter((c) => !c.parentId);
+    const childCats = categories.filter((c) => c.parentId);
+    const hasChildren = new Set(childCats.map((c) => c.parentId));
+    const selectableCategories = [
+      ...categories.filter((c) => c.parentId && !hasChildren.has(c.id)),
+      ...parentCats.filter((p) => !childCats.some((c) => c.parentId === p.id)),
+    ];
+    const categorySlugs = selectableCategories.map((c) => c.slug).join(", ");
+
+    // 2. Fetch series & brands
+    const seriesList = await prisma.series.findMany({
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        brand: { select: { id: true, name: true } },
+      },
+    });
+    const seriesContext = seriesList
+      .map((s) => `- ${s.name} (slug: "${s.slug}") ${s.brand?.name ? `[Brand: ${s.brand.name}]` : ""}`)
+      .join("\n        ");
+
+    // 3. Fetch attributes
+    const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
+    const attributeGuide = attributes
+      .map((attr) => {
+        const vals = attr.attributeValues.map((v) => v.value).join(", ");
+        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}`;
+      })
+      .join("\n");
+
+    // Extract current attributes mapping from productAttributeValues
+    const currentAttributes: Record<string, string[]> = {};
+    if (product.productAttributeValues && Array.isArray(product.productAttributeValues)) {
+      for (const pav of product.productAttributeValues) {
+        const slug = pav.attribute?.slug;
+        const val = pav.attributeValue?.value;
+        if (slug && val) {
+          if (!currentAttributes[slug]) currentAttributes[slug] = [];
+          if (!currentAttributes[slug].includes(val)) currentAttributes[slug].push(val);
+        }
+      }
+    }
+
+    const currentSpecs = Array.isArray(product.specs) ? product.specs : [];
+
+    const promptText = `
+You are an expert e-commerce catalog manager for Schip en Ster, a premium Dutch lighting webshop.
+Your task is to EDIT and FIX this product based on the user's reported issue / instruction below.
+
+=== USER REPORTED ISSUE / FIX INSTRUCTION ===
+"${issuePrompt}"
+=============================================
+
+SCHIP EN STER BRAND & COLLECTION ARCHITECTURE (STRICT SOP):
+1. "Ambiance" (or "Marrakech"):
+   - Models: Royale Noir, Royale Silver, Gold XL, Royale Gold
+   - Baseline: Luxury crystal look with G9 prisms, faceted glass bars, sparkling crystal rods.
+   - Types: Hanglamp (chandelier/pendant), Tafellamp (table lamp with crystals), Wandlamp.
+   - STRICT RULE: IF THE LAMP HAS CRYSTAL PRISMS OR GLASS RODS, IT BELONGS TO "Ambiance" (Royale). NEVER CALL IT MARBELLA!
+2. "Lisboa":
+   - Glass globes (glazen bollen) with acrylic bubble cylinders, brass/gold or chrome metalwork.
+3. "Sofia":
+   - Curved chrome/gold loops, swirling ribbon arms, metallic spheres, floral crystal accents.
+4. "Stockholm":
+   - Modern geometric ring Orbit designs (circular/elliptical halos), dimmable integrated LED.
+5. "Iceland Tech":
+   - Ceiling fans with LED ring (dimmable, 3 light colors + remote control).
+6. "Marbella":
+   - Strictly cylindrical tubular pipe canisters or spots. NEVER use Marbella for crystal lamps!
+
+LAMP TYPE RULES:
+- If it has a table base / short stem resting on a surface: category MUST be "table-lamps", title MUST contain "Tafellamp".
+- If it hangs from the ceiling on cables: category MUST be "pendant-lights", title MUST contain "Hanglamp".
+- If mounted flush to ceiling without cables: category MUST be "ceiling-lights", title MUST contain "Plafondlamp".
+- If wall mounted: category MUST be "wall-lights", title MUST contain "Wandlamp".
+
+COLOR FINISH RULES:
+- Zilver / Chroom: cool silver chrome -> attribute "color" MUST be "Silver". NEVER say Gold/Goud!
+- Goud / Messing: warm golden -> attribute "color" MUST be "Gold". NEVER say Silver/Zilver!
+
+CURRENT PRODUCT STATE:
+- ID: "${product.id}"
+- Current Name: "${product.name}"
+- Current Category: "${product.category?.slug || product.category?.name || 'none'}"
+- Current Brand: "${product.brand?.name || 'Schip en Ster'}"
+- Current Price: €${product.price}
+- Current Short Description: "${product.shortDescription || ''}"
+- Current Description: "${product.description || ''}"
+- Current Specs: ${JSON.stringify(currentSpecs)}
+- Current Attributes: ${JSON.stringify(currentAttributes)}
+- Current SEO Title: "${product.seoTitle || ''}"
+- Current SEO Description: "${product.seoDescription || ''}"
+
+Valid Category Slugs: ${categorySlugs}
+Available Collections:
+${seriesContext}
+Allowed Attributes Guide:
+${attributeGuide}
+
+ALLOWED FIELDS TO UPDATE:
+${JSON.stringify(allowFields)}
+
+Apply the user's issue instruction carefully. Keep any field that does not need changing as-is.
+Return ONLY a valid JSON object matching this schema:
+{
+  "name": "Updated product title in Dutch according to SOP",
+  "category": "one of valid leaf category slugs",
+  "series": "Collection name or null",
+  "seriesSlug": "collection slug or null",
+  "price": ${product.price},
+  "shortDescription": "1-2 sentence Dutch summary",
+  "description": "<p>Detailed Dutch description with <h3>Belangrijkste kenmerken</h3><ul><li>...</li></ul></p>",
+  "specs": [
+    { "key": "Collectie", "value": "Collection Name" },
+    { "key": "Type verlichting", "value": "Tafellamp | Hanglamp | Plafondlamp | Wandlamp" },
+    { "key": "Kleur", "value": "Zilver / Chroom | Goud / Messing | Zwart | Wit" },
+    { "key": "Vorm", "value": "Ovaal | Rond | Cilinder | Ring" },
+    { "key": "Fitting", "value": "G9 | E27 | E14 | Geïntegreerd LED" },
+    { "key": "Aantal lichtpunten", "value": "1" },
+    { "key": "Dimbaar", "value": "Ja | Nee" }
+  ],
+  "attributes": {
+    "color": ["Silver" or "Gold" or "Black" or "White"],
+    "fitting": ["G9" or "E27" or "Integrated LED"],
+    "dimmable": ["Yes" or "No"]
+  },
+  "seoTitle": "Dutch SEO title max 60 chars",
+  "seoDescription": "Dutch SEO meta description max 160 chars",
+  "changeSummary": "1-sentence explanation of what was changed"
+}
+`;
+
+    const parts: any[] = [];
+    if (product.image) {
+      try {
+        const publicPath = product.image;
+        const relativePath = publicPath.replace(/^\//, "");
+        const absolutePath = path.join(__dirname, "../../public", relativePath);
+        if (fs.existsSync(absolutePath)) {
+          const buffer = fs.readFileSync(absolutePath);
+          let mimeType = "image/jpeg";
+          if (absolutePath.toLowerCase().endsWith(".png")) mimeType = "image/png";
+          else if (absolutePath.toLowerCase().endsWith(".webp")) mimeType = "image/webp";
+          parts.push({
+            inlineData: {
+              data: buffer.toString("base64"),
+              mimeType,
+            },
+          });
+        }
+      } catch (e) {
+        console.warn("Could not load product photo for vision-based quick edit", e);
+      }
+    }
+
+    parts.push({ text: promptText });
+    const responseText = await callGeminiWithFallback(parts, 0.3);
+    const parsed = extractJson(responseText);
+
+    // Apply strict SOP guardrails on parsed response
+    const titleLower = (parsed.name || product.name || "").toLowerCase();
+    const hasCrystal =
+      titleLower.includes("kristal") ||
+      titleLower.includes("crystal") ||
+      titleLower.includes("prisma") ||
+      (parsed.description || "").toLowerCase().includes("kristal");
+    if (hasCrystal && (!parsed.series || parsed.series.toLowerCase().includes("marbella"))) {
+      parsed.series = "Ambiance";
+      parsed.seriesSlug = "ambiance";
+      if (parsed.name && parsed.name.toLowerCase().includes("marbella")) {
+        parsed.name = parsed.name
+          .replace(/marbella\s*cilinder/gi, "Ambiance Royale")
+          .replace(/marbella/gi, "Ambiance");
+      }
+    }
+
+    if (parsed.category === "table-lamps" || titleLower.includes("tafellamp")) {
+      parsed.category = "table-lamps";
+      if (parsed.name && parsed.name.toLowerCase().includes("hanglamp")) {
+        parsed.name = parsed.name.replace(/hanglamp/gi, "Tafellamp");
+      }
+    }
+
+    return parsed;
+  },
+
+  async generateSalesCampaign(prompt: string): Promise<any> {
+    const brands = await prisma.brand.findMany({ select: { id: true, name: true, slug: true } });
+    const series = await prisma.series.findMany({ select: { id: true, name: true, slug: true, brandId: true } });
+    const categories = await prisma.category.findMany({ select: { id: true, name: true, slug: true, parentId: true } });
+
+    const brandList = brands.map((b) => `${b.name} (id: ${b.id})`).join(", ");
+    const seriesList = series.map((s) => `${s.name} (slug: ${s.slug})`).join(", ");
+    const categoryList = categories.map((c) => `${c.name} (id: ${c.id}, slug: ${c.slug}${c.parentId ? `, parent: ${c.parentId}` : ""})`).join(", ");
+
+    const systemPrompt = `
+You are an expert e-commerce promotional campaign strategist for Schip en Ster, a premium Dutch lighting brand.
+The user wants to create a sales offer / discount campaign.
+
+USER REQUEST:
+"${prompt}"
+
+AVAILABLE STORE CATALOG ASSETS:
+- Brands: ${brandList || "Schip en Ster"}
+- Collections/Series: ${seriesList || "Ambiance, Lisboa, Sofia, Stockholm, Iceland Tech, Marbella"}
+- Categories & Subcategories: ${categoryList}
+
+Analyze the user's intent:
+1. Determine the best targetScope:
+   - "all": Storewide sale across all products
+   - "brand": When a brand is targeted
+   - "series": When a collection/series is targeted (e.g. Ambiance crystal, Lisboa globes, Stockholm rings)
+   - "category": When a lighting type is targeted (e.g. Hanglampen, Tafellampen, Plafondlampen, Wandlampen)
+   - "subcategory": When a specific child category is targeted
+   - "products": When specific individual products are requested
+2. Determine discountType: "percentage" (default) or "fixed" (for flat € off).
+3. Determine discountValue: numeric value (e.g. 15 for 15%, 25 for €25). If not specified in prompt, suggest an optimal 15% or 20%.
+4. Generate an engaging Dutch Campaign Name (e.g., "Ambiance Luxe Kristal Deals", "Zomerse Uitverkoop", "Weekend Flash Sale").
+5. Generate a punchy Badge Text (e.g., "🔥 SALE -20%", "LENTE DEAL", "15% KORTING", "EXTRA VOORDEEL").
+6. Set matched target IDs and slugs based on the catalog assets provided.
+7. Duration in days (e.g. 7 or 14).
+
+Return ONLY a valid JSON object matching this schema:
+{
+  "name": "Campaign Name in Dutch",
+  "badgeText": "🔥 SALE -20%",
+  "discountType": "percentage",
+  "discountValue": 20,
+  "targetScope": "series",
+  "targetBrandId": "brand id or null",
+  "targetBrandName": "brand name or null",
+  "targetSeriesSlug": "series slug or null",
+  "targetSeriesName": "series name or null",
+  "targetCategoryId": "category id or null",
+  "targetCategoryName": "category name or null",
+  "targetSubcategoryId": "subcategory id or null",
+  "targetSubcategoryName": "subcategory name or null",
+  "durationDays": 7,
+  "explanation": "Short Dutch summary of the campaign"
+}
+`;
+
+    const parts = [{ text: systemPrompt }];
+    const responseText = await callGeminiWithFallback(parts, 0.3);
+    const parsed = extractJson(responseText);
+
+    return parsed;
+  },
 };
+

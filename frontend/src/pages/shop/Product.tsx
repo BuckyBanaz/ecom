@@ -350,6 +350,12 @@ const ProductPage = () => {
             className="relative overflow-hidden rounded-xl border border-border/50 bg-white dark:bg-muted aspect-square sm:aspect-[4/3] lg:aspect-auto lg:h-[400px] flex items-center justify-center cursor-zoom-in group"
             onClick={() => setIsZoomOpen(true)}
           >
+            {product.oldPrice && product.oldPrice > product.price && (
+              <div className="absolute top-3 left-3 z-10 rounded-full bg-amber-600 px-3 py-1 text-xs font-black text-white shadow-md flex items-center gap-1.5 animate-in fade-in">
+                <span>-{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider">SALE</span>
+              </div>
+            )}
             <SafeImage
               src={galleryImages[selectedImageIndex]}
               alt={product.name}
@@ -474,12 +480,19 @@ const ProductPage = () => {
             </div>
           )}
 
-          <div className="mt-6 flex items-end gap-3">
-            <span className="text-3xl font-bold text-primary">{formatPrice(product.price)}</span>
-            {product.oldPrice && (
+          <div className="mt-6 flex flex-wrap items-baseline gap-3">
+            <span className="text-3xl sm:text-4xl font-extrabold text-primary">{formatPrice(product.price)}</span>
+            {product.oldPrice && product.oldPrice > product.price && (
               <>
-                <span className="text-lg text-muted-foreground line-through">{formatPrice(product.oldPrice)}</span>
-                <Badge className="bg-primary text-white border-transparent">{t("product.badge_sale")}</Badge>
+                <span className="text-xl text-muted-foreground line-through font-medium">
+                  {formatPrice(product.oldPrice)}
+                </span>
+                <Badge className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-2.5 py-0.5 rounded-full border-transparent shadow-xs">
+                  -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%
+                </Badge>
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/50">
+                  Bespaar {formatPrice(product.oldPrice - product.price)}
+                </span>
               </>
             )}
           </div>

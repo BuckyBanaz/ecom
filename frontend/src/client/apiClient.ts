@@ -1083,6 +1083,48 @@ export const returnsRepository = {
   },
 };
 
+// 21. Sales Campaigns Repository
+export const salesCampaignRepository = {
+  getAll: async () => {
+    return request<any>(ENDPOINTS.SALES_CAMPAIGNS, { method: "GET" });
+  },
+  preview: async (data: any) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/preview`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  create: async (data: any) => {
+    return request<any>(ENDPOINTS.SALES_CAMPAIGNS, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: any) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  toggle: async (id: string, isActive: boolean) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/${id}/toggle`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
+  },
+  delete: async (id: string) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/${id}`, {
+      method: "DELETE",
+    });
+  },
+  generateAi: async (prompt: string) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/ai-generate`, {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    });
+  },
+};
+
 const apiClient = {
   get: <T>(url: string, config?: RequestInit) => request<T>(url, { ...config, method: "GET" }),
   post: <T>(url: string, body?: any, config?: RequestInit) => request<T>(url, { ...config, method: "POST", body: body ? JSON.stringify(body) : undefined }),

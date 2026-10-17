@@ -12,7 +12,7 @@ import {
   markDraftPublished,
   saveProductDraft,
 } from "../controllers/productDraftController";
-import { bulkOptimizeSeo, enqueueProductOptimizeHandler, dismissSeoJobHandler, generateBlogWithAi, generateFaqsWithAi, getAutopilotConfig, getBlogTopicSuggestionsHandler, getCmsContextSummaryHandler, getInternalLinkSuggestionsHandler, applyInternalLinkSuggestionHandler, generateRobotsTxtHandler, generateLlmsTxtHandler, getRankTrackingHandler, getSearchConsoleOverviewHandler, getSearchConsoleStatusHandler, getSeoAudit, getSeoJobStatusHandler, getSeoPlaybookHandler, optimizeSeoEntity, runAutopilotNow, syncPlaybookToAllPages, syncRankTrackingHandler, updateAutopilotConfig, updateSeoPlaybookHandler } from "../controllers/aiSeoController";
+import { bulkOptimizeSeo, enqueueProductOptimizeHandler, enqueueBulkProductEditHandler, dismissSeoJobHandler, generateBlogWithAi, generateFaqsWithAi, getAutopilotConfig, getBlogTopicSuggestionsHandler, getCmsContextSummaryHandler, getInternalLinkSuggestionsHandler, applyInternalLinkSuggestionHandler, generateRobotsTxtHandler, generateLlmsTxtHandler, getRankTrackingHandler, getSearchConsoleOverviewHandler, getSearchConsoleStatusHandler, getSeoAudit, getSeoJobStatusHandler, getSeoPlaybookHandler, optimizeSeoEntity, runAutopilotNow, syncPlaybookToAllPages, syncRankTrackingHandler, updateAutopilotConfig, updateSeoPlaybookHandler } from "../controllers/aiSeoController";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -205,6 +205,8 @@ router.put("/seo/playbook", updateSeoPlaybookHandler);
 router.post("/seo/playbook/sync-all", syncPlaybookToAllPages);
 router.post("/seo/optimize", optimizeSeoEntity);
 router.post("/seo/product-optimize", enqueueProductOptimizeHandler);
+router.post("/products/bulk-edit", enqueueBulkProductEditHandler);
+router.post("/seo/bulk-edit", enqueueBulkProductEditHandler);
 router.post("/seo/bulk-optimize", bulkOptimizeSeo);
 router.get("/seo/job", getSeoJobStatusHandler);
 router.post("/seo/job/dismiss", dismissSeoJobHandler);

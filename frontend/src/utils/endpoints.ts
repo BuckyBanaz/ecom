@@ -52,6 +52,7 @@ export const ENDPOINTS = {
   get AI_CMS_GENERATE() { return api("/ai/cms/generate"); },
   get AI_LIMITS() { return api("/ai/limits"); },
   get AI_QUICK_ADD() { return api("/ai/products/quick-add"); },
+  get AI_PRODUCTS_BULK_EDIT() { return api("/ai/products/bulk-edit"); },
   get AI_DRAFTS() { return api("/ai/drafts"); },
   get AI_SEO_AUDIT() { return api("/ai/seo/audit"); },
   get AI_SEO_PLAYBOOK() { return api("/ai/seo/playbook"); },
@@ -79,6 +80,7 @@ export const ENDPOINTS = {
   get INVENTORY_ALLOCATE_WEBSHOP() { return api("/inventory/admin/allocate-webshop"); },
   get INVENTORY_LABELS_PDF() { return api("/inventory/admin/labels/pdf"); },
   get INVENTORY_MOVEMENTS() { return api("/inventory/admin/movements"); },
+  get SALES_CAMPAIGNS() { return api("/sales-campaigns"); },
 };
 
 /** @deprecated use getBaseUrl() */

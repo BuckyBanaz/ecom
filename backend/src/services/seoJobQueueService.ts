@@ -5,7 +5,7 @@ import { runSeoAutopilot } from "./seoAutopilotService";
 
 export const SEO_JOB_KEY = "seo_job_state";
 
-export type SeoJobType = "bulk_optimize" | "autopilot" | "blog_generate" | "faq_generate" | "product_optimize";
+export type SeoJobType = "bulk_optimize" | "autopilot" | "blog_generate" | "faq_generate" | "product_optimize" | "bulk_product_edit";
 
 export type SeoJobStatus = "idle" | "queued" | "running" | "completed" | "failed";
 
@@ -336,6 +336,265 @@ async function runProductOptimizeJob(payload: { productId: string; customPrompt?
   });
 }
 
+async function runBulkProductEditJob(payload: {
+  productIds?: string[];
+  issuePrompt: string;
+  scope?: "selected" | "all" | "category";
+  categoryId?: string;
+  fields?: {
+    name?: boolean;
+    category?: boolean;
+    description?: boolean;
+    specs?: boolean;
+    attributes?: boolean;
+    seo?: boolean;
+    price?: boolean;
+  };
+}) {
+  const { issuePrompt, fields, scope, categoryId } = payload;
+  let targetIds: string[] = Array.isArray(payload.productIds) ? [...payload.productIds] : [];
+
+  if (targetIds.length === 0) {
+    if (scope === "category" && categoryId) {
+      const prods = await prisma.product.findMany({
+        where: { categoryId },
+        select: { id: true },
+      });
+      targetIds = prods.map((p) => p.id);
+    } else {
+      const prods = await prisma.product.findMany({
+        select: { id: true },
+      });
+      targetIds = prods.map((p) => p.id);
+    }
+  }
+
+  const total = targetIds.length;
+  if (total === 0) {
+    await patchJob({
+      status: "completed",
+      finishedAt: new Date().toISOString(),
+      summary: "No products found to edit.",
+      progress: { current: 0, total: 0, label: null },
+    });
+    return;
+  }
+
+  await patchJob({
+    progress: { current: 0, total, label: `Starting AI edit for ${total} product(s)...` },
+  });
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (let i = 0; i < targetIds.length; i++) {
+    const productId = targetIds[i];
+
+    try {
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        include: {
+          category: true,
+          brand: true,
+          productAttributeValues: {
+            include: { attribute: true, attributeValue: true },
+          },
+        },
+      });
+
+      if (!product) {
+        failed++;
+        continue;
+      }
+
+      await patchJob({
+        progress: {
+          current: i,
+          total,
+          label: `Editing "${product.name}" (${i + 1}/${total})...`,
+        },
+      });
+
+      // Call AI Service to compute changes
+      const edited = await aiService.quickEditProduct({
+        product,
+        issuePrompt,
+        fields,
+      });
+
+      // Prepare database updates
+      const updateData: any = {};
+
+      if (edited.name && edited.name !== product.name) {
+        updateData.name = edited.name;
+      }
+
+      if (edited.price !== undefined && fields?.price) {
+        const cleanPrice = parseFloat(edited.price);
+        if (!isNaN(cleanPrice) && cleanPrice > 0) {
+          updateData.price = cleanPrice;
+        }
+      }
+
+      if (edited.shortDescription !== undefined) {
+        updateData.shortDescription = edited.shortDescription;
+      }
+
+      if (edited.description) {
+        updateData.description = edited.description;
+      }
+
+      if (edited.specs && Array.isArray(edited.specs)) {
+        updateData.specs = edited.specs;
+      }
+
+      if (edited.seoTitle) {
+        updateData.seoTitle = edited.seoTitle;
+      }
+
+      if (edited.seoDescription) {
+        updateData.seoDescription = edited.seoDescription;
+      }
+
+      // Handle Category update if changed
+      if (edited.category) {
+        const targetCategory = await prisma.category.findFirst({
+          where: {
+            OR: [
+              { slug: String(edited.category).trim() },
+              { name: { equals: String(edited.category).trim(), mode: "insensitive" } },
+              { slug: { contains: String(edited.category).trim(), mode: "insensitive" } },
+            ],
+          },
+        });
+        if (targetCategory && targetCategory.id !== product.categoryId) {
+          updateData.categoryId = targetCategory.id;
+        }
+      }
+
+      // Handle Series / Collection update if returned
+      if (edited.series) {
+        const seriesName = String(edited.series).trim();
+        const seriesSlug = (edited.seriesSlug || seriesName).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        let matchedSeries = await prisma.series.findFirst({
+          where: {
+            OR: [
+              { slug: seriesSlug },
+              { name: { equals: seriesName, mode: "insensitive" } },
+            ],
+          },
+        });
+
+        if (!matchedSeries && seriesName.length >= 2) {
+          try {
+            const firstBrand = await prisma.brand.findFirst();
+            if (firstBrand) {
+              matchedSeries = await prisma.series.create({
+                data: {
+                  name: seriesName,
+                  slug: seriesSlug,
+                  brandId: firstBrand.id,
+                },
+              });
+            }
+          } catch {
+            /* ignore duplicate */
+          }
+        }
+
+        if (matchedSeries && matchedSeries.brandId) {
+          updateData.brandId = matchedSeries.brandId;
+        }
+      }
+
+      // Execute product table update
+      if (Object.keys(updateData).length > 0) {
+        await prisma.product.update({
+          where: { id: productId },
+          data: updateData,
+        });
+      }
+
+      // Handle EAV attribute values update (e.g. color, fitting, etc.)
+      if (edited.attributes && typeof edited.attributes === "object") {
+        for (const [attrSlug, val] of Object.entries(edited.attributes)) {
+          const attribute = await prisma.attribute.findUnique({
+            where: { slug: attrSlug },
+          });
+          if (!attribute) continue;
+
+          const valList = Array.isArray(val) ? val : [val];
+          for (const rawVal of valList) {
+            const singleVal = String(rawVal).trim();
+            if (!singleVal) continue;
+
+            let attrValue = await prisma.attributeValue.findFirst({
+              where: {
+                attributeId: attribute.id,
+                value: { equals: singleVal, mode: "insensitive" },
+              },
+            });
+
+            if (!attrValue) {
+              attrValue = await prisma.attributeValue.create({
+                data: {
+                  attributeId: attribute.id,
+                  value: singleVal,
+                },
+              });
+            }
+
+            // Remove previous values for single-select attributes like color
+            if (attribute.type === "select" || attribute.type === "boolean") {
+              await prisma.productAttributeValue.deleteMany({
+                where: {
+                  productId,
+                  attributeId: attribute.id,
+                },
+              });
+            }
+
+            await prisma.productAttributeValue.upsert({
+              where: {
+                productId_attributeId_attributeValueId: {
+                  productId,
+                  attributeId: attribute.id,
+                  attributeValueId: attrValue.id,
+                },
+              },
+              create: {
+                productId,
+                attributeId: attribute.id,
+                attributeValueId: attrValue.id,
+              },
+              update: {},
+            });
+          }
+        }
+      }
+
+      succeeded++;
+      await patchJob({ succeeded, failed });
+
+      // Small 250ms breather so we don't overwhelm external API / event loop
+      await new Promise((r) => setTimeout(r, 250));
+    } catch (err: any) {
+      console.error(`AI Quick Edit failed for product ${productId}:`, err);
+      failed++;
+      await patchJob({ succeeded, failed });
+    }
+  }
+
+  await patchJob({
+    status: "completed",
+    finishedAt: new Date().toISOString(),
+    summary: `AI Quick Edit finished! ${succeeded} product(s) updated successfully.${failed > 0 ? ` (${failed} failed)` : ""}`,
+    progress: { current: total, total, label: null },
+    succeeded,
+    failed,
+  });
+}
+
 async function processJob(type: SeoJobType, payload: Record<string, unknown>) {
   if (processing) return;
   processing = true;
@@ -357,6 +616,8 @@ async function processJob(type: SeoJobType, payload: Record<string, unknown>) {
       await runFaqGenerateJob(payload as Parameters<typeof runFaqGenerateJob>[0]);
     } else if (type === "product_optimize") {
       await runProductOptimizeJob(payload as { productId: string; customPrompt?: string });
+    } else if (type === "bulk_product_edit") {
+      await runBulkProductEditJob(payload as any);
     } else {
       await runAutopilotJob(payload.force !== false);
     }
@@ -509,7 +770,45 @@ export async function enqueueProductOptimize(payload: {
   return { job, alreadyRunning: false };
 }
 
-export async function clearSeoJobIfDone(): Promise<SeoJobState> {
+export async function enqueueBulkProductEdit(payload: {
+  productIds?: string[];
+  issuePrompt: string;
+  scope?: "selected" | "all" | "category";
+  categoryId?: string;
+  fields?: {
+    name?: boolean;
+    category?: boolean;
+    description?: boolean;
+    specs?: boolean;
+    attributes?: boolean;
+    seo?: boolean;
+    price?: boolean;
+  };
+}): Promise<{ job: SeoJobState; alreadyRunning: boolean }> {
+  const current = await loadJobState();
+  if (current.status === "running" || current.status === "queued") {
+    return { job: current, alreadyRunning: true };
+  }
+
+  const job: SeoJobState = {
+    ...DEFAULT_JOB,
+    id: newJobId(),
+    type: "bulk_product_edit",
+    status: "queued",
+    startedAt: new Date().toISOString(),
+    progress: { current: 0, total: payload.productIds?.length || 1, label: "Queued for AI Edit…" },
+    targetEntityId: payload.productIds?.length === 1 ? payload.productIds[0] : null,
+  };
+  await saveJobState(job);
+
+  setImmediate(() => {
+    processJob("bulk_product_edit", payload as Record<string, unknown>).catch(console.error);
+  });
+
+  return { job, alreadyRunning: false };
+}
+
+export async function clearSeoJobIfDone(): Promise<SeoJobState> { 
   const state = await loadJobState();
   if (state.status === "completed" || state.status === "failed") {
     await saveJobState(DEFAULT_JOB);
