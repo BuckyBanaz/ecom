@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Ruler,
   Layers,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -275,12 +276,16 @@ const AdminProductQuickAdd = () => {
     });
 
     saveQuickAddSession({
-      rows: rows.map(({ key, hint, price, brand, imagePreview }) => ({
+      rows: rows.map(({ key, hint, price, brand, series, category, imagePreview, sizeGroupId, sizeLabel }) => ({
         key,
         hint,
         price,
         brand,
+        series,
+        category,
         imagePreview,
+        sizeGroupId,
+        sizeLabel,
       })),
       imagePromptOverride,
       rowProgress: cleanRowProgress,
@@ -547,68 +552,176 @@ const AdminProductQuickAdd = () => {
     validRows.forEach((r) => {
       initial[r.key] = { status: "queued" };
     });
-    setRowProgress(initial);
+  const processRow = async (row: ProductRow, index: number = 0): Promise<boolean> => {
+    // Stagger request start by 600ms per row to prevent API rate spikes while running in parallel
+    if (index > 0) {
+      await new Promise((r) => setTimeout(r, index * 600));
+    }
 
-    const processRow = async (row: ProductRow, index: number): Promise<boolean> => {
-      // Stagger request start by 600ms per row to prevent API rate spikes while running in parallel
-      if (index > 0) {
-        await new Promise((r) => setTimeout(r, index * 600));
-      }
+    patchRowProgress(row.key, { status: "analyzing", error: undefined });
+    startImagePhaseTimer(row.key);
 
-      patchRowProgress(row.key, { status: "analyzing", error: undefined });
-      startImagePhaseTimer(row.key);
+    const formData = new FormData();
+    const imageFile = resolveRowImageFile(row);
+    if (imageFile) formData.append("image", imageFile);
+    if (row.hint.trim()) formData.append("hint", row.hint.trim());
+    if (row.price.trim()) formData.append("price", row.price.trim());
+    if (row.brand.trim()) formData.append("brandName", row.brand.trim());
+    if (row.series?.trim()) formData.append("seriesName", row.series.trim());
+    if (row.category?.trim()) formData.append("category", row.category.trim());
+    if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
+    if (row.sizeGroupId) formData.append("sizeGroupId", row.sizeGroupId);
+    if (row.sizeLabel) formData.append("sizeLabel", row.sizeLabel);
 
-      const formData = new FormData();
-      const imageFile = resolveRowImageFile(row);
-      if (imageFile) formData.append("image", imageFile);
-      if (row.hint.trim()) formData.append("hint", row.hint.trim());
-      if (row.price.trim()) formData.append("price", row.price.trim());
-      if (row.brand.trim()) formData.append("brandName", row.brand.trim());
-      if (row.series?.trim()) formData.append("seriesName", row.series.trim());
-      if (row.category?.trim()) formData.append("category", row.category.trim());
-      if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
-      if (row.sizeGroupId) formData.append("sizeGroupId", row.sizeGroupId);
-      if (row.sizeLabel) formData.append("sizeLabel", row.sizeLabel);
+    let lastErrorMsg = "";
 
-      let lastErrorMsg = "";
-
-      // Allow 1 retry per row in case of transient network or rate limit error
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          if (attempt > 1) {
-            await new Promise((r) => setTimeout(r, 3000));
-          }
-
-          const response = await fetch(`${apiUrl}/ai/products/quick-add`, {
-            method: "POST",
-            body: formData,
-            headers: authHeaders,
-          });
-          const data = await response.json();
-
-          if (!response.ok || !data.success) {
-            throw new Error(data.error || "Failed");
-          }
-
-          clearImagePhaseTimer(row.key);
-          patchRowProgress(row.key, {
-            status: "done",
-            draftId: data.draftId,
-            productName: data.draft?.name || row.hint.trim() || t("admin_drafts.untitled"),
-          });
-          return true;
-        } catch (error: any) {
-          lastErrorMsg = error.message || t("admin_quick_add.toast_failed");
+    // Allow 1 retry per row in case of transient network or rate limit error
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        if (attempt > 1) {
+          await new Promise((r) => setTimeout(r, 3000));
         }
-      }
 
-      clearImagePhaseTimer(row.key);
-      patchRowProgress(row.key, {
-        status: "failed",
-        error: lastErrorMsg,
+        const response = await fetch(`${apiUrl}/ai/products/quick-add`, {
+          method: "POST",
+          body: formData,
+          headers: authHeaders,
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Failed");
+        }
+
+        clearImagePhaseTimer(row.key);
+        patchRowProgress(row.key, {
+          status: "done",
+          draftId: data.draftId,
+          productName: data.draft?.name || row.hint.trim() || t("admin_drafts.untitled"),
+        });
+        return true;
+      } catch (error: any) {
+        lastErrorMsg = error.message || t("admin_quick_add.toast_failed");
+      }
+    }
+
+    clearImagePhaseTimer(row.key);
+    patchRowProgress(row.key, {
+      status: "failed",
+      error: lastErrorMsg,
+    });
+    return false;
+  };
+
+  const retrySingleRow = async (rowKey: string) => {
+    if (isGenerating) return;
+    const targetRow = rows.find((r) => r.key === rowKey);
+    if (!targetRow) return;
+
+    if (!targetRow.imageFile && !targetRow.imagePreview && !targetRow.hint.trim()) {
+      toast.error(t("admin_quick_add.toast_missing_info"));
+      return;
+    }
+
+    setIsGenerating(true);
+    generatingRef.current = true;
+    setActiveRowKey(rowKey);
+    patchRowProgress(rowKey, { status: "queued", error: undefined });
+
+    const success = await processRow(targetRow, 0);
+
+    setActiveRowKey(null);
+    setIsGenerating(false);
+    generatingRef.current = false;
+
+    // Recalculate summary with latest status
+    setBatchSummary(() => {
+      let okCount = 0;
+      let failedCount = 0;
+      validRows.forEach((r) => {
+        const s = r.key === rowKey ? (success ? "done" : "failed") : rowProgress[r.key]?.status;
+        if (s === "done") okCount++;
+        else if (s === "failed") failedCount++;
       });
-      return false;
-    };
+      return { ok: okCount, failed: failedCount, total: validRows.length };
+    });
+
+    if (success) {
+      toast.success(
+        targetRow.sizeLabel
+          ? `Maat ${targetRow.sizeLabel} succesvol aangemaakt en als sibling gekoppeld!`
+          : t("admin_quick_add.toast_bulk_success", { ok: 1, total: 1 })
+      );
+    } else {
+      toast.error("Opnieuw proberen mislukt. Probeer het nogmaals.");
+    }
+  };
+
+  const retryAllFailedRows = async () => {
+    if (isGenerating) return;
+    const failedRows = validRows.filter((r) => rowProgress[r.key]?.status === "failed");
+    if (failedRows.length === 0) return;
+
+    setIsGenerating(true);
+    generatingRef.current = true;
+    setActiveRowKey(null);
+
+    failedRows.forEach((r) => {
+      patchRowProgress(r.key, { status: "queued", error: undefined });
+    });
+
+    let newlyOk = 0;
+    for (let i = 0; i < failedRows.length; i++) {
+      const row = failedRows[i];
+      setActiveRowKey(row.key);
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+      const ok = await processRow(row, i);
+      if (ok) newlyOk++;
+    }
+
+    setActiveRowKey(null);
+    setIsGenerating(false);
+    generatingRef.current = false;
+
+    setBatchSummary(() => {
+      let okCount = 0;
+      let failedCount = 0;
+      validRows.forEach((r) => {
+        const s = rowProgress[r.key]?.status;
+        if (s === "done") okCount++;
+        else if (s === "failed") failedCount++;
+      });
+      return { ok: okCount, failed: failedCount, total: validRows.length };
+    });
+
+    if (newlyOk > 0) {
+      toast.success(`${newlyOk} product(en) succesvol opnieuw gegenereerd!`);
+    } else {
+      toast.error("Opnieuw proberen mislukt voor resterende producten.");
+    }
+  };
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validRows.length === 0) {
+      toast.error(t("admin_quick_add.toast_missing_info"));
+      return;
+    }
+
+    clearQuickAddSession();
+    setBatchSummary(null);
+    setRowProgress({});
+    setIsGenerating(true);
+    generatingRef.current = true;
+    setActiveRowKey(null);
+
+    const initial: Record<string, RowProgress> = {};
+    validRows.forEach((r) => {
+      initial[r.key] = { status: "queued" };
+    });
+    setRowProgress(initial);
 
     let ok = 0;
     for (let rowIndex = 0; rowIndex < validRows.length; rowIndex++) {
@@ -625,7 +738,10 @@ const AdminProductQuickAdd = () => {
     setIsGenerating(false);
     generatingRef.current = false;
     setBatchSummary({ ok, failed: validRows.length - ok, total: validRows.length });
-    clearQuickAddSession();
+
+    if (ok === validRows.length) {
+      clearQuickAddSession();
+    }
 
     if (ok > 0) {
       toast.success(t("admin_quick_add.toast_bulk_success", { ok, total: validRows.length }));
@@ -785,9 +901,22 @@ const AdminProductQuickAdd = () => {
                         </a>
                       )}
                       {prog?.status === "failed" && (
-                        <p className="text-xs text-destructive mt-1 break-all">
-                          {prog.error || "Unknown error — check backend logs"}
-                        </p>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <p className="text-xs text-destructive break-all flex-1">
+                            {prog.error || "Unknown error — check backend logs"}
+                          </p>
+                          {!isGenerating && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[11px] text-destructive hover:bg-destructive/10 border-destructive/30 px-2 rounded-md shrink-0 flex items-center gap-1"
+                              onClick={() => retrySingleRow(row.key)}
+                            >
+                              <RefreshCw className="h-3 w-3" /> Retry
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -797,6 +926,16 @@ const AdminProductQuickAdd = () => {
 
             {batchSummary && !isGenerating && (
               <div className="flex flex-wrap gap-2 pt-2">
+                {failedCount > 0 && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="rounded-xl gap-2 shadow-sm"
+                    onClick={retryAllFailedRows}
+                  >
+                    <RefreshCw className="h-4 w-4" /> Opnieuw proberen ({failedCount} mislukt)
+                  </Button>
+                )}
                 <Button type="button" className="rounded-xl gap-2" onClick={() => navigate("/admin/product-drafts")}>
                   <FileText className="h-4 w-4" /> {t("admin_quick_add.view_drafts")}
                 </Button>
@@ -843,6 +982,24 @@ const AdminProductQuickAdd = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {prog?.status === "failed" && !isGenerating && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => retrySingleRow(row.key)}
+                          className="h-7 text-xs rounded-lg gap-1.5 font-semibold shrink-0 shadow-sm"
+                          title="Opnieuw proberen voor dit product"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          <span>Opnieuw proberen</span>
+                        </Button>
+                      )}
+                      {isGenerating && activeRowKey === row.key && (
+                        <span className="text-xs text-primary flex items-center gap-1 font-medium px-2 py-0.5 bg-primary/10 rounded-md">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Bezig...
+                        </span>
+                      )}
                       {!isGenerating && (
                         <Button
                           type="button"
@@ -1052,6 +1209,34 @@ const AdminProductQuickAdd = () => {
                               </div>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {prog?.status === "failed" && (
+                        <div className="mt-3 p-3.5 rounded-xl border border-destructive/40 bg-destructive/10 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+                            <div className="min-w-0">
+                              <p className="font-bold text-sm">
+                                {row.sizeLabel ? `Maat ${row.sizeLabel} generatie mislukt` : "Product generatie mislukt"}
+                              </p>
+                              <p className="text-[11px] opacity-90 truncate">
+                                {prog.error || "Mogelijk tijdelijke AI-timeout of netwerkfout. Klik op retry om opnieuw te proberen."}
+                              </p>
+                            </div>
+                          </div>
+                          {!isGenerating && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              className="h-8 text-xs rounded-lg gap-1.5 shrink-0 shadow-sm"
+                              onClick={() => retrySingleRow(row.key)}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              <span>Opnieuw proberen (Retry)</span>
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>

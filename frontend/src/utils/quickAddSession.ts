@@ -5,7 +5,11 @@ export type StoredRow = {
   hint: string;
   price: string;
   brand: string;
+  series?: string;
+  category?: string;
   imagePreview: string | null;
+  sizeGroupId?: string;
+  sizeLabel?: string;
 };
 
 export type StoredProgress = {
