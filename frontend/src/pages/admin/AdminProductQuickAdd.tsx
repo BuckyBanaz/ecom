@@ -14,6 +14,8 @@ import {
   Clock,
   XCircle,
   ExternalLink,
+  Ruler,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +24,14 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
 import { brandRepository, seriesRepository, categoryRepository } from "@/client/apiClient";
@@ -44,6 +54,8 @@ interface ProductRow {
   series?: string;
   imageFile: File | null;
   imagePreview: string | null;
+  sizeGroupId?: string;
+  sizeLabel?: string;
 }
 
 type RowProcessStatus =
@@ -322,6 +334,126 @@ const AdminProductQuickAdd = () => {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   };
 
+  // Multi-Size Generator states & presets
+  interface SizeVariationItem {
+    id: string;
+    label: string;
+    price: string;
+  }
+
+  const SIZE_PRESETS = [
+    {
+      label: "🔘 Diameter (Ø 40cm, 60cm, 80cm)",
+      sizes: ["Ø 40 cm", "Ø 60 cm", "Ø 80 cm"],
+    },
+    {
+      label: "📏 Lengte (80cm, 100cm, 120cm)",
+      sizes: ["80 cm", "100 cm", "120 cm"],
+    },
+    {
+      label: "💍 Ringen (2-Ring, 3-Ring, 4-Ring)",
+      sizes: ["2-Ring", "3-Ring", "4-Ring"],
+    },
+    {
+      label: "💡 Lichts (3-Lichts, 5-Lichts, 7-Lichts)",
+      sizes: ["3-Lichts", "5-Lichts", "7-Lichts"],
+    },
+    {
+      label: "🏷️ Maten (S, M, L)",
+      sizes: ["Small (S)", "Medium (M)", "Large (L)"],
+    },
+  ];
+
+  const [isSizeModalOpen, setIsSizeModalOpen] = useState(false);
+  const [sizeTargetRowKey, setSizeTargetRowKey] = useState<string | null>(null);
+  const [sizeBaseHint, setSizeBaseHint] = useState("");
+  const [sizeVariations, setSizeVariations] = useState<SizeVariationItem[]>([
+    { id: "1", label: "Ø 40 cm", price: "69.95" },
+    { id: "2", label: "Ø 60 cm", price: "89.95" },
+    { id: "3", label: "Ø 80 cm", price: "119.95" },
+  ]);
+
+  const openMultiSizeModal = (row: ProductRow) => {
+    setSizeTargetRowKey(row.key);
+    // Strip common size suffixes from hint to get clean base title if present
+    const cleanHint = row.hint.replace(/[-–—]?\s*(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:small|medium|large|xl)\b).*$/i, "").trim();
+    setSizeBaseHint(cleanHint || row.hint.trim());
+
+    const baseP = row.price.trim() ? parseFloat(row.price) : 89.95;
+    setSizeVariations([
+      { id: "1", label: "Ø 40 cm", price: isNaN(baseP) ? "69.95" : (baseP * 0.8).toFixed(2) },
+      { id: "2", label: "Ø 60 cm", price: isNaN(baseP) ? "89.95" : baseP.toFixed(2) },
+      { id: "3", label: "Ø 80 cm", price: isNaN(baseP) ? "119.95" : (baseP * 1.35).toFixed(2) },
+    ]);
+    setIsSizeModalOpen(true);
+  };
+
+  const applySizePreset = (presetSizes: string[]) => {
+    const baseP = parseFloat(sizeVariations[0]?.price || "89.95") || 89.95;
+    const newItems: SizeVariationItem[] = presetSizes.map((sz, idx) => {
+      const multiplier = idx === 0 ? 0.85 : idx === 1 ? 1 : 1 + idx * 0.3;
+      return {
+        id: `sz-${Date.now()}-${idx}`,
+        label: sz,
+        price: (baseP * multiplier).toFixed(2),
+      };
+    });
+    setSizeVariations(newItems);
+  };
+
+  const handleApplySizesToBatch = () => {
+    if (!sizeTargetRowKey) return;
+    const validSizes = sizeVariations.filter((s) => s.label.trim().length > 0);
+    if (validSizes.length === 0) {
+      toast.error("Please enter at least one size variation.");
+      return;
+    }
+
+    const targetIndex = rows.findIndex((r) => r.key === sizeTargetRowKey);
+    if (targetIndex === -1) return;
+
+    const baseRow = rows[targetIndex];
+    const cleanBaseHint = sizeBaseHint.trim() || baseRow.hint.trim();
+    const groupId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    // Update the base row to be size 1
+    const firstSize = validSizes[0];
+    const updatedBaseRow: ProductRow = {
+      ...baseRow,
+      hint: cleanBaseHint ? `${cleanBaseHint} - ${firstSize.label}` : firstSize.label,
+      price: firstSize.price || baseRow.price,
+      sizeGroupId: groupId,
+      sizeLabel: firstSize.label,
+    };
+
+    // Create rows for the remaining sizes
+    const newSizeRows: ProductRow[] = validSizes.slice(1).map((s) => ({
+      key: `row-${Date.now()}-${Math.random()}`,
+      hint: cleanBaseHint ? `${cleanBaseHint} - ${s.label}` : s.label,
+      price: s.price || baseRow.price,
+      category: baseRow.category,
+      brand: baseRow.brand,
+      series: baseRow.series,
+      imageFile: baseRow.imageFile,
+      imagePreview: baseRow.imagePreview,
+      sizeGroupId: groupId,
+      sizeLabel: s.label,
+    }));
+
+    const totalAfterAdding = rows.length - 1 + validSizes.length;
+    if (totalAfterAdding > bulkLimit) {
+      toast.warning(`Note: Adding ${validSizes.length} sizes totals ${totalAfterAdding} products. You can raise your batch limit in Settings if needed.`);
+    }
+
+    // Insert new size rows immediately following the base row
+    const newRows = [...rows];
+    newRows.splice(targetIndex, 1, updatedBaseRow, ...newSizeRows);
+    setRows(newRows);
+
+    setIsSizeModalOpen(false);
+    toast.success(`✨ Generated ${validSizes.length} size variations! All linked as siblings.`);
+  };
+
   const patchRowProgress = (key: string, patch: Partial<RowProgress>) => {
     setRowProgress((prev) => ({
       ...prev,
@@ -435,6 +567,8 @@ const AdminProductQuickAdd = () => {
       if (row.series?.trim()) formData.append("seriesName", row.series.trim());
       if (row.category?.trim()) formData.append("category", row.category.trim());
       if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
+      if (row.sizeGroupId) formData.append("sizeGroupId", row.sizeGroupId);
+      if (row.sizeLabel) formData.append("sizeLabel", row.sizeLabel);
 
       let lastErrorMsg = "";
 
@@ -685,6 +819,12 @@ const AdminProductQuickAdd = () => {
                   <div className="flex items-center justify-between gap-2 min-w-0">
                     <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                       <span className="text-sm font-bold">{t("admin_quick_add.product_row", { n: index + 1 })}</span>
+                      {row.sizeLabel && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1 shrink-0">
+                          <Ruler className="h-3 w-3 text-amber-600" />
+                          <span>{row.sizeLabel}</span>
+                        </span>
+                      )}
                       {prog?.status && prog.status !== "idle" && (
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
@@ -702,11 +842,26 @@ const AdminProductQuickAdd = () => {
                         </span>
                       )}
                     </div>
-                    {rows.length > 1 && !isGenerating && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(row.key)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {!isGenerating && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openMultiSizeModal(row)}
+                          className="h-7 text-xs rounded-lg gap-1 border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium shrink-0"
+                          title="Generate size variations with linked pricing for this product"
+                        >
+                          <Ruler className="h-3.5 w-3.5 text-amber-500" />
+                          <span>{row.sizeLabel ? `Size: ${row.sizeLabel}` : "Add Sizes"}</span>
+                        </Button>
+                      )}
+                      {rows.length > 1 && !isGenerating && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(row.key)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {(prog?.status === "analyzing" || prog?.status === "images") && row.key === activeRowKey && (
@@ -937,6 +1092,160 @@ const AdminProductQuickAdd = () => {
           </CardFooter>
         </form>
       </Card>
+
+      {/* ========================================================================= */}
+      {/* MODAL: MULTI-SIZE VARIATIONS GENERATOR                                    */}
+      {/* ========================================================================= */}
+      <Dialog open={isSizeModalOpen} onOpenChange={setIsSizeModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-amber-600">
+              <Ruler className="h-5 w-5" />
+              <DialogTitle className="text-lg font-bold">Generate Size Variations</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs">
+              Easily generate size options (e.g. 40cm, 60cm, 80cm) for this LED lamp. All generated sizes will share the same photo, category & brand, and will be automatically linked as clickable size options on the product page.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Target Row Context Header */}
+            {(() => {
+              const targetRow = rows.find((r) => r.key === sizeTargetRowKey);
+              const previewImg = targetRow?.imagePreview;
+              const hintText = sizeBaseHint || targetRow?.hint?.trim();
+              return (
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/40 border border-border/70 text-xs">
+                  {previewImg && (
+                    <img
+                      src={previewImg}
+                      alt=""
+                      className="w-10 h-10 rounded-lg object-cover border border-border/80 shrink-0"
+                    />
+                  )}
+                  <div className="truncate flex-1">
+                    <p className="text-[11px] text-muted-foreground font-medium">Adding sizes to:</p>
+                    <p className="font-semibold text-foreground truncate">
+                      {hintText || "Current Product Row"}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 shrink-0">
+                    Sibling Group
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Quick Presets */}
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Quick Size Presets
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {SIZE_PRESETS.map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => applySizePreset(p.sizes)}
+                    className="text-[11px] rounded-full border border-border bg-muted/50 px-2.5 py-1 hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-800 dark:hover:text-amber-300 transition-colors"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sizes & Prices Table */}
+            <div className="space-y-2 border rounded-xl p-3 bg-muted/20">
+              <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                <span>Sizes & Prices to Generate:</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSizeVariations((prev) => [
+                      ...prev,
+                      { id: `sz-${Date.now()}`, label: "", price: "" },
+                    ])
+                  }
+                  className="text-amber-600 hover:underline flex items-center gap-1 text-[11px] font-medium"
+                >
+                  <Plus className="h-3 w-3" /> Add Size Row
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {sizeVariations.map((sz, idx) => (
+                  <div key={sz.id} className="flex items-center gap-2">
+                    <span className="w-5 text-muted-foreground font-semibold text-center">{idx + 1}.</span>
+                    <Input
+                      value={sz.label}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSizeVariations((prev) =>
+                          prev.map((item) => (item.id === sz.id ? { ...item, label: val } : item))
+                        );
+                      }}
+                      placeholder="e.g. Ø 60 cm or 3-Ring"
+                      className="h-8 text-xs flex-1"
+                    />
+                    <div className="relative w-28 shrink-0">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">€</span>
+                      <Input
+                        value={sz.price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSizeVariations((prev) =>
+                            prev.map((item) => (item.id === sz.id ? { ...item, price: val } : item))
+                          );
+                        }}
+                        placeholder="89.95"
+                        className="pl-6 h-8 text-xs"
+                      />
+                    </div>
+                    {sizeVariations.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() =>
+                          setSizeVariations((prev) => prev.filter((item) => item.id !== sz.id))
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg border bg-amber-500/10 border-amber-500/20 text-[11px] text-amber-900 dark:text-amber-300">
+              💡 <strong>Linked Siblings</strong>: Each size will get its own product entry with matching photos and specifications, and will display interactive size pill buttons on the storefront!
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSizeModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleApplySizesToBatch}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-medium gap-1.5"
+            >
+              <Ruler className="h-3.5 w-3.5" />
+              <span>Generate {sizeVariations.filter((s) => s.label.trim()).length} Size Rows</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {mediaPickerRowKey && (
         <MediaLibraryDialog

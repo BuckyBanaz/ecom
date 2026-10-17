@@ -497,45 +497,110 @@ const ProductPage = () => {
             )}
           </div>
 
-          {/* Color Sibling Variations (Kies een kleur - Reference Photo Style) */}
-          {product.siblings && product.siblings.length > 1 && (
-            <div className="mt-5 space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <span>{t("product.choose_color", "Kies een kleur")}:</span>
-                <span className="font-bold text-primary">
-                  {product.siblings.find((s: any) => s.isCurrent)?.colorName || product.color || ""}
-                </span>
+          {/* Sibling Variations (Sizes & Colors) */}
+          {(() => {
+            if (!product.siblings || product.siblings.length <= 1) return null;
+
+            // Check if siblings have distinct size names
+            const sizeMap = new Map<string, any>();
+            product.siblings.forEach((s: any) => {
+              const sz = (s.sizeName || "").trim();
+              if (sz && !sizeMap.has(sz)) {
+                sizeMap.set(sz, s);
+              }
+            });
+            const hasDistinctSizes = sizeMap.size > 1;
+
+            // Check if siblings have distinct color names
+            const colorMap = new Map<string, any>();
+            product.siblings.forEach((s: any) => {
+              const cl = (s.colorName || "").trim();
+              if (cl && !colorMap.has(cl)) {
+                colorMap.set(cl, s);
+              }
+            });
+            const hasDistinctColors = colorMap.size > 1;
+
+            const currentSibling = product.siblings.find((s: any) => s.isCurrent || s.id === product.id) || product.siblings[0];
+
+            return (
+              <div className="mt-5 space-y-4">
+                {/* 1. Size Variations (Kies een afmeting / maat) */}
+                {hasDistinctSizes && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <span>{t("product.choose_size", "Kies een afmeting / maat")}:</span>
+                      <span className="font-bold text-primary">
+                        {currentSibling?.sizeName || ""}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {Array.from(sizeMap.values()).map((s: any) => {
+                        const isCurrent = Boolean(s.isCurrent || s.id === product.id || s.sizeName === currentSibling?.sizeName);
+                        return (
+                          <Link
+                            key={s.id}
+                            to={`/product/${s.slug}`}
+                            className={cn(
+                              "px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all border flex items-center gap-2 shadow-2xs",
+                              isCurrent
+                                ? "border-amber-600 bg-amber-500/10 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/25 shadow-xs scale-102"
+                                : "border-border/80 bg-card hover:border-amber-500/50 hover:bg-muted text-foreground"
+                            )}
+                          >
+                            <span>{s.sizeName}</span>
+                            <span className={cn("text-[11px] font-normal", isCurrent ? "text-amber-800 dark:text-amber-300 font-semibold" : "text-muted-foreground")}>
+                              {formatPrice(s.price)}
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Color Variations (Kies een kleur) */}
+                {(hasDistinctColors || !hasDistinctSizes) && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <span>{t("product.choose_color", "Kies een kleur")}:</span>
+                      <span className="font-bold text-primary">
+                        {currentSibling?.colorName || product.color || ""}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {product.siblings.map((sibling: any) => {
+                        const isCurrent = Boolean(sibling.isCurrent || sibling.id === product.id);
+                        return (
+                          <Link
+                            key={sibling.id}
+                            to={`/product/${sibling.slug}`}
+                            className={cn(
+                              "group relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 bg-white dark:bg-muted p-1 transition-all duration-200 overflow-hidden shadow-xs cursor-pointer",
+                              isCurrent
+                                ? "border-amber-500 ring-2 ring-amber-500/30 shadow-md scale-105"
+                                : "border-border/80 hover:border-foreground/50 hover:shadow-sm hover:scale-102"
+                            )}
+                            title={sibling.name || sibling.colorName}
+                          >
+                            <SafeImage
+                              src={sibling.image}
+                              alt={sibling.name}
+                              fallbackType="product"
+                              className="w-full h-full object-contain"
+                            />
+                            {isCurrent && (
+                              <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white" />
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                {product.siblings.map((sibling: any) => {
-                  const isCurrent = Boolean(sibling.isCurrent || sibling.id === product.id);
-                  return (
-                    <Link
-                      key={sibling.id}
-                      to={`/product/${sibling.slug}`}
-                      className={cn(
-                        "group relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 bg-white dark:bg-muted p-1 transition-all duration-200 overflow-hidden shadow-xs cursor-pointer",
-                        isCurrent
-                          ? "border-amber-500 ring-2 ring-amber-500/30 shadow-md scale-105"
-                          : "border-border/80 hover:border-foreground/50 hover:shadow-sm hover:scale-102"
-                      )}
-                      title={sibling.name || sibling.colorName}
-                    >
-                      <SafeImage
-                        src={sibling.image}
-                        alt={sibling.name}
-                        fallbackType="product"
-                        className="w-full h-full object-contain"
-                      />
-                      {isCurrent && (
-                        <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white" />
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <div className="flex items-center rounded-full border border-border shadow-sm bg-background">

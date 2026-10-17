@@ -85,7 +85,7 @@ router.get("/products/:id/suggest-siblings", async (req, res) => {
 
 router.post("/products/quick-add", upload.single("image"), async (req, res) => {
   try {
-    const { hint, price, brandName, seriesName, category, categorySlug, imagePromptOverride } = req.body;
+    const { hint, price, brandName, seriesName, category, categorySlug, imagePromptOverride, sizeGroupId, sizeLabel } = req.body;
     const imageFile = req.file;
 
     if (imageFile) {
@@ -107,6 +107,21 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       seriesName || "",
       category || categorySlug || ""
     );
+
+    if (sizeGroupId) {
+      (draft as any).colorGroupId = sizeGroupId;
+      if (sizeLabel) {
+        if (!Array.isArray((draft as any).specs)) (draft as any).specs = [];
+        const existingAfmIdx = (draft as any).specs.findIndex((s: any) =>
+          String(s?.key || "").toLowerCase().includes("afmeting") || String(s?.key || "").toLowerCase().includes("diameter")
+        );
+        if (existingAfmIdx >= 0) {
+          (draft as any).specs[existingAfmIdx].value = sizeLabel;
+        } else {
+          (draft as any).specs.unshift({ key: "Afmeting", value: sizeLabel });
+        }
+      }
+    }
 
     const saved = await saveProductDraft(draft, { createdBy: (req as any).user?.id });
 

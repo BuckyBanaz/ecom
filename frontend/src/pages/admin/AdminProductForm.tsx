@@ -189,6 +189,7 @@ const AdminProductForm = () => {
   const [qrModalOpen, setQrModalOpen] = useState(false);
 
   // Color Siblings & Linked Variants States
+  const [colorGroupId, setColorGroupId] = useState<string | null>(null);
   const [linkedSiblings, setLinkedSiblings] = useState<any[]>([]);
   const [siblingSearchQuery, setSiblingSearchQuery] = useState("");
   const [siblingSearchResults, setSiblingSearchResults] = useState<any[]>([]);
@@ -1064,6 +1065,7 @@ const AdminProductForm = () => {
     if (draft.webshopStock !== undefined) setWebshopStock(String(draft.webshopStock));
     if (draft.binLocation) setBinLocation(draft.binLocation);
     if (draft.lowStockThreshold !== undefined) setLowStockThreshold(String(draft.lowStockThreshold));
+    if (draft.colorGroupId) setColorGroupId(draft.colorGroupId);
     toast.info(t("admin_product_form.draft_loaded"));
   };
 
@@ -1187,6 +1189,10 @@ const AdminProductForm = () => {
               setStorageStock(String(firstVariant.stock ?? 10));
               setWebshopStock(String(firstVariant.stock ?? 5));
               setLowStockThreshold(String(p.lowStockThreshold ?? 5));
+            }
+
+            if (p.colorGroupId) {
+              setColorGroupId(p.colorGroupId);
             }
 
             if (p.siblings && Array.isArray(p.siblings)) {
@@ -1520,6 +1526,7 @@ const AdminProductForm = () => {
         images: galleryImages,
         attributes: selectedAttributeValues, // EAV dynamic mapping
         specs: serializedSpecs,
+        colorGroupId: colorGroupId || undefined,
         siblingProductIds: linkedSiblings.map((s) => s.id),
       };
 
@@ -2682,12 +2689,17 @@ const AdminProductForm = () => {
                             />
                             <div className="truncate">
                               <p className="font-semibold text-xs text-foreground truncate">{sibling.name}</p>
-                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
                                 <span
                                   className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
                                   style={{ background: sibling.colorCode || "#666" }}
                                 />
                                 <span className="font-medium text-foreground/90">{sibling.colorName}</span>
+                                {sibling.sizeName && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                                    📏 {sibling.sizeName}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>

@@ -532,6 +532,7 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
           price: true,
           image: true,
           inStock: true,
+          specs: true,
           productAttributeValues: {
             include: {
               attribute: true,
@@ -549,6 +550,43 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
             pav.attribute?.name?.toLowerCase() === "color" ||
             pav.attribute?.name?.toLowerCase() === "kleur"
         );
+        const sizeAttr = s.productAttributeValues?.find(
+          (pav) =>
+            pav.attribute?.slug === "size" ||
+            pav.attribute?.slug === "afmeting" ||
+            pav.attribute?.name?.toLowerCase() === "size" ||
+            pav.attribute?.name?.toLowerCase() === "afmeting" ||
+            pav.attribute?.name?.toLowerCase() === "maat" ||
+            pav.attribute?.name?.toLowerCase() === "diameter"
+        );
+
+        // Check specs JSON for size/afmeting/diameter
+        let sizeFromSpecs = "";
+        if (s.specs) {
+          if (Array.isArray(s.specs)) {
+            const found = (s.specs as any[]).find((sp) => {
+              const k = String(sp?.key || "").toLowerCase();
+              return k.includes("afmeting") || k.includes("maat") || k.includes("diameter") || k.includes("size") || k.includes("breedte");
+            });
+            if (found?.value) sizeFromSpecs = String(found.value);
+          } else if (typeof s.specs === "object") {
+            for (const [k, v] of Object.entries(s.specs as Record<string, any>)) {
+              const kLower = k.toLowerCase();
+              if (kLower.includes("afmeting") || kLower.includes("maat") || kLower.includes("diameter") || kLower.includes("size") || kLower.includes("breedte")) {
+                sizeFromSpecs = String(v);
+                break;
+              }
+            }
+          }
+        }
+
+        // Try extracting size pattern from product name, e.g. "Ø 40 cm", "60cm", "80 cm", "3-Ring", etc.
+        let sizeFromName = "";
+        const nameMatch = s.name.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:small|medium|large|xl)\b)/i);
+        if (nameMatch) {
+          sizeFromName = nameMatch[0].trim();
+        }
+
         return {
           id: s.id,
           name: s.name,
@@ -558,6 +596,7 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
           inStock: s.inStock,
           colorName: colorAttr?.attributeValue?.value || s.name,
           colorCode: colorAttr?.attributeValue?.colorCode || "#333333",
+          sizeName: sizeAttr?.attributeValue?.value || sizeFromSpecs || sizeFromName || "",
           isCurrent: s.id === product.id,
         };
       });
@@ -664,6 +703,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
         description: description || "",
         shortDescription: shortDescription || "",
         specs: specs || {},
+        colorGroupId: req.body.colorGroupId || undefined,
         seoTitle,
         seoDescription,
         seoKeywords,
@@ -877,6 +917,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
         description,
         shortDescription,
         specs: specs || undefined,
+        colorGroupId: req.body.colorGroupId !== undefined ? (req.body.colorGroupId || null) : undefined,
         seoTitle,
         seoDescription,
         seoKeywords,
