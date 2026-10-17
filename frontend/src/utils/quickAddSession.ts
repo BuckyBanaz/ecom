@@ -92,14 +92,18 @@ export function loadQuickAddSession(): QuickAddSession | null {
 
     const age = Date.now() - (parsed.savedAt || 0);
 
-    // Only clear if stale (> 24 hours)
-    if (age > 24 * 60 * 60 * 1000) {
+    // If batch is already completed or stale (> 2 mins), clear session so page opens fresh
+    if (parsed.batchSummary || age > 120000) {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
 
     parsed = sanitizeSession(parsed);
-    return parsed;
+
+    if (parsed.batchSummary || !parsed.isProcessing) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
 
     return parsed;
   } catch {

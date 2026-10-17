@@ -412,22 +412,6 @@ const AdminProductForm = () => {
         pav.attribute?.name?.toLowerCase() === "color" ||
         pav.attribute?.name?.toLowerCase() === "kleur"
     );
-    let sizeVal = productToAdd.sizeName || "";
-    if (!sizeVal) {
-      const sizeAttr = productToAdd.productAttributeValues?.find(
-        (pav: any) =>
-          pav.attribute?.slug === "size" ||
-          pav.attribute?.slug === "afmeting" ||
-          pav.attribute?.name?.toLowerCase() === "size" ||
-          pav.attribute?.name?.toLowerCase() === "afmeting"
-      );
-      if (sizeAttr?.attributeValue?.value) {
-        sizeVal = sizeAttr.attributeValue.value;
-      } else {
-        const nameMatch = productToAdd.name?.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b)/i);
-        if (nameMatch) sizeVal = nameMatch[0].trim();
-      }
-    }
     const formattedSibling = {
       id: productToAdd.id,
       name: productToAdd.name,
@@ -436,7 +420,6 @@ const AdminProductForm = () => {
       price: productToAdd.price,
       colorName: colorAttr?.attributeValue?.value || "Color",
       colorCode: colorAttr?.attributeValue?.colorCode || "#333333",
-      sizeName: sizeVal || undefined,
     };
     setLinkedSiblings((prev) => [...prev, formattedSibling]);
     setSiblingSearchResults((prev) => prev.filter((p) => p.id !== productToAdd.id));
@@ -2689,10 +2672,10 @@ const AdminProductForm = () => {
                 <div>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <Boxes className="h-5 w-5 text-primary" />
-                    <span>{t("admin_product_form.siblings_title", "Product Siblings & Linked Variations (Color & Size)")}</span>
+                    <span>{t("admin_product_form.siblings_title", "Color Siblings / Linked Products")}</span>
                   </CardTitle>
                   <CardDescription className="text-xs mt-0.5">
-                    {t("admin_product_form.siblings_desc", "Connect standalone products as color or size variations. All linked products share a sibling group ID and will display clickable size pills (afmetingen) or color swatches on their storefront pages.")}
+                    {t("admin_product_form.siblings_desc", "Connect existing standalone products as color variations. When saved, all linked products will display clickable color swatches on their storefront pages.")}
                   </CardDescription>
                 </div>
                 <Button
@@ -2943,7 +2926,7 @@ const AdminProductForm = () => {
 
                   {linkedSiblings.length === 0 ? (
                     <div className="p-4 rounded-xl border border-dashed border-muted-foreground/20 text-center text-xs text-muted-foreground">
-                      {t("admin_product_form.no_siblings_linked", "No siblings linked yet. Search above to link other size or color variations of this item.")}
+                      {t("admin_product_form.no_siblings_linked", "No color siblings linked yet. Search above to link other variations of this item.")}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -2961,21 +2944,16 @@ const AdminProductForm = () => {
                             <div className="truncate">
                               <p className="font-semibold text-xs text-foreground truncate">{sibling.name}</p>
                               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
-                                {sibling.sizeName ? (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                  style={{ background: sibling.colorCode || "#666" }}
+                                />
+                                <span className="font-medium text-foreground/90">{sibling.colorName}</span>
+                                {sibling.sizeName && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
                                     📏 {sibling.sizeName}
                                   </span>
-                                ) : (
-                                  <>
-                                    <span
-                                      className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
-                                      style={{ background: sibling.colorCode || "#666" }}
-                                    />
-                                    <span className="font-medium text-foreground/90">{sibling.colorName}</span>
-                                  </>
                                 )}
-                                <span>·</span>
-                                <span className="font-semibold text-foreground/80">€{Number(sibling.price).toFixed(2)}</span>
                               </div>
                             </div>
                           </div>
