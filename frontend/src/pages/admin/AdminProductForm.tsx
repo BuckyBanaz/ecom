@@ -1704,7 +1704,7 @@ const AdminProductForm = () => {
                 setProductVariants(
                   p.variants.map((v: any) => ({
                     id: v.id,
-                    sizeName: v.sizeName && v.sizeName !== "Default" ? v.sizeName : (v.sku || ""),
+                    sizeName: v.sizeName && v.sizeName !== "Default" && !/^sku[-_]/i.test(v.sizeName) ? v.sizeName : "",
                     price: v.price !== null && v.price !== undefined ? String(v.price) : "",
                     stock: v.stock !== undefined ? String(v.stock) : "10",
                     sku: v.sku || "",

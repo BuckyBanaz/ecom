@@ -3,6 +3,13 @@ import { prisma } from "../config/db";
 
 export const getAttributes = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    // Auto purge any accidental SKU-like values from attribute values
+    await prisma.attributeValue.deleteMany({
+      where: {
+        value: { startsWith: "SKU-", mode: "insensitive" },
+      },
+    }).catch(() => {});
+
     const attributes = await prisma.attribute.findMany({
       include: {
         attributeValues: true,
@@ -18,6 +25,15 @@ export const getAttributes = async (_req: Request, res: Response, next: NextFunc
 export const getAttributeById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
+
+    // Purge any SKU values for this attribute
+    await prisma.attributeValue.deleteMany({
+      where: {
+        attributeId: id,
+        value: { startsWith: "SKU-", mode: "insensitive" },
+      },
+    }).catch(() => {});
+
     const attribute = await prisma.attribute.findUnique({
       where: { id },
       include: {

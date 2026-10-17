@@ -1010,6 +1010,21 @@ export const aiService = {
         parsedData.attributes.color = "White";
       }
 
+      // Sanitize Attributes: Strip out any accidental SKUs, barcodes, or URLs
+      if (parsedData.attributes && typeof parsedData.attributes === "object") {
+        for (const [k, val] of Object.entries(parsedData.attributes)) {
+          if (Array.isArray(val)) {
+            parsedData.attributes[k] = val.filter(
+              (item: any) => typeof item === "string" && !/^sku[-_]/i.test(item.trim()) && !/^https?:\/\//i.test(item.trim())
+            );
+          } else if (typeof val === "string") {
+            if (/^sku[-_]/i.test(val.trim()) || /^https?:\/\//i.test(val.trim())) {
+              delete parsedData.attributes[k];
+            }
+          }
+        }
+      }
+
       // 3. Synchronize Specs Array with Visual Facts
       if (!Array.isArray(parsedData.specs)) parsedData.specs = [];
 

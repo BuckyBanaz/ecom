@@ -671,7 +671,7 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
         sku: v.sku,
         stock: v.stock,
         price: v.price ?? product.price,
-        sizeName: sizeVal || v.sku || "Default",
+        sizeName: sizeVal || "Default",
         inStock: (v.stock ?? 0) > 0,
       };
     }) || [];
@@ -796,21 +796,30 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
         const valList = Array.isArray(val) ? val : [val];
         for (const singleVal of valList) {
           if (!singleVal) continue;
+          const cleanVal = String(singleVal).trim();
+          if (/^sku[-_]/i.test(cleanVal) || /^https?:\/\//i.test(cleanVal) || cleanVal.length > 50) {
+            continue;
+          }
           let attrValue = await prisma.attributeValue.findFirst({
             where: {
               attributeId: attribute.id,
-              value: { equals: String(singleVal).trim(), mode: "insensitive" },
+              value: { equals: cleanVal, mode: "insensitive" },
             },
           });
 
-          // Create value if not exists
+          // Match existing option; do NOT auto-create unapproved options for select attributes
           if (!attrValue) {
-            attrValue = await prisma.attributeValue.create({
-              data: {
-                attributeId: attribute.id,
-                value: String(singleVal).trim(),
-              },
-            });
+            const numMatch = cleanVal.match(/\d+\s*(?:cm|mm)?/i)?.[0]?.replace(/\s+/g, "").toLowerCase();
+            if (numMatch) {
+              const allValues = await prisma.attributeValue.findMany({
+                where: { attributeId: attribute.id },
+              });
+              attrValue = allValues.find((v) => v.value.replace(/\s+/g, "").toLowerCase() === numMatch || v.value.toLowerCase().includes(numMatch)) || null;
+            }
+          }
+
+          if (!attrValue) {
+            continue;
           }
 
           await prisma.productAttributeValue.upsert({
@@ -849,7 +858,8 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
           },
         });
 
-        const sizeVal = v.sizeName || v.size || (v.attributes ? (v.attributes.size || v.attributes.afmeting) : null);
+        const rawSizeVal = v.sizeName || v.size || (v.attributes ? (v.attributes.size || v.attributes.afmeting) : null);
+        const sizeVal = rawSizeVal && !/^sku[-_]/i.test(String(rawSizeVal).trim()) ? String(rawSizeVal).trim() : null;
         if (sizeVal) {
           let attribute = await prisma.attribute.findFirst({
             where: {
@@ -880,12 +890,17 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
           });
 
           if (!attrValue) {
-            attrValue = await prisma.attributeValue.create({
-              data: {
-                attributeId: attribute.id,
-                value: String(sizeVal).trim(),
-              },
-            });
+            const numMatch = sizeVal.match(/\d+\s*(?:cm|mm)?/i)?.[0]?.replace(/\s+/g, "").toLowerCase();
+            if (numMatch) {
+              const allValues = await prisma.attributeValue.findMany({
+                where: { attributeId: attribute.id },
+              });
+              attrValue = allValues.find((v) => v.value.replace(/\s+/g, "").toLowerCase() === numMatch || v.value.toLowerCase().includes(numMatch)) || null;
+            }
+          }
+
+          if (!attrValue) {
+            continue;
           }
 
           await prisma.variantAttributeValue.create({
@@ -1036,20 +1051,30 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
         const valList = Array.isArray(val) ? val : [val];
         for (const singleVal of valList) {
           if (!singleVal) continue;
+          const cleanVal = String(singleVal).trim();
+          if (/^sku[-_]/i.test(cleanVal) || /^https?:\/\//i.test(cleanVal) || cleanVal.length > 50) {
+            continue;
+          }
           let attrValue = await prisma.attributeValue.findFirst({
             where: {
               attributeId: attribute.id,
-              value: { equals: String(singleVal).trim(), mode: "insensitive" },
+              value: { equals: cleanVal, mode: "insensitive" },
             },
           });
 
+          // Match existing option; do NOT auto-create unapproved options for select attributes
           if (!attrValue) {
-            attrValue = await prisma.attributeValue.create({
-              data: {
-                attributeId: attribute.id,
-                value: String(singleVal).trim(),
-              },
-            });
+            const numMatch = cleanVal.match(/\d+\s*(?:cm|mm)?/i)?.[0]?.replace(/\s+/g, "").toLowerCase();
+            if (numMatch) {
+              const allValues = await prisma.attributeValue.findMany({
+                where: { attributeId: attribute.id },
+              });
+              attrValue = allValues.find((v) => v.value.replace(/\s+/g, "").toLowerCase() === numMatch || v.value.toLowerCase().includes(numMatch)) || null;
+            }
+          }
+
+          if (!attrValue) {
+            continue;
           }
 
           await prisma.productAttributeValue.upsert({
@@ -1091,7 +1116,8 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
           },
         });
 
-        const sizeVal = v.sizeName || v.size || (v.attributes ? (v.attributes.size || v.attributes.afmeting) : null);
+        const rawSizeVal = v.sizeName || v.size || (v.attributes ? (v.attributes.size || v.attributes.afmeting) : null);
+        const sizeVal = rawSizeVal && !/^sku[-_]/i.test(String(rawSizeVal).trim()) ? String(rawSizeVal).trim() : null;
         if (sizeVal) {
           let attribute = await prisma.attribute.findFirst({
             where: {
@@ -1122,12 +1148,17 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
           });
 
           if (!attrValue) {
-            attrValue = await prisma.attributeValue.create({
-              data: {
-                attributeId: attribute.id,
-                value: String(sizeVal).trim(),
-              },
-            });
+            const numMatch = sizeVal.match(/\d+\s*(?:cm|mm)?/i)?.[0]?.replace(/\s+/g, "").toLowerCase();
+            if (numMatch) {
+              const allValues = await prisma.attributeValue.findMany({
+                where: { attributeId: attribute.id },
+              });
+              attrValue = allValues.find((v) => v.value.replace(/\s+/g, "").toLowerCase() === numMatch || v.value.toLowerCase().includes(numMatch)) || null;
+            }
+          }
+
+          if (!attrValue) {
+            continue;
           }
 
           await prisma.variantAttributeValue.create({
