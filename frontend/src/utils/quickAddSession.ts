@@ -10,6 +10,9 @@ export type StoredRow = {
   imagePreview: string | null;
   sizeGroupId?: string;
   sizeLabel?: string;
+  color?: string;
+  specDiff?: string;
+  siblingGroupId?: string;
 };
 
 export type StoredProgress = {

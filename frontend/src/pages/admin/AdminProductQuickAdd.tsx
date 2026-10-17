@@ -17,6 +17,11 @@ import {
   Ruler,
   Layers,
   RefreshCw,
+  Copy,
+  Palette,
+  Sliders,
+  Link2,
+  Unlink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +50,7 @@ import {
 import { getApiV1Url } from "@/utils/endpoints";
 import { resolveImgUrl } from "@/utils/image";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { cn } from "@/lib/utils";
 
 interface ProductRow {
   key: string;
@@ -57,6 +63,9 @@ interface ProductRow {
   imagePreview: string | null;
   sizeGroupId?: string;
   sizeLabel?: string;
+  color?: string;
+  specDiff?: string;
+  siblingGroupId?: string;
 }
 
 type RowProcessStatus =
@@ -75,6 +84,18 @@ interface RowProgress {
   productName?: string;
 }
 
+const QUICK_COLOR_PRESETS = [
+  { name: "Zwart", hex: "#1A1A1A" },
+  { name: "Wit", hex: "#FFFFFF" },
+  { name: "Goud", hex: "#D4AF37" },
+  { name: "Brons", hex: "#8C6239" },
+  { name: "Koper", hex: "#B87333" },
+  { name: "Rookglas", hex: "#4A4A4A" },
+  { name: "Amber", hex: "#D9822B" },
+  { name: "Hout", hex: "#8B5A2B" },
+  { name: "Chroom", hex: "#C0C0C0" },
+];
+
 const emptyRow = (): ProductRow => ({
   key: `row-${Date.now()}-${Math.random()}`,
   hint: "",
@@ -84,6 +105,8 @@ const emptyRow = (): ProductRow => ({
   series: "",
   imageFile: null,
   imagePreview: null,
+  color: "",
+  specDiff: "",
 });
 
 const restoredSession = loadQuickAddSession();
@@ -276,7 +299,7 @@ const AdminProductQuickAdd = () => {
     });
 
     saveQuickAddSession({
-      rows: rows.map(({ key, hint, price, brand, series, category, imagePreview, sizeGroupId, sizeLabel }) => ({
+      rows: rows.map(({ key, hint, price, brand, series, category, imagePreview, sizeGroupId, sizeLabel, color, specDiff, siblingGroupId }) => ({
         key,
         hint,
         price,
@@ -286,6 +309,9 @@ const AdminProductQuickAdd = () => {
         imagePreview,
         sizeGroupId,
         sizeLabel,
+        color,
+        specDiff,
+        siblingGroupId,
       })),
       imagePromptOverride,
       rowProgress: cleanRowProgress,
@@ -515,6 +541,61 @@ const AdminProductQuickAdd = () => {
     setRows((prev) => prev.filter((r) => r.key !== key));
   };
 
+  const duplicateRow = (key: string) => {
+    if (rows.length >= bulkLimit) {
+      toast.error(t("admin_quick_add.toast_bulk_limit", { limit: bulkLimit }));
+      return;
+    }
+    const targetIdx = rows.findIndex((r) => r.key === key);
+    if (targetIdx < 0) return;
+    const target = rows[targetIdx];
+
+    const existingGroup = target.siblingGroupId || target.sizeGroupId;
+    const assignedGroup = existingGroup || `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    const updatedTarget: ProductRow = {
+      ...target,
+      siblingGroupId: assignedGroup,
+    };
+
+    const clonedRow: ProductRow = {
+      key: `row-${Date.now()}-${Math.random()}`,
+      hint: target.hint,
+      price: target.price,
+      brand: target.brand,
+      series: target.series,
+      category: target.category,
+      imageFile: target.imageFile,
+      imagePreview: target.imagePreview,
+      color: target.color || "",
+      specDiff: target.specDiff || "",
+      siblingGroupId: assignedGroup,
+    };
+
+    const nextRows = [...rows];
+    nextRows.splice(targetIdx, 1, updatedTarget, clonedRow);
+    setRows(nextRows);
+    toast.success("✨ Product gedupliceerd & gekoppeld als sibling variatie!");
+  };
+
+  const toggleSiblingLink = (key: string) => {
+    const target = rows.find((r) => r.key === key);
+    if (!target) return;
+
+    if (target.siblingGroupId || target.sizeGroupId) {
+      updateRow(key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined });
+      toast.info("Sibling koppeling verwijderd voor dit product");
+    } else {
+      const otherGroup = rows.find((r) => r.key !== key && (r.siblingGroupId || r.sizeGroupId));
+      const newGroup =
+        otherGroup?.siblingGroupId ||
+        otherGroup?.sizeGroupId ||
+        `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      updateRow(key, { siblingGroupId: newGroup });
+      toast.success("Gekoppeld aan sibling variatiegroep!");
+    }
+  };
+
   const validRows = rows.filter((r) => r.imageFile || r.imagePreview || r.hint.trim());
 
   const resolveRowImageFile = (row: ProductRow): File | null => {
@@ -552,6 +633,10 @@ const AdminProductQuickAdd = () => {
     if (row.series?.trim()) formData.append("seriesName", row.series.trim());
     if (row.category?.trim()) formData.append("category", row.category.trim());
     if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
+    if (row.color?.trim()) formData.append("color", row.color.trim());
+    if (row.specDiff?.trim()) formData.append("specDiff", row.specDiff.trim());
+    const effGroupId = row.siblingGroupId || row.sizeGroupId;
+    if (effGroupId) formData.append("siblingGroupId", effGroupId);
     if (row.sizeGroupId) formData.append("sizeGroupId", row.sizeGroupId);
     if (row.sizeLabel) formData.append("sizeLabel", row.sizeLabel);
 
@@ -946,6 +1031,18 @@ const AdminProductQuickAdd = () => {
                           <span>{row.sizeLabel}</span>
                         </span>
                       )}
+                      {(row.siblingGroupId || row.sizeGroupId) && !row.sizeLabel && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center gap-1 shrink-0" title="Gekoppeld als sibling variatie">
+                          <Link2 className="h-3 w-3 text-blue-600" />
+                          <span>Linked Sibling</span>
+                        </span>
+                      )}
+                      {row.color && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border/80 text-foreground flex items-center gap-1 shrink-0">
+                          <Palette className="h-3 w-3 text-amber-500" />
+                          <span>{row.color}</span>
+                        </span>
+                      )}
                       {prog?.status && prog.status !== "idle" && (
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
@@ -981,6 +1078,19 @@ const AdminProductQuickAdd = () => {
                         <span className="text-xs text-primary flex items-center gap-1 font-medium px-2 py-0.5 bg-primary/10 rounded-md">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Bezig...
                         </span>
+                      )}
+                      {!isGenerating && rows.length < bulkLimit && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => duplicateRow(row.key)}
+                          className="h-7 text-xs rounded-lg gap-1 border-border/80 hover:bg-muted text-foreground font-medium shrink-0"
+                          title="Dupliceer dit product als variatie (zelfde foto/merk met afwijkende specificaties)"
+                        >
+                          <Copy className="h-3.5 w-3.5 text-primary" />
+                          <span>Kopieer</span>
+                        </Button>
                       )}
                       {!isGenerating && (
                         <Button
@@ -1167,6 +1277,106 @@ const AdminProductQuickAdd = () => {
                             })()}
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      {/* Color & Specification Differences (Variations / Siblings) */}
+                      <div className="mt-3 p-3 rounded-xl border border-border/70 bg-muted/20 space-y-2.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Palette className="h-3.5 w-3.5 text-primary" />
+                            <span className="text-xs font-semibold text-foreground">
+                              Kleur & Specificaties (Variatie)
+                            </span>
+                            {(row.siblingGroupId || row.sizeGroupId) && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                                Gekoppeld als Sibling
+                              </span>
+                            )}
+                          </div>
+                          {(row.siblingGroupId || row.sizeGroupId) && (
+                            <button
+                              type="button"
+                              onClick={() => toggleSiblingLink(row.key)}
+                              className="text-[11px] text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors self-start sm:self-auto"
+                              title="Ontkoppel van sibling variatiegroep"
+                            >
+                              <Unlink className="h-3 w-3" />
+                              <span>Ontkoppelen</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {/* Color Input & Quick Pills */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-medium text-muted-foreground">
+                                Kleur (optioneel):
+                              </label>
+                              {row.color && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateRow(row.key, { color: "" })}
+                                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                                >
+                                  Wissen
+                                </button>
+                              )}
+                            </div>
+                            <Input
+                              value={row.color || ""}
+                              onChange={(e) => updateRow(row.key, { color: e.target.value })}
+                              placeholder="bijv. Zwart, Goud, Wit..."
+                              className="h-8 text-xs bg-background"
+                              disabled={isGenerating}
+                            />
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {QUICK_COLOR_PRESETS.map((c) => {
+                                const isSelected = (row.color || "").toLowerCase().trim() === c.name.toLowerCase();
+                                return (
+                                  <button
+                                    key={c.name}
+                                    type="button"
+                                    disabled={isGenerating}
+                                    onClick={() => updateRow(row.key, { color: isSelected ? "" : c.name })}
+                                    className={cn(
+                                      "h-5 px-1.5 rounded-full text-[10px] font-medium flex items-center gap-1 border transition-all",
+                                      isSelected
+                                        ? "bg-primary text-white border-primary shadow-xs font-bold"
+                                        : "bg-background/80 hover:bg-muted border-border/80 text-foreground/80"
+                                    )}
+                                  >
+                                    <span
+                                      className="h-2 w-2 rounded-full border border-black/20 shrink-0"
+                                      style={{ backgroundColor: c.hex }}
+                                    />
+                                    <span>{c.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Spec Differences Input */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-medium text-muted-foreground">
+                                Specificatie Verschil / Extra Info:
+                              </label>
+                              <span className="text-[10px] text-muted-foreground">AI neemt dit direct over</span>
+                            </div>
+                            <Input
+                              value={row.specDiff || ""}
+                              onChange={(e) => updateRow(row.key, { specDiff: e.target.value })}
+                              placeholder="bijv. 3000K Warm Wit, 15W, Dimbaar, Ø 40 cm..."
+                              className="h-8 text-xs bg-background"
+                              disabled={isGenerating}
+                            />
+                            <p className="text-[10px] text-muted-foreground leading-tight">
+                              Handig bij gedupliceerde rijen: vul hier in wat er afwijkt (bijv. wattage, fitting, afmeting of lichtkleur).
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       {((prog?.existingMatches && prog.existingMatches.length > 0) || (liveDuplicates[row.key] && liveDuplicates[row.key].length > 0)) && (

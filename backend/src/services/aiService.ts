@@ -2069,7 +2069,7 @@ ${contextBlock.slice(0, 50000)}
    * AI-powered Color Siblings Auto-Detection
    * Analyzes product title, attributes, category, and uses Gemini to find sibling variations.
    */
-  async suggestSiblingsForProduct(productId: string): Promise<any[]> {
+  async suggestSiblingsForProduct(productId: string, mode: "color" | "size" | "all" = "all"): Promise<any[]> {
     const targetProduct = await prisma.product.findUnique({
       where: { id: productId },
       include: {
@@ -2086,6 +2086,7 @@ ${contextBlock.slice(0, 50000)}
 
     let targetName = "";
     let targetColor = "";
+    let targetSize = "";
     let targetCategoryId: string | null = null;
     let targetBrandId: string | null = null;
     let targetColorGroupId: string | null = null;
@@ -2102,6 +2103,8 @@ ${contextBlock.slice(0, 50000)}
           pav.attribute.name.toLowerCase() === "kleur"
       );
       targetColor = targetColorAttr?.attributeValue?.value || "";
+      const sizeMatch = targetProduct.name.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/i);
+      targetSize = sizeMatch ? sizeMatch[0].trim() : "";
     } else {
       // Check if productId is a ProductDraft ID
       const targetDraft = await prisma.productDraft.findUnique({
@@ -2112,14 +2115,18 @@ ${contextBlock.slice(0, 50000)}
       targetName = targetDraft.name || payload.name || "";
       if (!targetName) return [];
       targetColor = payload.visualInspection?.finishColor || payload.attributes?.color?.[0] || "";
+      const sizeMatch = targetName.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/i);
+      targetSize = sizeMatch ? sizeMatch[0].trim() : "";
     }
 
     // Common color words in Dutch & English
     const colorRegex = /\b(zwart|black|wit|white|goud|gold|brons|bronze|nikkel|nickel|staal|steel|chroom|chrome|messing|brass|koper|copper|antraciet|anthracite|zilver|silver|grijs|grey|gray|taupe|beige|groen|green|blauw|blue|rood|red|geel|yellow|oranje|orange|amber|smoke|rookglas|helder|clear|mat|matte|glans|glossy|hout|wood|naturel|natural)\b/gi;
+    const sizeRegex = /(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/gi;
 
     const cleanBaseName = (name: string) => {
       return name
         .replace(colorRegex, "")
+        .replace(sizeRegex, "")
         .replace(/[|\-\/,]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
@@ -2173,6 +2180,7 @@ ${contextBlock.slice(0, 50000)}
       image: string;
       colorName: string;
       colorCode: string;
+      sizeName: string;
       colorGroupId?: string | null;
       isDraft?: boolean;
     }> = [];
@@ -2185,6 +2193,18 @@ ${contextBlock.slice(0, 50000)}
           pav.attribute.name.toLowerCase() === "color" ||
           pav.attribute.name.toLowerCase() === "kleur"
       );
+      const cSizeAttr = c.productAttributeValues.find(
+        (pav) =>
+          pav.attribute.slug === "size" ||
+          pav.attribute.slug === "afmeting" ||
+          pav.attribute.name.toLowerCase() === "size" ||
+          pav.attribute.name.toLowerCase() === "afmeting" ||
+          pav.attribute.name.toLowerCase() === "maat" ||
+          pav.attribute.name.toLowerCase() === "diameter"
+      );
+      const sizeMatch = c.name.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/i);
+      const sizeName = cSizeAttr?.attributeValue?.value || (sizeMatch ? sizeMatch[0].trim() : "");
+
       combinedCandidates.push({
         id: c.id,
         name: c.name,
@@ -2193,6 +2213,7 @@ ${contextBlock.slice(0, 50000)}
         image: c.image || "",
         colorName: cColorAttr?.attributeValue?.value || "Variant",
         colorCode: cColorAttr?.attributeValue?.colorCode || "#333333",
+        sizeName: sizeName || "",
         colorGroupId: c.colorGroupId,
         isDraft: false,
       });
@@ -2202,6 +2223,7 @@ ${contextBlock.slice(0, 50000)}
     candidateDrafts.forEach((d) => {
       const payload: any = d.payload || {};
       const draftColor = payload.visualInspection?.finishColor || payload.attributes?.color?.[0] || "";
+      const sizeMatch = (d.name || payload.name || "").match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/i);
       combinedCandidates.push({
         id: d.id,
         name: `${d.name || payload.name || "Draft Product"} (Draft)`,
@@ -2210,6 +2232,7 @@ ${contextBlock.slice(0, 50000)}
         image: payload.image || payload.images?.[0] || "",
         colorName: draftColor || "Draft Variant",
         colorCode: "#333333",
+        sizeName: sizeMatch ? sizeMatch[0].trim() : "",
         colorGroupId: null,
         isDraft: true,
       });
@@ -2237,6 +2260,7 @@ ${contextBlock.slice(0, 50000)}
           image: c.image,
           colorName: c.colorName,
           colorCode: c.colorCode,
+          sizeName: c.sizeName,
           score: Math.round(overlapScore),
           alreadyLinked: Boolean(targetColorGroupId && c.colorGroupId === targetColorGroupId),
           isDraft: Boolean(c.isDraft),
@@ -2250,22 +2274,29 @@ ${contextBlock.slice(0, 50000)}
 
     // Use Gemini AI for semantic verification & accurate confidence score
     try {
+      const modeInstruction =
+        mode === "size"
+          ? "We are matching Size / Dimension Siblings (same design/model, but differing in diameter, dimensions, or ring/light count)."
+          : mode === "color"
+            ? "We are matching Color Siblings (same design/model, but differing in color finish, e.g. Black vs Gold vs White)."
+            : "We are matching Color and Size Siblings (same design/model, but differing in color finish or dimensions/size).";
+
       const prompt = `You are an expert e-commerce catalog AI.
-We are matching "Color Siblings" for a product.
-Color Siblings are products/drafts that represent the EXACT SAME physical model, but differ only in color finish or surface material (e.g. Black vs Gold vs White).
+${modeInstruction}
 
 Target Product:
 Name: "${targetName}"
 Color: "${targetColor}"
+Size: "${targetSize}"
 
 Candidates:
-${scoredCandidates.map((c, i) => `[${i}] ID: ${c.id} | Name: "${c.name}" | Extracted Color: "${c.colorName}"`).join("\n")}
+${scoredCandidates.map((c, i) => `[${i}] ID: ${c.id} | Name: "${c.name}" | Color: "${c.colorName}" | Size: "${c.sizeName}"`).join("\n")}
 
-Determine which candidates are true color variations of the Target Product.
+Determine which candidates are true variations (${mode === "size" ? "size variations" : mode === "color" ? "color variations" : "color or size variations"}) of the Target Product.
 Return a valid JSON array of matches with confidence score (0-100) and short reason.
 Format:
 [
-  { "id": "candidate-id", "confidence": 95, "colorName": "Goud", "reason": "Identical model in Gold finish" }
+  { "id": "candidate-id", "confidence": 95, "colorName": "Goud", "sizeName": "Ø 60 cm", "reason": "Identical model in 60cm dimension" }
 ]
 Output ONLY the JSON array. No markdown code blocks.`;
 
@@ -2280,8 +2311,10 @@ Output ONLY the JSON array. No markdown code blocks.`;
             const vMatch = verified.find((v: any) => v.id === c.id);
             return {
               ...c,
+              colorName: vMatch.colorName || c.colorName,
+              sizeName: vMatch.sizeName || c.sizeName,
               confidence: vMatch.confidence || c.score,
-              matchReason: vMatch.reason || "Identical model with different color finish",
+              matchReason: vMatch.reason || (mode === "size" ? "Matching size variation" : "Matching variation"),
             };
           });
       }
@@ -2292,7 +2325,7 @@ Output ONLY the JSON array. No markdown code blocks.`;
     return scoredCandidates.map((c) => ({
       ...c,
       confidence: c.score,
-      matchReason: `High title similarity (${c.score}%) with different color`,
+      matchReason: `High title similarity (${c.score}%)`,
     }));
   },
 

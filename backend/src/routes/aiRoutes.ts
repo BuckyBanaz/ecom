@@ -75,7 +75,8 @@ router.post("/products/check-duplicate", async (req, res) => {
 router.get("/products/:id/suggest-siblings", async (req, res) => {
   try {
     const productId = req.params.id;
-    const suggestions = await aiService.suggestSiblingsForProduct(productId);
+    const mode = (req.query.mode as "color" | "size" | "all") || "all";
+    const suggestions = await aiService.suggestSiblingsForProduct(productId, mode);
     res.json({ success: true, suggestions });
   } catch (error: any) {
     console.error("AI Sibling Suggestion Error:", error);
@@ -85,7 +86,20 @@ router.get("/products/:id/suggest-siblings", async (req, res) => {
 
 router.post("/products/quick-add", upload.single("image"), async (req, res) => {
   try {
-    const { hint, price, brandName, seriesName, category, categorySlug, imagePromptOverride, sizeGroupId, sizeLabel } = req.body;
+    const {
+      hint,
+      price,
+      brandName,
+      seriesName,
+      category,
+      categorySlug,
+      imagePromptOverride,
+      sizeGroupId,
+      siblingGroupId,
+      sizeLabel,
+      color,
+      specDiff,
+    } = req.body;
     const imageFile = req.file;
 
     if (imageFile) {
@@ -94,13 +108,25 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       console.warn("⚠️ Quick-add: no image uploaded — AI will invent product photos from text only");
     }
 
-    if (!hint && !imageFile) {
-      return res.status(400).json({ success: false, error: "Please provide either a hint or an image." });
+    if (!hint && !imageFile && !color && !specDiff && !sizeLabel) {
+      return res.status(400).json({ success: false, error: "Please provide either a hint, color, specs or an image." });
+    }
+
+    // Build rich prompt hint incorporating specific color, dimensions, and custom specs
+    let effectiveHint = (hint || "").trim();
+    if (color && !effectiveHint.toLowerCase().includes(color.toLowerCase())) {
+      effectiveHint = effectiveHint ? `${effectiveHint}\nKleur / Color: ${color}` : `Kleur / Color: ${color}`;
+    }
+    if (sizeLabel && !effectiveHint.toLowerCase().includes(sizeLabel.toLowerCase())) {
+      effectiveHint = effectiveHint ? `${effectiveHint}\nMaat / Afmeting: ${sizeLabel}` : `Maat / Afmeting: ${sizeLabel}`;
+    }
+    if (specDiff) {
+      effectiveHint = effectiveHint ? `${effectiveHint}\nSpecificaties / Variatie: ${specDiff}` : `Specificaties / Variatie: ${specDiff}`;
     }
 
     const draft = await aiService.quickAddProduct(
       imageFile,
-      hint || "",
+      effectiveHint,
       price || "",
       brandName || "",
       imagePromptOverride || "",
@@ -108,19 +134,53 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       category || categorySlug || ""
     );
 
-    if (sizeGroupId) {
-      (draft as any).colorGroupId = sizeGroupId;
-      if (sizeLabel) {
-        if (!Array.isArray((draft as any).specs)) (draft as any).specs = [];
-        const existingAfmIdx = (draft as any).specs.findIndex((s: any) =>
-          String(s?.key || "").toLowerCase().includes("afmeting") || String(s?.key || "").toLowerCase().includes("diameter")
-        );
-        if (existingAfmIdx >= 0) {
-          (draft as any).specs[existingAfmIdx].value = sizeLabel;
-        } else {
-          (draft as any).specs.unshift({ key: "Afmeting", value: sizeLabel });
-        }
+    // Apply explicit Color
+    if (color) {
+      (draft as any).color = color;
+      if (!Array.isArray((draft as any).specs)) (draft as any).specs = [];
+      const existingKleurIdx = (draft as any).specs.findIndex((s: any) =>
+        String(s?.key || "").toLowerCase().includes("kleur") || String(s?.key || "").toLowerCase().includes("color")
+      );
+      if (existingKleurIdx >= 0) {
+        (draft as any).specs[existingKleurIdx].value = color;
+      } else {
+        (draft as any).specs.unshift({ key: "Kleur", value: color });
       }
+      if (!(draft as any).attributes) (draft as any).attributes = {};
+      (draft as any).attributes.color = [color];
+    }
+
+    // Apply explicit Size
+    if (sizeLabel) {
+      if (!Array.isArray((draft as any).specs)) (draft as any).specs = [];
+      const existingAfmIdx = (draft as any).specs.findIndex((s: any) =>
+        String(s?.key || "").toLowerCase().includes("afmeting") || String(s?.key || "").toLowerCase().includes("diameter")
+      );
+      if (existingAfmIdx >= 0) {
+        (draft as any).specs[existingAfmIdx].value = sizeLabel;
+      } else {
+        (draft as any).specs.unshift({ key: "Afmeting", value: sizeLabel });
+      }
+    }
+
+    // Apply explicit Specification Differences
+    if (specDiff) {
+      if (!Array.isArray((draft as any).specs)) (draft as any).specs = [];
+      const parts = String(specDiff).split(/[,;]/).map((p: string) => p.trim()).filter(Boolean);
+      parts.forEach((p) => {
+        if (p.includes(":")) {
+          const [k, v] = p.split(":");
+          if (k && v) (draft as any).specs.push({ key: k.trim(), value: v.trim() });
+        } else {
+          (draft as any).specs.push({ key: "Specificatie", value: p });
+        }
+      });
+    }
+
+    // Assign Sibling / Variant Group
+    const effectiveGroupId = siblingGroupId || sizeGroupId;
+    if (effectiveGroupId) {
+      (draft as any).colorGroupId = effectiveGroupId;
     }
 
     const saved = await saveProductDraft(draft, { createdBy: (req as any).user?.id });

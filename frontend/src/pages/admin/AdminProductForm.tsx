@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes, Ruler } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes, Ruler, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -254,6 +254,31 @@ const AdminProductForm = () => {
   const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [siblingFilterCategory, setSiblingFilterCategory] = useState<string>("same"); // "same" | "all"
+  const [siblingModeTab, setSiblingModeTab] = useState<"all" | "color" | "size">("all");
+
+  const extractSizeFromNameOrSpecs = (name: string, specs?: any, pavs?: any[]): string => {
+    if (pavs && Array.isArray(pavs)) {
+      const sizeAttr = pavs.find((pav: any) => {
+        const s = pav.attribute?.slug?.toLowerCase() || pav.attribute?.name?.toLowerCase() || "";
+        return s === "size" || s === "afmeting" || s === "afmetingen" || s === "maat" || s === "diameter";
+      });
+      if (sizeAttr?.attributeValue?.value) return sizeAttr.attributeValue.value;
+    }
+    if (specs) {
+      if (Array.isArray(specs)) {
+        const found = specs.find((sp: any) => {
+          const k = String(sp?.key || "").toLowerCase();
+          return k.includes("afmeting") || k.includes("maat") || k.includes("diameter") || k.includes("size") || k.includes("breedte");
+        });
+        if (found?.value) return String(found.value);
+      }
+    }
+    if (name) {
+      const match = name.match(/(Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+\s*cm\b|\b\d+\s*lichts\b)/i);
+      if (match) return match[0].trim();
+    }
+    return "";
+  };
 
   const searchSiblings = async (query = siblingSearchQuery, categoryMode = siblingFilterCategory) => {
     setSiblingSearchQuery(query);
@@ -280,9 +305,12 @@ const AdminProductForm = () => {
 
       let combined: any[] = [];
       if (res.success && res.products) {
-        combined = res.products.filter(
-          (p: any) => p.id !== currentId && !linkedIds.has(p.id)
-        );
+        combined = res.products
+          .filter((p: any) => p.id !== currentId && !linkedIds.has(p.id))
+          .map((p: any) => ({
+            ...p,
+            sizeName: p.sizeName || extractSizeFromNameOrSpecs(p.name, p.specs, p.productAttributeValues),
+          }));
       }
 
       if (draftsData.success && Array.isArray(draftsData.drafts)) {
@@ -302,6 +330,7 @@ const AdminProductForm = () => {
           .map((d: any) => {
             const p = d.payload || {};
             const colorVal = p.visualInspection?.finishColor || p.attributes?.color?.[0] || "";
+            const sizeVal = p.visualInspection?.dimensions || p.attributes?.size?.[0] || p.sizeLabel || extractSizeFromNameOrSpecs(d.name || p.name, p.specs);
             return {
               id: d.id,
               name: `${d.name || p.name || "Draft Product"} (Draft)`,
@@ -310,6 +339,7 @@ const AdminProductForm = () => {
               image: p.image || p.images?.[0] || "",
               isDraft: true,
               category: { name: p.category || "Draft", slug: p.category || "" },
+              sizeName: sizeVal,
               productAttributeValues: colorVal
                 ? [
                     {
@@ -355,7 +385,12 @@ const AdminProductForm = () => {
 
       let combined: any[] = [];
       if (res.success && res.products) {
-        combined = res.products.filter((p: any) => p.id !== currentId);
+        combined = res.products
+          .filter((p: any) => p.id !== currentId)
+          .map((p: any) => ({
+            ...p,
+            sizeName: p.sizeName || extractSizeFromNameOrSpecs(p.name, p.specs, p.productAttributeValues),
+          }));
       }
 
       if (draftsData.success && Array.isArray(draftsData.drafts)) {
@@ -375,6 +410,7 @@ const AdminProductForm = () => {
           .map((d: any) => {
             const p = d.payload || {};
             const colorVal = p.visualInspection?.finishColor || p.attributes?.color?.[0] || "";
+            const sizeVal = p.visualInspection?.dimensions || p.attributes?.size?.[0] || p.sizeLabel || extractSizeFromNameOrSpecs(d.name || p.name, p.specs);
             return {
               id: d.id,
               name: `${d.name || p.name || "Draft Product"} (Draft)`,
@@ -383,6 +419,7 @@ const AdminProductForm = () => {
               image: p.image || p.images?.[0] || "",
               isDraft: true,
               category: { name: p.category || "Draft", slug: p.category || "" },
+              sizeName: sizeVal,
               productAttributeValues: colorVal
                 ? [
                     {
@@ -412,14 +449,29 @@ const AdminProductForm = () => {
         pav.attribute?.name?.toLowerCase() === "color" ||
         pav.attribute?.name?.toLowerCase() === "kleur"
     );
+    const sizeAttr = productToAdd.productAttributeValues?.find(
+      (pav: any) =>
+        pav.attribute?.slug === "size" ||
+        pav.attribute?.slug === "afmetingen" ||
+        pav.attribute?.name?.toLowerCase() === "size" ||
+        pav.attribute?.name?.toLowerCase() === "maat" ||
+        pav.attribute?.name?.toLowerCase() === "afmeting" ||
+        pav.attribute?.name?.toLowerCase() === "afmetingen"
+    );
+    const inferredSize =
+      productToAdd.sizeName ||
+      sizeAttr?.attributeValue?.value ||
+      extractSizeFromNameOrSpecs(productToAdd.name, productToAdd.specs, productToAdd.productAttributeValues);
+
     const formattedSibling = {
       id: productToAdd.id,
       name: productToAdd.name,
       slug: productToAdd.slug,
       image: productToAdd.image,
       price: productToAdd.price,
-      colorName: colorAttr?.attributeValue?.value || "Color",
-      colorCode: colorAttr?.attributeValue?.colorCode || "#333333",
+      colorName: colorAttr?.attributeValue?.value || productToAdd.colorName || "Color",
+      colorCode: colorAttr?.attributeValue?.colorCode || productToAdd.colorCode || "#333333",
+      sizeName: inferredSize || undefined,
     };
     setLinkedSiblings((prev) => [...prev, formattedSibling]);
     setSiblingSearchResults((prev) => prev.filter((p) => p.id !== productToAdd.id));
@@ -443,16 +495,19 @@ const AdminProductForm = () => {
     setAiSuggestions([]);
     try {
       const apiUrl = getApiV1Url();
-      const res = await fetch(`${apiUrl}/ai/products/${id}/suggest-siblings`, {
+      const modeParam = siblingModeTab === "all" ? "" : `?mode=${siblingModeTab}`;
+      const res = await fetch(`${apiUrl}/ai/products/${id}/suggest-siblings${modeParam}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
       });
       const data = await res.json();
       if (data.success && data.suggestions) {
         if (data.suggestions.length === 0) {
-          toast.info(t("admin_product_form.no_ai_siblings_found", "AI analyzed your catalog but found no matching color variations for this product."));
+          const typeLabel = siblingModeTab === "size" ? "size/maat" : siblingModeTab === "color" ? "kleur" : "kleur of maat";
+          toast.info(t("admin_product_form.no_ai_siblings_found", `AI analyzed your catalog but found no matching ${typeLabel} variations for this product.`));
         } else {
           setAiSuggestions(data.suggestions);
-          toast.success(t("admin_product_form.ai_siblings_found", "AI found {{count}} matching color variation(s)!", { count: data.suggestions.length }));
+          const typeLabel = siblingModeTab === "size" ? "maat" : siblingModeTab === "color" ? "kleur" : "sibling";
+          toast.success(t("admin_product_form.ai_siblings_found", `AI found ${data.suggestions.length} matching ${typeLabel} variation(s)!`));
         }
       } else {
         throw new Error(data.error);
@@ -2666,30 +2721,76 @@ const AdminProductForm = () => {
               )}
             </Card>
 
-            {/* Color Siblings & Linked Variants Card */}
+            {/* Color & Size Siblings / Linked Products Card */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <Boxes className="h-5 w-5 text-primary" />
-                    <span>{t("admin_product_form.siblings_title", "Color Siblings / Linked Products")}</span>
+                    <span>{t("admin_product_form.siblings_title", "Product Siblings / Variations (Colors & Sizes)")}</span>
                   </CardTitle>
                   <CardDescription className="text-xs mt-0.5">
-                    {t("admin_product_form.siblings_desc", "Connect existing standalone products as color variations. When saved, all linked products will display clickable color swatches on their storefront pages.")}
+                    {t("admin_product_form.siblings_desc", "Connect standalone products as color or size variations. When saved, all linked products will display clickable color swatches and size selector pills on their storefront pages.")}
                   </CardDescription>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isAiSuggesting || !id || id === "new"}
-                  onClick={handleAiSuggestSiblings}
-                  className="h-8 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 gap-1.5 rounded-lg shadow-2xs shrink-0"
-                  title={!id || id === "new" ? "Save product first to use AI detection" : "AI analyzes catalog to find matching color variations"}
-                >
-                  {isAiSuggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
-                  <span>{isAiSuggesting ? "AI Scanning..." : "✨ AI Find Siblings"}</span>
-                </Button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {/* Mode Selector Tabs */}
+                  <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/40 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSiblingModeTab("all")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
+                        siblingModeTab === "all" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Alle Variaties
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSiblingModeTab("color")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1 transition-all",
+                        siblingModeTab === "color" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Palette className="h-3 w-3 text-amber-500" />
+                      <span>Kleuren</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSiblingModeTab("size")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1 transition-all",
+                        siblingModeTab === "size" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Ruler className="h-3 w-3 text-primary" />
+                      <span>Maten</span>
+                    </button>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isAiSuggesting || !id || id === "new"}
+                    onClick={handleAiSuggestSiblings}
+                    className="h-8 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 gap-1.5 rounded-lg shadow-2xs shrink-0"
+                    title={!id || id === "new" ? "Save product first to use AI detection" : "AI analyzes catalog to find matching variations"}
+                  >
+                    {isAiSuggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
+                    <span>
+                      {isAiSuggesting
+                        ? "AI Scanning..."
+                        : siblingModeTab === "size"
+                        ? "✨ AI Find Size Siblings"
+                        : siblingModeTab === "color"
+                        ? "✨ AI Find Color Siblings"
+                        : "✨ AI Find Siblings"}
+                    </span>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* AI Suggestions Box (if matches found) */}
@@ -2699,7 +2800,7 @@ const AdminProductForm = () => {
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-amber-500" />
                         <span className="text-xs font-bold text-foreground">
-                          AI Detected {aiSuggestions.length} Color Variation{aiSuggestions.length > 1 ? "s" : ""}:
+                          AI Detected {aiSuggestions.length} Matching Variation{aiSuggestions.length > 1 ? "s" : ""}:
                         </span>
                       </div>
                       <Button
@@ -2726,12 +2827,22 @@ const AdminProductForm = () => {
                             />
                             <div className="truncate">
                               <p className="font-semibold text-foreground truncate">{s.name}</p>
-                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                <span
-                                  className="w-2 h-2 rounded-full border border-black/15 shrink-0"
-                                  style={{ background: s.colorCode || "#666" }}
-                                />
-                                <span className="font-medium text-foreground">{s.colorName}</span>
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
+                                {s.colorName && s.colorName !== "Default" && (
+                                  <span className="flex items-center gap-1">
+                                    <span
+                                      className="w-2 h-2 rounded-full border border-black/15 shrink-0"
+                                      style={{ background: s.colorCode || "#666" }}
+                                    />
+                                    <span className="font-medium text-foreground">{s.colorName}</span>
+                                  </span>
+                                )}
+                                {s.sizeName && (
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-[10px] font-bold flex items-center gap-0.5">
+                                    <Ruler className="h-2.5 w-2.5" />
+                                    <span>{s.sizeName}</span>
+                                  </span>
+                                )}
                                 <span>·</span>
                                 <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                                   {s.confidence}% match
@@ -2883,7 +2994,7 @@ const AdminProductForm = () => {
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
                                   {colorVal && (
                                     <span className="flex items-center gap-1">
                                       <span
@@ -2891,6 +3002,12 @@ const AdminProductForm = () => {
                                         style={{ background: colorVal.colorCode || "#666" }}
                                       />
                                       <span className="font-medium text-foreground">{colorVal.value}</span>
+                                    </span>
+                                  )}
+                                  {sr.sizeName && (
+                                    <span className="px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-[10px] font-bold flex items-center gap-0.5">
+                                      <Ruler className="h-2.5 w-2.5" />
+                                      <span>{sr.sizeName}</span>
                                     </span>
                                   )}
                                   <span>·</span>
@@ -3396,10 +3513,10 @@ const AdminProductForm = () => {
           <DialogHeader className="p-5 border-b bg-muted/30">
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Boxes className="h-5 w-5 text-primary" />
-              Browse Product Catalog to Link as Color
+              Browse Product Catalog to Link as Sibling (Colors & Sizes)
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Select any product from your catalog to link as a color variation sibling.
+              Select any product from your catalog to link as a color or size variation sibling.
             </DialogDescription>
           </DialogHeader>
 
@@ -3483,7 +3600,7 @@ const AdminProductForm = () => {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
                           {colorVal && (
                             <span className="flex items-center gap-1 font-medium text-foreground">
                               <span
@@ -3491,6 +3608,12 @@ const AdminProductForm = () => {
                                 style={{ background: colorVal.colorCode || "#666" }}
                               />
                               {colorVal.value}
+                            </span>
+                          )}
+                          {p.sizeName && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-[10px] font-bold flex items-center gap-0.5">
+                              <Ruler className="h-2.5 w-2.5" />
+                              <span>{p.sizeName}</span>
                             </span>
                           )}
                           <span>·</span>
@@ -3517,7 +3640,7 @@ const AdminProductForm = () => {
                         onClick={() => addSibling(p)}
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        <span>Link as Color</span>
+                        <span>Link Sibling</span>
                       </Button>
                     )}
                   </div>
