@@ -690,6 +690,7 @@ export const aiService = {
            - SPOTLIGHTS: Directional canister or spotlight.
              * Category MUST be: "spotlights"
              * Name MUST contain: "Spot" or "Opbouwspot"
+           - CRITICAL RULE: NEVER assign "lichtbronnen" (light bulbs / light sources) to any complete lamp or fixture (Hanglamp, Plafondlamp, Tafellamp, Wandlamp, Vloerlamp). "lichtbronnen" is ONLY for standalone replacement bulbs (E27, GU10, etc.)!
 
         2. FINISH / COLOR (CRITICAL — NEVER CALL SILVER GOLD):
            - Look at the actual color of the metal, body, and shades in the photo:

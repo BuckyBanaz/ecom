@@ -204,6 +204,7 @@ const AdminProductQuickAdd = () => {
   const imagePhaseTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const generatingRef = useRef(false);
   const sessionNotified = useRef(false);
+  const groupLeaderMap = useRef<Map<string, { name: string; color?: string; category?: string }>>(new Map());
 
   const apiUrl = getApiV1Url();
   const authHeaders = { Authorization: `Bearer ${localStorage.getItem("admin_token")}` };
@@ -671,6 +672,7 @@ const AdminProductQuickAdd = () => {
     setBatchSummary(null);
     setActiveRowKey(null);
     setImagePromptOverride("");
+    groupLeaderMap.current.clear();
   };
 
   const processRow = async (row: ProductRow, index: number = 0): Promise<boolean> => {
@@ -694,7 +696,15 @@ const AdminProductQuickAdd = () => {
     if (row.color?.trim()) formData.append("color", row.color.trim());
     if (row.specDiff?.trim()) formData.append("specDiff", row.specDiff.trim());
     const effGroupId = row.siblingGroupId || row.sizeGroupId;
-    if (effGroupId) formData.append("siblingGroupId", effGroupId);
+    if (effGroupId) {
+      formData.append("siblingGroupId", effGroupId);
+      const leader = groupLeaderMap.current.get(effGroupId);
+      if (leader) {
+        if (leader.name) formData.append("baseProductTitle", leader.name);
+        if (leader.color) formData.append("leaderColor", leader.color);
+        if (leader.category) formData.append("leaderCategory", leader.category);
+      }
+    }
     if (row.sizeGroupId) formData.append("sizeGroupId", row.sizeGroupId);
     if (row.sizeLabel) formData.append("sizeLabel", row.sizeLabel);
 
@@ -716,6 +726,14 @@ const AdminProductQuickAdd = () => {
 
         if (!response.ok || !data.success) {
           throw new Error(data.error || "Failed");
+        }
+
+        if (effGroupId && !groupLeaderMap.current.has(effGroupId)) {
+          groupLeaderMap.current.set(effGroupId, {
+            name: data.draft?.name || "",
+            color: row.color?.trim() || "",
+            category: data.draft?.category || row.category?.trim() || "",
+          });
         }
 
         clearImagePhaseTimer(row.key);
@@ -838,6 +856,7 @@ const AdminProductQuickAdd = () => {
     clearQuickAddSession();
     setBatchSummary(null);
     setRowProgress({});
+    groupLeaderMap.current.clear();
     setIsGenerating(true);
     generatingRef.current = true;
     setActiveRowKey(null);

@@ -99,6 +99,9 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       sizeLabel,
       color,
       specDiff,
+      baseProductTitle,
+      leaderColor,
+      leaderCategory,
     } = req.body;
     const imageFile = req.file;
 
@@ -112,8 +115,47 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       return res.status(400).json({ success: false, error: "Please provide either a hint, color, specs or an image." });
     }
 
+    const effectiveGroupId = siblingGroupId || sizeGroupId;
+
+    // Check if an earlier sibling in this group was already generated (use it as template leader)
+    let leaderDraftTitle = (baseProductTitle || "").trim();
+    let leaderCategoryVal = (leaderCategory || "").trim();
+
+    if (!leaderDraftTitle && effectiveGroupId) {
+      try {
+        const { prisma } = await import("../lib/prisma");
+        const existingDrafts = await prisma.productDraft.findMany({
+          where: { status: "draft" },
+          orderBy: { createdAt: "desc" },
+          take: 30,
+        });
+        const match = existingDrafts.find((d: any) => {
+          const p = (d.payload || {}) as Record<string, any>;
+          return (
+            p.colorGroupId === effectiveGroupId ||
+            p.siblingGroupId === effectiveGroupId ||
+            p.sizeGroupId === effectiveGroupId
+          );
+        });
+        if (match) {
+          const p = (match.payload || {}) as Record<string, any>;
+          leaderDraftTitle = match.name || p.name || "";
+          if (!leaderCategoryVal && p.category) {
+            leaderCategoryVal = p.category;
+          }
+        }
+      } catch (err) {
+        console.error("Error looking up group leader draft:", err);
+      }
+    }
+
     // Build rich prompt hint incorporating specific color, dimensions, and custom specs
     let effectiveHint = (hint || "").trim();
+    if (leaderDraftTitle) {
+      effectiveHint = `[LINKED VARIANT MANDATORY RULE]: This product is a linked sibling/variant of base model: "${leaderDraftTitle}".
+You MUST preserve the EXACT same collection name, model name, and core title structure as "${leaderDraftTitle}". Do NOT invent a different model name!
+${effectiveHint}`;
+    }
     if (color && !effectiveHint.toLowerCase().includes(color.toLowerCase())) {
       effectiveHint = effectiveHint ? `${effectiveHint}\nKleur / Color: ${color}` : `Kleur / Color: ${color}`;
     }
@@ -124,6 +166,8 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       effectiveHint = effectiveHint ? `${effectiveHint}\nSpecificaties / Variatie: ${specDiff}` : `Specificaties / Variatie: ${specDiff}`;
     }
 
+    const targetCategory = leaderCategoryVal || category || categorySlug || "";
+
     const draft = await aiService.quickAddProduct(
       imageFile,
       effectiveHint,
@@ -131,7 +175,7 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       brandName || "",
       imagePromptOverride || "",
       seriesName || "",
-      category || categorySlug || ""
+      targetCategory
     );
 
     // Apply explicit Color
@@ -183,13 +227,16 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
     }
 
     // Ensure product name and slug reflect variation color and dimensions accurately
-    if (draft && draft.name) {
-      let updatedName = draft.name;
+    if (draft) {
+      // If a group leader title exists, ALWAYS use it as the master template!
+      let updatedName = (leaderDraftTitle && leaderDraftTitle.trim()) ? leaderDraftTitle.trim() : (draft.name || "");
 
       if (color) {
         const commonColors = [
           "Zwart", "Wit", "Goud", "Brons", "Koper", "Rookglas", "Amber", "Hout", "Chroom",
-          "Silver", "Zilver", "Black", "White", "Gold", "Bronze", "Copper", "Messing", "Anthracite"
+          "Silver", "Zilver", "Black", "White", "Gold", "Bronze", "Copper", "Messing", "Anthracite",
+          "Antraciet", "Grijs", "Grey", "Gray", "Taupe", "Beige", "Groen", "Green", "Blauw", "Blue",
+          "Rood", "Red", "Staal", "Steel", "Nikkel", "Nickel"
         ];
         const conflictingColor = commonColors.find(
           (c) => c.toLowerCase() !== color.toLowerCase() && new RegExp(`\\b${c}\\b`, "i").test(updatedName)
@@ -220,12 +267,17 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       if (newSlug) {
         (draft as any).slug = newSlug;
       }
+
+      // Force consistent category across all siblings in this group
+      if (leaderCategoryVal) {
+        (draft as any).category = leaderCategoryVal;
+      }
     }
 
     // Assign Sibling / Variant Group
-    const effectiveGroupId = siblingGroupId || sizeGroupId;
     if (effectiveGroupId) {
       (draft as any).colorGroupId = effectiveGroupId;
+      (draft as any).siblingGroupId = effectiveGroupId;
     }
 
     const saved = await saveProductDraft(draft, { createdBy: (req as any).user?.id });
