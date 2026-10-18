@@ -539,12 +539,12 @@ function normalizeDimensionBucket(attrSlug: string, val: string): string {
   }
 
   if (slug === "length" || slug === "lengte") {
-    if (num < 20) return "Onder 20 cm";
-    if (num <= 40) return "20-40 cm";
+    if (num < 40) return "Onder 40 cm";
     if (num <= 60) return "40-60 cm";
     if (num <= 80) return "60-80 cm";
     if (num <= 100) return "80-100 cm";
-    return "Boven 100 cm";
+    if (num <= 120) return "100-120 cm";
+    return "Boven 120 cm";
   }
 
   // diameter, width, breedte
@@ -552,7 +552,8 @@ function normalizeDimensionBucket(attrSlug: string, val: string): string {
   if (num <= 40) return "20-40 cm";
   if (num <= 60) return "40-60 cm";
   if (num <= 80) return "60-80 cm";
-  return "Boven 80 cm";
+  if (num <= 100) return "80-100 cm";
+  return "Boven 100 cm";
 }
 
       // Handle EAV attribute values update (e.g. color, fitting, etc.)

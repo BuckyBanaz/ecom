@@ -592,11 +592,11 @@ export const aiService = {
 
       // Standard dimension buckets to prevent single-number filter explosion (e.g. 36cm, 65cm)
       const STANDARD_DIMENSION_BUCKETS: Record<string, string[]> = {
-        diameter: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
-        width: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
-        breedte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
-        length: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
-        lengte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        diameter: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        width: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        breedte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        length: ["Onder 40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "100-120 cm", "Boven 120 cm"],
+        lengte: ["Onder 40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "100-120 cm", "Boven 120 cm"],
         height: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
         hoogte: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
       };
@@ -730,6 +730,15 @@ export const aiService = {
            - Visually count the bulbs/light points:
              * Single bulb / table lamp -> "1" (1-lichts)
              * Multi-bulb -> count accurately: "2", "3", "4", "5", etc.
+
+        4.1. DIMENSION CODES IN FILENAMES & MODELS (CRITICAL):
+           - If the image filename, model code, or hint contains "-L100", "L100", "L-100", "L120", "D60", "D80", "D100":
+             * "L" = Lengte / Length in cm (e.g. "C2609-L100" / "L100" = 100 cm length, elongated oval/racetrack eettafel hanglamp):
+               Set attribute "length": "80-100 cm", and in specs include {"key": "Lengte", "value": "100 cm"}.
+             * "L120" = 120 cm length -> attribute "length": "100-120 cm", specs: {"key": "Lengte", "value": "120 cm"}.
+             * "D60" = 60 cm diameter -> attribute "diameter": "40-60 cm", specs: {"key": "Diameter", "value": "60 cm"}.
+             * "D80" = 80 cm diameter -> attribute "diameter": "60-80 cm", specs: {"key": "Diameter", "value": "80 cm"}.
+             * "D100" = 100 cm diameter -> attribute "diameter": "80-100 cm", specs: {"key": "Diameter", "value": "100 cm"}.
 
         5. COLLECTION SELECTION (STRICT SOP):
            ${activeSopRules}
@@ -2416,11 +2425,11 @@ Output ONLY the JSON array. No markdown code blocks.`;
     // 3. Fetch attributes
     const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
     const STANDARD_DIMENSION_BUCKETS: Record<string, string[]> = {
-      diameter: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
-      width: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
-      breedte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
-      length: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
-      lengte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      diameter: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      width: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      breedte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      length: ["Onder 40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "100-120 cm", "Boven 120 cm"],
+      lengte: ["Onder 40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "100-120 cm", "Boven 120 cm"],
       height: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
       hoogte: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
     };

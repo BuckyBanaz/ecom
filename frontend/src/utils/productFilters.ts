@@ -56,37 +56,40 @@ export const STANDARD_DIMENSION_BUCKETS: Record<string, string[]> = {
     "20-40 cm",
     "40-60 cm",
     "60-80 cm",
-    "Boven 80 cm",
+    "80-100 cm",
+    "Boven 100 cm",
   ],
   width: [
     "Onder 20 cm",
     "20-40 cm",
     "40-60 cm",
     "60-80 cm",
-    "Boven 80 cm",
+    "80-100 cm",
+    "Boven 100 cm",
   ],
   breedte: [
     "Onder 20 cm",
     "20-40 cm",
     "40-60 cm",
     "60-80 cm",
-    "Boven 80 cm",
+    "80-100 cm",
+    "Boven 100 cm",
   ],
   length: [
-    "Onder 20 cm",
-    "20-40 cm",
+    "Onder 40 cm",
     "40-60 cm",
     "60-80 cm",
     "80-100 cm",
-    "Boven 100 cm",
+    "100-120 cm",
+    "Boven 120 cm",
   ],
   lengte: [
-    "Onder 20 cm",
-    "20-40 cm",
+    "Onder 40 cm",
     "40-60 cm",
     "60-80 cm",
     "80-100 cm",
-    "Boven 100 cm",
+    "100-120 cm",
+    "Boven 120 cm",
   ],
   height: [
     "Onder 20 cm",
@@ -112,7 +115,8 @@ export function getStandardDimensionOptions(slug?: string): string[] {
     "20-40 cm",
     "40-60 cm",
     "60-80 cm",
-    "Boven 80 cm",
+    "80-100 cm",
+    "Boven 100 cm",
   ];
 }
 
@@ -125,6 +129,7 @@ export function getStandardDimensionOptions(slug?: string): string[] {
  * - "Boven 80 cm" / "Over 80 cm" / "> 80 cm" -> { min: 80, max: 9999 }
  * - "25x25" -> { min: 25, max: 25 }
  * - "80 Cm" -> { min: 80, max: 80 }
+ * - "L100" / "C2609-L100" -> { min: 100, max: 100 }
  */
 export function parseDimensionRange(raw: string): ParsedRange | null {
   if (!raw) return null;
@@ -165,7 +170,17 @@ export function parseDimensionRange(raw: string): ParsedRange | null {
     }
   }
 
-  // 5. Single number: "36cm", "Ø 40 cm", "80 Cm", "12 cm"
+  // 5. SKU/Code size prefix: "L100", "L-100", "D80", "D100", "W60"
+  const prefixMatch = str.match(/(?:^|[^a-zA-Z0-9])(?:L|D|W|H)[-–—_]?(\d{2,4})\b/i);
+  if (prefixMatch) {
+    let val = parseFloat(prefixMatch[1]);
+    if (!isNaN(val)) {
+      if (val > 300) val = val / 10; // e.g. L1000mm -> 100cm
+      return { min: val, max: val };
+    }
+  }
+
+  // 6. Single number: "36cm", "Ø 40 cm", "80 Cm", "12 cm", "100 cm"
   const numMatch = str.match(/\b(\d+(?:[.,]\d+)?)\s*(?:cm|mm)?\b/i);
   if (numMatch) {
     let val = parseFloat(numMatch[1].replace(",", "."));
