@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { brandRepository, categoryRepository, attributeRepository, productRepository, megaMenuRepository } from "@/client/apiClient";
@@ -23,6 +23,7 @@ import { getProductBrandName, getProductCategorySlug } from "@/utils/formatters"
 import { countProductsWithFilterValue, productMatchesAttributeFilter } from "@/utils/productFilters";
 import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
 import { SectionLoader } from "@/components/ui/PageLoader";
+import { useInfiniteList } from "@/hooks/useInfiniteList";
 
 const PRODUCTS_PER_PAGE = 24;
 import {
@@ -547,39 +548,12 @@ const Category = () => {
   // Infinite scroll: render the filtered list in pages of 24; the next page appears when the
   // sentinel below the grid scrolls into view
   const listedProducts = useMemo(() => filtered.filter((p) => p?.id && p?.name), [filtered]);
-  const [visibleCount, setVisibleCount] = useState(PRODUCTS_PER_PAGE);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-  const hasMoreProducts = visibleCount < listedProducts.length;
-
-  useEffect(() => {
-    setVisibleCount(PRODUCTS_PER_PAGE);
-  }, [listedProducts]);
-
-  useEffect(() => {
-    const sentinel = loadMoreRef.current;
-    if (!sentinel || !hasMoreProducts || loadingMore) return;
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting) return;
-        observer.disconnect();
-        setLoadingMore(true);
-        // Short pause so the loader is visible instead of a jump in the grid
-        timer = setTimeout(() => {
-          setVisibleCount((count) => count + PRODUCTS_PER_PAGE);
-          setLoadingMore(false);
-        }, 450);
-      },
-      { rootMargin: "200px 0px" }
-    );
-    observer.observe(sentinel);
-    return () => {
-      observer.disconnect();
-      if (timer) clearTimeout(timer);
-    };
-  }, [hasMoreProducts, loadingMore, visibleCount]);
+  const {
+    visibleItems: visibleProducts,
+    hasMore: hasMoreProducts,
+    loadingMore,
+    sentinelRef: loadMoreRef,
+  } = useInfiniteList(listedProducts, PRODUCTS_PER_PAGE);
 
   // Sticky filter sidebar sits just below the (sticky, variable-height) site header
   const [stickyTop, setStickyTop] = useState(112);
@@ -821,7 +795,7 @@ const Category = () => {
                 ) : (
                   <>
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                      {listedProducts.slice(0, visibleCount).map((p) => <ProductCard key={p.id} product={p} />)}
+                      {visibleProducts.map((p) => <ProductCard key={p.id} product={p} />)}
                     </div>
                     {hasMoreProducts && (
                       <div ref={loadMoreRef} className="flex min-h-24 items-center justify-center py-6" aria-live="polite">
