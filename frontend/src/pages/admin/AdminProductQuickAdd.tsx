@@ -18,7 +18,6 @@ import {
   Layers,
   RefreshCw,
   Copy,
-  Palette,
   Sliders,
   Link2,
   Unlink,
@@ -93,18 +92,6 @@ interface RowProgress {
   draftId?: string;
   productName?: string;
 }
-
-const QUICK_COLOR_PRESETS = [
-  { name: "Zwart", hex: "#1A1A1A" },
-  { name: "Wit", hex: "#FFFFFF" },
-  { name: "Goud", hex: "#D4AF37" },
-  { name: "Brons", hex: "#8C6239" },
-  { name: "Koper", hex: "#B87333" },
-  { name: "Rookglas", hex: "#4A4A4A" },
-  { name: "Amber", hex: "#D9822B" },
-  { name: "Hout", hex: "#8B5A2B" },
-  { name: "Chroom", hex: "#C0C0C0" },
-];
 
 const GROUP_THEMES = [
   {
@@ -251,10 +238,11 @@ const AdminProductQuickAdd = () => {
   const handleSelectExistingProductAsSibling = (prod: any) => {
     if (!linkExistingTargetRowKey) return;
     const assignedGid = prod.colorGroupId || `grp-prod-${prod.id}`;
-    updateRow(linkExistingTargetRowKey, {
+    const patch: Partial<ProductRow> = {
       siblingGroupId: assignedGid,
-      brand: prod.brand?.name || undefined,
-      category: prod.category?.slug || prod.category?.name || undefined,
+      // only overwrite when the store product has one (row.brand is read with .trim())
+      ...(prod.brand?.name ? { brand: prod.brand.name } : {}),
+      ...(prod.category?.slug || prod.category?.name ? { category: prod.category?.slug || prod.category?.name } : {}),
       linkedExistingProduct: {
         id: prod.id,
         name: prod.name,
@@ -263,7 +251,12 @@ const AdminProductQuickAdd = () => {
         category: prod.category?.slug || prod.category?.name,
         colorGroupId: assignedGid,
       },
-    });
+    };
+    // The whole colour group (e.g. Gold + Black rows) becomes variants of the store product, not just this row
+    const targetGid = rows.find((r) => r.key === linkExistingTargetRowKey)?.siblingGroupId;
+    rows
+      .filter((r) => r.key === linkExistingTargetRowKey || (targetGid && r.siblingGroupId === targetGid))
+      .forEach((r) => updateRow(r.key, patch));
     setIsLinkExistingModalOpen(false);
     setLinkExistingTargetRowKey(null);
     toast.success(t("admin_quick_add.toast_linked_to_product", { name: prod.name }) || `Gekoppeld aan: ${prod.name}`);
@@ -673,8 +666,9 @@ const AdminProductQuickAdd = () => {
       category: target.category,
       imageFile: target.imageFile,
       imagePreview: target.imagePreview,
-      color: target.color || "",
-      specDiff: target.specDiff || "",
+      // Colour / spec differences now come from the hint; a copied (hidden) colour would override it
+      color: "",
+      specDiff: "",
       siblingGroupId: assignedGroup,
     };
 
@@ -757,12 +751,11 @@ const AdminProductQuickAdd = () => {
     if (row.series?.trim()) formData.append("seriesName", row.series.trim());
     if (row.category?.trim()) formData.append("category", row.category.trim());
     if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
-    if (row.color?.trim()) formData.append("color", row.color.trim());
-    if (row.specDiff?.trim()) formData.append("specDiff", row.specDiff.trim());
     const effGroupId = row.siblingGroupId || row.sizeGroupId;
     if (effGroupId) {
       formData.append("siblingGroupId", effGroupId);
-      const leader = groupLeaderMap.current.get(effGroupId);
+      // A linked store product is the leader; sending both would turn these fields into arrays
+      const leader = row.linkedExistingProduct ? undefined : groupLeaderMap.current.get(effGroupId);
       if (leader) {
         if (leader.name) formData.append("baseProductTitle", leader.name);
         if (leader.color) formData.append("leaderColor", leader.color);
@@ -1181,35 +1174,6 @@ const AdminProductQuickAdd = () => {
                           <span>{row.sizeLabel}</span>
                         </span>
                       )}
-                      {groupInfo && !row.sizeLabel && (
-                        <span
-                          className={cn(
-                            "px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 shrink-0 transition-all",
-                            groupInfo.theme.bg,
-                            groupInfo.theme.border,
-                            groupInfo.theme.text
-                          )}
-                          title={`Gekoppeld in Groep ${groupInfo.groupNum}`}
-                        >
-                          <Link2 className="h-3 w-3" />
-                          <span>
-                            {groupInfo.count > 1
-                              ? t("admin_quick_add.badge_group_linked", {
-                                  num: groupInfo.groupNum,
-                                  count: groupInfo.count,
-                                })
-                              : t("admin_quick_add.badge_group_single", {
-                                  num: groupInfo.groupNum,
-                                })}
-                          </span>
-                        </span>
-                      )}
-                      {row.color && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border/80 text-foreground flex items-center gap-1 shrink-0">
-                          <Palette className="h-3 w-3 text-amber-500" />
-                          <span>{row.color}</span>
-                        </span>
-                      )}
                       {prog?.status && prog.status !== "idle" && (
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
@@ -1227,7 +1191,7 @@ const AdminProductQuickAdd = () => {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       {prog?.status === "failed" && !isGenerating && (
                         <Button
                           type="button"
@@ -1245,6 +1209,130 @@ const AdminProductQuickAdd = () => {
                         <span className="text-xs text-primary flex items-center gap-1 font-medium px-2 py-0.5 bg-primary/10 rounded-md">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("admin_quick_add.processing_indicator")}
                         </span>
+                      )}
+                      <Select
+                        value={row.linkedExistingProduct ? "link_existing_active" : effectiveGid || "none"}
+                        onValueChange={(val) => {
+                          if (val === "none") {
+                            updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined, linkedExistingProduct: undefined });
+                            toast.info(t("admin_quick_add.toast_sibling_unlinked"));
+                          } else if (val === "link_existing") {
+                            setLinkExistingTargetRowKey(row.key);
+                            setIsLinkExistingModalOpen(true);
+                            loadExistingCatalogProducts(existingFilterCategory, "");
+                          } else if (val === "new_group") {
+                            const newGid = `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+                            updateRow(row.key, { siblingGroupId: newGid, linkedExistingProduct: undefined });
+                            toast.success(t("admin_quick_add.toast_new_group_created"));
+                          } else if (val !== "link_existing_active") {
+                            updateRow(row.key, { siblingGroupId: val, linkedExistingProduct: undefined });
+                            toast.success(t("admin_quick_add.toast_sibling_linked"));
+                          }
+                        }}
+                        disabled={isGenerating}
+                      >
+                        <SelectTrigger
+                          className={cn(
+                            "h-7 text-[11px] font-semibold rounded-lg border gap-1.5 px-2.5 py-0 shadow-2xs transition-all w-auto max-w-[210px]",
+                            row.linkedExistingProduct
+                              ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                              : groupInfo
+                              ? cn(groupInfo.theme.bg, groupInfo.theme.border, groupInfo.theme.text)
+                              : "bg-background/80 hover:bg-muted text-muted-foreground border-border/70 border-dashed"
+                          )}
+                        >
+                          <Link2 className="h-3 w-3 shrink-0" />
+                          <SelectValue>
+                            {row.linkedExistingProduct ? (
+                              <span className="truncate max-w-[140px] block">
+                                🔗 {row.linkedExistingProduct.name}
+                              </span>
+                            ) : groupInfo ? (
+                              groupInfo.count > 1
+                                ? t("admin_quick_add.badge_group_linked", {
+                                    num: groupInfo.groupNum,
+                                    count: groupInfo.count,
+                                  })
+                                : t("admin_quick_add.badge_group_single", {
+                                    num: groupInfo.groupNum,
+                                  })
+                            ) : (
+                              t("admin_quick_add.select_group_none")
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                          <SelectItem value="none" className="text-xs">
+                            {t("admin_quick_add.opt_standalone")}
+                          </SelectItem>
+                          {Array.from(groupInfoMap.entries()).map(([gid, info]) => (
+                            <SelectItem key={gid} value={gid} className="text-xs font-semibold">
+                              <div className="flex items-center gap-2">
+                                <span className={cn("w-2 h-2 rounded-full", info.theme.dot)} />
+                                <span>
+                                  {t("admin_quick_add.badge_group_linked", {
+                                    num: info.groupNum,
+                                    count: info.count,
+                                  })}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="new_group" className="text-xs text-primary font-bold">
+                            <div className="flex items-center gap-1.5">
+                              <Plus className="h-3 w-3" />
+                              <span>
+                                {t("admin_quick_add.opt_start_new_group", {
+                                  num: groupInfoMap.size + (effectiveGid && groupInfo?.count === 1 ? 0 : 1),
+                                })}
+                              </span>
+                            </div>
+                          </SelectItem>
+                          {row.linkedExistingProduct && (
+                            <SelectItem value="link_existing_active" className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                              🔗 {row.linkedExistingProduct.name}
+                            </SelectItem>
+                          )}
+                          <SelectItem value="link_existing" className="text-xs text-amber-600 dark:text-amber-400 font-bold border-t mt-1 pt-1.5 cursor-pointer">
+                            <div className="flex items-center gap-1.5">
+                              <Search className="h-3 w-3" />
+                              <span>{t("admin_quick_add.opt_link_existing", "🔍 Koppel aan winkelproduct...")}</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {!row.linkedExistingProduct && !isGenerating && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setLinkExistingTargetRowKey(row.key);
+                            setIsLinkExistingModalOpen(true);
+                            loadExistingCatalogProducts(existingFilterCategory, "");
+                          }}
+                          className="h-7 text-xs rounded-lg gap-1 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-medium shrink-0"
+                          title="Kies een bestaand winkelproduct als referentie; dit product wordt er als variant aan gekoppeld"
+                        >
+                          <Search className="h-3.5 w-3.5" />
+                          <span>Referentie</span>
+                        </Button>
+                      )}
+                      {(effectiveGid || row.linkedExistingProduct) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined, linkedExistingProduct: undefined });
+                            toast.info(t("admin_quick_add.toast_sibling_unlinked"));
+                          }}
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0"
+                          title={t("admin_quick_add.unlink_sibling_tooltip")}
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
                       )}
                       {!isGenerating && rows.length < bulkLimit && (
                         <Button
@@ -1446,241 +1534,46 @@ const AdminProductQuickAdd = () => {
                         </Select>
                       </div>
 
-                      {/* Color & Specification Differences (Variations / Siblings) */}
-                      <div className="mt-3 p-3 rounded-xl border border-border/70 bg-muted/20 space-y-2.5">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Palette className="h-3.5 w-3.5 text-primary" />
-                            <span className="text-xs font-semibold text-foreground">
-                              {t("admin_quick_add.color_specs_title")}
-                            </span>
-                          </div>
-
-                          {/* Group Selector Dropdown */}
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <Select
-                              value={row.linkedExistingProduct ? "link_existing_active" : effectiveGid || "none"}
-                              onValueChange={(val) => {
-                                if (val === "none") {
-                                  updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined, linkedExistingProduct: undefined });
-                                  toast.info(t("admin_quick_add.toast_sibling_unlinked"));
-                                } else if (val === "link_existing") {
-                                  setLinkExistingTargetRowKey(row.key);
-                                  setIsLinkExistingModalOpen(true);
-                                  loadExistingCatalogProducts(existingFilterCategory, "");
-                                } else if (val === "new_group") {
-                                  const newGid = `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-                                  updateRow(row.key, { siblingGroupId: newGid, linkedExistingProduct: undefined });
-                                  toast.success(t("admin_quick_add.toast_new_group_created"));
-                                } else if (val !== "link_existing_active") {
-                                  updateRow(row.key, { siblingGroupId: val, linkedExistingProduct: undefined });
-                                  toast.success(t("admin_quick_add.toast_sibling_linked"));
-                                }
-                              }}
-                              disabled={isGenerating}
-                            >
-                              <SelectTrigger
-                                className={cn(
-                                  "h-7 text-[11px] font-semibold rounded-lg border gap-1.5 px-2.5 py-0 shadow-2xs transition-all w-auto max-w-[210px]",
-                                  row.linkedExistingProduct
-                                    ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300"
-                                    : groupInfo
-                                    ? cn(groupInfo.theme.bg, groupInfo.theme.border, groupInfo.theme.text)
-                                    : "bg-background/80 hover:bg-muted text-muted-foreground border-border/70 border-dashed"
-                                )}
-                              >
-                                <Link2 className="h-3 w-3 shrink-0" />
-                                <SelectValue>
-                                  {row.linkedExistingProduct ? (
-                                    <span className="truncate max-w-[140px] block">
-                                      🔗 {row.linkedExistingProduct.name}
-                                    </span>
-                                  ) : groupInfo ? (
-                                    groupInfo.count > 1
-                                      ? t("admin_quick_add.badge_group_linked", {
-                                          num: groupInfo.groupNum,
-                                          count: groupInfo.count,
-                                        })
-                                      : t("admin_quick_add.badge_group_single", {
-                                          num: groupInfo.groupNum,
-                                        })
-                                  ) : (
-                                    t("admin_quick_add.select_group_none")
-                                  )}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent align="end">
-                                <SelectItem value="none" className="text-xs">
-                                  {t("admin_quick_add.opt_standalone")}
-                                </SelectItem>
-                                {Array.from(groupInfoMap.entries()).map(([gid, info]) => (
-                                  <SelectItem key={gid} value={gid} className="text-xs font-semibold">
-                                    <div className="flex items-center gap-2">
-                                      <span className={cn("w-2 h-2 rounded-full", info.theme.dot)} />
-                                      <span>
-                                        {t("admin_quick_add.badge_group_linked", {
-                                          num: info.groupNum,
-                                          count: info.count,
-                                        })}
-                                      </span>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                                <SelectItem value="new_group" className="text-xs text-primary font-bold">
-                                  <div className="flex items-center gap-1.5">
-                                    <Plus className="h-3 w-3" />
-                                    <span>
-                                      {t("admin_quick_add.opt_start_new_group", {
-                                        num: groupInfoMap.size + (effectiveGid && groupInfo?.count === 1 ? 0 : 1),
-                                      })}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                                {row.linkedExistingProduct && (
-                                  <SelectItem value="link_existing_active" className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
-                                    🔗 {row.linkedExistingProduct.name}
-                                  </SelectItem>
-                                )}
-                                <SelectItem value="link_existing" className="text-xs text-amber-600 dark:text-amber-400 font-bold border-t mt-1 pt-1.5 cursor-pointer">
-                                  <div className="flex items-center gap-1.5">
-                                    <Search className="h-3 w-3" />
-                                    <span>{t("admin_quick_add.opt_link_existing", "🔍 Koppel aan winkelproduct...")}</span>
-                                  </div>
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-
-                            {(effectiveGid || row.linkedExistingProduct) && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined, linkedExistingProduct: undefined });
-                                  toast.info(t("admin_quick_add.toast_sibling_unlinked"));
-                                }}
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0"
-                                title={t("admin_quick_add.unlink_sibling_tooltip")}
-                              >
-                                <Unlink className="h-3.5 w-3.5" />
-                              </Button>
+                      {/* Linked Existing Product Banner */}
+                      {row.linkedExistingProduct && (
+                        <div className="mt-3 flex items-center justify-between gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {row.linkedExistingProduct.image ? (
+                              <img
+                                src={resolveImgUrl(row.linkedExistingProduct.image)}
+                                alt=""
+                                className="w-7 h-7 rounded object-cover border border-amber-500/30 shrink-0"
+                              />
+                            ) : (
+                              <Layers className="h-4 w-4 text-amber-500 shrink-0" />
                             )}
+                            <div className="truncate">
+                              <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 block leading-tight">
+                                Gekoppeld live winkelproduct
+                              </span>
+                              <span className="font-semibold text-foreground truncate block text-xs">
+                                {row.linkedExistingProduct.name}
+                              </span>
+                            </div>
                           </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => {
+                              updateRow(row.key, {
+                                linkedExistingProduct: undefined,
+                                siblingGroupId: undefined,
+                              });
+                              toast.info("Koppeling met winkelproduct verwijderd");
+                            }}
+                            title="Ontkoppel product"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-
-                        {/* Linked Existing Product Banner */}
-                        {row.linkedExistingProduct && (
-                          <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs">
-                            <div className="flex items-center gap-2 min-w-0">
-                              {row.linkedExistingProduct.image ? (
-                                <img
-                                  src={resolveImgUrl(row.linkedExistingProduct.image)}
-                                  alt=""
-                                  className="w-7 h-7 rounded object-cover border border-amber-500/30 shrink-0"
-                                />
-                              ) : (
-                                <Layers className="h-4 w-4 text-amber-500 shrink-0" />
-                              )}
-                              <div className="truncate">
-                                <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 block leading-tight">
-                                  Gekoppeld live winkelproduct
-                                </span>
-                                <span className="font-semibold text-foreground truncate block text-xs">
-                                  {row.linkedExistingProduct.name}
-                                </span>
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
-                              onClick={() => {
-                                updateRow(row.key, {
-                                  linkedExistingProduct: undefined,
-                                  siblingGroupId: undefined,
-                                });
-                                toast.info("Koppeling met winkelproduct verwijderd");
-                              }}
-                              title="Ontkoppel product"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          {/* Color Input & Quick Pills */}
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[11px] font-medium text-muted-foreground">
-                                {t("admin_quick_add.color_label")}
-                              </label>
-                              {row.color && (
-                                <button
-                                  type="button"
-                                  onClick={() => updateRow(row.key, { color: "" })}
-                                  className="text-[10px] text-muted-foreground hover:text-foreground"
-                                >
-                                  {t("admin_quick_add.color_clear")}
-                                </button>
-                              )}
-                            </div>
-                            <Input
-                              value={row.color || ""}
-                              onChange={(e) => updateRow(row.key, { color: e.target.value })}
-                              placeholder={t("admin_quick_add.color_placeholder")}
-                              className="h-8 text-xs bg-background"
-                              disabled={isGenerating}
-                            />
-                            <div className="flex flex-wrap gap-1 pt-0.5">
-                              {QUICK_COLOR_PRESETS.map((c) => {
-                                const isSelected = (row.color || "").toLowerCase().trim() === c.name.toLowerCase();
-                                return (
-                                  <button
-                                    key={c.name}
-                                    type="button"
-                                    disabled={isGenerating}
-                                    onClick={() => updateRow(row.key, { color: isSelected ? "" : c.name })}
-                                    className={cn(
-                                      "h-5 px-1.5 rounded-full text-[10px] font-medium flex items-center gap-1 border transition-all",
-                                      isSelected
-                                        ? "bg-primary text-white border-primary shadow-xs font-bold"
-                                        : "bg-background/80 hover:bg-muted border-border/80 text-foreground/80"
-                                    )}
-                                  >
-                                    <span
-                                      className="h-2 w-2 rounded-full border border-black/20 shrink-0"
-                                      style={{ backgroundColor: c.hex }}
-                                    />
-                                    <span>{c.name}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Spec Differences Input */}
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[11px] font-medium text-muted-foreground">
-                                {t("admin_quick_add.specs_diff_label")}
-                              </label>
-                              <span className="text-[10px] text-muted-foreground">{t("admin_quick_add.specs_diff_sub")}</span>
-                            </div>
-                            <Input
-                              value={row.specDiff || ""}
-                              onChange={(e) => updateRow(row.key, { specDiff: e.target.value })}
-                              placeholder={t("admin_quick_add.specs_diff_placeholder")}
-                              className="h-8 text-xs bg-background"
-                              disabled={isGenerating}
-                            />
-                            <p className="text-[10px] text-muted-foreground leading-tight">
-                              {t("admin_quick_add.specs_diff_hint")}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      )}
 
                       {((prog?.existingMatches && prog.existingMatches.length > 0) || (liveDuplicates[row.key] && liveDuplicates[row.key].length > 0)) && (
                         <div className="mt-3 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 text-xs space-y-1.5">
@@ -1944,7 +1837,7 @@ const AdminProductQuickAdd = () => {
             <DialogDescription className="text-xs text-muted-foreground">
               {t(
                 "admin_quick_add.link_existing_desc",
-                "Koppel deze rij direct aan een bestaand product uit je winkelcatalogus. De naam, collectie en categorie worden als hoofdmodel overgenomen, en het nieuwe product wordt er als 2-richting broertje/variant aan gekoppeld."
+                "Kies een bestaand winkelproduct als referentie. Naam, categorie, merk, prijs, specificaties en beschrijving worden als basis gebruikt (alleen de kleur volgt je eigen notitie), en het nieuwe product wordt er als kleurvariant aan gekoppeld. Zit de rij in een groep, dan wordt de hele groep gekoppeld."
               )}
             </DialogDescription>
           </DialogHeader>
@@ -2044,7 +1937,7 @@ const AdminProductQuickAdd = () => {
                       className="h-8 text-xs font-bold gap-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white shrink-0 ml-2"
                     >
                       <Link2 className="h-3.5 w-3.5" />
-                      <span>{t("admin_quick_add.btn_select_sibling", "Koppelen als broertje")}</span>
+                      <span>{isSelected ? "Gekoppeld" : "Gebruik als referentie"}</span>
                     </Button>
                   </div>
                 );

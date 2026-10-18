@@ -45,7 +45,8 @@ async function callGeminiRest(
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(GEMINI_TEXT_TIMEOUT_MS),
       });
 
       if (response.ok) {
@@ -66,6 +67,10 @@ async function callGeminiRest(
       }
       break;
     } catch (err: any) {
+      // Timed out: retrying the same slow model only waits longer, let the fallback try the next one
+      if (isTimeoutError(err)) {
+        throw new Error(`Gemini ${modelName} timed out after ${GEMINI_TEXT_TIMEOUT_MS / 1000}s`);
+      }
       lastErr = err.message || String(err);
       if (attempt < 3) {
         await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -93,31 +98,18 @@ async function callGeminiWithFallback(
     "gemini-flash-latest",
   ])];
 
+  // One call per model: callGeminiRest already retries 429/503/500 on the same model, so retrying here
+  // too multiplied the attempts (up to 9 per model) whenever Gemini was busy
   let lastError: any = null;
   for (const model of modelsToTry) {
-    for (let retry = 1; retry <= 3; retry++) {
-      try {
-        console.log(`🔄 Trying Gemini model: ${model}${retry > 1 ? ` (attempt ${retry})` : ""}`);
-        const text = await callGeminiRest(model, parts, temperature);
-        console.log(`✅ Gemini model ${model} succeeded.`);
-        return text;
-      } catch (err: any) {
-        console.warn(`⚠️  Model ${model} failed (attempt ${retry}): ${err.message?.slice(0, 120)}`);
-        lastError = err;
-        const msg = (err.message || "").toLowerCase();
-
-        // If 404 Not Found, model doesn't exist — break to try next model in list
-        if (msg.includes("404") || msg.includes("not found")) {
-          break;
-        }
-
-        // If 429 Rate Limit or 503 Service Unavailable, wait before retrying
-        if (retry < 3 && (msg.includes("429") || msg.includes("503") || msg.includes("resource_exhausted") || msg.includes("overloaded"))) {
-          await new Promise((r) => setTimeout(r, 2000 * retry));
-          continue;
-        }
-        break;
-      }
+    try {
+      console.log(`🔄 Trying Gemini model: ${model}`);
+      const text = await callGeminiRest(model, parts, temperature);
+      console.log(`✅ Gemini model ${model} succeeded.`);
+      return text;
+    } catch (err: any) {
+      console.warn(`⚠️  Model ${model} failed: ${err.message?.slice(0, 120)}`);
+      lastError = err;
     }
   }
   throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);
@@ -127,6 +119,12 @@ async function callGeminiWithFallback(
 // Gemini native image generation (reference photo → lifestyle scene, same product)
 // Models: gemini-2.5-flash-image, gemini-2.5-flash-image-preview, etc.
 // ---------------------------------------------------------------------------
+// A hung Gemini request must not block a whole Quick Add: give up and let the caller try the next model
+const GEMINI_TEXT_TIMEOUT_MS = 120_000;
+const GEMINI_IMAGE_TIMEOUT_MS = 75_000;
+
+const isTimeoutError = (err: any) => err?.name === "TimeoutError" || err?.name === "AbortError";
+
 async function callGeminiImageGeneration(
   productImageBuffer: Buffer,
   mimeType: string,
@@ -175,6 +173,7 @@ async function callGeminiImageGeneration(
           contents: [{ role: "user", parts }],
           generationConfig,
         }),
+        signal: AbortSignal.timeout(GEMINI_IMAGE_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -1167,21 +1166,16 @@ export const aiService = {
 
         console.log(`🎨 Generating up to ${imageCount} Gemini lifestyle image(s) from reference photo...`);
 
-        for (let i = 0; i < imageCount; i++) {
-          const imageBuffer = await callGeminiImageGeneration(
-            imageFile.buffer,
-            imageFile.mimetype,
-            lifestylePrompt
-          );
-          if (!imageBuffer) continue;
-          const saved = await saveCompressedImageToDir(
-            imageBuffer,
-            aiImagesDir,
-            aiImagesUrlPrefix,
-            `gemini-lifestyle-${i}`,
-          );
-          parsedData.images.push(saved.publicPath);
-        }
+        // All images at once instead of one after another (each takes ~10-20s); order is kept
+        const generated = await Promise.all(
+          Array.from({ length: imageCount }, async (_, i) => {
+            const imageBuffer = await callGeminiImageGeneration(imageFile.buffer, imageFile.mimetype, lifestylePrompt);
+            if (!imageBuffer) return null;
+            const saved = await saveCompressedImageToDir(imageBuffer, aiImagesDir, aiImagesUrlPrefix, `gemini-lifestyle-${i}`);
+            return saved.publicPath;
+          })
+        );
+        parsedData.images.push(...generated.filter((p): p is string => !!p));
 
         if (parsedData.images.length === 0) {
           console.warn("⚠️  Gemini lifestyle generation failed — using uploaded photo as cover only.");
@@ -1202,9 +1196,7 @@ export const aiService = {
         if (apiKey && imageCount > 0) {
           const configured = process.env.AI_IMAGE_MODEL || "gemini-2.5-flash-image";
           const modelsToTry = [...new Set([configured, "gemini-2.5-flash-image", "gemini-2.5-flash-image-preview"])];
-          const urls: string[] = [];
-
-          for (let i = 0; i < imageCount; i++) {
+          const generateOne = async (i: number): Promise<string | null> => {
             for (const model of modelsToTry) {
               try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -1215,6 +1207,7 @@ export const aiService = {
                     contents: [{ role: "user", parts: [{ text: textOnlyPrompt }] }],
                     generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
                   }),
+                  signal: AbortSignal.timeout(GEMINI_IMAGE_TIMEOUT_MS),
                 });
                 if (!response.ok) continue;
                 const result: any = await response.json();
@@ -1227,13 +1220,18 @@ export const aiService = {
                   aiImagesUrlPrefix,
                   `gemini-product-${i}`,
                 );
-                urls.push(saved.publicPath);
-                break;
+                return saved.publicPath;
               } catch {
                 /* try next model */
               }
             }
-          }
+            return null;
+          };
+
+          // All images at once instead of one after another; order is kept
+          const urls = (await Promise.all(Array.from({ length: imageCount }, (_, i) => generateOne(i)))).filter(
+            (p): p is string => !!p
+          );
 
           if (urls.length > 0) {
             parsedData.image = urls[0];

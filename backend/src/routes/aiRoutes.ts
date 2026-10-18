@@ -1,4 +1,5 @@
 import express from "express";
+import { applyColorToTitle, detectProductColor, stripColorWords } from "../utils/productColor";
 import multer from "multer";
 import { randomUUID } from "crypto";
 import { aiService } from "../services/aiService";
@@ -16,6 +17,18 @@ import { bulkOptimizeSeo, enqueueProductOptimizeHandler, enqueueBulkProductEditH
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+/** Product specs are stored as `{key: value}` or `[{key, value}]`; flatten to non-empty pairs */
+function specEntries(specs: unknown): Array<[string, string]> {
+  const pairs: Array<[unknown, unknown]> = Array.isArray(specs)
+    ? specs.map((s: any) => [s?.key, s?.value])
+    : specs && typeof specs === "object"
+    ? Object.entries(specs as Record<string, unknown>)
+    : [];
+  return pairs
+    .map(([k, v]) => [String(k ?? "").trim(), String(v ?? "").trim()] as [string, string])
+    .filter(([k, v]) => k && v);
+}
 
 router.use(authenticateJWT, requireAdmin);
 
@@ -89,7 +102,6 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
     const {
       hint,
       price,
-      brandName,
       seriesName,
       category,
       categorySlug,
@@ -104,6 +116,8 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
       leaderCategory,
       linkedExistingProductId,
     } = req.body;
+    // Filled from the linked store product when not given
+    let brandName: string = req.body.brandName || "";
     const imageFile = req.file;
 
     if (imageFile) {
@@ -124,7 +138,7 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
     // Check if user linked to an existing production/store product
     if (linkedExistingProductId) {
       try {
-        const { prisma } = await import("../lib/prisma");
+        const { prisma } = await import("../config/db");
         linkedProductRecord = await prisma.product.findUnique({
           where: { id: String(linkedExistingProductId) },
           include: { category: true, brand: true },
@@ -158,7 +172,7 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
     // Check if an earlier sibling in this group was already generated (use it as template leader)
     if (!leaderDraftTitle && effectiveGroupId) {
       try {
-        const { prisma } = await import("../lib/prisma");
+        const { prisma } = await import("../config/db");
         const existingDrafts = await prisma.productDraft.findMany({
           where: { status: "draft" },
           orderBy: { createdAt: "desc" },
@@ -186,10 +200,30 @@ router.post("/products/quick-add", upload.single("image"), async (req, res) => {
 
     // Build rich prompt hint incorporating specific color, dimensions, and custom specs
     let effectiveHint = (hint || "").trim();
+    // This variant's own colour ("This we have Gold color"); linked siblings used to inherit the leader's
+    // colour because the leader's full title (incl. "Zwart") was handed over as the exact title to copy
+    const variantColor = detectProductColor(color) ?? detectProductColor(hint);
     if (leaderDraftTitle) {
-      effectiveHint = `[LINKED VARIANT MANDATORY RULE]: This product is a linked sibling/variant of base model: "${leaderDraftTitle}".
-You MUST preserve the EXACT same collection name, model name, and core title structure as "${leaderDraftTitle}". Do NOT invent a different model name!
+      const baseModelTitle = stripColorWords(leaderDraftTitle);
+      const colorRule = variantColor
+        ? `COLOUR: this variant is "${variantColor.title}". Use "${variantColor.title}" as the colour in the title, specs and attributes.`
+        : "COLOUR: take this variant's colour from its own photo and the notes below.";
+      effectiveHint = `[LINKED VARIANT MANDATORY RULE]: This product is a colour/size variant of the base model "${baseModelTitle}".
+Keep the SAME collection name, model name and title structure as "${baseModelTitle}". Do NOT invent a different model name!
+${colorRule} NEVER copy the colour of the base model or of other variants.
 ${effectiveHint}`;
+    }
+    // Linked store product = reference: same model, so its specs (minus colour) and description carry over
+    if (linkedProductRecord) {
+      const refSpecs = specEntries(linkedProductRecord.specs)
+        .filter(([key]) => !/kleur|colou?r/i.test(key) || /licht/i.test(key))
+        .map(([key, value]) => `- ${key}: ${value}`)
+        .join("\n");
+      const refDescription = String(linkedProductRecord.shortDescription || "").trim().slice(0, 600);
+      if (refSpecs || refDescription) {
+        effectiveHint = `${effectiveHint}
+[REFERENCE PRODUCT "${stripColorWords(linkedProductRecord.name)}"]: use these as the base for this variant's specs and description. Only change what differs (colour, or what the notes/photo say).${refSpecs ? `\nSpecs:\n${refSpecs}` : ""}${refDescription ? `\nShort description: ${stripColorWords(refDescription)}` : ""}`;
+      }
     }
     if (color && !effectiveHint.toLowerCase().includes(color.toLowerCase())) {
       effectiveHint = effectiveHint ? `${effectiveHint}\nKleur / Color: ${color}` : `Kleur / Color: ${color}`;
@@ -206,7 +240,7 @@ ${effectiveHint}`;
     const draft = await aiService.quickAddProduct(
       imageFile,
       effectiveHint,
-      price || "",
+      price || (linkedProductRecord?.price ? String(linkedProductRecord.price) : ""),
       brandName || "",
       imagePromptOverride || "",
       seriesName || "",
@@ -227,6 +261,20 @@ ${effectiveHint}`;
       }
       if (!(draft as any).attributes) (draft as any).attributes = {};
       (draft as any).attributes.color = [color];
+    }
+
+    // Colour from the hint is the truth: the AI (and its title-based colour guardrails) can still drift
+    if (variantColor) {
+      const d = draft as any;
+      if (d.seoTitle) d.seoTitle = applyColorToTitle(String(d.seoTitle), variantColor);
+      if (!color) {
+        if (!Array.isArray(d.specs)) d.specs = [];
+        const kleurIdx = d.specs.findIndex((s: any) => /kleur|colou?r/i.test(String(s?.key || "")) && !/licht/i.test(String(s?.key || "")));
+        if (kleurIdx >= 0) d.specs[kleurIdx].value = variantColor.title;
+        else d.specs.unshift({ key: "Kleur", value: variantColor.title });
+        if (!d.attributes) d.attributes = {};
+        if (variantColor.attribute) d.attributes.color = [variantColor.attribute];
+      }
     }
 
     // Apply explicit Size
@@ -282,21 +330,14 @@ ${effectiveHint}`;
       // If a group leader title exists, ALWAYS use it as the master template!
       let updatedName = (leaderDraftTitle && leaderDraftTitle.trim()) ? leaderDraftTitle.trim() : (draft.name || "");
 
-      if (color) {
-        const commonColors = [
-          "Zwart", "Wit", "Goud", "Brons", "Koper", "Rookglas", "Amber", "Hout", "Chroom",
-          "Silver", "Zilver", "Black", "White", "Gold", "Bronze", "Copper", "Messing", "Anthracite",
-          "Antraciet", "Grijs", "Grey", "Gray", "Taupe", "Beige", "Groen", "Green", "Blauw", "Blue",
-          "Rood", "Red", "Staal", "Steel", "Nikkel", "Nickel"
-        ];
-        const conflictingColor = commonColors.find(
-          (c) => c.toLowerCase() !== color.toLowerCase() && new RegExp(`\\b${c}\\b`, "i").test(updatedName)
-        );
-        if (conflictingColor) {
-          updatedName = updatedName.replace(new RegExp(`\\b${conflictingColor}\\b`, "i"), color);
-        } else if (!new RegExp(`\\b${color}\\b`, "i").test(updatedName)) {
-          updatedName = `${updatedName} - ${color}`;
-        }
+      // Siblings share the leader title, so the colour word must be swapped for this variant's own colour
+      // (from the hint, or the legacy colour field); a title without a colour word gets it appended
+      if (variantColor) {
+        updatedName = detectProductColor(updatedName)
+          ? applyColorToTitle(updatedName, variantColor)
+          : `${updatedName} - ${variantColor.title}`;
+      } else if (color && !updatedName.toLowerCase().includes(String(color).toLowerCase())) {
+        updatedName = `${updatedName} - ${color}`;
       }
 
       if (sizeLabel) {
