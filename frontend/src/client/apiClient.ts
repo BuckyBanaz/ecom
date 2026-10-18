@@ -957,24 +957,18 @@ export const backupsRepository = {
     }),
   remove: async (id: string) =>
     request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  // Native browser download via a 2-minute link: streams to disk with the browser's own progress bar,
+  // instead of buffering the whole archive in memory first (large backups never finished that way).
   download: async (id: string, filename: string) => {
-    const token = localStorage.getItem("admin_token") || localStorage.getItem("customer_token");
-    const response = await fetch(`${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}/download`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
-      throw new Error(errorBody.message || `Download failed (${response.status})`);
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
+    const path = `${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}`;
+    const data = await request<{ success: boolean; token: string }>(`${path}/download-link`, { method: "POST" });
     const anchor = document.createElement("a");
-    anchor.href = url;
+    anchor.href = `${path}/download?dl=${encodeURIComponent(data.token)}`;
     anchor.download = filename;
+    anchor.rel = "noopener";
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    URL.revokeObjectURL(url);
   },
 };
 

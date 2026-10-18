@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Link, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { brandRepository, categoryRepository, attributeRepository, productRepository, megaMenuRepository } from "@/client/apiClient";
@@ -22,6 +22,9 @@ import { resolveImgUrl } from "@/utils/image";
 import { getProductBrandName, getProductCategorySlug } from "@/utils/formatters";
 import { countProductsWithFilterValue, productMatchesAttributeFilter } from "@/utils/productFilters";
 import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
+import { SectionLoader } from "@/components/ui/PageLoader";
+
+const PRODUCTS_PER_PAGE = 24;
 import {
   applyPageMeta,
   buildBreadcrumbSchema,
@@ -541,6 +544,55 @@ const Category = () => {
     return list;
   }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes, searchParams]);
 
+  // Infinite scroll: render the filtered list in pages of 24; the next page appears when the
+  // sentinel below the grid scrolls into view
+  const listedProducts = useMemo(() => filtered.filter((p) => p?.id && p?.name), [filtered]);
+  const [visibleCount, setVisibleCount] = useState(PRODUCTS_PER_PAGE);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const hasMoreProducts = visibleCount < listedProducts.length;
+
+  useEffect(() => {
+    setVisibleCount(PRODUCTS_PER_PAGE);
+  }, [listedProducts]);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasMoreProducts || loadingMore) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        observer.disconnect();
+        setLoadingMore(true);
+        // Short pause so the loader is visible instead of a jump in the grid
+        timer = setTimeout(() => {
+          setVisibleCount((count) => count + PRODUCTS_PER_PAGE);
+          setLoadingMore(false);
+        }, 450);
+      },
+      { rootMargin: "200px 0px" }
+    );
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+      if (timer) clearTimeout(timer);
+    };
+  }, [hasMoreProducts, loadingMore, visibleCount]);
+
+  // Sticky filter sidebar sits just below the (sticky, variable-height) site header
+  const [stickyTop, setStickyTop] = useState(112);
+  useEffect(() => {
+    const header = document.querySelector("header");
+    if (!header) return;
+    const update = () => setStickyTop(Math.round(header.getBoundingClientRect().height) + 16);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
   const getDealsTitle = () => {
     const priceMax = searchParams.get("price-max");
     const clearance = searchParams.get("clearance");
@@ -716,7 +768,10 @@ const Category = () => {
           <div className="mt-6 grid gap-8 lg:grid-cols-[260px_1fr]">
             
             {/* SIDEBAR FILTERS - DESKTOP */}
-            <aside className="hidden lg:block">
+            <aside
+              className="hidden lg:block lg:sticky lg:self-start lg:overflow-y-auto overscroll-contain pr-1"
+              style={{ top: stickyTop, maxHeight: `calc(100vh - ${stickyTop + 16}px)` }}
+            >
               {filtersSidebar}
             </aside>
 
@@ -764,9 +819,16 @@ const Category = () => {
                 ) : filtered.length === 0 ? (
                   <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">{t("category.no_results")}</div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                    {filtered.filter((p) => p?.id && p?.name).map((p) => <ProductCard key={p.id} product={p} />)}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                      {listedProducts.slice(0, visibleCount).map((p) => <ProductCard key={p.id} product={p} />)}
+                    </div>
+                    {hasMoreProducts && (
+                      <div ref={loadMoreRef} className="flex min-h-24 items-center justify-center py-6" aria-live="polite">
+                        {loadingMore && <SectionLoader size={72} />}
+                      </div>
+                    )}
+                  </>
                 )}
             </div>
           </div>
