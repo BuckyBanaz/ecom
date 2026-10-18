@@ -590,13 +590,29 @@ export const aiService = {
 
       const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
 
+      // Standard dimension buckets to prevent single-number filter explosion (e.g. 36cm, 65cm)
+      const STANDARD_DIMENSION_BUCKETS: Record<string, string[]> = {
+        diameter: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
+        width: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
+        breedte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
+        length: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        lengte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        height: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
+        hoogte: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
+      };
+
       // Build attribute schema using EXACT DB slugs as keys so the AI returns slug-keyed JSON
       const dynamicAttributesSchema: Record<string, any> = {};
       const attributeSlugMap: Record<string, string[]> = {}; // slug -> allowed values
       attributes.forEach(attr => {
-        const allowed = attr.attributeValues.map(v => v.value);
+        const slugLower = attr.slug.toLowerCase();
+        const isDim = STANDARD_DIMENSION_BUCKETS[slugLower] != null;
+        const allowed = isDim ? STANDARD_DIMENSION_BUCKETS[slugLower] : attr.attributeValues.map(v => v.value);
         attributeSlugMap[attr.slug] = allowed;
-        if (attr.type === "boolean") {
+
+        if (isDim) {
+          dynamicAttributesSchema[attr.slug] = [`one standard range bucket: ${allowed.join(" | ")}`];
+        } else if (attr.type === "boolean") {
           dynamicAttributesSchema[attr.slug] = ["'Yes' or 'No'"];
         } else if (attr.type === "select") {
           const allowedVals = allowed.join(" | ");
@@ -611,8 +627,10 @@ export const aiService = {
 
       // Build a readable attribute guide for the AI
       const attributeGuide = attributes.map(attr => {
-        const vals = attr.attributeValues.map(v => v.value).join(", ");
-        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}`;
+        const slugLower = attr.slug.toLowerCase();
+        const isDim = STANDARD_DIMENSION_BUCKETS[slugLower] != null;
+        const vals = isDim ? STANDARD_DIMENSION_BUCKETS[slugLower].join(", ") : attr.attributeValues.map(v => v.value).join(", ");
+        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}${isDim ? " [CRITICAL: Pick ONLY one of the standard range buckets; put exact dimensions in specs!]" : ""}`;
       }).join("\n");
 
       // Built-in Schip en Ster SOP Brand & Collection Architecture
@@ -2397,10 +2415,21 @@ Output ONLY the JSON array. No markdown code blocks.`;
 
     // 3. Fetch attributes
     const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
+    const STANDARD_DIMENSION_BUCKETS: Record<string, string[]> = {
+      diameter: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
+      width: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
+      breedte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "Boven 80 cm"],
+      length: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      lengte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      height: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
+      hoogte: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
+    };
     const attributeGuide = attributes
       .map((attr) => {
-        const vals = attr.attributeValues.map((v) => v.value).join(", ");
-        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}`;
+        const slugLower = attr.slug.toLowerCase();
+        const isDim = STANDARD_DIMENSION_BUCKETS[slugLower] != null;
+        const vals = isDim ? STANDARD_DIMENSION_BUCKETS[slugLower].join(", ") : attr.attributeValues.map((v) => v.value).join(", ");
+        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}${isDim ? " [CRITICAL: Pick ONLY one of the standard range buckets; put exact dimensions in specs!]" : ""}`;
       })
       .join("\n");
 

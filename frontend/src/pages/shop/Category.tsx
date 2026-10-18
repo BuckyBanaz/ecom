@@ -20,7 +20,12 @@ import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { resolveImgUrl } from "@/utils/image";
 import { getProductBrandName, getProductCategorySlug } from "@/utils/formatters";
-import { countProductsWithFilterValue, productMatchesAttributeFilter } from "@/utils/productFilters";
+import {
+  countProductsWithFilterValue,
+  productMatchesAttributeFilter,
+  isDimensionAttribute,
+  getStandardDimensionOptions,
+} from "@/utils/productFilters";
 import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
 import {
   applyPageMeta,
@@ -659,12 +664,16 @@ const Category = () => {
         const sectionName = attr.name;
         const isSectionOpen = openSections[sectionName] ?? true;
         const hasInfoIcon = attr.slug === "dimmable" || attr.slug === "fitting" || attr.slug === "ip-rating";
+        const isDimension = isDimensionAttribute(attr.slug);
+        const options = isDimension
+          ? getStandardDimensionOptions(attr.slug)
+          : attr.values.map(v => v.value);
 
         return (
           <CheckBlock
             key={attr.id}
             title={attr.name}
-            options={attr.values.map(v => v.value)}
+            options={options}
             selected={selectedFilters[attr.slug] || []}
             onToggle={(val) => toggleFilter(attr.slug, val)}
             getOptionCount={(val) => getOptionCount("attribute", attr.slug, val, attr.name)}
@@ -837,7 +846,16 @@ function CheckBlock({
 }) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
-  const visibleOptions = showAll ? options : options.slice(0, 4);
+
+  // Filter out options with 0 products unless already selected by the user
+  const availableOptions = useMemo(() => {
+    if (!getOptionCount) return options;
+    return options.filter((o) => selected.includes(o) || getOptionCount(o) > 0);
+  }, [options, selected, getOptionCount]);
+
+  if (availableOptions.length === 0) return null;
+
+  const visibleOptions = showAll ? availableOptions : availableOptions.slice(0, 4);
 
   return (
     <FilterBlock title={title} hasInfo={hasInfo} isOpen={isOpen} onToggle={onToggleSection}>
@@ -879,7 +897,7 @@ function CheckBlock({
         })}
       </ul>
       
-      {options.length > 4 && (
+      {availableOptions.length > 4 && (
         <button
           type="button"
           className="mt-3 text-xs font-semibold text-primary hover:underline flex items-center gap-1 transition-all"
@@ -891,7 +909,7 @@ function CheckBlock({
             </>
           ) : (
             <>
-              {t("category.show_more", { count: options.length - 4 })} <ChevronDown className="h-3.5 w-3.5" />
+              {t("category.show_more", { count: availableOptions.length - 4 })} <ChevronDown className="h-3.5 w-3.5" />
             </>
           )}
         </button>

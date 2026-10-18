@@ -515,6 +515,46 @@ async function runBulkProductEditJob(payload: {
         });
       }
 
+function normalizeDimensionBucket(attrSlug: string, val: string): string {
+  const slug = attrSlug.toLowerCase();
+  const isDimension = ["diameter", "width", "length", "height", "breedte", "lengte", "hoogte"].includes(slug);
+  if (!isDimension) return val;
+
+  // If already matches a bucket format like "20-40 cm" or "Onder 20 cm", keep it
+  if (/^(onder|boven|\d+-\d+)/i.test(val.trim())) return val.trim();
+
+  // Extract numeric dimension
+  const numMatch = String(val).match(/\b(\d+(?:[.,]\d+)?)\s*(?:cm|mm)?\b/i);
+  if (!numMatch) return val;
+  let num = parseFloat(numMatch[1].replace(",", "."));
+  if (/mm/i.test(val) && num > 100) num /= 10;
+  if (isNaN(num)) return val;
+
+  if (slug === "height" || slug === "hoogte") {
+    if (num < 20) return "Onder 20 cm";
+    if (num <= 50) return "20-50 cm";
+    if (num <= 100) return "50-100 cm";
+    if (num <= 150) return "100-150 cm";
+    return "Boven 150 cm";
+  }
+
+  if (slug === "length" || slug === "lengte") {
+    if (num < 20) return "Onder 20 cm";
+    if (num <= 40) return "20-40 cm";
+    if (num <= 60) return "40-60 cm";
+    if (num <= 80) return "60-80 cm";
+    if (num <= 100) return "80-100 cm";
+    return "Boven 100 cm";
+  }
+
+  // diameter, width, breedte
+  if (num < 20) return "Onder 20 cm";
+  if (num <= 40) return "20-40 cm";
+  if (num <= 60) return "40-60 cm";
+  if (num <= 80) return "60-80 cm";
+  return "Boven 80 cm";
+}
+
       // Handle EAV attribute values update (e.g. color, fitting, etc.)
       if (edited.attributes && typeof edited.attributes === "object") {
         for (const [attrSlug, val] of Object.entries(edited.attributes)) {
@@ -525,8 +565,9 @@ async function runBulkProductEditJob(payload: {
 
           const valList = Array.isArray(val) ? val : [val];
           for (const rawVal of valList) {
-            const singleVal = String(rawVal).trim();
+            let singleVal = String(rawVal).trim();
             if (!singleVal) continue;
+            singleVal = normalizeDimensionBucket(attrSlug, singleVal);
 
             let attrValue = await prisma.attributeValue.findFirst({
               where: {
