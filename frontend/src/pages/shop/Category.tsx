@@ -20,12 +20,7 @@ import { ShortcodeRenderer } from "@/components/cms/ShortcodeRenderer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { resolveImgUrl } from "@/utils/image";
 import { getProductBrandName, getProductCategorySlug } from "@/utils/formatters";
-import {
-  countProductsWithFilterValue,
-  productMatchesAttributeFilter,
-  isDimensionAttribute,
-  getStandardDimensionOptions,
-} from "@/utils/productFilters";
+import { countProductsWithFilterValue, productMatchesAttributeFilter } from "@/utils/productFilters";
 import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
 import {
   applyPageMeta,
@@ -664,16 +659,12 @@ const Category = () => {
         const sectionName = attr.name;
         const isSectionOpen = openSections[sectionName] ?? true;
         const hasInfoIcon = attr.slug === "dimmable" || attr.slug === "fitting" || attr.slug === "ip-rating";
-        const isDimension = isDimensionAttribute(attr.slug);
-        const options = isDimension
-          ? getStandardDimensionOptions(attr.slug)
-          : attr.values.map(v => v.value);
 
         return (
           <CheckBlock
             key={attr.id}
             title={attr.name}
-            options={options}
+            options={attr.values.map(v => v.value)}
             selected={selectedFilters[attr.slug] || []}
             onToggle={(val) => toggleFilter(attr.slug, val)}
             getOptionCount={(val) => getOptionCount("attribute", attr.slug, val, attr.name)}

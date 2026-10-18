@@ -2,6 +2,8 @@ import { prisma } from "../config/db";
 import { aiService } from "./aiService";
 import { loadSeoEntityContext, runSeoAudit, saveSeoFields, SeoEntityType } from "./seoAuditService";
 import { runSeoAutopilot } from "./seoAutopilotService";
+import { resolveAttributeValue } from "./productAttributeService";
+import { deriveDimensionBucketsFromSpecs, isDimensionSlug } from "../utils/dimensionAttributes";
 
 export const SEO_JOB_KEY = "seo_job_state";
 
@@ -515,48 +517,8 @@ async function runBulkProductEditJob(payload: {
         });
       }
 
-function normalizeDimensionBucket(attrSlug: string, val: string): string {
-  const slug = attrSlug.toLowerCase();
-  const isDimension = ["diameter", "width", "length", "height", "breedte", "lengte", "hoogte"].includes(slug);
-  if (!isDimension) return val;
-
-  // If already matches a bucket format like "20-40 cm" or "Onder 20 cm", keep it
-  if (/^(onder|boven|\d+-\d+)/i.test(val.trim())) return val.trim();
-
-  // Extract numeric dimension
-  const numMatch = String(val).match(/\b(\d+(?:[.,]\d+)?)\s*(?:cm|mm)?\b/i);
-  if (!numMatch) return val;
-  let num = parseFloat(numMatch[1].replace(",", "."));
-  if (/mm/i.test(val) && num > 100) num /= 10;
-  if (isNaN(num)) return val;
-
-  if (slug === "height" || slug === "hoogte") {
-    if (num < 20) return "Onder 20 cm";
-    if (num <= 50) return "20-50 cm";
-    if (num <= 100) return "50-100 cm";
-    if (num <= 150) return "100-150 cm";
-    return "Boven 150 cm";
-  }
-
-  if (slug === "length" || slug === "lengte") {
-    if (num < 40) return "Onder 40 cm";
-    if (num <= 60) return "40-60 cm";
-    if (num <= 80) return "60-80 cm";
-    if (num <= 100) return "80-100 cm";
-    if (num <= 120) return "100-120 cm";
-    return "Boven 120 cm";
-  }
-
-  // diameter, width, breedte
-  if (num < 20) return "Onder 20 cm";
-  if (num <= 40) return "20-40 cm";
-  if (num <= 60) return "40-60 cm";
-  if (num <= 80) return "60-80 cm";
-  if (num <= 100) return "80-100 cm";
-  return "Boven 100 cm";
-}
-
       // Handle EAV attribute values update (e.g. color, fitting, etc.)
+      const dimensionSlugsSet = new Set<string>();
       if (edited.attributes && typeof edited.attributes === "object") {
         for (const [attrSlug, val] of Object.entries(edited.attributes)) {
           const attribute = await prisma.attribute.findUnique({
@@ -566,9 +528,20 @@ function normalizeDimensionBucket(attrSlug: string, val: string): string {
 
           const valList = Array.isArray(val) ? val : [val];
           for (const rawVal of valList) {
-            let singleVal = String(rawVal).trim();
+            const singleVal = String(rawVal).trim();
             if (!singleVal) continue;
-            singleVal = normalizeDimensionBucket(attrSlug, singleVal);
+
+            // Length / Diameter / Width only link to an existing bucket — never create raw sizes
+            if (isDimensionSlug(attribute.slug)) {
+              const bucketValue = await resolveAttributeValue(attribute, singleVal);
+              if (!bucketValue) continue;
+              await prisma.productAttributeValue.deleteMany({ where: { productId, attributeId: attribute.id } });
+              await prisma.productAttributeValue.create({
+                data: { productId, attributeId: attribute.id, attributeValueId: bucketValue.id },
+              });
+              dimensionSlugsSet.add(attribute.slug);
+              break;
+            }
 
             let attrValue = await prisma.attributeValue.findFirst({
               where: {
@@ -612,6 +585,21 @@ function normalizeDimensionBucket(attrSlug: string, val: string): string {
               update: {},
             });
           }
+        }
+      }
+
+      // Rewritten specs ("Lengte: 100 cm") set Length / Diameter / Width the attributes map left out
+      if (updateData.specs) {
+        for (const [slug, label] of Object.entries(deriveDimensionBucketsFromSpecs(updateData.specs))) {
+          if (dimensionSlugsSet.has(slug)) continue;
+          const attribute = await prisma.attribute.findUnique({ where: { slug } });
+          if (!attribute) continue;
+          const bucketValue = await resolveAttributeValue(attribute, label);
+          if (!bucketValue) continue;
+          await prisma.productAttributeValue.deleteMany({ where: { productId, attributeId: attribute.id } });
+          await prisma.productAttributeValue.create({
+            data: { productId, attributeId: attribute.id, attributeValueId: bucketValue.id },
+          });
         }
       }
 

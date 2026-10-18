@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/db";
 import { sanitizeProductForClient, sanitizeProductsForClient } from "../utils/productSerializer";
 import { InventoryService } from "../services/inventoryService";
+import { syncProductAttributes } from "../services/productAttributeService";
 
 const CATEGORY_ALIASES: Record<string, string> = {
   // Indoor lighting / Parent / All
@@ -736,61 +737,8 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       },
     });
 
-    // Insert Product Attribute Value links
-    if (attributes && typeof attributes === "object") {
-      for (const [attrSlug, val] of Object.entries(attributes)) {
-        const attribute = await prisma.attribute.findUnique({
-          where: { slug: attrSlug },
-        });
-        if (!attribute) continue;
-
-        const valList = Array.isArray(val) ? val : [val];
-        for (const singleVal of valList) {
-          if (!singleVal) continue;
-          const cleanVal = String(singleVal).trim();
-          if (/^sku[-_]/i.test(cleanVal) || /^https?:\/\//i.test(cleanVal) || cleanVal.length > 50) {
-            continue;
-          }
-          let attrValue = await prisma.attributeValue.findFirst({
-            where: {
-              attributeId: attribute.id,
-              value: { equals: cleanVal, mode: "insensitive" },
-            },
-          });
-
-          // Match existing option; do NOT auto-create unapproved options for select attributes
-          if (!attrValue) {
-            const numMatch = cleanVal.match(/\d+\s*(?:cm|mm)?/i)?.[0]?.replace(/\s+/g, "").toLowerCase();
-            if (numMatch) {
-              const allValues = await prisma.attributeValue.findMany({
-                where: { attributeId: attribute.id },
-              });
-              attrValue = allValues.find((v) => v.value.replace(/\s+/g, "").toLowerCase() === numMatch || v.value.toLowerCase().includes(numMatch)) || null;
-            }
-          }
-
-          if (!attrValue) {
-            continue;
-          }
-
-          await prisma.productAttributeValue.upsert({
-            where: {
-              productId_attributeId_attributeValueId: {
-                productId: product.id,
-                attributeId: attribute.id,
-                attributeValueId: attrValue.id,
-              },
-            },
-            create: {
-              productId: product.id,
-              attributeId: attribute.id,
-              attributeValueId: attrValue.id,
-            },
-            update: {},
-          });
-        }
-      }
-    }
+    // Insert Product Attribute Value links (dimension buckets fall back to specs)
+    await syncProductAttributes(product.id, attributes, specs, { replaceExisting: false });
 
     // Insert Product Variants
     if (variants && Array.isArray(variants)) {
@@ -988,78 +936,8 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       },
     });
 
-    // Sync attribute mapping
-    if (attributes && typeof attributes === "object") {
-      // Clear old mappings
-      await prisma.productAttributeValue.deleteMany({ where: { productId: realProductId } });
-
-      for (const [attrSlug, val] of Object.entries(attributes)) {
-        let attribute = await prisma.attribute.findFirst({
-          where: {
-            OR: [
-              { slug: attrSlug },
-              { slug: attrSlug.toLowerCase() },
-              { name: { equals: attrSlug, mode: "insensitive" } },
-            ],
-          },
-        });
-        if (!attribute) continue;
-
-        const valList = Array.isArray(val) ? val : [val];
-        for (const singleVal of valList) {
-          if (!singleVal) continue;
-          const cleanVal = String(singleVal).trim();
-          if (/^sku[-_]/i.test(cleanVal) || /^https?:\/\//i.test(cleanVal) || cleanVal.length > 50) {
-            continue;
-          }
-          let attrValue = await prisma.attributeValue.findFirst({
-            where: {
-              attributeId: attribute.id,
-              value: { equals: cleanVal, mode: "insensitive" },
-            },
-          });
-
-          // Match existing option; do NOT auto-create unapproved options for select attributes
-          if (!attrValue) {
-            const allValues = await prisma.attributeValue.findMany({
-              where: { attributeId: attribute.id },
-            });
-            attrValue = allValues.find(
-              (v) =>
-                v.value.trim().toLowerCase() === cleanVal.toLowerCase() ||
-                v.value.replace(/\s+/g, "").toLowerCase() === cleanVal.replace(/\s+/g, "").toLowerCase()
-            ) || null;
-
-            if (!attrValue) {
-              const numMatch = cleanVal.match(/\d+\s*(?:cm|mm)?/i)?.[0]?.replace(/\s+/g, "").toLowerCase();
-              if (numMatch) {
-                attrValue = allValues.find((v) => v.value.replace(/\s+/g, "").toLowerCase() === numMatch || v.value.toLowerCase().includes(numMatch)) || null;
-              }
-            }
-          }
-
-          if (!attrValue) {
-            continue;
-          }
-
-          await prisma.productAttributeValue.upsert({
-            where: {
-              productId_attributeId_attributeValueId: {
-                productId: realProductId,
-                attributeId: attribute.id,
-                attributeValueId: attrValue.id,
-              },
-            },
-            create: {
-              productId: realProductId,
-              attributeId: attribute.id,
-              attributeValueId: attrValue.id,
-            },
-            update: {},
-          });
-        }
-      }
-    }
+    // Sync attribute mapping (dimension buckets fall back to specs)
+    await syncProductAttributes(realProductId, attributes, specs, { replaceExisting: true });
 
     // Sync variants
     if (variants && Array.isArray(variants)) {

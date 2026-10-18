@@ -20,6 +20,7 @@ import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog"
 import { QrCodePreviewModal } from "@/components/admin/inventory/QrCodePreviewModal";
 import { cn } from "@/lib/utils";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { dimensionSlugForSpecKey, isDimensionAttributeSlug, pickDimensionBucket } from "@/utils/dimensionBuckets";
 import { getApiV1Url } from "@/utils/endpoints";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -974,6 +975,13 @@ const AdminProductForm = () => {
   };
 
   const normalizeAttrValue = (slug: string, val: string): string => {
+    // Length / Diameter / Width: raw sizes ("36cm") map onto the attribute's bucket ("20-40 cm")
+    if (isDimensionAttributeSlug(slug)) {
+      const labels = attributes.find((a) => a.slug === slug)?.values.map((v) => v.value) ?? [];
+      // Attributes not loaded yet: keep the raw size, the backend maps it to the bucket on save
+      if (labels.length === 0) return val;
+      return pickDimensionBucket(val, labels) ?? "";
+    }
     if (slug === "fitting") {
       const normalized = FITTING_ALIAS[val.toLowerCase().trim()];
       return normalized || val;
@@ -1285,12 +1293,24 @@ const AdminProductForm = () => {
     toast.success(t("admin_product_form.toast_param_added", { name: newParamName.trim() }));
   };
 
+  // Typing a size into a Length / Diameter / Width spec selects the matching bucket in the attributes panel
+  const syncDimensionFromSpec = (key: string, value: string) => {
+    const slug = dimensionSlugForSpecKey(key);
+    if (!slug) return;
+    const bucket = normalizeAttrValue(slug, value);
+    if (bucket) setSelectedAttributeValues((prev) => ({ ...prev, [slug]: [bucket] }));
+  };
+
   const handleUpdateItemKey = (itemId: string, newKey: string) => {
     setSpecs((prev) => prev.map((item) => item.id === itemId ? { ...item, key: newKey } : item));
+    const item = specs.find((s) => s.id === itemId);
+    if (item) syncDimensionFromSpec(newKey, item.value);
   };
 
   const handleUpdateItemValue = (itemId: string, newVal: string) => {
     setSpecs((prev) => prev.map((item) => item.id === itemId ? { ...item, value: newVal } : item));
+    const item = specs.find((s) => s.id === itemId);
+    if (item) syncDimensionFromSpec(item.key, newVal);
   };
 
   const handleUpdateItemLink = (itemId: string, newLink: string) => {
