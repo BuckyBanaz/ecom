@@ -9,6 +9,8 @@ export type Series = {
   name: string;
   brandId: string;
   logo?: string;
+  /** Admin series list only: products whose "Series" / "Collectie" spec names this series */
+  productCount?: number;
 };
 
 export const brands: Brand[] = [

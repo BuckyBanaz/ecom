@@ -174,7 +174,10 @@ const AdminBrands = () => {
 
       if (data.success && data.series) {
         if (editSeries) {
-          setSeriesList(prev => prev.map((s) => (s.id === editSeries.id ? data.series : s)));
+          // update response has no count; it still holds while the name (what product specs refer to) is unchanged
+          setSeriesList(prev => prev.map((s) => (s.id === editSeries.id
+            ? { ...data.series, productCount: data.series.name === s.name ? s.productCount : undefined }
+            : s)));
           toast.success(t("admin_brands.toast_series_updated", { name }));
         } else {
           setSeriesList(prev => [...prev, data.series]);
@@ -503,6 +506,13 @@ const AdminBrands = () => {
                           <span className="text-[9px] text-primary font-extrabold uppercase tracking-wider bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
                             {brandObj ? brandObj.name : t("admin_brands.unknown_brand")}
                           </span>
+                          {s.productCount !== undefined && (
+                            <span
+                              className={`text-[11px] font-semibold ${s.productCount > 0 ? "text-foreground/80" : "text-muted-foreground"}`}
+                            >
+                              {t("admin_brands.series_products", { count: s.productCount })}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

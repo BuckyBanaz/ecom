@@ -1,36 +1,79 @@
 /**
- * Fixture colour of a product from free text ("This we have Gold color", "kleur: zwart"), and helpers
- * to keep linked colour variants from inheriting each other's colour in their titles.
+ * Fixture colour of a product from free text ("This we have Gold color", "kleur: zwart", "golden wala"), and
+ * helpers to keep linked colour variants from inheriting each other's colour in their titles.
+ * Colour words in titles/specs follow the AI output language setting.
  */
+import { getAiOutputLanguage, type AiOutputLanguage } from "./aiLanguage";
 
 export interface ProductColor {
-  /** Word used in Dutch product titles and the "Kleur" spec */
+  /** Word used in product titles and the colour spec, in the AI output language */
   title: string;
   /** Value of the `color` filter attribute, when one exists for this colour */
   attribute?: string;
 }
 
-const COLORS: Array<{ words: string[]; color: ProductColor }> = [
-  { words: ["zwart", "black", "noir"], color: { title: "Zwart", attribute: "Black" } },
-  { words: ["goud", "gold", "golden", "messing", "brass"], color: { title: "Goud", attribute: "Gold" } },
-  { words: ["chroom", "chrome"], color: { title: "Chroom", attribute: "Silver" } },
-  { words: ["zilver", "silver"], color: { title: "Zilver", attribute: "Silver" } },
-  { words: ["wit", "white"], color: { title: "Wit", attribute: "White" } },
-  { words: ["koper", "copper"], color: { title: "Koper", attribute: "Copper" } },
-  { words: ["brons", "bronze"], color: { title: "Brons" } },
-  { words: ["grijs", "grey", "gray", "antraciet", "anthracite"], color: { title: "Grijs" } },
-  { words: ["bruin", "brown"], color: { title: "Bruin" } },
-  { words: ["crème", "creme", "cream"], color: { title: "Crème" } },
+type Titles = Record<AiOutputLanguage, string>;
+
+// `words`: everything recognised in hints and titles (NL / EN / DE / FR, plus common Hinglish)
+const COLORS: Array<{ words: string[]; titles: Titles; attribute?: string }> = [
+  {
+    words: ["zwart", "black", "noir", "schwarz", "kala", "kaala"],
+    titles: { nl: "Zwart", en: "Black", de: "Schwarz", fr: "Noir" },
+    attribute: "Black",
+  },
+  {
+    words: ["goud", "gold", "golden", "messing", "brass", "doré", "sunehra", "sunehri"],
+    titles: { nl: "Goud", en: "Gold", de: "Gold", fr: "Doré" },
+    attribute: "Gold",
+  },
+  {
+    words: ["chroom", "chrome", "chrom", "chromé"],
+    titles: { nl: "Chroom", en: "Chrome", de: "Chrom", fr: "Chromé" },
+    attribute: "Silver",
+  },
+  {
+    words: ["zilver", "silver", "silber", "argenté", "chandi", "chaandi"],
+    titles: { nl: "Zilver", en: "Silver", de: "Silber", fr: "Argenté" },
+    attribute: "Silver",
+  },
+  {
+    words: ["wit", "white", "weiß", "weiss", "blanc", "safed", "safaid"],
+    titles: { nl: "Wit", en: "White", de: "Weiß", fr: "Blanc" },
+    attribute: "White",
+  },
+  {
+    words: ["koper", "copper", "kupfer", "cuivre"],
+    titles: { nl: "Koper", en: "Copper", de: "Kupfer", fr: "Cuivre" },
+    attribute: "Copper",
+  },
+  { words: ["brons", "bronze"], titles: { nl: "Brons", en: "Bronze", de: "Bronze", fr: "Bronze" } },
+  {
+    words: ["grijs", "grey", "gray", "grau", "gris", "antraciet", "anthracite"],
+    titles: { nl: "Grijs", en: "Grey", de: "Grau", fr: "Gris" },
+  },
+  { words: ["bruin", "brown", "braun", "marron"], titles: { nl: "Bruin", en: "Brown", de: "Braun", fr: "Marron" } },
+  { words: ["crème", "creme", "cream"], titles: { nl: "Crème", en: "Cream", de: "Creme", fr: "Crème" } },
 ];
 
 const ALL_WORDS = COLORS.flatMap((c) => c.words);
 const WORD_RE = new RegExp(`(?<![\\p{L}])(${ALL_WORDS.join("|")})(?![\\p{L}])`, "giu");
-/** Light colour, not fixture colour: "warm wit", "koel wit", "neutral white" */
-const LIGHT_COLOR_PREFIX = /(warm|koel|cool|neutraal|neutral|daylight|daglicht)[\s-]*$/i;
+/** Light colour, not fixture colour: "warm wit", "koel wit", "neutral white", "warmweiß" */
+const LIGHT_COLOR_PREFIX = /(warm|koel|cool|neutraal|neutral|daylight|daglicht|kalt|tageslicht|chaud|froid)[\s-]*$/i;
+
+/** Key of the colour spec in the AI output language ("Kleur", "Color", ...) */
+export function colorSpecKey(lang: AiOutputLanguage = getAiOutputLanguage()): string {
+  return { nl: "Kleur", en: "Color", de: "Farbe", fr: "Couleur" }[lang];
+}
+
+/** Matches colour spec keys in any supported language, but not light-colour keys ("Lichtkleur") */
+export function isColorSpecKey(key: string): boolean {
+  return /kleur|colou?r|farbe|couleur/i.test(key) && !/licht|light/i.test(key);
+}
 
 function colorForWord(word: string): ProductColor | null {
   const lower = word.toLowerCase();
-  return COLORS.find((c) => c.words.includes(lower))?.color ?? null;
+  const entry = COLORS.find((c) => c.words.includes(lower));
+  return entry ? { title: entry.titles[getAiOutputLanguage()], attribute: entry.attribute } : null;
 }
 
 /**
@@ -39,9 +82,10 @@ function colorForWord(word: string): ProductColor | null {
  */
 export function detectProductColor(text: string | undefined | null): ProductColor | null {
   if (!text) return null;
+  const words = ALL_WORDS.join("|");
   const explicit =
-    new RegExp(`(?<![\\p{L}])(${ALL_WORDS.join("|")})\\s+(?:colou?r|kleur)`, "iu").exec(text) ||
-    new RegExp(`(?:colou?r|kleur)\\s*[:=]?\\s*(${ALL_WORDS.join("|")})(?![\\p{L}])`, "iu").exec(text);
+    new RegExp(`(?<![\\p{L}])(${words})\\s+(?:colou?r|kleur|farbe|couleur|rang)`, "iu").exec(text) ||
+    new RegExp(`(?:colou?r|kleur|farbe|couleur|rang)\\s*[:=]?\\s*(${words})(?![\\p{L}])`, "iu").exec(text);
   if (explicit) return colorForWord(explicit[1]);
 
   for (const match of text.matchAll(WORD_RE)) {

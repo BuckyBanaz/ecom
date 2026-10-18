@@ -635,7 +635,8 @@ export const aiService = {
       // Built-in Schip en Ster SOP Brand & Collection Architecture
       const activeSopRules = `
         SCHIP EN STER BRAND & COLLECTION ARCHITECTURE (STRICT SOP):
-        Assign each product strictly to its corresponding collection based on the uploaded image:
+        Assign each product strictly to its corresponding collection based on the uploaded image —
+        UNLESS the user notes name the product, model or series — then the notes win.
 
         1. "Ambiance" (or "Marrakech"):
            - Key Models: Royale Noir, Royale Silver, Gold XL, Royale Gold
@@ -678,7 +679,16 @@ export const aiService = {
         Generate a COMPLETE, ACCURATE, and 100% UNIQUE product listing for this specific item following the official Schip en Ster SOP.
         Do NOT copy generic defaults. Every image represents a DIFFERENT physical lamp!
 
-        Hint: ${hint || "(No hint provided — rely 100% on the image)"}
+        === USER NOTES (HIGHEST PRIORITY — OVERRIDE THE PHOTO, THE SOP AND ALL EXAMPLES BELOW) ===
+        ${hint || "(No notes provided — rely 100% on the image)"}
+        =========================================================================================
+        RULES FOR THE USER NOTES:
+        - The notes may be written in any language (English, Hindi, Hinglish, Dutch, ...). Understand them, but write ALL output text in the OUTPUT LANGUAGE above — never in the language of the notes. Only the product/model name stays exactly as written.
+        - Every fact in the notes is TRUE: product/model name, collection, colour, dimensions, number of lights, features.
+        - If the notes name the product or model (e.g. "Miami Orbit"), the title MUST start with exactly that name. NEVER rename it to another collection (e.g. do not turn "Miami Orbit" into "Stockholm Orbit").
+        - Put dimensions from the notes (e.g. "Ø45cm", "L100", "80 cm") in the title AND as specs.
+        - Every concrete feature from the notes (remote control, dimmable, light colours like 2700K/4000K/6400K, fitting) MUST appear in the specs and the description.
+        - Use the photo only for what the notes do not say.
         Price: ${price || "89.95"}
         Brand: ${brandName || "Schip en Ster"}
         ${categoryName ? `Target Category: "${categoryName}" (MANDATORY: Assign this exact category to the product in "category" field)` : `Category Selection: Pick the best matching leaf category from the available store categories: ${categorySlugs}`}

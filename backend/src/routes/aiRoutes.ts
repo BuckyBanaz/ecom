@@ -1,5 +1,5 @@
 import express from "express";
-import { applyColorToTitle, detectProductColor, stripColorWords } from "../utils/productColor";
+import { applyColorToTitle, colorSpecKey, detectProductColor, isColorSpecKey, stripColorWords } from "../utils/productColor";
 import multer from "multer";
 import { randomUUID } from "crypto";
 import { aiService } from "../services/aiService";
@@ -216,7 +216,7 @@ ${effectiveHint}`;
     // Linked store product = reference: same model, so its specs (minus colour) and description carry over
     if (linkedProductRecord) {
       const refSpecs = specEntries(linkedProductRecord.specs)
-        .filter(([key]) => !/kleur|colou?r/i.test(key) || /licht/i.test(key))
+        .filter(([key]) => !isColorSpecKey(key))
         .map(([key, value]) => `- ${key}: ${value}`)
         .join("\n");
       const refDescription = String(linkedProductRecord.shortDescription || "").trim().slice(0, 600);
@@ -263,17 +263,21 @@ ${effectiveHint}`;
       (draft as any).attributes.color = [color];
     }
 
-    // Colour from the hint is the truth: the AI (and its title-based colour guardrails) can still drift
-    if (variantColor) {
+    // Colour of this variant: the hint wins; otherwise, for a linked variant, the finish the AI saw in this
+    // row's own photo — without it the leader's title colour (e.g. "Goud") was copied onto a silver sibling
+    const photoColor =
+      imageFile && leaderDraftTitle ? detectProductColor((draft as any)?.visualInspection?.finishColor) : null;
+    const resolvedColor = variantColor ?? photoColor;
+    if (resolvedColor) {
       const d = draft as any;
-      if (d.seoTitle) d.seoTitle = applyColorToTitle(String(d.seoTitle), variantColor);
+      if (d.seoTitle) d.seoTitle = applyColorToTitle(String(d.seoTitle), resolvedColor);
       if (!color) {
         if (!Array.isArray(d.specs)) d.specs = [];
-        const kleurIdx = d.specs.findIndex((s: any) => /kleur|colou?r/i.test(String(s?.key || "")) && !/licht/i.test(String(s?.key || "")));
-        if (kleurIdx >= 0) d.specs[kleurIdx].value = variantColor.title;
-        else d.specs.unshift({ key: "Kleur", value: variantColor.title });
+        const kleurIdx = d.specs.findIndex((s: any) => isColorSpecKey(String(s?.key || "")));
+        if (kleurIdx >= 0) d.specs[kleurIdx].value = resolvedColor.title;
+        else d.specs.unshift({ key: colorSpecKey(), value: resolvedColor.title });
         if (!d.attributes) d.attributes = {};
-        if (variantColor.attribute) d.attributes.color = [variantColor.attribute];
+        if (resolvedColor.attribute) d.attributes.color = [resolvedColor.attribute];
       }
     }
 
@@ -327,15 +331,24 @@ ${effectiveHint}`;
 
     // Ensure product name and slug reflect variation color and dimensions accurately
     if (draft) {
-      // If a group leader title exists, ALWAYS use it as the master template!
-      let updatedName = (leaderDraftTitle && leaderDraftTitle.trim()) ? leaderDraftTitle.trim() : (draft.name || "");
+      // Linked variant: keep the AI's own title (it carries this row's notes and photo) as long as it kept the
+      // leader's model name ("Miami Orbit"); only when it invented another model fall back to the leader title
+      const aiName = String(draft.name || "").trim();
+      let updatedName = aiName;
+      if (leaderDraftTitle && leaderDraftTitle.trim()) {
+        // Model name = first two words ("Miami Orbit", "Signo Ring"); the rest may differ per variant (Ø45cm vs Ø60cm)
+        const leaderModel = stripColorWords(leaderDraftTitle).split(/\s+/).slice(0, 2).join(" ").toLowerCase();
+        if (!aiName || (leaderModel && !aiName.toLowerCase().includes(leaderModel))) {
+          updatedName = leaderDraftTitle.trim();
+        }
+      }
 
       // Siblings share the leader title, so the colour word must be swapped for this variant's own colour
-      // (from the hint, or the legacy colour field); a title without a colour word gets it appended
-      if (variantColor) {
+      // (from the hint or its photo, or the legacy colour field); a title without a colour word gets it appended
+      if (resolvedColor) {
         updatedName = detectProductColor(updatedName)
-          ? applyColorToTitle(updatedName, variantColor)
-          : `${updatedName} - ${variantColor.title}`;
+          ? applyColorToTitle(updatedName, resolvedColor)
+          : `${updatedName} - ${resolvedColor.title}`;
       } else if (color && !updatedName.toLowerCase().includes(String(color).toLowerCase())) {
         updatedName = `${updatedName} - ${color}`;
       }

@@ -769,6 +769,8 @@
     "edit_series_title_btn": "Edit Series",
     "delete_series_title_btn": "Delete Series",
     "unknown_brand": "Unknown Brand",
+    "series_products_one": "{{count}} product",
+    "series_products_other": "{{count}} products",
     "empty_brands": "No brands found matching your search.",
     "empty_series": "No series collections found. Click \"Add Series\" to create one.",
     "toast_load_failed": "Failed to load data from server",
@@ -3348,5 +3350,95 @@
     "set_exact_count": "Physical Count",
     "shelf_location": "Shelf Bin",
     "scan_history": "Session Scan History"
+  },
+  "admin_quick_edit": {
+    "button": "Quick Edit (AI)",
+    "button_tooltip": "Quick Edit with AI",
+    "editing": "AI editing...",
+    "title_smart": "AI Quick Edit (Smart Fix)",
+    "title_single": "AI Quick Edit (single product)",
+    "title_batch": "AI Quick Edit (batch fix)",
+    "desc_single_form": "Describe what needs fixing on this product. AI checks the photo, specs and the Schip en Ster SOP rules and edits it in the background job queue.",
+    "desc_single": "Describe what needs fixing on \"{{name}}\". AI checks the photo, specs and SOP rules and edits it in the background.",
+    "desc_batch": "Tell AI which issue these products share (collection, lamp type, colour finish, specs, SOP text). It runs safely in the background job queue.",
+    "scope_label": "Products to edit",
+    "scope_selected": "Selected only",
+    "scope_selected_count_one": "{{count}} product checked",
+    "scope_selected_count_other": "{{count}} products checked",
+    "scope_filtered": "Current search filter",
+    "scope_filtered_count_one": "{{count}} product found",
+    "scope_filtered_count_other": "{{count}} products found",
+    "scope_all": "Entire catalogue",
+    "scope_all_count_one": "{{count}} product in total",
+    "scope_all_count_other": "{{count}} products in total",
+    "target_product": "Product",
+    "untitled_product": "Untitled product",
+    "no_category": "No category",
+    "presets_label": "Quick SOP presets (click to add)",
+    "prompt_label": "What is wrong or what should be fixed?",
+    "prompt_hint": "Write in any language — the result follows the AI output language",
+    "placeholder_single": "e.g. The title says Marbella, but this is a crystal table lamp with G9 bulbs. Move it to the Ambiance collection, set the category to table lamps and the colour to gold.",
+    "placeholder_batch": "e.g. These are all called Marbella, but they are crystal table lamps with G9 bulbs. Move them to the Ambiance collection, set the category to table lamps and the colour to gold.",
+    "fields_label": "Fields AI may update",
+    "reset_defaults": "Reset defaults",
+    "field_name": "Product title",
+    "field_category": "Category & collection",
+    "field_description": "Descriptions",
+    "field_specs": "Specs table (fitting, etc.)",
+    "field_attributes": "Colour & fitting filters",
+    "field_seo": "SEO title & meta",
+    "field_price": "Price (if given)",
+    "queueing": "Queueing job...",
+    "submit": "Start AI edit",
+    "toast_progress": "AI Quick Edit: {{label}}",
+    "toast_progress_default": "AI is updating the product according to the SOP...",
+    "toast_done_single": "AI Quick Edit applied — product updated.",
+    "toast_done_batch": "AI bulk edit finished.",
+    "toast_prompt_required": "Describe what is wrong or what should be fixed.",
+    "toast_none_selected": "No products selected. Select products or change the scope.",
+    "toast_scope_empty": "No products match the chosen scope.",
+    "toast_start_failed": "Could not start the AI Quick Edit job.",
+    "toast_queueing": "Queueing AI edit in the background...",
+    "toast_already_running": "An AI job is already running in the background. Tracking its progress...",
+    "toast_queued_single": "AI Quick Edit queued — processing...",
+    "toast_queued_batch_one": "AI edit queued for {{count}} product — processing in the background.",
+    "toast_queued_batch_other": "AI edit queued for {{count}} products — processing in the background.",
+    "presets": {
+      "crystal": {
+        "label": "💎 Crystal → Ambiance & G9",
+        "text_single": "This is a luxury crystal lamp with faceted prisms. Move it to the Ambiance Royale collection, set the fitting to G9 and write a description that highlights the crystal light refraction.",
+        "text_batch": "These are crystal lamps with faceted glass prisms. Move them to the Ambiance Royale collection, set the fitting to G9 and write descriptions that highlight the luxury crystal refraction."
+      },
+      "table_lamp": {
+        "label": "🏷️ Table lamp (Tafellamp)",
+        "text_single": "This product is a table lamp (Tafellamp) with a tabletop base. Set the category to table-lamps, include Tafellamp in the title and update the specs.",
+        "text_batch": "These are table lamps (Tafellampen) with a tabletop base. Set the category to table-lamps, include Tafellamp in the titles and update the specs."
+      },
+      "pendant": {
+        "label": "🔘 Pendant (Hanglamp)",
+        "text_single": "This lamp hangs from ceiling cables as a chandelier/pendant. Set the category to pendant-lights, make sure the title has Hanglamp and add the adjustable cable height to the specs.",
+        "text_batch": "These lamps hang from ceiling cables as chandeliers/pendants. Set the category to pendant-lights, make sure the titles have Hanglamp and add the adjustable cable height to the specs."
+      },
+      "silver": {
+        "label": "🎨 Colour: silver / chrome",
+        "text_single": "The finish is cool shiny silver chrome. Set the color attribute to Silver and update the title and specs to silver / chrome. Never say gold.",
+        "text_batch": "The finish of these lamps is cool shiny silver chrome. Set the color attribute to Silver and update the titles and specs to silver / chrome. Never say gold."
+      },
+      "gold": {
+        "label": "✨ Colour: gold / brass",
+        "text_single": "The finish is warm brushed gold / brass. Set the color attribute to Gold and update the title and specs to gold / brass. Never say silver.",
+        "text_batch": "The finish of these lamps is warm brushed gold / brass. Set the color attribute to Gold and update the titles and specs to gold / brass. Never say silver."
+      },
+      "sop": {
+        "label": "🇳🇱 Schip en Ster SOP standard",
+        "text_single": "Review the title, description and specs according to the Schip en Ster SOP: fluent text with 'Belangrijkste kenmerken' bullet points, a valid category and complete technical specs.",
+        "text_batch": "Review the titles, descriptions and specs according to the Schip en Ster SOP: fluent text with 'Belangrijkste kenmerken' bullet points, valid categories and complete technical specs."
+      },
+      "fitting": {
+        "label": "⚡ Fitting & dimmer specs",
+        "text_single": "Check the fitting (G9 for Ambiance crystal, E27 for vintage, integrated LED for rings/Stockholm) and set Dimbaar: Ja with dimmable details in the specs and attributes.",
+        "text_batch": "Check the fitting (G9 for Ambiance crystal, E27 for vintage, integrated LED for rings/Stockholm) and set Dimbaar: Ja with dimmable details in the specs and attributes."
+      }
+    }
   }
 }

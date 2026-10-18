@@ -777,6 +777,8 @@
     "edit_series_title_btn": "Serie bewerken",
     "delete_series_title_btn": "Serie verwijderen",
     "unknown_brand": "Onbekend merk",
+    "series_products_one": "{{count}} product",
+    "series_products_other": "{{count}} producten",
     "empty_brands": "Geen merken gevonden die overeenkomen met je zoekopdracht.",
     "empty_series": "Geen seriecollecties gevonden. Klik op \"Serie toevoegen\" om er een aan te maken.",
     "toast_load_failed": "Gegevens laden van server mislukt",
@@ -3266,5 +3268,95 @@
     "set_exact_count": "Fysieke Telling",
     "shelf_location": "Stellingvak",
     "scan_history": "Sessie Scangeschiedenis"
+  },
+  "admin_quick_edit": {
+    "button": "Snel bewerken (AI)",
+    "button_tooltip": "Snel bewerken met AI",
+    "editing": "AI bewerkt...",
+    "title_smart": "AI Snel bewerken (slimme correctie)",
+    "title_single": "AI Snel bewerken (één product)",
+    "title_batch": "AI Snel bewerken (meerdere producten)",
+    "desc_single_form": "Beschrijf wat er aan dit product verbeterd moet worden. De AI bekijkt de foto, specificaties en de Schip en Ster SOP-regels en past het product aan in de achtergrondwachtrij.",
+    "desc_single": "Beschrijf wat er aan \"{{name}}\" verbeterd moet worden. De AI bekijkt de foto, specificaties en SOP-regels en past het aan op de achtergrond.",
+    "desc_batch": "Vertel de AI welk probleem deze producten delen (collectie, lamptype, kleurafwerking, specificaties, SOP-tekst). Het draait veilig in de achtergrondwachtrij.",
+    "scope_label": "Te bewerken producten",
+    "scope_selected": "Alleen geselecteerd",
+    "scope_selected_count_one": "{{count}} product aangevinkt",
+    "scope_selected_count_other": "{{count}} producten aangevinkt",
+    "scope_filtered": "Huidige zoekfilter",
+    "scope_filtered_count_one": "{{count}} product gevonden",
+    "scope_filtered_count_other": "{{count}} producten gevonden",
+    "scope_all": "Volledige catalogus",
+    "scope_all_count_one": "{{count}} product in totaal",
+    "scope_all_count_other": "{{count}} producten in totaal",
+    "target_product": "Product",
+    "untitled_product": "Naamloos product",
+    "no_category": "Geen categorie",
+    "presets_label": "Snelle SOP-voorinstellingen (klik om toe te voegen)",
+    "prompt_label": "Wat klopt er niet of wat moet er verbeterd worden?",
+    "prompt_hint": "Schrijf in elke taal — het resultaat volgt de AI-uitvoertaal",
+    "placeholder_single": "bv. De titel zegt Marbella, maar dit is een kristallen tafellamp met G9-lampjes. Verplaats hem naar de Ambiance-collectie, zet de categorie op tafellampen en de kleur op goud.",
+    "placeholder_batch": "bv. Deze heten allemaal Marbella, maar het zijn kristallen tafellampen met G9-lampjes. Verplaats ze naar de Ambiance-collectie, zet de categorie op tafellampen en de kleur op goud.",
+    "fields_label": "Velden die de AI mag aanpassen",
+    "reset_defaults": "Standaard herstellen",
+    "field_name": "Producttitel",
+    "field_category": "Categorie & collectie",
+    "field_description": "Beschrijvingen",
+    "field_specs": "Specificatietabel (fitting, enz.)",
+    "field_attributes": "Kleur- & fittingfilters",
+    "field_seo": "SEO-titel & meta",
+    "field_price": "Prijs (indien opgegeven)",
+    "queueing": "Taak wordt ingepland...",
+    "submit": "AI-bewerking starten",
+    "toast_progress": "AI Snel bewerken: {{label}}",
+    "toast_progress_default": "De AI werkt het product bij volgens de SOP...",
+    "toast_done_single": "AI-bewerking toegepast — product bijgewerkt.",
+    "toast_done_batch": "AI-bulkbewerking voltooid.",
+    "toast_prompt_required": "Beschrijf wat er niet klopt of wat er verbeterd moet worden.",
+    "toast_none_selected": "Geen producten geselecteerd. Selecteer producten of kies een andere reikwijdte.",
+    "toast_scope_empty": "Geen producten in de gekozen reikwijdte.",
+    "toast_start_failed": "De AI-bewerking kon niet worden gestart.",
+    "toast_queueing": "AI-bewerking wordt op de achtergrond ingepland...",
+    "toast_already_running": "Er draait al een AI-taak op de achtergrond. Voortgang wordt gevolgd...",
+    "toast_queued_single": "AI-bewerking ingepland — wordt verwerkt...",
+    "toast_queued_batch_one": "AI-bewerking ingepland voor {{count}} product — wordt op de achtergrond verwerkt.",
+    "toast_queued_batch_other": "AI-bewerking ingepland voor {{count}} producten — wordt op de achtergrond verwerkt.",
+    "presets": {
+      "crystal": {
+        "label": "💎 Kristal → Ambiance & G9",
+        "text_single": "Dit is een luxe kristallen lamp met geslepen prisma's. Verplaats hem naar de collectie Ambiance Royale, zet de fitting op G9 en schrijf een beschrijving die de lichtbreking van het kristal benadrukt.",
+        "text_batch": "Dit zijn kristallen lampen met geslepen glazen prisma's. Verplaats ze naar de collectie Ambiance Royale, zet de fitting op G9 en schrijf beschrijvingen die de luxe lichtbreking van het kristal benadrukken."
+      },
+      "table_lamp": {
+        "label": "🏷️ Tafellamp (met voet)",
+        "text_single": "Dit product is een tafellamp met een voet. Zet de categorie op table-lamps, neem Tafellamp op in de titel en werk de specificaties bij.",
+        "text_batch": "Dit zijn tafellampen met een voet. Zet de categorie op table-lamps, neem Tafellamp op in de titels en werk de specificaties bij."
+      },
+      "pendant": {
+        "label": "🔘 Hanglamp",
+        "text_single": "Deze lamp hangt aan plafondkabels als kroonluchter/hanglamp. Zet de categorie op pendant-lights, zorg dat de titel Hanglamp bevat en voeg de verstelbare kabellengte toe aan de specificaties.",
+        "text_batch": "Deze lampen hangen aan plafondkabels als kroonluchters/hanglampen. Zet de categorie op pendant-lights, zorg dat de titels Hanglamp bevatten en voeg de verstelbare kabellengte toe aan de specificaties."
+      },
+      "silver": {
+        "label": "🎨 Kleur: Zilver / Chroom",
+        "text_single": "De afwerking is koel glanzend zilver chroom. Zet het kleurattribuut op Silver en werk titel en specificaties bij naar Zilver / Chroom. Noem het nooit goud.",
+        "text_batch": "De afwerking van deze lampen is koel glanzend zilver chroom. Zet het kleurattribuut op Silver en werk titels en specificaties bij naar Zilver / Chroom. Noem het nooit goud."
+      },
+      "gold": {
+        "label": "✨ Kleur: Goud / Messing",
+        "text_single": "De afwerking is warm geborsteld goud / messing. Zet het kleurattribuut op Gold en werk titel en specificaties bij naar Goud / Messing. Noem het nooit zilver.",
+        "text_batch": "De afwerking van deze lampen is warm geborsteld goud / messing. Zet het kleurattribuut op Gold en werk titels en specificaties bij naar Goud / Messing. Noem het nooit zilver."
+      },
+      "sop": {
+        "label": "🇳🇱 Schip en Ster SOP-standaard",
+        "text_single": "Controleer titel, beschrijving en specificaties volgens de Schip en Ster SOP: vloeiende tekst met opsommingstekens onder 'Belangrijkste kenmerken', een geldige categorie en volledige technische specificaties.",
+        "text_batch": "Controleer titels, beschrijvingen en specificaties volgens de Schip en Ster SOP: vloeiende tekst met opsommingstekens onder 'Belangrijkste kenmerken', geldige categorieën en volledige technische specificaties."
+      },
+      "fitting": {
+        "label": "⚡ Fitting & dimmer",
+        "text_single": "Controleer de fitting (G9 voor Ambiance-kristal, E27 voor vintage, geïntegreerde LED voor ringen/Stockholm) en zet Dimbaar: Ja met dimbare details in specificaties en attributen.",
+        "text_batch": "Controleer de fitting (G9 voor Ambiance-kristal, E27 voor vintage, geïntegreerde LED voor ringen/Stockholm) en zet Dimbaar: Ja met dimbare details in specificaties en attributen."
+      }
+    }
   }
 }
