@@ -101,6 +101,7 @@ const parseFilters = (query: any) => {
     isNewArrival,
     isBestSelling,
     facets: facetsParam,
+    view,
     ...attributeParams
   } = query;
 
@@ -125,6 +126,7 @@ const parseFilters = (query: any) => {
     isNewArrival: isNewArrival === "true",
     isBestSelling: isBestSelling === "true",
     includeFacets: facetsParam === "true",
+    cardView: view === "card",
     attributeFilters: filters,
   };
 };
@@ -143,6 +145,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       isNewArrival,
       isBestSelling,
       includeFacets,
+      cardView,
       attributeFilters,
     } = parseFilters(req.query);
 
@@ -317,13 +320,22 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       orderBy = { rating: "desc" };
     }
 
-    // Get count and products
-    const totalItems = await prisma.product.count({ where: whereConditions });
     const skip = (page - 1) * limit;
+
+    // Only the fields list consumers read — full nested rows (timestamps etc.) made up ~70% of the payload
+    const listPavSelect = {
+      select: {
+        id: true,
+        attributeId: true,
+        attributeValueId: true,
+        attribute: { select: { id: true, name: true, slug: true, type: true, visibility: true } },
+        attributeValue: { select: { id: true, value: true, colorCode: true } },
+      },
+    };
 
     const listInclude = includeFacets
       ? {
-          brand: true,
+          brand: { select: { id: true, name: true } },
           category: {
             select: {
               id: true,
@@ -331,24 +343,19 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
               slug: true,
             },
           },
-          productAttributeValues: {
-            include: {
-              attribute: true,
-              attributeValue: true,
-            },
-          },
+          productAttributeValues: listPavSelect,
           variants: {
             include: {
               variantAttributeValues: {
                 include: {
-                  attributeValue: true,
+                  attributeValue: { select: { id: true, attributeId: true, value: true, colorCode: true } },
                 },
               },
             },
           },
         }
       : {
-          brand: true,
+          brand: { select: { id: true, name: true } },
           category: {
             select: {
               id: true,
@@ -356,21 +363,55 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
               slug: true,
             },
           },
-          productAttributeValues: {
-            include: {
-              attribute: true,
-              attributeValue: true,
-            },
-          },
+          productAttributeValues: listPavSelect,
         };
 
-    const products = await prisma.product.findMany({
-      where: whereConditions,
-      orderBy,
-      skip,
-      take: limit,
-      include: listInclude,
-    });
+    // ?view=card — storefront listing: card fields plus what client-side search/filtering reads (specs, descriptions, attribute values)
+    const cardSelect = {
+      id: true,
+      slug: true,
+      name: true,
+      brandId: true,
+      categoryId: true,
+      price: true,
+      oldPrice: true,
+      rating: true,
+      reviewCount: true,
+      image: true,
+      inStock: true,
+      isNewArrival: true,
+      isBestSelling: true,
+      description: true,
+      shortDescription: true,
+      specs: true,
+      brand: { select: { name: true } },
+      category: { select: { id: true, name: true, slug: true } },
+      productAttributeValues: {
+        select: {
+          attribute: { select: { slug: true, name: true } },
+          attributeValue: { select: { value: true } },
+        },
+      },
+    };
+
+    const [totalItems, products] = await Promise.all([
+      prisma.product.count({ where: whereConditions }),
+      cardView
+        ? prisma.product.findMany({
+            where: whereConditions,
+            orderBy,
+            skip,
+            take: limit,
+            select: cardSelect,
+          })
+        : prisma.product.findMany({
+            where: whereConditions,
+            orderBy,
+            skip,
+            take: limit,
+            include: listInclude,
+          }),
+    ]);
 
     const response: Record<string, unknown> = {
       success: true,
@@ -386,72 +427,63 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
     if (includeFacets) {
       const scopeConditions = { ...whereConditions };
 
-      const matchedProducts = await prisma.product.findMany({
-        where: scopeConditions,
-        select: { id: true, brandId: true },
-      });
-      const matchedProductIds = matchedProducts.map((p) => p.id);
-
-      const attrFacetsRaw = await prisma.productAttributeValue.groupBy({
-        by: ["attributeValueId", "attributeId"],
-        where: {
-          productId: { in: matchedProductIds },
-        },
-        _count: {
-          productId: true,
-        },
-      });
+      // Filter through the relation instead of materialising every matched product id into an IN list
+      const [attrFacetsRaw, brandFacetsRaw, priceStats] = await Promise.all([
+        prisma.productAttributeValue.groupBy({
+          by: ["attributeValueId", "attributeId"],
+          where: { product: scopeConditions },
+          _count: {
+            productId: true,
+          },
+        }),
+        prisma.product.groupBy({
+          by: ["brandId"],
+          where: {
+            AND: [scopeConditions, { brandId: { not: null } }],
+          },
+          _count: {
+            id: true,
+          },
+        }),
+        prisma.product.aggregate({
+          where: scopeConditions,
+          _min: { price: true },
+          _max: { price: true },
+        }),
+      ]);
 
       const valueIds = attrFacetsRaw.map((f) => f.attributeValueId);
-      const attrValues = await prisma.attributeValue.findMany({
-        where: { id: { in: valueIds } },
-        include: { attribute: true },
-      });
+      const brandIds = brandFacetsRaw.map((f) => f.brandId as string);
+      const [attrValues, brandsList] = await Promise.all([
+        prisma.attributeValue.findMany({
+          where: { id: { in: valueIds } },
+          include: { attribute: true },
+        }),
+        prisma.brand.findMany({
+          where: { id: { in: brandIds } },
+        }),
+      ]);
 
+      const attrCountByValueId = new Map(attrFacetsRaw.map((f) => [f.attributeValueId, f._count.productId]));
       const facets: Record<string, Array<{ value: string; colorCode?: string; count: number }>> = {};
       for (const val of attrValues) {
         const facetGroup = val.attribute.slug;
         if (!facets[facetGroup]) {
           facets[facetGroup] = [];
         }
-        const rawMatch = attrFacetsRaw.find((f) => f.attributeValueId === val.id);
         facets[facetGroup].push({
           value: val.value,
           colorCode: val.colorCode || undefined,
-          count: rawMatch ? rawMatch._count.productId : 0,
+          count: attrCountByValueId.get(val.id) ?? 0,
         });
       }
 
-      const brandFacetsRaw = await prisma.product.groupBy({
-        by: ["brandId"],
-        where: {
-          id: { in: matchedProductIds },
-          brandId: { not: null },
-        },
-        _count: {
-          id: true,
-        },
-      });
-
-      const brandIds = brandFacetsRaw.map((f) => f.brandId as string);
-      const brandsList = await prisma.brand.findMany({
-        where: { id: { in: brandIds } },
-      });
-
-      const brandFacets = brandsList.map((b) => {
-        const rawMatch = brandFacetsRaw.find((f) => f.brandId === b.id);
-        return {
-          id: b.id,
-          name: b.name,
-          count: rawMatch ? rawMatch._count.id : 0,
-        };
-      });
-
-      const priceStats = await prisma.product.aggregate({
-        where: scopeConditions,
-        _min: { price: true },
-        _max: { price: true },
-      });
+      const brandCountById = new Map(brandFacetsRaw.map((f) => [f.brandId, f._count.id]));
+      const brandFacets = brandsList.map((b) => ({
+        id: b.id,
+        name: b.name,
+        count: brandCountById.get(b.id) ?? 0,
+      }));
 
       response.facets = facets;
       response.brandFacets = brandFacets;
@@ -550,86 +582,6 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
             pav.attribute?.name?.toLowerCase() === "color" ||
             pav.attribute?.name?.toLowerCase() === "kleur"
         );
-        const sizeAttr = s.productAttributeValues?.find(
-          (pav) =>
-            pav.attribute?.slug === "size" ||
-            pav.attribute?.slug === "afmeting" ||
-            pav.attribute?.name?.toLowerCase() === "size" ||
-            pav.attribute?.name?.toLowerCase() === "afmeting" ||
-            pav.attribute?.name?.toLowerCase() === "maat" ||
-            pav.attribute?.name?.toLowerCase() === "diameter"
-        );
-
-        // Check specs JSON for size/afmeting/diameter
-        let sizeFromSpecs = "";
-        if (s.specs) {
-          if (Array.isArray(s.specs)) {
-            const found = (s.specs as any[]).find((sp) => {
-              const k = String(sp?.key || "").toLowerCase();
-              return k.includes("afmeting") || k.includes("maat") || k.includes("diameter") || k.includes("size") || k.includes("breedte");
-            });
-            if (found?.value) sizeFromSpecs = String(found.value);
-          } else if (typeof s.specs === "object") {
-            for (const [k, v] of Object.entries(s.specs as Record<string, any>)) {
-              const kLower = k.toLowerCase();
-              if (kLower.includes("afmeting") || kLower.includes("maat") || kLower.includes("diameter") || kLower.includes("size") || kLower.includes("breedte")) {
-                sizeFromSpecs = String(v);
-                break;
-              }
-            }
-          }
-        }
-
-        // Try extracting size pattern from product name, e.g. "Ø 40 cm", "60cm", "80 cm", "3-Ring", "Small", "Large", etc.
-        let sizeFromName = "";
-        const nameMatch = s.name.match(
-          /(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b)/i
-        );
-        if (nameMatch) {
-          const raw = nameMatch[0].trim();
-          const lower = raw.toLowerCase();
-          if (lower === "xs") sizeFromName = "XS";
-          else if (lower === "xl") sizeFromName = "XL";
-          else if (lower === "xxl" || lower === "2xl") sizeFromName = "XXL";
-          else if (lower === "xxxl" || lower === "3xl") sizeFromName = "3XL";
-          else if (lower === "small") sizeFromName = "Small";
-          else if (lower === "medium") sizeFromName = "Medium";
-          else if (lower === "large") sizeFromName = "Large";
-          else if (lower === "extra large") sizeFromName = "Extra Large";
-          else if (lower === "klein") sizeFromName = "Klein";
-          else if (lower === "groot") sizeFromName = "Groot";
-          else if (lower === "middel") sizeFromName = "Middel";
-          else sizeFromName = raw;
-        }
-
-        // Check color attribute or specs JSON for color/kleur
-        let colorFromSpecs = "";
-        if (s.specs) {
-          if (Array.isArray(s.specs)) {
-            const found = (s.specs as any[]).find((sp) => {
-              const k = String(sp?.key || "").toLowerCase();
-              return k.includes("kleur") || k.includes("color") || k.includes("finish");
-            });
-            if (found?.value) colorFromSpecs = String(found.value);
-          } else if (typeof s.specs === "object") {
-            for (const [k, v] of Object.entries(s.specs as Record<string, any>)) {
-              const kLower = k.toLowerCase();
-              if (kLower.includes("kleur") || kLower.includes("color") || kLower.includes("finish")) {
-                colorFromSpecs = String(v);
-                break;
-              }
-            }
-          }
-        }
-
-        let colorFromName = "";
-        const colorMatch = s.name.match(/\b(zwart|black|wit|white|goud|gold|brons|bronze|nikkel|nickel|staal|steel|chroom|chrome|messing|brass|koper|copper|antraciet|anthracite|zilver|silver|grijs|grey|gray|taupe|beige|groen|green|blauw|blue|rood|red|amber|smoke|rookglas)\b/i);
-        if (colorMatch) {
-          colorFromName = colorMatch[0].trim();
-        }
-
-        const resolvedColor = colorAttr?.attributeValue?.value || colorFromSpecs || colorFromName || "";
-
         return {
           id: s.id,
           name: s.name,
@@ -637,9 +589,8 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
           price: s.price,
           image: s.image,
           inStock: s.inStock,
-          colorName: resolvedColor || "Default",
-          colorCode: colorAttr?.attributeValue?.colorCode || (resolvedColor ? "#d4af37" : "#333333"),
-          sizeName: sizeAttr?.attributeValue?.value || sizeFromSpecs || sizeFromName || "",
+          colorName: colorAttr?.attributeValue?.value || s.name,
+          colorCode: colorAttr?.attributeValue?.colorCode || "#333333",
           isCurrent: s.id === product.id,
         };
       });
@@ -1043,8 +994,14 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       await prisma.productAttributeValue.deleteMany({ where: { productId: realProductId } });
 
       for (const [attrSlug, val] of Object.entries(attributes)) {
-        const attribute = await prisma.attribute.findUnique({
-          where: { slug: attrSlug },
+        let attribute = await prisma.attribute.findFirst({
+          where: {
+            OR: [
+              { slug: attrSlug },
+              { slug: attrSlug.toLowerCase() },
+              { name: { equals: attrSlug, mode: "insensitive" } },
+            ],
+          },
         });
         if (!attribute) continue;
 
@@ -1064,12 +1021,20 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
           // Match existing option; do NOT auto-create unapproved options for select attributes
           if (!attrValue) {
-            const numMatch = cleanVal.match(/\d+\s*(?:cm|mm)?/i)?.[0]?.replace(/\s+/g, "").toLowerCase();
-            if (numMatch) {
-              const allValues = await prisma.attributeValue.findMany({
-                where: { attributeId: attribute.id },
-              });
-              attrValue = allValues.find((v) => v.value.replace(/\s+/g, "").toLowerCase() === numMatch || v.value.toLowerCase().includes(numMatch)) || null;
+            const allValues = await prisma.attributeValue.findMany({
+              where: { attributeId: attribute.id },
+            });
+            attrValue = allValues.find(
+              (v) =>
+                v.value.trim().toLowerCase() === cleanVal.toLowerCase() ||
+                v.value.replace(/\s+/g, "").toLowerCase() === cleanVal.replace(/\s+/g, "").toLowerCase()
+            ) || null;
+
+            if (!attrValue) {
+              const numMatch = cleanVal.match(/\d+\s*(?:cm|mm)?/i)?.[0]?.replace(/\s+/g, "").toLowerCase();
+              if (numMatch) {
+                attrValue = allValues.find((v) => v.value.replace(/\s+/g, "").toLowerCase() === numMatch || v.value.toLowerCase().includes(numMatch)) || null;
+              }
             }
           }
 

@@ -90,6 +90,7 @@ model Category {
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
 
+  @@index([parentId])
   @@map("categories")
 }
 
@@ -126,6 +127,9 @@ model Product {
   variants               ProductVariant[]
 
   @@index([colorGroupId])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([createdAt])
   @@map("products")
 }
 
@@ -156,6 +160,7 @@ model AttributeValue {
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
 
+  @@index([attributeId])
   @@map("attribute_values")
 }
 
@@ -172,6 +177,8 @@ model ProductAttributeValue {
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
   @@unique([productId, attributeId, attributeValueId])
+  @@index([attributeValueId])
+  @@index([attributeId])
   @@map("product_attribute_values")
 }
 
@@ -190,6 +197,7 @@ model ProductVariant {
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
 
+  @@index([productId])
   @@map("product_variants")
 }
 
@@ -204,6 +212,7 @@ model VariantAttributeValue {
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
   @@unique([variantId, attributeValueId])
+  @@index([attributeValueId])
   @@map("variant_attribute_values")
 }
 
@@ -219,6 +228,7 @@ model Review {
   images    String[] @default([])
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([productId])
   @@map("reviews")
 }
 
@@ -252,6 +262,7 @@ model Order {
   items           OrderItem[]
   returnRequests  ReturnRequest[]
 
+  @@index([userId])
   @@map("orders")
 }
 
@@ -267,6 +278,7 @@ model OrderItem {
   price        Float
   variant      String?
 
+  @@index([orderId])
   @@map("order_items")
 }
 

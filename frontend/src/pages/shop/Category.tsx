@@ -176,7 +176,7 @@ const Category = () => {
     const loadProducts = async () => {
       setProductsLoading(true);
       try {
-        const filters: Record<string, string | number | boolean> = { limit: 500 };
+        const filters: Record<string, string | number | boolean> = { limit: 500, view: "card" };
         if (targetCategory === "bestsellers") {
           filters.isBestSelling = true;
         } else if (targetCategory && targetCategory !== "deals") {
