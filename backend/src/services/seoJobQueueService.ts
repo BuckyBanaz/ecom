@@ -424,90 +424,139 @@ async function runBulkProductEditJob(payload: {
         fields,
       });
 
-      // Prepare database updates
+      // Only checked fields are saved, and the AI returns just what it changed — nothing else is touched
+      const allow = fields || {
+        name: true,
+        category: true,
+        description: true,
+        specs: true,
+        attributes: true,
+        seo: true,
+        price: false,
+      };
       const updateData: any = {};
+      const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 
-      if (edited.name && edited.name !== product.name) {
-        updateData.name = edited.name;
+      if (allow.name && text(edited.name) && text(edited.name) !== product.name) {
+        updateData.name = text(edited.name);
       }
 
-      if (edited.price !== undefined && fields?.price) {
+      if (allow.price && edited.price !== undefined) {
         const cleanPrice = parseFloat(edited.price);
-        if (!isNaN(cleanPrice) && cleanPrice > 0) {
+        if (!isNaN(cleanPrice) && cleanPrice > 0 && cleanPrice !== product.price) {
           updateData.price = cleanPrice;
         }
       }
 
-      if (edited.shortDescription !== undefined) {
-        updateData.shortDescription = edited.shortDescription;
+      if (allow.description) {
+        if (text(edited.shortDescription)) updateData.shortDescription = text(edited.shortDescription);
+        if (text(edited.description)) updateData.description = text(edited.description);
       }
 
-      if (edited.description) {
-        updateData.description = edited.description;
+      if (allow.seo) {
+        if (text(edited.seoTitle)) updateData.seoTitle = text(edited.seoTitle);
+        if (text(edited.seoDescription)) updateData.seoDescription = text(edited.seoDescription);
       }
 
-      if (edited.specs && Array.isArray(edited.specs)) {
-        updateData.specs = edited.specs;
-      }
+      // Specs are merged: the AI sends only added/changed specs and the keys to remove
+      const specs: Array<{ key: string; value: string; link?: string }> = Array.isArray(product.specs)
+        ? (product.specs as any[]).map((sp) => ({ ...sp }))
+        : product.specs && typeof product.specs === "object"
+        ? Object.entries(product.specs as Record<string, unknown>).map(([key, value]) => ({ key, value: String(value ?? "") }))
+        : [];
+      let specsChanged = false;
+      const setSpec = (key: string, value: string) => {
+        const existing = specs.find((sp) => String(sp?.key || "").toLowerCase() === key.toLowerCase());
+        if (existing) {
+          if (String(existing.value) !== value) {
+            existing.value = value;
+            specsChanged = true;
+          }
+        } else {
+          specs.push({ key, value, link: "" });
+          specsChanged = true;
+        }
+      };
 
-      if (edited.seoTitle) {
-        updateData.seoTitle = edited.seoTitle;
-      }
-
-      if (edited.seoDescription) {
-        updateData.seoDescription = edited.seoDescription;
-      }
-
-      // Handle Category update if changed
-      if (edited.category) {
-        const targetCategory = await prisma.category.findFirst({
-          where: {
-            OR: [
-              { slug: String(edited.category).trim() },
-              { name: { equals: String(edited.category).trim(), mode: "insensitive" } },
-              { slug: { contains: String(edited.category).trim(), mode: "insensitive" } },
-            ],
-          },
-        });
-        if (targetCategory && targetCategory.id !== product.categoryId) {
-          updateData.categoryId = targetCategory.id;
+      if (allow.specs) {
+        if (Array.isArray(edited.removeSpecs)) {
+          const remove = new Set(edited.removeSpecs.map((k: unknown) => String(k).trim().toLowerCase()));
+          for (let j = specs.length - 1; j >= 0; j--) {
+            if (remove.has(String(specs[j]?.key || "").trim().toLowerCase())) {
+              specs.splice(j, 1);
+              specsChanged = true;
+            }
+          }
+        }
+        if (Array.isArray(edited.specs)) {
+          for (const sp of edited.specs) {
+            const key = text(sp?.key);
+            const value = sp?.value === undefined || sp?.value === null ? null : String(sp.value).trim();
+            if (key && value) setSpec(key, value);
+          }
         }
       }
 
-      // Handle Series / Collection update if returned
-      if (edited.series) {
-        const seriesName = String(edited.series).trim();
-        const seriesSlug = (edited.seriesSlug || seriesName).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        let matchedSeries = await prisma.series.findFirst({
-          where: {
-            OR: [
-              { slug: seriesSlug },
-              { name: { equals: seriesName, mode: "insensitive" } },
-            ],
-          },
-        });
-
-        if (!matchedSeries && seriesName.length >= 2) {
-          try {
-            const firstBrand = await prisma.brand.findFirst();
-            if (firstBrand) {
-              matchedSeries = await prisma.series.create({
-                data: {
-                  name: seriesName,
-                  slug: seriesSlug,
-                  brandId: firstBrand.id,
-                },
-              });
-            }
-          } catch {
-            /* ignore duplicate */
+      if (allow.category) {
+        // Handle Category update if changed
+        if (edited.category) {
+          const targetCategory = await prisma.category.findFirst({
+            where: {
+              OR: [
+                { slug: String(edited.category).trim() },
+                { name: { equals: String(edited.category).trim(), mode: "insensitive" } },
+                { slug: { contains: String(edited.category).trim(), mode: "insensitive" } },
+              ],
+            },
+          });
+          if (targetCategory && targetCategory.id !== product.categoryId) {
+            updateData.categoryId = targetCategory.id;
           }
         }
 
-        if (matchedSeries && matchedSeries.brandId) {
-          updateData.brandId = matchedSeries.brandId;
+        // Handle Series / Collection update if returned
+        if (edited.series) {
+          const seriesName = String(edited.series).trim();
+          const seriesSlug = (edited.seriesSlug || seriesName).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          let matchedSeries = await prisma.series.findFirst({
+            where: {
+              OR: [
+                { slug: seriesSlug },
+                { name: { equals: seriesName, mode: "insensitive" } },
+              ],
+            },
+          });
+
+          if (!matchedSeries && seriesName.length >= 2) {
+            try {
+              const firstBrand = await prisma.brand.findFirst();
+              if (firstBrand) {
+                matchedSeries = await prisma.series.create({
+                  data: {
+                    name: seriesName,
+                    slug: seriesSlug,
+                    brandId: firstBrand.id,
+                  },
+                });
+              }
+            } catch {
+              /* ignore duplicate */
+            }
+          }
+
+          if (matchedSeries && matchedSeries.brandId) {
+            updateData.brandId = matchedSeries.brandId;
+          }
+          // The product's collection lives in its specs ("Series" / "Collectie" / "Collection")
+          if (matchedSeries) {
+            const seriesKeys = specs.filter((sp) => /^(series|collectie|collection)$/i.test(String(sp?.key || "")));
+            if (seriesKeys.length === 0) setSpec("Series", matchedSeries.name);
+            else for (const sp of seriesKeys) setSpec(String(sp.key), matchedSeries.name);
+          }
         }
       }
+
+      if (specsChanged) updateData.specs = specs;
 
       // Execute product table update
       if (Object.keys(updateData).length > 0) {
@@ -519,7 +568,7 @@ async function runBulkProductEditJob(payload: {
 
       // Handle EAV attribute values update (e.g. color, fitting, etc.)
       const dimensionSlugsSet = new Set<string>();
-      if (edited.attributes && typeof edited.attributes === "object") {
+      if (allow.attributes && edited.attributes && typeof edited.attributes === "object") {
         for (const [attrSlug, val] of Object.entries(edited.attributes)) {
           const attribute = await prisma.attribute.findUnique({
             where: { slug: attrSlug },

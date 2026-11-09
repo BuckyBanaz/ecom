@@ -12,6 +12,7 @@ import { Trash2, Plus, Loader2, Brain, ImageIcon, ExternalLink } from "lucide-re
 import { cmsFeaturesRepository, adminSettingsRepository, authRepository } from "@/client/apiClient";
 import { useAdmin } from "@/context/AdminContext";
 import { SeoAutopilotPanel } from "@/components/admin/seo/SeoAutopilotPanel";
+import { OrderAlertSettings } from "@/components/admin/OrderAlertSettings";
 
 const AdminSettings = () => {
   const { t } = useTranslation();
@@ -479,6 +480,7 @@ const AdminSettings = () => {
                 <TabsTrigger value="general" className="text-xs sm:text-sm">{t("admin_settings.tab_general")}</TabsTrigger>
                 <TabsTrigger value="features" className="text-xs sm:text-sm">{t("admin_settings.tab_features")}</TabsTrigger>
                 <TabsTrigger value="smtp" className="text-xs sm:text-sm">{t("admin_settings.tab_smtp")}</TabsTrigger>
+                <TabsTrigger value="order-alerts" className="text-xs sm:text-sm">{t("admin_settings.tab_order_alerts")}</TabsTrigger>
                 <TabsTrigger value="auth" className="text-xs sm:text-sm">{t("admin_settings.tab_auth")}</TabsTrigger>
                 <TabsTrigger value="payments" className="text-xs sm:text-sm">{t("admin_settings.tab_payments")}</TabsTrigger>
                 <TabsTrigger value="shipping" className="text-xs sm:text-sm">{t("admin_settings.tab_shipping")}</TabsTrigger>
@@ -873,6 +875,10 @@ const AdminSettings = () => {
               </div>
             </form>
           )}
+        </TabsContent>
+
+        <TabsContent value="order-alerts">
+          {isSuperAdmin && <OrderAlertSettings />}
         </TabsContent>
 
         <TabsContent value="auth">

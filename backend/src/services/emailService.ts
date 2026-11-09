@@ -20,11 +20,37 @@ function replaceVariables(text: string, variables: EmailVariables): string {
   return result;
 }
 
+/** Plain-text part sent next to the HTML: HTML-only mail scores worse with spam filters */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<(style|script|head)[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => `${label.replace(/<[^>]+>/g, "").trim()} (${href})`)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|tr|li|table)>/gi, "\n")
+    .replace(/<\/t[dh]>/gi, "\t")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&euro;/g, "€")
+    .replace(/&copy;/g, "©")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export const emailService = {
   /**
    * Send an email by fetching a template and wrapping it in the global layout.
    */
-  sendTemplateEmail: async (to: string, templateName: string, variables: EmailVariables = {}) => {
+  sendTemplateEmail: async (
+    to: string,
+    templateName: string,
+    variables: EmailVariables = {},
+    options: { replyTo?: string } = {}
+  ) => {
     try {
       const host = process.env.SMTP_HOST;
       const port = parseInt(process.env.SMTP_PORT || "587", 10);
@@ -120,6 +146,10 @@ export const emailService = {
         to,
         subject,
         html: finalHtml,
+        text: htmlToText(finalHtml),
+        ...(options.replyTo ? { replyTo: options.replyTo } : {}),
+        // Transactional mail: tells mail servers not to send out-of-office replies to it
+        headers: { "Auto-Submitted": "auto-generated", "X-Auto-Response-Suppress": "OOF, AutoReply" },
         attachments,
       });
 

@@ -726,6 +726,21 @@ export const adminSettingsRepository = {
       body: JSON.stringify({ to }),
     });
   },
+  getOrderAlertSettings: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/order-alerts`, { method: "GET" });
+  },
+  updateOrderAlertSettings: async (data: { enabled: boolean; recipients: string[] }) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/order-alerts`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  testOrderAlertSettings: async (recipients: string[]) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/order-alerts/test`, {
+      method: "POST",
+      body: JSON.stringify({ recipients }),
+    });
+  },
   getPaymentSettings: async () => {
     return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/payments`, { method: "GET" });
   },

@@ -2469,10 +2469,22 @@ Output ONLY the JSON array. No markdown code blocks.`;
 You are an expert e-commerce catalog manager for Schip en Ster, a premium Dutch lighting webshop.
 Your task is to EDIT and FIX this product based on the user's reported issue / instruction below.
 
+${buildAiLanguageInstruction(getAiOutputLanguage())}
+
 === USER REPORTED ISSUE / FIX INSTRUCTION ===
 "${issuePrompt}"
 =============================================
+(The instruction may be written in any language; write your output in the OUTPUT LANGUAGE above.)
 
+MINIMAL CHANGE RULES (MOST IMPORTANT):
+- Change ONLY what the instruction asks for, plus what directly follows from it (e.g. a new colour also changes the colour word in the title, the colour spec and the "color" attribute).
+- Return ONLY the fields you change. Leave out every field that stays the same.
+- Do NOT rewrite, rephrase, shorten, "improve" or translate any text the instruction is not about. Do NOT fix other things you notice.
+- "specs": ONLY the specs you add or change, as {key, value}. Put the keys of specs that must be deleted in "removeSpecs". Never repeat unchanged specs.
+- "attributes": ONLY the attributes you change.
+- You may ONLY change these fields: ${Object.entries(allowFields).filter(([, on]) => on).map(([f]) => f).join(", ") || "(none)"}. Never return any other field.
+
+REFERENCE RULES — apply them ONLY to the fields the instruction is about:
 SCHIP EN STER BRAND & COLLECTION ARCHITECTURE (STRICT SOP):
 1. "Ambiance" (or "Marrakech"):
    - Models: Royale Noir, Royale Silver, Gold XL, Royale Gold
@@ -2519,35 +2531,21 @@ ${seriesContext}
 Allowed Attributes Guide:
 ${attributeGuide}
 
-ALLOWED FIELDS TO UPDATE:
-${JSON.stringify(allowFields)}
-
-Apply the user's issue instruction carefully. Keep any field that does not need changing as-is.
-Return ONLY a valid JSON object matching this schema:
+Return ONLY a valid JSON object. EVERY property is optional — include a property ONLY if you change it
+(changeSummary is always included):
 {
-  "name": "Updated product title in Dutch according to SOP",
-  "category": "one of valid leaf category slugs",
-  "series": "Collection name or null",
-  "seriesSlug": "collection slug or null",
-  "price": ${product.price},
-  "shortDescription": "1-2 sentence Dutch summary",
-  "description": "<p>Detailed Dutch description with <h3>Belangrijkste kenmerken</h3><ul><li>...</li></ul></p>",
-  "specs": [
-    { "key": "Collectie", "value": "Collection Name" },
-    { "key": "Type verlichting", "value": "Tafellamp | Hanglamp | Plafondlamp | Wandlamp" },
-    { "key": "Kleur", "value": "Zilver / Chroom | Goud / Messing | Zwart | Wit" },
-    { "key": "Vorm", "value": "Ovaal | Rond | Cilinder | Ring" },
-    { "key": "Fitting", "value": "G9 | E27 | E14 | Geïntegreerd LED" },
-    { "key": "Aantal lichtpunten", "value": "1" },
-    { "key": "Dimbaar", "value": "Ja | Nee" }
-  ],
-  "attributes": {
-    "color": ["Silver" or "Gold" or "Black" or "White"],
-    "fitting": ["G9" or "E27" or "Integrated LED"],
-    "dimmable": ["Yes" or "No"]
-  },
-  "seoTitle": "Dutch SEO title max 60 chars",
-  "seoDescription": "Dutch SEO meta description max 160 chars",
+  "name": "new product title",
+  "category": "one of the valid leaf category slugs",
+  "series": "collection name",
+  "seriesSlug": "collection slug",
+  "price": 0,
+  "shortDescription": "1-2 sentence summary",
+  "description": "<p>...</p><h3>Belangrijkste kenmerken</h3><ul><li>...</li></ul>",
+  "specs": [{ "key": "Kleur", "value": "Goud / Messing" }],
+  "removeSpecs": ["key of a spec to delete"],
+  "attributes": { "color": ["Gold"] },
+  "seoTitle": "SEO title max 60 chars",
+  "seoDescription": "SEO meta description max 160 chars",
   "changeSummary": "1-sentence explanation of what was changed"
 }
 `;
@@ -2579,28 +2577,28 @@ Return ONLY a valid JSON object matching this schema:
     const responseText = await callGeminiWithFallback(parts, 0.3);
     const parsed = extractJson(responseText);
 
-    // Apply strict SOP guardrails on parsed response
+    // SOP guardrails — only on fields the AI actually changed, so they never add edits nobody asked for
     const titleLower = (parsed.name || product.name || "").toLowerCase();
     const hasCrystal =
       titleLower.includes("kristal") ||
       titleLower.includes("crystal") ||
       titleLower.includes("prisma") ||
       (parsed.description || "").toLowerCase().includes("kristal");
-    if (hasCrystal && (!parsed.series || parsed.series.toLowerCase().includes("marbella"))) {
+    if (hasCrystal && parsed.series && String(parsed.series).toLowerCase().includes("marbella")) {
       parsed.series = "Ambiance";
       parsed.seriesSlug = "ambiance";
-      if (parsed.name && parsed.name.toLowerCase().includes("marbella")) {
-        parsed.name = parsed.name
-          .replace(/marbella\s*cilinder/gi, "Ambiance Royale")
-          .replace(/marbella/gi, "Ambiance");
-      }
+    }
+    if (hasCrystal && parsed.name && parsed.name.toLowerCase().includes("marbella")) {
+      parsed.name = parsed.name
+        .replace(/marbella\s*cilinder/gi, "Ambiance Royale")
+        .replace(/marbella/gi, "Ambiance");
     }
 
-    if (parsed.category === "table-lamps" || titleLower.includes("tafellamp")) {
+    if (parsed.category === "table-lamps" && parsed.name && parsed.name.toLowerCase().includes("hanglamp")) {
+      parsed.name = parsed.name.replace(/hanglamp/gi, "Tafellamp");
+    }
+    if (parsed.category && parsed.name && parsed.name.toLowerCase().includes("tafellamp")) {
       parsed.category = "table-lamps";
-      if (parsed.name && parsed.name.toLowerCase().includes("hanglamp")) {
-        parsed.name = parsed.name.replace(/hanglamp/gi, "Tafellamp");
-      }
     }
 
     return parsed;

@@ -159,6 +159,32 @@ router.put("/smtp", updateSmtpSettings);
  */
 router.post("/smtp/test", testSmtpSettings);
 
+import { getOrderAlerts, updateOrderAlerts, testOrderAlerts } from "../controllers/orderAlertController";
+
+/**
+ * @swagger
+ * /api/v1/admin/settings/order-alerts:
+ *   get:
+ *     summary: Get the "new order" e-mail alert settings (enabled + recipients)
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ *   put:
+ *     summary: Save the "new order" e-mail alert settings
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ * /api/v1/admin/settings/order-alerts/test:
+ *   post:
+ *     summary: Send a test "new order" alert (latest order) to the given or saved recipients
+ *     tags: [Admin Settings]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get("/order-alerts", getOrderAlerts);
+router.put("/order-alerts", updateOrderAlerts);
+router.post("/order-alerts/test", testOrderAlerts);
+
 import { getSecuredShippingConfig, updateShippingConfig } from "../controllers/shippingController";
 
 /**
