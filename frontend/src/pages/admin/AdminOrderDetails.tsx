@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, FileText, Tag, Printer, ClipboardCopy, Truck, CheckCircle2, Loader2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, FileText, Tag, Printer, ClipboardCopy, Truck, CheckCircle2, Loader2, X, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -319,6 +319,20 @@ export default function AdminOrderDetails() {
   };
   const nextStatus = getNextStep(order.status);
 
+  // Once an order is handed to the carrier (picked up, in transit, out for delivery, delivered, returned),
+  // status is strictly managed by courier/Sendcloud webhooks and manual overrides must be disabled.
+  const CARRIER_LOCKED_STATUSES = [
+    "picked_up",
+    "in_transit",
+    "out_for_delivery",
+    "delivered",
+    "returned",
+    "refunded",
+    "delivery_failed",
+    "lost_in_transit",
+  ];
+  const isCarrierLocked = CARRIER_LOCKED_STATUSES.includes(order.status?.toLowerCase() || "");
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header Back Button & Actions */}
@@ -350,24 +364,35 @@ export default function AdminOrderDetails() {
             <FileText className="h-4 w-4" /> {t("admin_order_details.button_invoice")}
           </Button>
           
-          {/* Status Select */}
+          {/* Status Select or Carrier-Locked Readonly Badge */}
           {isMounted && (
-            <Select value={selectedStatus || order?.status} onValueChange={setSelectedStatus} disabled={updatingStatus}>
-              <SelectTrigger className="w-[220px] h-9 text-xs bg-background border-muted-foreground/20 rounded-full font-bold">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {translatedStatusOptions.map(({ key, label, isAuto }) => (
-                  <SelectItem key={key} value={key} className="text-xs" disabled={isAuto}>
-                    <span>{label}</span> {isAuto && <span className="text-xs text-muted-foreground">(Auto)</span>}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            isCarrierLocked ? (
+              <div
+                className="flex items-center gap-2 px-3.5 h-9 rounded-full border bg-muted/60 text-xs font-semibold text-foreground/90 shadow-2xs select-none"
+                title={t("admin_order_details.carrier_locked_tooltip", { defaultValue: "Managed by carrier webhook. Status cannot be changed manually." })}
+              >
+                <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span>{getTranslatedStatus(order?.status)}</span>
+                <span className="text-[10px] text-muted-foreground font-normal">(Auto)</span>
+              </div>
+            ) : (
+              <Select value={selectedStatus || order?.status} onValueChange={setSelectedStatus} disabled={updatingStatus}>
+                <SelectTrigger className="w-[220px] h-9 text-xs bg-background border-muted-foreground/20 rounded-full font-bold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {translatedStatusOptions.map(({ key, label, isAuto }) => (
+                    <SelectItem key={key} value={key} className="text-xs" disabled={isAuto}>
+                      <span>{label}</span> {isAuto && <span className="text-xs text-muted-foreground">(Auto)</span>}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )
           )}
 
-          {/* Save Status Button */}
-          {selectedStatus && order && selectedStatus !== order.status && (
+          {/* Save Status Button (Only when not carrier locked) */}
+          {!isCarrierLocked && selectedStatus && order && selectedStatus !== order.status && (
             <Button
               onClick={() => {
                 setPendingStatusUpdate(selectedStatus);
@@ -380,8 +405,8 @@ export default function AdminOrderDetails() {
             </Button>
           )}
 
-          {/* Quick next status button */}
-          {nextStatus && !(selectedStatus && order && selectedStatus !== order.status) && (
+          {/* Quick next status button (Only when not carrier locked) */}
+          {!isCarrierLocked && nextStatus && !(selectedStatus && order && selectedStatus !== order.status) && (
             <Button
               onClick={() => {
                 setPendingStatusUpdate(nextStatus);
@@ -395,7 +420,7 @@ export default function AdminOrderDetails() {
           )}
 
           {/* Shipment Actions */}
-          {(!order.trackingNumber || (order.labelUrl && order.labelUrl.includes("dummy.pdf"))) && (order.status === "ready_to_ship" || order.status === "label_generated") && (
+          {!isCarrierLocked && (!order.trackingNumber || (order.labelUrl && order.labelUrl.includes("dummy.pdf"))) && (order.status === "ready_to_ship" || order.status === "label_generated") && (
             <Button
               onClick={() => setShowShipmentModal(true)}
               className="rounded-full text-xs font-bold gap-1.5 h-9 bg-amber-600 text-white hover:bg-amber-700 shadow-sm"
@@ -404,7 +429,7 @@ export default function AdminOrderDetails() {
             </Button>
           )}
 
-          {AUTO_STATUSES.includes(order.status) && order.status !== "delivered" && (
+          {isCarrierLocked && order.status !== "delivered" && (
             <Button disabled className="rounded-full text-xs font-bold gap-1.5 h-9 bg-muted text-muted-foreground border">
               {t("admin_order_details.button_waiting")}
             </Button>

@@ -314,6 +314,27 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
       return next(new AppError("Status is required", 400));
     }
 
+    // Check existing order status — once picked up or handled by carrier, prevent manual overrides
+    const existingOrder = await prisma.order.findUnique({ where: { id } });
+    if (!existingOrder) {
+      return next(new AppError("Order not found", 404));
+    }
+
+    const CARRIER_LOCKED_STATUSES = [
+      "picked_up",
+      "in_transit",
+      "out_for_delivery",
+      "delivered",
+      "returned",
+      "refunded",
+      "delivery_failed",
+      "lost_in_transit",
+    ];
+
+    if (CARRIER_LOCKED_STATUSES.includes(existingOrder.status.toLowerCase())) {
+      return next(new AppError("Cannot manually alter status once the order is picked up or handled by carrier", 400));
+    }
+
     const order = await prisma.order.update({
       where: { id },
       data: { 
