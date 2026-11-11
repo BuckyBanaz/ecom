@@ -1,4 +1,6 @@
 import { prisma } from "../config/db";
+import { enqueueConfigTranslation, enqueueEntityTranslation } from "./contentTranslationService";
+import { enqueueProductTranslation } from "./productTranslationService";
 
 export type SeoEntityType = "product" | "category" | "blog" | "cms_page" | "homepage";
 
@@ -346,6 +348,7 @@ export async function saveSeoFields(
           seoKeywords: seo.seoKeywords,
         },
       });
+      enqueueProductTranslation(entityId);
       return;
     case "category":
       await prisma.category.update({
@@ -356,6 +359,7 @@ export async function saveSeoFields(
           seoKeywords: seo.seoKeywords,
         },
       });
+      enqueueEntityTranslation("category", entityId);
       return;
     case "blog":
       await prisma.blog.update({
@@ -366,6 +370,7 @@ export async function saveSeoFields(
           seoKeywords: seo.seoKeywords,
         },
       });
+      enqueueEntityTranslation("blog", entityId);
       return;
     case "cms_page":
       await prisma.cmsPage.update({
@@ -376,6 +381,7 @@ export async function saveSeoFields(
           seoKeywords: seo.seoKeywords,
         },
       });
+      enqueueEntityTranslation("cmsPage", entityId);
       return;
     case "homepage": {
       const cfg = await prisma.cmsConfig.findUnique({ where: { key: "homepage_data" } });
@@ -388,6 +394,7 @@ export async function saveSeoFields(
         create: { key: "homepage_data", value: data as any },
         update: { value: data as any },
       });
+      enqueueConfigTranslation("homepage_data");
       return;
     }
     default:

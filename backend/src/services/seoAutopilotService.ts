@@ -1,4 +1,5 @@
 import { prisma } from "../config/db";
+import { enqueueEntityTranslation } from "./contentTranslationService";
 import { aiService } from "./aiService";
 import { getSeoPlaybook } from "./seoPlaybookService";
 import { loadSeoEntityContext, runSeoAudit, saveSeoFields } from "./seoAuditService";
@@ -70,7 +71,7 @@ export async function runSeoAutopilot(options?: { force?: boolean }) {
       const generated = await aiService.generateBlog({
         targetKeywords: playbook.targetRankKeywords || playbook.globalKeywords,
       });
-      await prisma.blog.create({
+      const createdBlog = await prisma.blog.create({
         data: {
           title: generated.title,
           slug: generated.slug,
@@ -84,6 +85,7 @@ export async function runSeoAutopilot(options?: { force?: boolean }) {
           cover: generated.cover || null,
         },
       });
+      enqueueEntityTranslation("blog", createdBlog.id);
       blogCreated = true;
       log.push(`Blog created: "${generated.title}"`);
     } catch (err: any) {

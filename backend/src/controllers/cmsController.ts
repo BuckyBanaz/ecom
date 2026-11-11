@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/db";
+import { contentLanguage, enqueueConfigTranslation, enqueueEntityTranslation, localizeEntity, localizedConfig } from "../services/contentTranslationService";
 
 
 // ==========================================
@@ -18,7 +19,7 @@ export const getHomepage = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: config.value,
+      data: await localizedConfig("homepage_data", config.value, contentLanguage(req)),
     });
   } catch (error) {
     console.error("Error fetching homepage config:", error);
@@ -35,6 +36,8 @@ export const updateHomepage = async (req: Request, res: Response) => {
       update: { value: data },
       create: { key: "homepage_data", value: data },
     });
+
+    enqueueConfigTranslation("homepage_data");
 
     res.status(200).json({
       success: true,
@@ -63,7 +66,7 @@ export const getReliefPage = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: config.value,
+      data: await localizedConfig("relief_page_data", config.value, contentLanguage(req)),
     });
   } catch (error) {
     console.error("Error fetching relief page config:", error);
@@ -80,6 +83,8 @@ export const updateReliefPage = async (req: Request, res: Response) => {
       update: { value: data },
       create: { key: "relief_page_data", value: data },
     });
+
+    enqueueConfigTranslation("relief_page_data");
 
     res.status(200).json({
       success: true,
@@ -108,7 +113,7 @@ export const getStoreFeatures = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: config.value,
+      data: await localizedConfig("store_features", config.value, contentLanguage(req)),
     });
   } catch (error) {
     console.error("Error fetching store features:", error);
@@ -125,6 +130,8 @@ export const updateStoreFeatures = async (req: Request, res: Response) => {
       update: { value: data },
       create: { key: "store_features", value: data },
     });
+
+    enqueueConfigTranslation("store_features");
 
     res.status(200).json({
       success: true,
@@ -146,7 +153,8 @@ export const getAllPages = async (req: Request, res: Response) => {
     const pages = await prisma.cmsPage.findMany({
       orderBy: { createdAt: "desc" },
     });
-    res.status(200).json({ success: true, pages });
+    const lang = contentLanguage(req);
+    res.status(200).json({ success: true, pages: pages.map((p) => localizeEntity("cmsPage", p, lang)) });
   } catch (error) {
     console.error("Error fetching pages:", error);
     res.status(500).json({ success: false, message: "Server error" });
@@ -164,7 +172,7 @@ export const getPageBySlug = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: "Page not found" });
     }
 
-    res.status(200).json({ success: true, page });
+    res.status(200).json({ success: true, page: localizeEntity("cmsPage", page, contentLanguage(req)) });
   } catch (error) {
     console.error("Error fetching page by slug:", error);
     res.status(500).json({ success: false, message: "Server error" });
@@ -193,6 +201,7 @@ export const createPage = async (req: Request, res: Response) => {
       },
     });
 
+    enqueueEntityTranslation("cmsPage", page.id);
     res.status(201).json({ success: true, message: "Page created successfully", page });
   } catch (error) {
     console.error("Error creating page:", error);
@@ -232,6 +241,7 @@ export const updatePage = async (req: Request, res: Response) => {
       },
     });
 
+    enqueueEntityTranslation("cmsPage", updatedPage.id);
     res.status(200).json({ success: true, message: "Page updated successfully", page: updatedPage });
   } catch (error) {
     console.error("Error updating page:", error);
@@ -278,7 +288,7 @@ export const getHeaderFooter = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: config.value,
+      data: await localizedConfig("header_footer_data", config.value, contentLanguage(req)),
     });
   } catch (error) {
     console.error("Error fetching header footer config:", error);
@@ -295,6 +305,8 @@ export const updateHeaderFooter = async (req: Request, res: Response) => {
       update: { value: data },
       create: { key: "header_footer_data", value: data },
     });
+
+    enqueueConfigTranslation("header_footer_data");
 
     res.status(200).json({
       success: true,
@@ -323,7 +335,7 @@ export const getFaqs = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: config.value,
+      data: await localizedConfig("faq_data", config.value, contentLanguage(req)),
     });
   } catch (error) {
     console.error("Error fetching FAQs:", error);
@@ -340,6 +352,8 @@ export const updateFaqs = async (req: Request, res: Response) => {
       update: { value: data },
       create: { key: "faq_data", value: data },
     });
+
+    enqueueConfigTranslation("faq_data");
 
     res.status(200).json({
       success: true,
@@ -368,7 +382,7 @@ export const getTestimonials = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: config.value,
+      data: await localizedConfig("testimonials_data", config.value, contentLanguage(req)),
     });
   } catch (error) {
     console.error("Error fetching testimonials:", error);
@@ -385,6 +399,8 @@ export const updateTestimonials = async (req: Request, res: Response) => {
       update: { value: data },
       create: { key: "testimonials_data", value: data },
     });
+
+    enqueueConfigTranslation("testimonials_data");
 
     res.status(200).json({
       success: true,
@@ -426,7 +442,7 @@ export const getProductPageConfig = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: config ? config.value : defaultData,
+      data: config ? await localizedConfig("product_page_data", config.value, contentLanguage(req)) : defaultData,
     });
   } catch (error) {
     console.error("Error fetching product page config:", error);
@@ -443,6 +459,8 @@ export const updateProductPageConfig = async (req: Request, res: Response) => {
       update: { value: data },
       create: { key: "product_page_data", value: data },
     });
+
+    enqueueConfigTranslation("product_page_data");
 
     res.status(200).json({
       success: true,

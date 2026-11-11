@@ -84,7 +84,7 @@ async function callGeminiRest(
 // ---------------------------------------------------------------------------
 // Try models in order until one works
 // ---------------------------------------------------------------------------
-async function callGeminiWithFallback(
+export async function callGeminiWithFallback(
   parts: any[],
   temperature: number = 0.5
 ): Promise<string> {
@@ -263,7 +263,7 @@ Style: warm evening indoor lighting, professional interior photography, European
 // ---------------------------------------------------------------------------
 // Robust JSON extractor — handles markdown fences, trailing text, etc.
 // ---------------------------------------------------------------------------
-function extractJson(raw: string): any {
+export function extractJson(raw: string): any {
   // Remove markdown fences
   let text = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 

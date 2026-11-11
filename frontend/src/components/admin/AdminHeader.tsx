@@ -43,6 +43,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/cms/blogs": "CMS — Blogs",
   "/admin/cms/seo": "CMS — SEO & AI Expert",
   "/admin/cms/email-templates": "CMS — Email Templates",
+  "/admin/cms/translations": "CMS — Translations",
 };
 
 function getPageTitle(pathname: string): string {

@@ -33,6 +33,13 @@ const PRESERVE_STORED_HTML_KEYS = new Set(["body", "content"]);
 const cache: Record<string, string> = {};
 
 /**
+ * Live Google Translate from the browser (free endpoint, rate-limited -> 429s). Off: product, CMS, blog, category
+ * and menu content now arrives already translated from the API (stored AI translations, X-Content-Language).
+ * Static phrases / i18n lookups below still apply; set true only as an emergency fallback.
+ */
+const CLIENT_MACHINE_TRANSLATION = false;
+
+/**
  * Translates a single text string using Google Translate free API.
  * Uses local memory and localStorage caching.
  */
@@ -58,6 +65,8 @@ export async function translateText(text: string, targetLang: string): Promise<s
     cache[cacheKey] = localCached;
     return localCached;
   }
+
+  if (!CLIENT_MACHINE_TRANSLATION) return text;
 
   try {
     const response = await fetch(`${getBaseUrl()}${API_PREFIX}/translate`, {
@@ -132,6 +141,8 @@ export async function translateCmsText(
     cache[cacheKey] = localCached;
     return replaceTrimmedPreservingEdges(text, trimmed, localCached);
   }
+
+  if (!CLIENT_MACHINE_TRANSLATION) return text;
 
   try {
     const response = await fetch(`${getBaseUrl()}${API_PREFIX}/translate`, {

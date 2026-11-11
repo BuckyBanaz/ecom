@@ -27,6 +27,10 @@ async function fetchAndParse<T>(url: string, config: RequestInit): Promise<T> {
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
+  // Storefront asks for content in its language (AI translations); the admin always edits the source text
+  if (!isAdminPanel) {
+    (headers as Record<string, string>)["X-Content-Language"] = (localStorage.getItem("i18nextLng") || "nl").split("-")[0];
+  }
 
   const response = await fetch(url, { ...config, headers });
 
@@ -998,6 +1002,22 @@ export const backupsRepository = {
     anchor.click();
     anchor.remove();
   },
+};
+
+// AI content translations (products; CMS pages and blogs later)
+export const translationsRepository = {
+  productsStatus: async () => request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/status`, { method: "GET" }),
+  translateAllProducts: async (force = false) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/translate-all`, { method: "POST", body: JSON.stringify({ force }) }),
+  getProduct: async (idOrSlug: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/${encodeURIComponent(idOrSlug)}`, { method: "GET" }),
+  translateProduct: async (idOrSlug: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/${encodeURIComponent(idOrSlug)}/translate`, { method: "POST" }),
+  contentStatus: async () => request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/status`, { method: "GET" }),
+  translateAllContent: async (force = false) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/translate-all`, { method: "POST", body: JSON.stringify({ force }) }),
+  saveProduct: async (idOrSlug: string, lang: string, data: Record<string, unknown>) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/${encodeURIComponent(idOrSlug)}/${lang}`, { method: "PUT", body: JSON.stringify(data) }),
 };
 
 // 28. Admin Logs Repository

@@ -1,4 +1,6 @@
 import { prisma } from "../config/db";
+import { enqueueEntityTranslation } from "./contentTranslationService";
+import { enqueueProductTranslation } from "./productTranslationService";
 import { aiService } from "./aiService";
 import { loadSeoEntityContext, runSeoAudit, saveSeoFields, SeoEntityType } from "./seoAuditService";
 import { runSeoAutopilot } from "./seoAutopilotService";
@@ -232,6 +234,7 @@ async function runBlogGenerateJob(payload: {
       },
     });
     blogId = blog.id;
+    enqueueEntityTranslation("blog", blog.id);
   }
 
   const summary = publish ? `Published: "${generated.title}"` : `Draft ready: "${generated.title}"`;
@@ -564,6 +567,7 @@ async function runBulkProductEditJob(payload: {
           where: { id: productId },
           data: updateData,
         });
+        enqueueProductTranslation(productId);
       }
 
       // Handle EAV attribute values update (e.g. color, fitting, etc.)

@@ -3,6 +3,13 @@ import { prisma } from "../config/db";
 import { sanitizeProductForClient, sanitizeProductsForClient } from "../utils/productSerializer";
 import { InventoryService } from "../services/inventoryService";
 import { syncProductAttributes } from "../services/productAttributeService";
+import { enqueueProductTranslation, localizeProduct, requestedTranslationLanguage } from "../services/productTranslationService";
+
+/** Storefront requests send X-Content-Language; admin requests do not and get the source content */
+const contentLanguage = (req: Request) => ({
+  lang: requestedTranslationLanguage(req as any),
+  isStorefront: Boolean(req.headers["x-content-language"]),
+});
 
 const CATEGORY_ALIASES: Record<string, string> = {
   // Indoor lighting / Parent / All
@@ -149,6 +156,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       cardView,
       attributeFilters,
     } = parseFilters(req.query);
+    const contentLang = contentLanguage(req);
 
     const whereConditions: any = { AND: [] };
 
@@ -385,6 +393,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       description: true,
       shortDescription: true,
       specs: true,
+      translations: true,
       brand: { select: { name: true } },
       category: { select: { id: true, name: true, slug: true } },
       productAttributeValues: {
@@ -416,7 +425,8 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
 
     const response: Record<string, unknown> = {
       success: true,
-      products: sanitizeProductsForClient(products),
+      // Lists never need the raw translations blob (admin edits it on the product page); storefront gets its language
+      products: sanitizeProductsForClient(products).map((p) => localizeProduct(p, contentLang.lang, true)),
       pagination: {
         totalItems,
         page,
@@ -566,6 +576,7 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
           image: true,
           inStock: true,
           specs: true,
+          translations: true,
           productAttributeValues: {
             include: {
               attribute: true,
@@ -576,7 +587,9 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
         orderBy: { createdAt: "asc" },
       });
 
-      siblings = siblingProducts.map((s) => {
+      const contentLang = contentLanguage(req);
+      siblings = siblingProducts.map((raw) => {
+        const s = localizeProduct(raw, contentLang.lang, true);
         const colorAttr = s.productAttributeValues?.find(
           (pav) =>
             pav.attribute?.slug === "color" ||
@@ -628,8 +641,9 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
       };
     }) || [];
 
+    const { lang, isStorefront } = contentLanguage(req);
     const clientProduct = {
-      ...sanitizeProductForClient(product),
+      ...localizeProduct(sanitizeProductForClient(product), lang, isStorefront),
       variants: mappedVariants,
       siblings,
     };
@@ -839,6 +853,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       }
     }
 
+    enqueueProductTranslation(product.id);
     res.status(201).json({ success: true, product });
   } catch (error) {
     next(error);
@@ -1093,6 +1108,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       }
     }
 
+    enqueueProductTranslation(realProductId);
     res.status(200).json({ success: true, product });
   } catch (error) {
     next(error);

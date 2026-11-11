@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/db";
+import { contentLanguage, enqueueEntityTranslation, localizeEntity } from "../services/contentTranslationService";
 
 const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -15,7 +16,8 @@ export const getBlogs = async (req: Request, res: Response, next: NextFunction):
       orderBy: { createdAt: "desc" },
     });
 
-    res.status(200).json({ success: true, blogs });
+    const lang = contentLanguage(req);
+    res.status(200).json({ success: true, blogs: blogs.map((b) => localizeEntity("blog", b, lang)) });
   } catch (error) {
     next(error);
   }
@@ -31,7 +33,7 @@ export const getBlogById = async (req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    res.status(200).json({ success: true, blog });
+    res.status(200).json({ success: true, blog: localizeEntity("blog", blog, contentLanguage(req)) });
   } catch (error) {
     next(error);
   }
@@ -61,6 +63,7 @@ export const createBlog = async (req: Request, res: Response, next: NextFunction
       },
     });
 
+    enqueueEntityTranslation("blog", blog.id);
     res.status(201).json({ success: true, blog });
   } catch (error) {
     next(error);
@@ -94,6 +97,7 @@ export const updateBlog = async (req: Request, res: Response, next: NextFunction
       },
     });
 
+    enqueueEntityTranslation("blog", blog.id);
     res.status(200).json({ success: true, blog });
   } catch (error) {
     next(error);

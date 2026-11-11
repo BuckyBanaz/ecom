@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { ProductTranslationPanel } from "@/components/admin/ProductTranslationPanel";
 import { Brand, Series } from "@/data/brands";
 import { Attribute } from "@/data/attributes";
 import { brandRepository, categoryRepository, attributeRepository, productRepository, seriesRepository } from "@/client/apiClient";
@@ -2047,6 +2048,9 @@ const AdminProductForm = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* AI translation (English) — only for saved products; new ones are translated right after saving */}
+            {isEdit && id && <ProductTranslationPanel productId={id} />}
           </div>
 
           {/* RIGHT COLUMN — Organisation, EAV Attributes & Sticky Action Panel (1/3 Width) */}

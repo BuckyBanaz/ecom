@@ -2,8 +2,17 @@ import { Request, Response, NextFunction } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/db";
 import { AppError } from "../middlewares/errorMiddleware";
+import { contentLanguage, enqueueEntityTranslation, localizeEntity } from "../services/contentTranslationService";
 
-export const getCategories = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+/** Category with its nested parent / children in the storefront language */
+const localizeCategory = (c: any, lang: string | null): any => {
+  const out: any = localizeEntity("category", c, lang);
+  if (c.parent) out.parent = localizeEntity("category", c.parent, lang);
+  if (Array.isArray(c.children)) out.children = c.children.map((child: any) => localizeEntity("category", child, lang));
+  return out;
+};
+
+export const getCategories = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const categories = await prisma.category.findMany({
       include: {
@@ -18,12 +27,14 @@ export const getCategories = async (_req: Request, res: Response, next: NextFunc
       orderBy: { sortOrder: "asc" },
     });
 
+    const lang = contentLanguage(req);
+    const localized = categories.map((c) => localizeCategory(c, lang));
     // Structure category tree for convenience
-    const parentCategories = categories.filter((c) => !c.parentId);
+    const parentCategories = localized.filter((c: any) => !c.parentId);
 
     res.status(200).json({
       success: true,
-      categories,
+      categories: localized,
       tree: parentCategories,
     });
   } catch (error) {
@@ -50,7 +61,7 @@ export const getCategoryById = async (req: Request, res: Response, next: NextFun
       return;
     }
 
-    res.status(200).json({ success: true, category });
+    res.status(200).json({ success: true, category: localizeCategory(category, contentLanguage(req)) });
   } catch (error) {
     next(error);
   }
@@ -77,6 +88,7 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
     });
 
 
+    enqueueEntityTranslation("category", category.id);
     res.status(201).json({ success: true, category });
   } catch (error) {
     next(error);
@@ -104,6 +116,9 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
         isActive: isActive !== undefined ? Boolean(isActive) : undefined,
       },
     });
+
+
+    enqueueEntityTranslation("category", category.id);
 
 
     res.status(200).json({ success: true, category });

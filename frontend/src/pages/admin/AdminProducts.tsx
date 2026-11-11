@@ -34,6 +34,7 @@ import {
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { productRepository, adminSettingsRepository } from "@/client/apiClient";
+import { ProductTranslationsBar } from "@/components/admin/ProductTranslationsBar";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { getApiV1Url } from "@/utils/endpoints";
 
@@ -350,6 +351,9 @@ const AdminProducts = () => {
           </div>
         )}
       </div>
+
+      {/* AI translations (English) for all products */}
+      {hasPermission("products") && <ProductTranslationsBar />}
 
       {/* Background AI Queue Job Progress Banner */}
       {jobState &&

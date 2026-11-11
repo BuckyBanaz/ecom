@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/db";
+import { contentLanguage, enqueueConfigTranslation, enqueueEntityTranslation, localizeEntity, localizedConfig } from "../services/contentTranslationService";
 
 // GET /api/v1/megamenus
-export const getMegaMenus = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getMegaMenus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const menus = await prisma.megaMenu.findMany({
       orderBy: { createdAt: "asc" },
@@ -12,11 +13,12 @@ export const getMegaMenus = async (_req: Request, res: Response, next: NextFunct
       where: { key: "landing_pages_data" }
     });
     
+    const lang = contentLanguage(req);
     res.status(200).json({ 
       success: true, 
       count: menus.length, 
-      menus,
-      landingPages: config?.value || {}
+      menus: menus.map((m) => localizeEntity("megaMenu", m, lang)),
+      landingPages: config ? await localizedConfig("landing_pages_data", config.value, lang) : {}
     });
   } catch (error) {
     next(error);
@@ -36,7 +38,7 @@ export const getMegaMenuById = async (req: Request, res: Response, next: NextFun
       return;
     }
 
-    res.status(200).json({ success: true, menu });
+    res.status(200).json({ success: true, menu: localizeEntity("megaMenu", menu, contentLanguage(req)) });
   } catch (error) {
     next(error);
   }
@@ -61,6 +63,7 @@ export const createMegaMenu = async (req: Request, res: Response, next: NextFunc
       },
     });
 
+    enqueueEntityTranslation("megaMenu", newMenu.id);
     res.status(201).json({ success: true, menu: newMenu });
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -93,6 +96,7 @@ export const updateMegaMenu = async (req: Request, res: Response, next: NextFunc
       },
     });
 
+    enqueueEntityTranslation("megaMenu", updatedMenu.id);
     res.status(200).json({ success: true, menu: updatedMenu });
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -163,6 +167,8 @@ export const syncMegaMenus = async (req: Request, res: Response, next: NextFunct
 
     const config = await prisma.cmsConfig.findUnique({ where: { key: "landing_pages_data" } });
 
+    newMenus.forEach((m) => enqueueEntityTranslation("megaMenu", m.id));
+    if (landingPages) enqueueConfigTranslation("landing_pages_data");
     res.status(200).json({ success: true, menus: newMenus, landingPages: config?.value || {} });
   } catch (error) {
     next(error);

@@ -84,6 +84,8 @@ model Category {
   seoTitle           String?             @map("seo_title")
   seoDescription     String?             @map("seo_description")
   seoKeywords        String?             @map("seo_keywords")
+  /// AI translations per storefront language: { nl: {...fields, sourceHash, translatedAt}, en: {...} }
+  translations   Json     @default("{}")
   sortOrder          Int                 @default(0) @map("sort_order")
   showInNavigation   Boolean             @default(true) @map("show_in_navigation")
   isActive           Boolean             @default(true) @map("is_active")
@@ -121,6 +123,8 @@ model Product {
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
   colorGroupId           String?                 @map("color_group_id")
+  /// AI translations of the content fields, e.g. { "en": { name, shortDescription, description, specs, seoTitle, seoDescription, seoKeywords, sourceHash, translatedAt, manual } }
+  translations           Json                    @default("{}")
   reviews                Review[]
   wishlists              Wishlist[]
   productAttributeValues ProductAttributeValue[]
@@ -308,6 +312,8 @@ model Blog {
   seoTitle       String?  @map("seo_title")
   seoDescription String?  @map("seo_description")
   seoKeywords    String?  @map("seo_keywords")
+  /// AI translations per storefront language: { nl: {...fields, sourceHash, translatedAt}, en: {...} }
+  translations   Json     @default("{}")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -355,6 +361,8 @@ model MegaMenu {
   slug      String   @unique
   sections         Json     @default("[]") // Array of sections and items
   isFoldedMobile   Boolean  @default(false) @map("is_folded_mobile")
+  /// AI translations per storefront language: { nl: {...fields, sourceHash, translatedAt}, en: {...} }
+  translations   Json     @default("{}")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -372,6 +380,8 @@ model CmsPage {
   seoDesc     String?  @map("seo_desc")
   seoKeywords String?  @map("seo_keywords")
   seoImage    String?  @map("seo_image")
+  /// AI translations per storefront language: { nl: {...fields, sourceHash, translatedAt}, en: {...} }
+  translations   Json     @default("{}")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

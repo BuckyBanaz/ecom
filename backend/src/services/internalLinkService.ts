@@ -1,4 +1,6 @@
 import { prisma } from "../config/db";
+import { enqueueEntityTranslation } from "./contentTranslationService";
+import { enqueueProductTranslation } from "./productTranslationService";
 import { getSeoPlaybook } from "./seoPlaybookService";
 import { fetchSearchConsoleOverview } from "./searchConsoleService";
 
@@ -202,6 +204,7 @@ export async function applyInternalLinkSuggestion(input: {
       where: { id: sourceId },
       data: { description: `${(row.description || "").trim()}\n${snippet}` },
     });
+    enqueueProductTranslation(sourceId);
     return { applied: true, field: "description" };
   }
 
@@ -215,6 +218,7 @@ export async function applyInternalLinkSuggestion(input: {
       where: { id: sourceId },
       data: { body: `${(row.body || "").trim()}\n${snippet}` },
     });
+    enqueueEntityTranslation("blog", sourceId);
     return { applied: true, field: "body" };
   }
 
@@ -228,6 +232,7 @@ export async function applyInternalLinkSuggestion(input: {
       where: { id: sourceId },
       data: { body: `${(row.body || "").trim()}\n${snippet}` },
     });
+    enqueueEntityTranslation("cmsPage", sourceId);
     return { applied: true, field: "body" };
   }
 
