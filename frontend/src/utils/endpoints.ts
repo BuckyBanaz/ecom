@@ -43,6 +43,7 @@ export const ENDPOINTS = {
   get ADMIN_SEO_CONFIG() { return api("/admin/settings/seo/config"); },
   get PUBLIC_SEO_CONFIG() { return api("/cms/seo-config"); },
   get ADMIN_ANALYTICS_DATA() { return api("/admin/settings/analytics/data"); },
+  get ADMIN_ANALYTICS_REALTIME() { return api("/admin/settings/analytics/realtime"); },
   get ADMIN_GENERAL_SETTINGS() { return api("/admin/settings/general"); },
   get PUBLIC_MAINTENANCE_STATUS() { return api("/cms/maintenance-status"); },
   get CONFIG_APP() { return api("/config/app"); },

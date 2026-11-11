@@ -1,10 +1,7 @@
 import { AppError } from "../middlewares/errorMiddleware";
 
-/**
- * Service to fetch real-time analytics data from Google Analytics 4
- * using the Google Analytics Data API v1.
- */
-export const getGA4Data = async () => {
+/** GA4 Data API client + property, or null when the credentials are not configured */
+function getGa4Client(): { client: any; property: string } | null {
   const propertyId = process.env.GA4_PROPERTY_ID?.trim();
   const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
   let privateKey = process.env.GA4_PRIVATE_KEY?.trim() || "";
@@ -37,20 +34,64 @@ export const getGA4Data = async () => {
     privateKey = privateKey.replace(/\\+n/g, "\n").trim();
   }
 
-  try {
-    // Dynamically require to prevent server crash if module is not installed yet
-    const { BetaAnalyticsDataClient } = require("@google-analytics/data");
-    
-    const analyticsDataClient = new BetaAnalyticsDataClient({
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-      },
-    });
+  // Dynamically require to prevent server crash if module is not installed yet
+  const { BetaAnalyticsDataClient } = require("@google-analytics/data");
+  const client = new BetaAnalyticsDataClient({
+    credentials: {
+      client_email: clientEmail,
+      private_key: privateKey,
+    },
+  });
+  return { client, property: `properties/${propertyId}` };
+}
 
-    // Query for multiple reports in parallel
-    const [batchResponse] = await analyticsDataClient.batchRunReports({
-      property: `properties/${propertyId}`,
+const toInt = (v: unknown) => parseInt(String(v ?? "0"), 10) || 0;
+
+/** "(not set)" rows are GA4's bucket for visitors it could not place */
+const geoRows = (report: any, withCountry: boolean) =>
+  (report?.rows || []).map((row: any) => {
+    const d = row.dimensionValues || [];
+    return {
+      name: d[0]?.value || "(not set)",
+      ...(withCountry ? { country: d[1]?.value || "", countryCode: d[2]?.value || "" } : { countryCode: d[1]?.value || "" }),
+      users: toInt(row.metricValues?.[0]?.value),
+      ...(row.metricValues?.[1] ? { sessions: toInt(row.metricValues[1].value) } : {}),
+    };
+  });
+
+/**
+ * Service to fetch analytics data from Google Analytics 4 using the Google Analytics Data API v1.
+ */
+export const getGA4Data = async () => {
+  try {
+    const ga = getGa4Client();
+    if (!ga) return null;
+    const analyticsDataClient = ga.client;
+
+    // Query for multiple reports in parallel (a batch holds at most 5 reports, so geo runs as a second batch)
+    const geoBatch = analyticsDataClient.batchRunReports({
+      property: ga.property,
+      requests: [
+        {
+          // 0: Visitors by country
+          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dimensions: [{ name: "country" }, { name: "countryId" }],
+          metrics: [{ name: "activeUsers" }, { name: "sessions" }],
+          orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+          limit: 15,
+        },
+        {
+          // 1: Visitors by city
+          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dimensions: [{ name: "city" }, { name: "country" }, { name: "countryId" }],
+          metrics: [{ name: "activeUsers" }],
+          orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+          limit: 15,
+        },
+      ],
+    });
+    const mainBatch = analyticsDataClient.batchRunReports({
+      property: ga.property,
       requests: [
         {
           // 0: Daily Traffic
@@ -81,6 +122,7 @@ export const getGA4Data = async () => {
         }
       ]
     });
+    const [[batchResponse], [geoResponse]] = await Promise.all([mainBatch, geoBatch]);
 
     const trafficReport = batchResponse.reports?.[0];
     const sourcesReport = batchResponse.reports?.[1];
@@ -132,10 +174,50 @@ export const getGA4Data = async () => {
       traffic: trafficData,
       sources: sourceData,
       devices: deviceData,
-      topPages: topPagesData
+      topPages: topPagesData,
+      countries: geoRows(geoResponse.reports?.[0], false),
+      cities: geoRows(geoResponse.reports?.[1], true),
     };
   } catch (error: any) {
     console.error("GA4 Analytics Error:", error);
     throw new AppError("Failed to fetch analytics from Google.", 500);
+  }
+};
+
+/**
+ * Visitors on the site right now (GA4 realtime = last 30 minutes), by country and city.
+ * Returns null when GA4 is not configured.
+ */
+export const getGA4Realtime = async () => {
+  try {
+    const ga = getGa4Client();
+    if (!ga) return null;
+    const [[byCountry], [byCity], [total]] = await Promise.all([
+      ga.client.runRealtimeReport({
+        property: ga.property,
+        dimensions: [{ name: "country" }, { name: "countryId" }],
+        metrics: [{ name: "activeUsers" }],
+        orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+        limit: 15,
+      }),
+      ga.client.runRealtimeReport({
+        property: ga.property,
+        dimensions: [{ name: "city" }, { name: "country" }, { name: "countryId" }],
+        metrics: [{ name: "activeUsers" }],
+        orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+        limit: 15,
+      }),
+      // without dimensions: the de-duplicated total (summing country rows can double count)
+      ga.client.runRealtimeReport({ property: ga.property, metrics: [{ name: "activeUsers" }] }),
+    ]);
+    return {
+      activeUsers: toInt(total?.rows?.[0]?.metricValues?.[0]?.value),
+      countries: geoRows(byCountry, false),
+      cities: geoRows(byCity, true),
+      fetchedAt: new Date().toISOString(),
+    };
+  } catch (error: any) {
+    console.error("GA4 Realtime Error:", error?.message || error);
+    throw new AppError("Failed to fetch realtime analytics from Google.", 500);
   }
 };

@@ -51,3 +51,5 @@ backend/serviceAccountKey.json
 
 local-scripts/
 docs/
+# Backup archives contain the database and uploads (customer data) — never commit
+backend/backups/

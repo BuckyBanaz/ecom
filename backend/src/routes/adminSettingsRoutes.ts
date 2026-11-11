@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, getLlmsTxt, updateLlmsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData, getGeneralSettings, updateGeneralSettings, getAiSettings, updateAiSettings, getAiModels } from "../controllers/adminSettingsController";
+import { getSmtpSettings, updateSmtpSettings, testSmtpSettings, getPaymentSettings, updatePaymentSettings, getAuthSettings, updateAuthSettings, getRobotsTxt, updateRobotsTxt, getLlmsTxt, updateLlmsTxt, generateSitemap, getSeoConfig, updateSeoConfig, getAnalyticsDashboardData, getGeneralSettings, updateGeneralSettings, getAiSettings, updateAiSettings, getAiModels, getAnalyticsRealtime } from "../controllers/adminSettingsController";
 import { authenticateJWT, requireAdmin } from "../middlewares/authMiddleware";
 
 const router = Router();
@@ -443,5 +443,8 @@ router.post("/seo/sitemap", generateSitemap);
  *         description: Live Analytics data
  */
 router.get("/analytics/data", getAnalyticsDashboardData);
+
+// Visitors right now (GA4 realtime, last 30 min) by country / city
+router.get("/analytics/realtime", getAnalyticsRealtime);
 
 export default router;

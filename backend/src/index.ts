@@ -102,6 +102,11 @@ async function startServer() {
         console.warn("SEO autopilot tick skipped:", err?.message || err);
       }
     }, 60 * 60 * 1000);
+
+    // Scheduled backups to Google Drive (checks every minute; settings in Admin → Backups)
+    import("./services/driveBackupService")
+      .then(({ startBackupScheduler }) => startBackupScheduler())
+      .catch((err) => console.warn("Backup scheduler not started:", err?.message || err));
   }
 
   process.on("unhandledRejection", (reason: Error) => {

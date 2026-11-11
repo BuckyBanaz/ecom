@@ -972,6 +972,19 @@ export const backupsRepository = {
     }),
   remove: async (id: string) =>
     request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  // Scheduled backups to Google Drive
+  getSchedule: async () => request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/schedule`, { method: "GET" }),
+  saveSchedule: async (settings: Record<string, unknown>) =>
+    request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/schedule`, { method: "PUT", body: JSON.stringify(settings) }),
+  runScheduledNow: async () => request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/schedule/run`, { method: "POST" }),
+  saveDriveCredentials: async (clientId: string, clientSecret: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/google/credentials`, {
+      method: "PUT",
+      body: JSON.stringify({ clientId, clientSecret }),
+    }),
+  getDriveAuthUrl: async (origin: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/google/auth-url?origin=${encodeURIComponent(origin)}`, { method: "GET" }),
+  disconnectDrive: async () => request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/google/disconnect`, { method: "POST" }),
   // Native browser download via a 2-minute link: streams to disk with the browser's own progress bar,
   // instead of buffering the whole archive in memory first (large backups never finished that way).
   download: async (id: string, filename: string) => {

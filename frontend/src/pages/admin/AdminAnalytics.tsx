@@ -18,12 +18,16 @@ import apiClient from "@/client/apiClient";
 import { ENDPOINTS } from "@/utils/endpoints";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
+import { LiveVisitorsCard, VisitorLocationsCard, useRealtimeVisitors, type GeoRow } from "@/components/admin/analytics/VisitorGeoCards";
+import { VisitorGlobeCard } from "@/components/admin/analytics/VisitorGlobe";
 
 type Ga4DashboardData = {
   traffic: Array<{ date: string; pageViews: number; visitors: number }>;
   sources: Array<{ name: string; value: number; color: string }>;
   devices: Array<{ name: string; value: number; color: string }>;
   topPages: Array<{ path: string; views: string; bounceRate: string }>;
+  countries?: GeoRow[];
+  cities?: GeoRow[];
 };
 
 const EMPTY_GA4: Ga4DashboardData = {
@@ -73,6 +77,7 @@ const AdminAnalytics = () => {
     ga4ClientEmail: "",
     ga4PrivateKey: "",
   });
+  const live = useRealtimeVisitors(credentialsReady && hasPermission("analytics"));
 
   useEffect(() => {
     fetchData();
@@ -297,6 +302,19 @@ const AdminAnalytics = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Where visitors come from: globe beside the live + per-country/city stats */}
+      {credentialsReady && (
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
+          <div className="lg:col-span-3">
+            <VisitorGlobeCard live={live.data?.countries || []} recent={ga4DataLive.countries || []} />
+          </div>
+          <div className="flex flex-col gap-6 lg:col-span-2">
+            <LiveVisitorsCard live={live} />
+            {isConnected && <VisitorLocationsCard countries={ga4DataLive.countries || []} cities={ga4DataLive.cities || []} />}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
