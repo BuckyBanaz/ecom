@@ -144,6 +144,7 @@ import wishlistRoutes from "./routes/wishlistRoutes";
 import adminSettingsRoutes from "./routes/adminSettingsRoutes";
 import emailTemplateRoutes from "./routes/emailTemplateRoutes";
 import couponRoutes from "./routes/couponRoutes";
+import salesCampaignRoutes from "./routes/salesCampaignRoutes";
 import chargeRoutes from "./routes/chargeRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import shippingRoutes from "./routes/shippingRoutes";
@@ -154,6 +155,8 @@ import notificationRoutes from "./routes/notificationRoutes";
 import configRoutes from "./routes/configRoutes";
 import logsRoutes from "./routes/logsRoutes";
 import backupRoutes from "./routes/backupRoutes";
+import translationRoutes from "./routes/translationRoutes";
+import inventoryRoutes from "./routes/inventoryRoutes";
 import { getRobotsTxtContent, getSitemapXmlContent, getLlmsTxtContent } from "./services/settingsStore";
 import { seoPrerender } from "./middlewares/seoPrerender";
 
@@ -201,6 +204,9 @@ app.get("/llms.txt", async (req, res, next) => {
 });
 
 // Aggregate API Routers will be registered here under /api/v1
+import translateRoutes from "./routes/translateRoutes";
+
+// Catch-all route for 404 undefined paths
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/categories", categoryRoutes);
@@ -219,8 +225,10 @@ app.use("/api/v1/config", configRoutes);
 app.use("/api/v1/admin/settings", adminSettingsRoutes);
 app.use("/api/v1/admin/logs", logsRoutes);
 app.use("/api/v1/admin/backups", backupRoutes);
+app.use("/api/v1/admin/translations", translationRoutes);
 app.use("/api/v1/admin/email-templates", emailTemplateRoutes);
 app.use("/api/v1/coupons", couponRoutes);
+app.use("/api/v1/sales-campaigns", salesCampaignRoutes);
 app.use("/api/v1/charges", chargeRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/shipping", shippingRoutes);
@@ -228,6 +236,8 @@ app.use("/api/v1/orders", orderRoutes);
 app.use("/api/v1/returns", returnRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/translate", translateRoutes);
+app.use("/api/v1/inventory", inventoryRoutes);
 
 // Catch-all route for 404 undefined paths
 app.all("*", (req, _res, next) => {

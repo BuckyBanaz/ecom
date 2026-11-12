@@ -10,6 +10,7 @@ import { cmsProductPageRepository } from "@/client/apiClient";
 import { SectionLoader } from "@/components/ui/PageLoader";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { LineTranslationPanel, TranslatableEditor } from "@/components/admin/TranslatableEditor";
 
 interface ProductPageCmsData {
   quoteTitle: string;
@@ -40,7 +41,7 @@ const DEFAULT_DATA: ProductPageCmsData = {
   questionImage: "/uploads/employee.png"
 };
 
-export default function CMSProductPage() {
+function CMSProductPageEditor() {
   const { t } = useTranslation();
   const [data, setData] = useState<ProductPageCmsData>(DEFAULT_DATA);
   const [isLoading, setIsLoading] = useState(true);
@@ -316,3 +317,12 @@ export default function CMSProductPage() {
     </div>
   );
 }
+
+
+/** Original editor + "Nederlands | English" tabs with the AI translations */
+const CMSProductPage = () => (
+  <TranslatableEditor panels={(lang) => <LineTranslationPanel target="config:product_page_data" lang={lang} />}>
+    <CMSProductPageEditor />
+  </TranslatableEditor>
+);
+export default CMSProductPage;

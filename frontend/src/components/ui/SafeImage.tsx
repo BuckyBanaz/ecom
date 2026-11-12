@@ -65,7 +65,7 @@ export function SafeImage({
       className={className}
       loading={priority ? "eager" : loading}
       decoding={decoding}
-      fetchPriority={priority ? "high" : fetchPriorityProp}
+      fetchpriority={priority ? "high" : fetchPriorityProp}
       onError={() => setHasError(true)}
       {...props}
     />

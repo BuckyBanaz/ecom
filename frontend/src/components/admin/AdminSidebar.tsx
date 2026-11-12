@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, FolderTree, ShoppingCart, Users, Settings,
   FileText, LogOut, Shield, ChevronLeft, ChevronRight, ChevronDown, PackageOpen,
   Home, ScrollText, FileCode, Newspaper, Search, Tag, Sliders, Quote, HardDrive, Mail,
-  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw, BarChart3, Terminal, CreditCard
+  Percent, Coins, Truck, ArrowRight, CheckCircle, RotateCcw, BarChart3, Terminal, CreditCard, Boxes, Languages
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ const navItemsBase = [
   { to: "/admin", icon: LayoutDashboard, labelKey: "dashboard", permission: "dashboard" },
   { to: "/admin/analytics", icon: BarChart3, labelKey: "analytics", permission: "analytics" },
   { to: "/admin/products", icon: Package, labelKey: "products", permission: "products" },
+  { to: "/admin/inventory", icon: Boxes, labelKey: "inventory", permission: "inventory" },
   { to: "/admin/categories", icon: FolderTree, labelKey: "categories", permission: "categories" },
   { to: "/admin/brands", icon: Tag, labelKey: "brands", permission: "brands" },
   { to: "/admin/attributes", icon: Sliders, labelKey: "attributes", permission: "attributes" },
@@ -52,6 +53,7 @@ const cmsChildrenBase = [
   { to: "/admin/cms/pages", icon: FileCode, labelKey: "dynamic_pages" },
   { to: "/admin/cms/blogs", icon: Newspaper, labelKey: "blogs" },
   { to: "/admin/cms/email-templates", icon: Mail, labelKey: "email_templates" },
+  { to: "/admin/cms/translations", icon: Languages, labelKey: "translations" },
   { to: "/admin/cms/seo", icon: Search, labelKey: "site_seo" },
 ];
 

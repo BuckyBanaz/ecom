@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, FileText, ArrowLeft, Save, Eye, Image as ImageIcon, CheckCircle2, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { ContentLanguageTabs, ContentTranslationPanel } from "@/components/admin/ContentTranslationPanel";
 import { normalizeCmsHtmlForStorage } from "@/utils/cmsHtml";
 import { Switch } from "@/components/ui/switch";
 import { cmsPagesRepository } from "@/client/apiClient";
@@ -98,6 +99,9 @@ const CMSPages = () => {
   
   // Editor State
   const [editId, setEditId] = useState<string | null>(null);
+  /** Editor tab: "source" = the page as written, "nl" / "en" = its AI translations */
+  const [langTab, setLangTab] = useState("source");
+  useEffect(() => setLangTab("source"), [editId]);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [body, setBody] = useState("");
@@ -238,9 +242,14 @@ const CMSPages = () => {
           </div>
         </div>
 
+        <ContentLanguageTabs value={langTab} onChange={setLangTab} disabled={!editId} />
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-6">
+            {langTab !== "source" && editId && <ContentTranslationPanel type="cmsPage" id={editId} lang={langTab} />}
+            {/* Source form stays mounted (hidden) on the translation tabs so nothing typed is lost */}
+            <div className={langTab === "source" ? "space-y-6" : "hidden"}>
             <Card className="border-muted-foreground/10 shadow-sm">
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
@@ -325,6 +334,7 @@ const CMSPages = () => {
                 </div>
               </CardContent>
             </Card>
+            </div>
           </div>
 
           {/* Sidebar Settings */}

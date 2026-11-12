@@ -23,18 +23,18 @@ type AdminContextType = {
 
 const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
   superadmin: [
-    "dashboard", "analytics", "products", "categories", "brands", "attributes",
+    "dashboard", "analytics", "products", "inventory", "categories", "brands", "attributes",
     "orders", "offers", "charges", "reviews", "testimonials",
     "storage", "users", "manage_users", "cms", "email_templates", "ai",
     "logs", "backups", "settings"
   ],
   admin: [
-    "dashboard", "analytics", "products", "categories", "brands", "attributes",
+    "dashboard", "analytics", "products", "inventory", "categories", "brands", "attributes",
     "orders", "offers", "charges", "reviews", "testimonials",
     "storage", "users", "email_templates", "ai"
   ],
   moderator: [
-    "dashboard", "products", "orders", "reviews", "testimonials"
+    "dashboard", "products", "inventory", "orders", "reviews", "testimonials"
   ]
 };
 
@@ -105,6 +105,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = (permissionOrRole: string) => {
     if (!user) return false;
+    if (user.role === "superadmin") return true;
     
     // Check if checking role level
     const roleLevel: Record<string, number> = { superadmin: 3, admin: 2, moderator: 1 };
@@ -114,11 +115,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
 
     // Check specific permission key
-    const permissions = user.permissions && user.permissions.length > 0
-      ? user.permissions
-      : DEFAULT_ROLE_PERMISSIONS[user.role] || [];
+    const defaultPerms = DEFAULT_ROLE_PERMISSIONS[user.role] || [];
+    const userPerms = user.permissions || [];
+    const allPerms = Array.from(new Set([...defaultPerms, ...userPerms]));
       
-    return permissions.includes(permissionOrRole);
+    return allPerms.includes(permissionOrRole);
   };
 
   return (

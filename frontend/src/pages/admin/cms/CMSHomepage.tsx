@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cmsHomepageRepository } from "@/client/apiClient";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { SectionLoader } from "@/components/ui/PageLoader";
+import { LineTranslationPanel, TranslatableEditor } from "@/components/admin/TranslatableEditor";
 
 type ImgState = string | null;
 
@@ -52,7 +53,7 @@ function ImageUploader({ label, value, onChange }: { label: string; value: ImgSt
   );
 }
 
-const CMSHomepage = () => {
+const CMSHomepageEditor = () => {
   const [content, setContent] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDesc, setSeoDesc] = useState("");
@@ -218,4 +219,12 @@ const CMSHomepage = () => {
   );
 };
 
+
+/** Original editor + "Nederlands | English" tabs with the AI translations */
+const CMSHomepage = () => (
+  <TranslatableEditor panels={(lang) => <LineTranslationPanel target="config:homepage_data" lang={lang} />}>
+    <CMSHomepageEditor />
+  </TranslatableEditor>
+);
 export default CMSHomepage;
+

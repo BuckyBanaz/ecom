@@ -11,7 +11,7 @@ import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { navGroups } from "@/data/categories";
 import { useDebounce } from "@/hooks/use-debounce";
-import { productRepository, megaMenuRepository, cmsHeaderFooterRepository } from "@/client/apiClient";
+import { productRepository, megaMenuRepository, cmsHeaderFooterRepository, categoryRepository } from "@/client/apiClient";
 import { useCmsData } from "@/hooks/useCmsData";
 import { useCmsLabel } from "@/hooks/useCmsLabel";
 import { DefaultAnnouncementBar } from "./TopBar";
@@ -19,11 +19,37 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { labelT } from "@/utils/i18nLabel";
 import { extractMegaMenus, fetchMegaMenusCmsPayload } from "@/utils/megaMenu";
 
-/** Mega menu slugs may include query filters, e.g. `all-lamps?room=Living Room`. */
-function categoryItemPath(slug: string): string {
-  const q = slug.indexOf("?");
-  if (q === -1) return `/category/${slug}`;
-  return `/category/${slug.slice(0, q)}${slug.slice(q)}`;
+function getMenuLink(parentSlug: string, child: any, allCategories: any[]) {
+  const rawSlug = (child?.slug || "").trim();
+  if (rawSlug.startsWith("http") || rawSlug.startsWith("/deals") || rawSlug.startsWith("/sale") || rawSlug.startsWith("/blogs") || rawSlug.startsWith("/relief")) {
+    return rawSlug;
+  }
+
+  if (rawSlug.startsWith("/category/")) {
+    return rawSlug;
+  }
+
+  const [basePart, queryPart] = rawSlug.replace(/^\/+/, "").split("?");
+  const cleanChildSlug = basePart.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  const querySuffix = queryPart ? `?${queryPart}` : "";
+
+  const childCat = allCategories.find((c: any) => c.slug?.toLowerCase() === cleanChildSlug);
+  let realParentSlug = parentSlug ? parentSlug.replace(/^\/+/, "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") : "";
+
+  if (childCat?.parentId) {
+    const parentCat = allCategories.find((c: any) => c.id === childCat.parentId);
+    if (parentCat?.slug) {
+      realParentSlug = parentCat.slug.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+    }
+  } else if (childCat?.parent?.slug) {
+    realParentSlug = childCat.parent.slug.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+
+  if (realParentSlug) {
+    return `/${realParentSlug}/${cleanChildSlug}${querySuffix}`;
+  }
+
+  return `/category/${cleanChildSlug}${querySuffix}`;
 }
 
 function HeaderTopBarText({ text, icon }: { text: string; icon?: string }) {
@@ -58,12 +84,78 @@ export function Header() {
   const { count, setDrawerOpen } = useCart();
   const { ids } = useWishlist();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [expandedMobileMenu, setExpandedMobileMenu] = useState<string | null>(null);
+  const [expandedMobileParent, setExpandedMobileParent] = useState<string | null>(null);
+  const [expandedMobileSection, setExpandedMobileSection] = useState<string | null>(null);
 
   const { data: rawMegaMenu } = useCmsData("mega_menu_data", fetchMegaMenusCmsPayload);
   const { data: headerFooterData, loading: headerFooterLoading } = useCmsData("header_footer_data", () => cmsHeaderFooterRepository.get());
+  const { data: categoriesRes } = useCmsData("categories_data_v2", async () => {
+    const res = await categoryRepository.getAll();
+    return { success: res.success, data: res };
+  });
 
-  const menuList = extractMegaMenus(rawMegaMenu);
+  // Generate navigation tree from categories (fallback only)
+  const tree = categoriesRes?.tree || [];
+  const activeTree = tree.filter((c: any) => c.isActive !== false && c.showInNavigation !== false).sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const navTreeFallback = activeTree.map((parent: any) => ({
+    name: parent.name,
+    slug: parent.slug,
+    sections: [
+      {
+        title: "Categories",
+        type: "custom",
+        items: (parent.children || []).filter((c: any) => c.isActive !== false && c.showInNavigation !== false).sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c: any) => ({
+          name: c.name,
+          slug: c.slug
+        }))
+      }
+    ]
+  }));
+
+  // Build the Final Navigation Tree from the CMS Mega Menu
+  let finalNavTree: any[] = [];
+  const allCategories = categoriesRes?.categories || [];
+  
+  if (rawMegaMenu && rawMegaMenu.length > 0) {
+    finalNavTree = rawMegaMenu.map((m: any) => {
+      const enhancedSections = (m.sections || []).map((section: any) => {
+        if ((section.type === "dynamic" || section.type === "both") && section.categoryId) {
+          // Auto-populate from category
+          const childCategories = allCategories
+            .filter((c: any) => c.parentId === section.categoryId && c.isActive !== false && c.showInNavigation !== false)
+            .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+            
+          const dynamicItems = childCategories.map((c: any) => ({
+            name: c.name,
+            slug: c.slug,
+            isDynamic: true
+          }));
+
+          return {
+            title: section.title,
+            type: section.type,
+            categoryId: section.categoryId,
+            items: section.type === "both" 
+              ? [...(section.items || []), ...dynamicItems]
+              : dynamicItems
+          };
+        }
+        return section;
+      });
+
+      return {
+        name: m.menu,
+        slug: m.slug,
+        sections: enhancedSections,
+        isFoldedMobile: m.isFoldedMobile,
+      };
+    });
+  } else {
+    // Fallback if MegaMenu CMS is completely empty
+    finalNavTree = navTreeFallback;
+  }
+
+
   const topLeft = headerFooterData?.topLeft || [];
   const topRight = headerFooterData?.topRight || [];
   const hasCmsAnnouncement = topLeft.length > 0 || topRight.length > 0;
@@ -221,52 +313,88 @@ export function Header() {
             <div className="border-b p-4" onClick={() => setIsMobileMenuOpen(false)}>
               <Logo />
             </div>
-            <nav className="p-2">
-              {menuList.map((menuObj) => {
-                const isExpanded = expandedMobileMenu === menuObj.slug;
+            <nav className="flex flex-col mt-4">
+              {finalNavTree.map((parent: any) => {
+                const isFoldedMenu = parent.isFoldedMobile === true;
+                const isParentExpanded = expandedMobileParent === parent.slug;
+
+                if (isFoldedMenu) {
+                  return (
+                    <div key={parent.slug} className="border-b border-border/30 last:border-0">
+                      <button 
+                        className={`flex w-full items-center justify-between px-5 py-4 text-[14px] font-bold transition-colors uppercase tracking-[0.05em] ${isParentExpanded ? 'text-primary' : 'text-foreground hover:text-primary'}`}
+                        onClick={() => {
+                          setExpandedMobileParent(isParentExpanded ? null : parent.slug);
+                        }}
+                      >
+                        <span>{labelT(t, parent.name, i18n.language)}</span>
+                        <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isParentExpanded ? 'rotate-180 text-primary' : 'opacity-40'}`} />
+                      </button>
+
+                      {isParentExpanded && (
+                        <div className="px-5 pb-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="space-y-6 pt-2">
+                            {(parent.sections || []).map((section: any, sIdx: number) => (
+                              <div key={sIdx}>
+                                <div className="text-[14px] font-semibold text-foreground/90 mb-3 pb-1 border-b border-border/20">
+                                  {labelT(t, section.title, i18n.language)}
+                                </div>
+                                <div className="flex flex-col space-y-3.5 pl-1">
+                                  {(section.items || []).map((child: any) => (
+                                    <Link
+                                      key={child.slug}
+                                      to={getMenuLink(parent.slug, child, allCategories)}
+                                      className="flex items-center text-[13px] text-muted-foreground transition-colors hover:text-primary group/item"
+                                      onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 mr-3 transition-colors group-hover/item:bg-primary shrink-0" />
+                                      <span>{labelT(t, child.name, i18n.language)}</span>
+                                    </Link>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Unfolded layout (Default)
                 return (
-                  <div key={menuObj.slug} className="border-b py-1">
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      onClick={() =>
-                        setExpandedMobileMenu(isExpanded ? null : menuObj.slug)
-                      }
-                      className="flex w-full items-center justify-between px-2 py-2 text-left font-semibold hover:text-primary"
-                    >
-                      <span>{labelT(t, menuObj.menu, i18n.language)}</span>
-                      <ChevronDown
-                        size={16}
-                        className={`shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                    {isExpanded ? (
-                      <ul className="pl-4 pb-2">
-                        {menuObj.sections.map((section) => (
-                          <li key={section.title} className="mt-2">
-                            <div className="mb-1 text-sm font-medium text-primary">
-                              {labelT(t, section.title, i18n.language)}
-                            </div>
-                            <ul className="space-y-1">
-                              {section.items.map((item) => (
-                                <li key={item.slug}>
-                                  <Link
-                                    to={categoryItemPath(item.slug)}
-                                    onClick={() => {
-                                      setIsMobileMenuOpen(false);
-                                      setExpandedMobileMenu(null);
-                                    }}
-                                    className="block py-1.5 text-sm hover:text-primary"
-                                  >
-                                    {labelT(t, item.name, i18n.language)}
-                                  </Link>
-                                </li>
-                              ))}
-                            </ul>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
+                  <div key={parent.slug} className="mb-6 border-b border-border/30 pb-6 last:border-0 last:pb-0">
+                    <div className="px-5 mb-4">
+                      <Link 
+                        to={`/${parent.slug}`}
+                        className="text-[15px] font-bold text-foreground tracking-[0.05em] uppercase hover:text-primary transition-colors"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        {labelT(t, parent.name, i18n.language)}
+                      </Link>
+                    </div>
+
+                    <div className="space-y-6 px-5">
+                      {(parent.sections || []).map((section: any, sIdx: number) => (
+                        <div key={sIdx}>
+                          <div className="text-[14px] font-semibold text-foreground/90 mb-3">
+                            {labelT(t, section.title, i18n.language)}
+                          </div>
+                          <div className="flex flex-col space-y-3.5 pl-2 border-l-2 border-muted">
+                            {(section.items || []).map((child: any) => (
+                              <Link
+                                key={child.slug}
+                                to={getMenuLink(parent.slug, child, allCategories)}
+                                className="flex items-center text-[13px] text-muted-foreground transition-colors hover:text-primary group/item pl-2"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                              >
+                                <span>{labelT(t, child.name, i18n.language)}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
               })}
@@ -363,40 +491,39 @@ export function Header() {
 
       {/* Mega nav (Desktop) */}
       <nav className="hidden border-t lg:block relative z-50 bg-background" onMouseLeave={() => setActiveMenu(null)}>
-        <div className="container-page flex items-center gap-4 py-0">
-          {menuList.map((menuObj) => (
+        <div className="container-page flex items-center gap-4 py-0 flex-wrap">
+          {finalNavTree.map((parent: any) => (
             <div
-              key={menuObj.slug}
+              key={parent.slug}
               className="group"
-              onMouseEnter={() => setActiveMenu(menuObj.slug)}
+              onMouseEnter={() => setActiveMenu(parent.slug)}
             >
               <Link
-                to={`/relief/${menuObj.slug}`}
+                to={`/${parent.slug}`}
                 className="flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-muted text-foreground"
               >
-                {labelT(t, menuObj.menu, i18n.language)}
-                <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === menuObj.slug ? 'rotate-180' : ''}`} />
+                {labelT(t, parent.name, i18n.language)}
+                <ChevronDown size={14} className={`opacity-70 transition-transform ${activeMenu === parent.slug ? 'rotate-180' : ''}`} />
               </Link>
               
-              {/* Dropdown panel */}
-              {activeMenu === menuObj.slug && (
+              {activeMenu === parent.slug && (
                 <div className="absolute left-0 top-full w-full bg-background border-b shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 z-[60]">
                   <div className="container-page py-8">
-                    <div className="grid grid-cols-4 gap-8">
-                      {menuObj.sections.map((section) => (
-                        <div key={section.title}>
-                          <h3 className="mb-4 text-base font-bold text-foreground">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                      {(parent.sections || []).map((section: any, sIdx: number) => (
+                        <div key={sIdx}>
+                          <h3 className="mb-4 text-base font-bold text-foreground capitalize">
                             {labelT(t, section.title, i18n.language)}
                           </h3>
                           <ul className="space-y-3">
-                            {section.items.map((item) => (
-                              <li key={item.slug}>
+                            {(section.items || []).map((child: any) => (
+                              <li key={child.slug}>
                                 <Link
-                                  to={categoryItemPath(item.slug)}
+                                  to={getMenuLink(parent.slug, child, allCategories)}
                                   onClick={() => setActiveMenu(null)}
-                                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors hover:underline underline-offset-4"
+                                  className="text-sm transition-colors hover:text-primary hover:underline underline-offset-4 font-medium text-muted-foreground"
                                 >
-                                  {labelT(t, item.name, i18n.language)}
+                                  {labelT(t, child.name, i18n.language)}
                                 </Link>
                               </li>
                             ))}

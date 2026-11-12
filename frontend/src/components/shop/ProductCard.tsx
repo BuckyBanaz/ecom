@@ -64,8 +64,8 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
           <div>
-            {product.oldPrice && (
-              <div className="text-xs text-muted-foreground line-through">{formatPrice(product.oldPrice)}</div>
+            {product.oldPrice && product.oldPrice > product.price && (
+              <div className="text-xs text-muted-foreground line-through font-medium">{formatPrice(product.oldPrice)}</div>
             )}
             <div className="text-lg font-bold text-foreground">{formatPrice(product.price)}</div>
           </div>

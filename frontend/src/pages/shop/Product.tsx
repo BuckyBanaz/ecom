@@ -108,6 +108,10 @@ const ProductPage = () => {
         const data = await productRepository.getByIdOrSlug(slug);
         if (data.success && data.product) {
           const p = data.product;
+          const firstVariant = p.variants?.[0];
+          const firstInv = firstVariant?.inventoryItems?.[0];
+          const computedWebshopStock = firstInv?.webshopAllocated ?? firstVariant?.stock ?? (p.webshopStock ?? (p.stock ?? (p.inStock ? 50 : 0)));
+          const computedLowStockThreshold = firstInv?.reorderPoint ?? p.lowStockThreshold ?? 10;
           const mappedColor = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "color")?.attributeValue?.value || "Black";
           const mappedFitting = p.productAttributeValues?.find((pav: any) => pav.attribute.slug === "fitting")?.attributeValue?.value || "E27";
           setLiveProduct({
@@ -118,11 +122,13 @@ const ProductPage = () => {
             category: p.category?.slug || "general",
             price: p.price,
             oldPrice: p.oldPrice || undefined,
-            rating: p.rating || 5,
-            reviewCount: p.reviewCount || 12,
+            rating: p.rating || 0,
+            reviewCount: p.reviewCount || 0,
             image: p.image,
             images: p.images || [],
             inStock: p.inStock ?? true,
+            webshopStock: computedWebshopStock,
+            lowStockThreshold: computedLowStockThreshold,
             description: p.description || "",
             shortDescription: p.shortDescription || "",
             specs: p.specs || {},
@@ -133,6 +139,7 @@ const ProductPage = () => {
             seoTitle: p.seoTitle,
             seoDescription: p.seoDescription,
             seoKeywords: p.seoKeywords,
+            siblings: p.siblings || [],
           });
           setSelectedImageIndex(0);
           setColor(mappedColor);
@@ -141,12 +148,15 @@ const ProductPage = () => {
           const pCatSlug = p.category?.slug;
           const pBrandName = getProductBrandName(p.brand);
 
-          let pSeriesName = null;
-          if (p.specs) {
+          let pSeriesName: string | null = null;
+          if (p.series?.name) {
+            pSeriesName = p.series.name;
+          } else if (p.specs) {
             if (Array.isArray(p.specs)) {
-              pSeriesName = p.specs.find((s: any) => s.key === "Series")?.value;
+              pSeriesName = p.specs.find((s: any) => s && (s.key === "Series" || s.key === "Collection" || s.key === "Collectie" || s.key === "Serie"))?.value || null;
             } else {
-              pSeriesName = Object.entries(p.specs).find(([k]) => k === "Series" || k.includes("::Series"))?.[1] as string;
+              const entry = Object.entries(p.specs).find(([k]) => k === "Series" || k === "Collection" || k === "Collectie" || k.includes("::Series") || k.includes("::Collection"));
+              if (entry) pSeriesName = String(entry[1]);
             }
           }
 
@@ -226,8 +236,71 @@ const ProductPage = () => {
   const product = liveProduct || findProduct(slug);
   if (!product) return <NotFound />;
 
+  const availableStock = product.inStock !== false ? (product.webshopStock !== undefined ? product.webshopStock : (product.stock !== undefined ? product.stock : 10)) : 0;
+  const lowStockThreshold = product.lowStockThreshold ?? 10;
+  const isLowStock = product.inStock !== false && availableStock > 0 && availableStock <= lowStockThreshold;
+
   const fav = has(product.id);
   const galleryImages = [product.image, ...(product.images ?? [])].filter(Boolean);
+
+  const formatDescriptionHtml = (raw: string): string => {
+    if (!raw) return "";
+    let cleaned = raw.trim();
+
+    // Strip duplicate specifications section if present
+    cleaned = cleaned.replace(/\*\*Specificaties\*\*[\s\S]*$/i, "");
+    cleaned = cleaned.replace(/Specificaties:[\s\S]*$/i, "");
+    cleaned = cleaned.replace(/<h3>Specificaties<\/h3>[\s\S]*$/i, "");
+
+    // Convert markdown bold **text** to <strong>text</strong>
+    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+    // Format section headers
+    cleaned = cleaned.replace(/<strong>Belangrijkste kenmerken<\/strong>/gi, "<h3 className=\"font-bold mt-4 mb-2 text-base\">Belangrijkste kenmerken</h3>");
+    cleaned = cleaned.replace(/Belangrijkste kenmerken:/gi, "<h3 className=\"font-bold mt-4 mb-2 text-base\">Belangrijkste kenmerken</h3>");
+
+    // Convert bullet points (- item or • item) to HTML lists if present
+    if (cleaned.includes("- ") || cleaned.includes("• ")) {
+      const lines = cleaned.split("\n");
+      let inList = false;
+      const resultLines: string[] = [];
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+          if (!inList) {
+            resultLines.push("<ul className=\"list-disc pl-5 my-3 space-y-1\">");
+            inList = true;
+          }
+          const text = trimmed.replace(/^[-•]\s*/, "").trim();
+          resultLines.push(`  <li>${text}</li>`);
+        } else {
+          if (inList) {
+            resultLines.push("</ul>");
+            inList = false;
+          }
+          if (trimmed) {
+            if (!trimmed.startsWith("<")) {
+              resultLines.push(`<p className="mb-3">${trimmed}</p>`);
+            } else {
+              resultLines.push(trimmed);
+            }
+          }
+        }
+      }
+      if (inList) resultLines.push("</ul>");
+      cleaned = resultLines.join("\n");
+    } else if (!cleaned.includes("<p>")) {
+      cleaned = cleaned
+        .split(/\n\s*\n/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => (p.startsWith("<") ? p : `<p className="mb-3">${p}</p>`))
+        .join("\n");
+    }
+
+    return cleaned;
+  };
 
   const renderSpecs = () => {
     const renderSpecItems = (items: any[]) => (
@@ -277,6 +350,12 @@ const ProductPage = () => {
             className="relative overflow-hidden rounded-xl border border-border/50 bg-white dark:bg-muted aspect-square sm:aspect-[4/3] lg:aspect-auto lg:h-[400px] flex items-center justify-center cursor-zoom-in group"
             onClick={() => setIsZoomOpen(true)}
           >
+            {product.oldPrice && product.oldPrice > product.price && (
+              <div className="absolute top-3 left-3 z-10 rounded-full bg-amber-600 px-3 py-1 text-xs font-black text-white shadow-md flex items-center gap-1.5 animate-in fade-in">
+                <span>-{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider">SALE</span>
+              </div>
+            )}
             <SafeImage
               src={galleryImages[selectedImageIndex]}
               alt={product.name}
@@ -306,18 +385,29 @@ const ProductPage = () => {
         </div>
 
         <div>
+          {/* Stock status & Badges */}
           <div className="flex flex-wrap items-center gap-3 mb-3">
             {product.isBestSelling && <Badge className="rounded-full px-3 py-0.5 bg-[#f59e0b] hover:bg-[#d97706] text-white border-transparent font-bold text-[12px] shadow-sm">{t("product.badge_best_seller")}</Badge>}
             {product.isNewArrival && <Badge className="rounded-full px-3 py-0.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white border-transparent font-bold text-[12px] shadow-sm">{t("product.badge_new_arrival")}</Badge>}
 
-            {product.inStock !== false ? (
-              <div className="flex items-center gap-2 text-[12px] text-green-700 dark:text-green-400 font-bold bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 px-2.5 py-0.5 rounded-full">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-600 dark:bg-green-500"></span>
-                </span>
-                {t("product.in_stock")}
-              </div>
+            {product.inStock !== false && availableStock > 0 ? (
+              <>
+                <div className="flex items-center gap-2 text-[12px] text-green-700 dark:text-green-400 font-bold bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 px-2.5 py-0.5 rounded-full">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-600 dark:bg-green-500"></span>
+                  </span>
+                  {t("product.in_stock")}
+                </div>
+                {isLowStock && (
+                  <div className="flex items-center gap-1.5 text-[12px] text-amber-700 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-full animate-pulse">
+                    <span className="relative flex h-2 w-2">
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600 dark:bg-amber-500"></span>
+                    </span>
+                    {t("product.only_left_in_stock", { count: availableStock, defaultValue: `Only ${availableStock} left in stock - order soon!` })}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex items-center gap-2 text-[12px] text-red-700 dark:text-red-400 font-bold bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 px-2.5 py-0.5 rounded-full">
                 <span className="relative flex h-2 w-2">
@@ -390,24 +480,84 @@ const ProductPage = () => {
             </div>
           )}
 
-          <div className="mt-6 flex items-end gap-3">
-            <span className="text-3xl font-bold text-primary">{formatPrice(product.price)}</span>
-            {product.oldPrice && (
+          <div className="mt-6 flex flex-wrap items-baseline gap-3">
+            <span className="text-3xl sm:text-4xl font-extrabold text-primary">{formatPrice(product.price)}</span>
+            {product.oldPrice && product.oldPrice > product.price && (
               <>
-                <span className="text-lg text-muted-foreground line-through">{formatPrice(product.oldPrice)}</span>
-                <Badge className="bg-primary text-white border-transparent">{t("product.badge_sale")}</Badge>
+                <span className="text-xl text-muted-foreground line-through font-medium">
+                  {formatPrice(product.oldPrice)}
+                </span>
+                <Badge className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-2.5 py-0.5 rounded-full border-transparent shadow-xs">
+                  -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%
+                </Badge>
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/50">
+                  Bespaar {formatPrice(product.oldPrice - product.price)}
+                </span>
               </>
             )}
           </div>
 
+          {/* Color Sibling Variations (Kies een kleur - Reference Photo Style) */}
+          {product.siblings && product.siblings.length > 1 && (
+            <div className="mt-5 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <span>{t("product.choose_color", "Kies een kleur")}:</span>
+                <span className="font-bold text-primary">
+                  {product.siblings.find((s: any) => s.isCurrent)?.colorName || product.color || ""}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {product.siblings.map((sibling: any) => {
+                  const isCurrent = Boolean(sibling.isCurrent || sibling.id === product.id);
+                  return (
+                    <Link
+                      key={sibling.id}
+                      to={`/product/${sibling.slug}`}
+                      className={cn(
+                        "group relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 bg-white dark:bg-muted p-1 transition-all duration-200 overflow-hidden shadow-xs cursor-pointer",
+                        isCurrent
+                          ? "border-amber-500 ring-2 ring-amber-500/30 shadow-md scale-105"
+                          : "border-border/80 hover:border-foreground/50 hover:shadow-sm hover:scale-102"
+                      )}
+                      title={sibling.name || sibling.colorName}
+                    >
+                      <SafeImage
+                        src={sibling.image}
+                        alt={sibling.name}
+                        fallbackType="product"
+                        className="w-full h-full object-contain"
+                      />
+                      {isCurrent && (
+                        <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <div className="flex items-center rounded-full border border-border shadow-sm bg-background">
-              <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-2 hover:bg-muted text-muted-foreground transition-colors rounded-l-full text-lg leading-none">−</button>
-              <span className="w-6 text-center text-sm font-semibold">{qty}</span>
-              <button onClick={() => setQty(qty + 1)} className="px-4 py-2 hover:bg-muted text-muted-foreground transition-colors rounded-r-full text-lg leading-none">+</button>
+              <button 
+                onClick={() => setQty(Math.max(1, qty - 1))} 
+                disabled={qty <= 1 || availableStock <= 0 || product.inStock === false}
+                className="px-4 py-2 hover:bg-muted text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors rounded-l-full text-lg leading-none"
+              >−</button>
+              <span className="w-6 text-center text-sm font-semibold">{availableStock <= 0 || product.inStock === false ? 0 : qty}</span>
+              <button 
+                onClick={() => setQty(Math.min(availableStock, qty + 1))} 
+                disabled={qty >= availableStock || availableStock <= 0 || product.inStock === false}
+                className="px-4 py-2 hover:bg-muted text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors rounded-r-full text-lg leading-none"
+              >+</button>
             </div>
-            <Button size="default" disabled={product.inStock === false} className="flex-1 rounded-full sm:flex-none font-bold bg-primary hover:bg-primary/90 text-white px-8 shadow-sm transition-all" onClick={() => add(product, qty)}>
-              {product.inStock === false ? t("product.button_out_of_stock") : t("product.button_add_to_cart")}
+            <Button 
+              size="default" 
+              disabled={product.inStock === false || availableStock <= 0} 
+              className="flex-1 rounded-full sm:flex-none font-bold bg-primary hover:bg-primary/90 text-white px-8 shadow-sm transition-all" 
+              onClick={() => add(product, Math.min(qty, availableStock))}
+            >
+              {product.inStock === false || availableStock <= 0 ? t("product.button_out_of_stock") : t("product.button_add_to_cart")}
             </Button>
             <Button size="icon" variant="outline" className="h-10 w-10 rounded-full shadow-sm text-muted-foreground hover:text-foreground" onClick={() => toggle(product.id, product.name, product)} aria-label={t("product.aria_wishlist")}>
               <Heart size={18} className={cn(fav ? "fill-red-500 text-red-500" : "text-muted-foreground")} />
@@ -514,7 +664,7 @@ const ProductPage = () => {
         {/* Left: Description */}
         <div>
           <h2 className="text-xl font-bold mb-6">{t("product.section_description")}</h2>
-          <div className={`text-foreground/90 leading-relaxed ${product.description?.includes('<style') ? '' : 'prose prose-sm max-w-none dark:prose-invert'}`} dangerouslySetInnerHTML={{ __html: product.description }} />
+          <div className={`text-foreground/90 leading-relaxed ${product.description?.includes('<style') ? '' : 'prose prose-sm max-w-none dark:prose-invert'}`} dangerouslySetInnerHTML={{ __html: formatDescriptionHtml(product.description || "") }} />
         </div>
 
         {/* Right: Specifications */}
@@ -563,106 +713,110 @@ const ProductPage = () => {
 
       {/* 3. Customer Reviews Section */}
       <div className="mt-20 border-t pt-12">
-        <h2 className="text-xl font-bold mb-8">{t("product.section_reviews")}</h2>
-
-        {(() => {
-          const realReviewCount = liveReviews.length;
-          const realAvgRating = realReviewCount > 0
-            ? liveReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount
-            : 0;
-
-          const ratingCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-          liveReviews.forEach(r => {
-            if (r.rating >= 1 && r.rating <= 5) {
-              ratingCounts[Math.round(r.rating) as keyof typeof ratingCounts]++;
-            }
-          });
-
-          return (
-            <div className="flex flex-wrap items-start justify-between gap-6 mb-10">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8">
-                <div>
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-4xl font-extrabold">{realAvgRating.toFixed(1)}</span>
-                    <StarRating value={realAvgRating} size={18} />
-                  </div>
-                  <p className="text-xs text-muted-foreground font-medium">{t("product.review_based_on")} {realReviewCount} {t("product.reviews_count_label")}</p>
-                </div>
-
-                <div className="space-y-1.5 w-[200px]">
-                  {[5, 4, 3, 2, 1].map((stars) => {
-                    const count = ratingCounts[stars as keyof typeof ratingCounts];
-                    const pct = realReviewCount > 0 ? `${(count / realReviewCount) * 100}%` : "0%";
-                    return (
-                      <div key={stars} className="flex items-center gap-3 text-xs">
-                        <span className="flex text-muted-foreground">{"★".repeat(stars)}{"☆".repeat(5 - stars)}</span>
-                        <div className="flex-1 h-3.5 bg-muted rounded-sm overflow-hidden flex">
-                          <div className="bg-[#333] dark:bg-primary h-full transition-all duration-500" style={{ width: pct }} />
-                        </div>
-                        <span className="w-5 text-right text-muted-foreground font-medium">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <Button onClick={() => setReviewModalOpen(true)} variant="default" className="rounded-full px-6 font-bold bg-[#222] hover:bg-black text-white dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90 shadow-none">
-                {t("product.button_write_review")}
-              </Button>
-            </div>
-          );
-        })()}
-
-        {/* Filters bar */}
-        <div className="flex justify-end mb-6">
-          <select className="text-xs border rounded-md px-3 py-2 bg-background font-medium outline-none focus:border-primary">
-            <option>{t("product.filter_with_photos")}</option>
-            <option>{t("product.filter_all_reviews")}</option>
-          </select>
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <h2 className="text-xl font-bold">{t("product.section_reviews")}</h2>
+          {liveReviews.length === 0 && (
+            <Button onClick={() => setReviewModalOpen(true)} variant="default" className="rounded-full px-6 font-bold bg-[#222] hover:bg-black text-white dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90 shadow-none">
+              {t("product.button_write_review")}
+            </Button>
+          )}
         </div>
 
-        {/* Reviews Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {liveReviews.length === 0 ? (
-            <p className="text-muted-foreground col-span-full">{t("product.no_reviews")}</p>
-          ) : (
-            liveReviews.map((r, i) => (
-              <div
-                key={r.id || i}
-                className="flex flex-col border rounded-lg overflow-hidden bg-card text-left cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => {
-                  setSelectedReview(r);
-                  setSelectedImageIndex(0);
-                }}
-              >
-                {((r.images && r.images.length > 0) || r.image) && (
-                  <div className="aspect-[4/3] bg-muted w-full overflow-hidden border-b">
-                    <SafeImage src={r.images?.[0] || r.image} alt="Review" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
-                  </div>
-                )}
-                <div className="p-5 flex flex-col flex-1">
-                  <div className="flex justify-between items-center mb-3">
-                    <StarRating value={r.rating} size={12} />
-                    <span className="text-[10px] text-muted-foreground font-medium">{new Date(r.createdAt || Date.now()).toLocaleDateString()}</span>
-                  </div>
-                  <h4 className="font-bold text-sm mb-2 leading-tight">{r.title || t("product.review_default_title")}</h4>
-                  <p className="text-[13px] text-muted-foreground mb-4 leading-relaxed flex-1 line-clamp-3">
-                    {r.text} <span className="text-primary hover:underline cursor-pointer ml-1 inline-block">{t("product.read_more")}</span>
-                  </p>
-                  <div className="mt-auto">
-                    <p className="text-xs font-bold mb-3">{r.name} <span className="font-normal text-muted-foreground ml-1">{t("product.verified_buyer")}</span></p>
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-3">
-                      <span>{t("product.helpful_question")}</span>
-                      <div className="flex gap-2.5">
-                        <button className="hover:text-foreground flex items-center gap-1" onClick={(e) => e.stopPropagation()}><ThumbsUp size={12} /> 0</button>
-                        <button className="hover:text-foreground flex items-center gap-1" onClick={(e) => e.stopPropagation()}><ThumbsDown size={12} /> 0</button>
+        {liveReviews.length > 0 ? (
+          <>
+            {(() => {
+              const realReviewCount = liveReviews.length;
+              const realAvgRating = realReviewCount > 0
+                ? liveReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount
+                : 0;
+
+              const ratingCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+              liveReviews.forEach(r => {
+                if (r.rating >= 1 && r.rating <= 5) {
+                  ratingCounts[Math.round(r.rating) as keyof typeof ratingCounts]++;
+                }
+              });
+
+              return (
+                <div className="flex flex-wrap items-start justify-between gap-6 mb-10">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8">
+                    <div>
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-4xl font-extrabold">{realAvgRating.toFixed(1)}</span>
+                        <StarRating value={realAvgRating} size={18} />
                       </div>
+                      <p className="text-xs text-muted-foreground font-medium">{t("product.review_based_on")} {realReviewCount} {t("product.reviews_count_label")}</p>
+                    </div>
+
+                    <div className="space-y-1.5 w-[200px]">
+                      {[5, 4, 3, 2, 1].map((stars) => {
+                        const count = ratingCounts[stars as keyof typeof ratingCounts];
+                        const pct = `${(count / realReviewCount) * 100}%`;
+                        return (
+                          <div key={stars} className="flex items-center gap-3 text-xs">
+                            <span className="flex text-muted-foreground">{"★".repeat(stars)}{"☆".repeat(5 - stars)}</span>
+                            <div className="flex-1 h-3.5 bg-muted rounded-sm overflow-hidden flex">
+                              <div className="bg-[#333] dark:bg-primary h-full transition-all duration-500" style={{ width: pct }} />
+                            </div>
+                            <span className="w-5 text-right text-muted-foreground font-medium">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <Button onClick={() => setReviewModalOpen(true)} variant="default" className="rounded-full px-6 font-bold bg-[#222] hover:bg-black text-white dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90 shadow-none">
+                    {t("product.button_write_review")}
+                  </Button>
+                </div>
+              );
+            })()}
+
+            {/* Filters bar */}
+            <div className="flex justify-end mb-6">
+              <select className="text-xs border rounded-md px-3 py-2 bg-background font-medium outline-none focus:border-primary">
+                <option>{t("product.filter_with_photos")}</option>
+                <option>{t("product.filter_all_reviews")}</option>
+              </select>
+            </div>
+
+            {/* Reviews Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {liveReviews.map((r, i) => (
+                <div
+                  key={r.id || i}
+                  className="flex flex-col border rounded-lg overflow-hidden bg-card text-left cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => {
+                    setSelectedReview(r);
+                    setSelectedImageIndex(0);
+                  }}
+                >
+                  {((r.images && r.images.length > 0) || r.image) && (
+                    <div className="aspect-[4/3] bg-muted w-full overflow-hidden border-b">
+                      <SafeImage src={r.images?.[0] || r.image} alt="Review" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                    </div>
+                  )}
+                  <div className="p-4 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1 mb-2">
+                        <StarRating value={r.rating} size={14} />
+                      </div>
+                      <h4 className="font-semibold text-sm mb-1 line-clamp-1">{r.title}</h4>
+                      <p className="text-xs text-muted-foreground line-clamp-3 mb-3">{r.text}</p>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground/80 flex items-center justify-between border-t pt-2">
+                      <span className="font-medium truncate max-w-[120px]">{r.name || t("product.verified_buyer")}</span>
+                      <span>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}</span>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="py-6 text-left">
+            <p className="text-muted-foreground text-sm">{t("product.no_reviews")}</p>
+          </div>
+        )}
       </div>
 
       <ReviewModal

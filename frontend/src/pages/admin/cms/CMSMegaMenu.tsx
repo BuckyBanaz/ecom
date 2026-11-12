@@ -18,10 +18,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { getClientBaseUrl } from "@/utils/siteUrl";
+import { LineTranslationPanel, TranslatableEditor } from "@/components/admin/TranslatableEditor";
 
 type MegaMenuWithId = MegaMenu & { id?: string };
 
-export default function CMSMegaMenu() {
+function CMSMegaMenuEditor() {
   const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -52,10 +53,13 @@ export default function CMSMegaMenu() {
   const [menuEditIndex, setMenuEditIndex] = useState<number | null>(null);
   const [menuName, setMenuName] = useState("");
   const [menuSlug, setMenuSlug] = useState("");
+  const [menuIsFoldedMobile, setMenuIsFoldedMobile] = useState(false);
 
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
   const [sectionEditIndex, setSectionEditIndex] = useState<number | null>(null);
   const [sectionTitle, setSectionTitle] = useState("");
+  const [sectionType, setSectionType] = useState<"custom" | "dynamic" | "both">("custom");
+  const [sectionCategoryId, setSectionCategoryId] = useState("");
 
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [itemEditSectionIndex, setItemEditSectionIndex] = useState<number | null>(null);
@@ -314,10 +318,12 @@ export default function CMSMegaMenu() {
       setMenuEditIndex(index);
       setMenuName(menus[index].menu);
       setMenuSlug(menus[index].slug);
+      setMenuIsFoldedMobile(menus[index].isFoldedMobile || false);
     } else {
       setMenuEditIndex(null);
       setMenuName("");
       setMenuSlug("");
+      setMenuIsFoldedMobile(false);
     }
     setMenuDialogOpen(true);
   };
@@ -332,6 +338,7 @@ export default function CMSMegaMenu() {
         ...updated[menuEditIndex],
         menu: menuName,
         slug: menuSlug,
+        isFoldedMobile: menuIsFoldedMobile,
       };
       toast.success("Menu updated");
     } else {
@@ -339,6 +346,7 @@ export default function CMSMegaMenu() {
         menu: menuName,
         slug: menuSlug,
         sections: [],
+        isFoldedMobile: menuIsFoldedMobile,
       });
       toast.success("New menu created");
     }
@@ -368,13 +376,17 @@ export default function CMSMegaMenu() {
   };
 
   // --- Section CRUD ---
-  const openSectionDialog = (index: number | null = null) => {
-    if (index !== null) {
-      setSectionEditIndex(index);
-      setSectionTitle(menus[selectedMenuIndex].sections[index].title);
+  const openSectionDialog = (sIdx: number | null = null) => {
+    setSectionEditIndex(sIdx);
+    if (sIdx !== null && menus[selectedMenuIndex]) {
+      const section = menus[selectedMenuIndex].sections[sIdx] as any;
+      setSectionTitle(section.title);
+      setSectionType(section.type || "custom");
+      setSectionCategoryId(section.categoryId || "");
     } else {
-      setSectionEditIndex(null);
       setSectionTitle("");
+      setSectionType("custom");
+      setSectionCategoryId("");
     }
     setSectionDialogOpen(true);
   };
@@ -383,25 +395,30 @@ export default function CMSMegaMenu() {
     e.preventDefault();
     if (!sectionTitle.trim()) return;
 
-    const updated = [...menus];
-    const currentMenu = updated[selectedMenuIndex];
+    const updatedMenus = [...menus];
+    const targetMenu = updatedMenus[selectedMenuIndex];
+
+    const newSection: any = {
+      title: sectionTitle.trim(),
+      type: sectionType,
+      categoryId: (sectionType === "dynamic" || sectionType === "both") ? sectionCategoryId : undefined,
+      items: [], // Always start with empty items, or keep existing if custom/both
+    };
 
     if (sectionEditIndex !== null) {
-      currentMenu.sections[sectionEditIndex] = {
-        ...currentMenu.sections[sectionEditIndex],
-        title: sectionTitle,
-      };
-      toast.success("Section updated");
+      // Keep existing items if changing title but staying custom or both
+      if ((sectionType === "custom" || sectionType === "both") && targetMenu.sections[sectionEditIndex].type !== "dynamic") {
+         newSection.items = targetMenu.sections[sectionEditIndex].items || [];
+      }
+      targetMenu.sections[sectionEditIndex] = newSection;
     } else {
-      currentMenu.sections.push({
-        title: sectionTitle,
-        items: [],
-      });
-      toast.success("New section added");
+      targetMenu.sections.push(newSection);
     }
 
-    saveToLocalStorage(updated);
+    setMenus(updatedMenus);
+    saveToLocalStorage(updatedMenus); // Added saveToLocalStorage to sync local state immediately like delete does
     setSectionDialogOpen(false);
+    toast.success(sectionEditIndex !== null ? "Column updated" : "Column added");
   };
 
   const handleDeleteSection = (sectionIndex: number) => {
@@ -889,38 +906,47 @@ export default function CMSMegaMenu() {
                           </CardHeader>
                           <CardContent className="p-4 flex-1 flex flex-col justify-between">
                             {/* Items list */}
-                            <ul className="space-y-2 mb-4">
-                              {section.items.length === 0 ? (
-                                <li className="text-xs text-muted-foreground italic py-2 text-center">No links in this section</li>
-                              ) : (
-                                section.items.map((item, iIdx) => (
-                                  <li key={item.slug} className="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 text-xs transition-colors">
-                                    <div className="truncate pr-2">
-                                      <div className="font-semibold">{item.name}</div>
-                                      <div className="text-[9px] text-muted-foreground truncate">/category/{item.slug}</div>
-                                    </div>
-                                    {hasPermission("admin") && (
-                                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/section:opacity-100 transition-opacity">
-                                        <button onClick={() => moveItem(sIdx, iIdx, "up")} disabled={iIdx === 0} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
-                                          <ArrowUp className="h-3 w-3" />
-                                        </button>
-                                        <button onClick={() => moveItem(sIdx, iIdx, "down")} disabled={iIdx === section.items.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
-                                          <ArrowDown className="h-3 w-3" />
-                                        </button>
-                                        <button onClick={() => openItemDialog(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-primary">
-                                          <Pencil className="h-3 w-3" />
-                                        </button>
-                                        <button onClick={() => handleDeleteItem(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-destructive">
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
+                            {((section as any).type === "custom" || (section as any).type === "both" || !(section as any).type) && (
+                              <ul className="space-y-2 mb-4">
+                                {section.items.length === 0 ? (
+                                  <li className="text-xs text-muted-foreground italic py-2 text-center">No custom links added</li>
+                                ) : (
+                                  section.items.map((item, iIdx) => (
+                                    <li key={item.slug} className="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 text-xs transition-colors">
+                                      <div className="truncate pr-2">
+                                        <div className="font-semibold">{item.name}</div>
+                                        <div className="text-[9px] text-muted-foreground truncate">/category/{item.slug}</div>
                                       </div>
-                                    )}
-                                  </li>
-                                ))
-                              )}
-                            </ul>
+                                      {hasPermission("admin") && (
+                                        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/section:opacity-100 transition-opacity">
+                                          <button onClick={() => moveItem(sIdx, iIdx, "up")} disabled={iIdx === 0} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
+                                            <ArrowUp className="h-3 w-3" />
+                                          </button>
+                                          <button onClick={() => moveItem(sIdx, iIdx, "down")} disabled={iIdx === section.items.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-30">
+                                            <ArrowDown className="h-3 w-3" />
+                                          </button>
+                                          <button onClick={() => openItemDialog(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-primary">
+                                            <Pencil className="h-3 w-3" />
+                                          </button>
+                                          <button onClick={() => handleDeleteItem(sIdx, iIdx)} className="p-0.5 text-muted-foreground hover:text-destructive">
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </li>
+                                  ))
+                                )}
+                              </ul>
+                            )}
+                            
+                            {((section as any).type === "dynamic" || (section as any).type === "both") && (
+                              <div className="py-4 text-center text-xs text-primary bg-primary/5 rounded-md border border-primary/10 mb-4">
+                                Auto-populated from Category<br/>
+                                <strong>{categoriesList.find(c => c.id === (section as any).categoryId)?.name || "Unknown"}</strong>
+                              </div>
+                            )}
 
-                            {hasPermission("admin") && (
+                            {hasPermission("admin") && ((section as any).type === "custom" || (section as any).type === "both" || !(section as any).type) && (
                               <Button size="sm" variant="outline" className="w-full text-xs h-8 gap-1.5" onClick={() => openItemDialog(sIdx)}>
                                 <ListPlus className="h-3.5 w-3.5" /> Add Link
                               </Button>
@@ -971,6 +997,18 @@ export default function CMSMegaMenu() {
                 required
               />
             </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <input
+                type="checkbox"
+                id="foldedMobile"
+                checked={menuIsFoldedMobile}
+                onChange={(e) => setMenuIsFoldedMobile(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="foldedMobile" className="cursor-pointer font-normal">
+                Folded in Mobile Menu (Accordion style)
+              </Label>
+            </div>
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setMenuDialogOpen(false)}>Cancel</Button>
               <Button type="submit">{menuEditIndex !== null ? "Save Changes" : "Add Tab"}</Button>
@@ -987,15 +1025,72 @@ export default function CMSMegaMenu() {
           </DialogHeader>
           <form onSubmit={handleSaveSection} className="space-y-4 pt-4">
             <div>
-              <Label>Section Title</Label>
+              <Label>Column Title</Label>
               <Input
                 value={sectionTitle}
                 onChange={(e) => setSectionTitle(e.target.value)}
-                placeholder="e.g. Hanglampen"
+                placeholder="e.g. Categories, Rooms, Styles"
                 required
               />
             </div>
-            <DialogFooter className="pt-2">
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div
+                className={`border rounded-lg p-3 cursor-pointer transition-colors ${sectionType === 'dynamic' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
+                onClick={() => setSectionType('dynamic')}
+              >
+                <div className="font-semibold flex items-center gap-2 text-sm">
+                  <input type="radio" checked={sectionType === 'dynamic'} readOnly className="pointer-events-none" />
+                  Dynamic
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Auto-populate children.
+                </p>
+              </div>
+              <div
+                className={`border rounded-lg p-3 cursor-pointer transition-colors ${sectionType === 'custom' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
+                onClick={() => setSectionType('custom')}
+              >
+                <div className="font-semibold flex items-center gap-2 text-sm">
+                  <input type="radio" checked={sectionType === 'custom'} readOnly className="pointer-events-none" />
+                  Custom
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Manually add links.
+                </p>
+              </div>
+              <div
+                className={`border rounded-lg p-3 cursor-pointer transition-colors ${sectionType === 'both' ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
+                onClick={() => setSectionType('both')}
+              >
+                <div className="font-semibold flex items-center gap-2 text-sm">
+                  <input type="radio" checked={sectionType === 'both'} readOnly className="pointer-events-none" />
+                  Both
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Dynamic + Custom Links.
+                </p>
+              </div>
+            </div>
+
+            {(sectionType === 'dynamic' || sectionType === 'both') && (
+              <div className="animate-in fade-in slide-in-from-top-2">
+                <Label>Select Parent Category</Label>
+                <select
+                  value={sectionCategoryId}
+                  onChange={(e) => setSectionCategoryId(e.target.value)}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  required={sectionType === 'dynamic' || sectionType === 'both'}
+                >
+                  <option value="">Select a category...</option>
+                  {categoriesList.filter(c => !c.parentId).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => setSectionDialogOpen(false)}>Cancel</Button>
               <Button type="submit">{sectionEditIndex !== null ? "Save Changes" : "Add Column"}</Button>
             </DialogFooter>
@@ -1072,3 +1167,28 @@ export default function CMSMegaMenu() {
     </div>
   );
 }
+
+/** Translation tab: one panel per menu (names, section titles, items) + the landing page texts */
+function MegaMenuTranslations({ lang }: { lang: string }) {
+  const [menus, setMenus] = useState<Array<{ id: string; menu: string }>>([]);
+  useEffect(() => {
+    megaMenuRepository.getAll().then((res: any) => setMenus(res.menus || [])).catch(() => setMenus([]));
+  }, []);
+  return (
+    <>
+      {menus.map((m) => (
+        <LineTranslationPanel key={m.id} target={`megaMenu:${m.id}`} lang={lang} title={m.menu} />
+      ))}
+      <LineTranslationPanel target="config:landing_pages_data" lang={lang} title="Landing pages" />
+    </>
+  );
+}
+
+
+/** Original editor + "Nederlands | English" tabs with the AI translations */
+const CMSMegaMenu = () => (
+  <TranslatableEditor panels={(lang) => <MegaMenuTranslations lang={lang} />}>
+    <CMSMegaMenuEditor />
+  </TranslatableEditor>
+);
+export default CMSMegaMenu;

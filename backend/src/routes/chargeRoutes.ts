@@ -21,7 +21,7 @@ const router = Router();
  *       200:
  *         description: List of store charges
  */
-router.get("/", authenticateJWT, getCharges);
+router.get("/", getCharges);
 
 // Admin-only write endpoints
 router.use(authenticateJWT);

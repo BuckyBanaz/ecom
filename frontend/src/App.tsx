@@ -41,6 +41,7 @@ const AdminLayout = lazy(() => import("./components/admin/AdminLayout.tsx"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin.tsx"));
 const Dashboard = lazy(() => import("./pages/admin/Dashboard.tsx"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.tsx"));
+const AdminInventory = lazy(() => import("./pages/admin/AdminInventory.tsx"));
 const AdminProductQuickAdd = lazy(() => import("./pages/admin/AdminProductQuickAdd.tsx"));
 const AdminProductDrafts = lazy(() => import("./pages/admin/AdminProductDrafts.tsx"));
 const AdminProductForm = lazy(() => import("./pages/admin/AdminProductForm.tsx"));
@@ -75,6 +76,7 @@ const CMSSeo = lazy(() => import("./pages/admin/cms/CMSSeo.tsx"));
 const CMSHeaderFooter = lazy(() => import("./pages/admin/cms/CMSHeaderFooter.tsx"));
 const CMSFaqs = lazy(() => import("./pages/admin/cms/CMSFaqs.tsx"));
 const AdminEmailTemplates = lazy(() => import("./pages/admin/AdminEmailTemplates.tsx"));
+const AdminTranslations = lazy(() => import("./pages/admin/AdminTranslations.tsx"));
 const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics.tsx"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs.tsx"));
 const AdminBackups = lazy(() => import("./pages/admin/AdminBackups.tsx"));
@@ -120,6 +122,7 @@ function App() {
                             <Route index element={<Dashboard />} />
                             <Route path="analytics" element={<AdminAnalytics />} />
                             <Route path="products" element={<AdminProducts />} />
+                            <Route path="inventory" element={<AdminInventory />} />
                             <Route path="products/quick-add" element={<AdminProductQuickAdd />} />
                             <Route path="ai-seo" element={<Navigate to="/admin/cms/seo" replace />} />
                             <Route path="product-drafts" element={<AdminProductDrafts />} />
@@ -155,6 +158,7 @@ function App() {
                             <Route path="cms/blogs" element={<CMSBlogs />} />
                             <Route path="cms/seo" element={<CMSSeo />} />
                             <Route path="cms/email-templates" element={<AdminEmailTemplates />} />
+                            <Route path="cms/translations" element={<AdminTranslations />} />
                             <Route path="storage" element={<MediaLibrary />} />
                             <Route path="users" element={<AdminUsers />} />
                             <Route path="manage-users" element={<AdminManageUsers />} />
@@ -191,6 +195,7 @@ function App() {
                             <Route path="/blogs/:slug" element={<BlogDetail />} />
                             <Route path="/wishlist" element={<Wishlist />} />
                             <Route path="/404" element={<NotFound />} />
+                            <Route path="/:parentSlug/:childSlug" element={<Category />} />
                             <Route path="/:slug" element={<DynamicPage />} />
                             <Route path="*" element={<NotFound />} />
                           </Route>

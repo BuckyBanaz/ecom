@@ -1,11 +1,14 @@
 import { lookupStaticPhrase } from "./cmsPhrases";
 import type { TFunction } from "i18next";
 import { labelT } from "./i18nLabel";
+import { getBaseUrl, API_PREFIX } from "./endpoints";
 
 export function shouldMachineTranslateApiUrl(url: string): boolean {
-  // CMS HTML is translated in CmsHtmlContent; skip heavy JSON walk on /cms/* responses.
-  if (url.includes("/cms/")) return false;
-  return true;
+  // Bulk API machine translation causes 429 rate-limit floods on Google's free tier.
+  // UI labels are translated individually via useCmsLabel (non-blocking, cached).
+  // CMS HTML is translated in CmsHtmlContent component.
+  // So we disable bulk JSON translation entirely.
+  return false;
 }
 
 const TRANSLATABLE_ATTRS = new Set([
@@ -28,6 +31,13 @@ const TRANSLATABLE_ATTRS = new Set([
 const PRESERVE_STORED_HTML_KEYS = new Set(["body", "content"]);
 
 const cache: Record<string, string> = {};
+
+/**
+ * Live Google Translate from the browser (free endpoint, rate-limited -> 429s). Off: product, CMS, blog, category
+ * and menu content now arrives already translated from the API (stored AI translations, X-Content-Language).
+ * Static phrases / i18n lookups below still apply; set true only as an emergency fallback.
+ */
+const CLIENT_MACHINE_TRANSLATION = false;
 
 /**
  * Translates a single text string using Google Translate free API.
@@ -56,15 +66,30 @@ export async function translateText(text: string, targetLang: string): Promise<s
     return localCached;
   }
 
+  if (!CLIENT_MACHINE_TRANSLATION) return text;
+
   try {
-    const response = await fetch(
-      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`
-    );
-    if (!response.ok) throw new Error("Translation request failed");
-    const data = await response.json();
+    const response = await fetch(`${getBaseUrl()}${API_PREFIX}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, lang })
+    });
     
-    // Join translation parts
-    const translation = data[0].map((item: any) => item[0]).join("");
+    if (!response.ok) throw new Error("Translation request failed");
+    const json = await response.json();
+    
+    // Backend may return success:false with null data if rate limit exhausted
+    if (!json.success || !json.data) return text;
+    
+    // Handle both Google native format and backend simplified format
+    let translation: string;
+    if (typeof json.data === "string") {
+      translation = json.data;
+    } else if (Array.isArray(json.data) && Array.isArray(json.data[0])) {
+      translation = json.data[0].map((item: any) => (Array.isArray(item) ? item[0] : item)).join("");
+    } else {
+      return text;
+    }
     
     cache[cacheKey] = translation;
     localStorage.setItem(`tr:${cacheKey}`, translation);
@@ -117,13 +142,31 @@ export async function translateCmsText(
     return replaceTrimmedPreservingEdges(text, trimmed, localCached);
   }
 
+  if (!CLIENT_MACHINE_TRANSLATION) return text;
+
   try {
-    const response = await fetch(
-      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(trimmed)}`,
-    );
+    const response = await fetch(`${getBaseUrl()}${API_PREFIX}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: trimmed, lang })
+    });
+    
     if (!response.ok) throw new Error("CMS text translation failed");
-    const data = await response.json();
-    const translation = data[0].map((item: [string]) => item[0]).join("");
+    const json = await response.json();
+    
+    // Backend may return success:false with null data if rate limit exhausted
+    if (!json.success || !json.data) return text;
+    
+    // Handle both Google native format (array of arrays) and backend simplified format
+    let translation: string;
+    if (typeof json.data === "string") {
+      translation = json.data;
+    } else if (Array.isArray(json.data) && Array.isArray(json.data[0])) {
+      translation = json.data[0].map((item: any) => (Array.isArray(item) ? item[0] : item)).join("");
+    } else {
+      return text;
+    }
+
 
     if (translation?.trim()) {
       cache[cacheKey] = translation;

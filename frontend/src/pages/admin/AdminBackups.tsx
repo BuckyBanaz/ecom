@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { SectionLoader } from "@/components/ui/PageLoader";
 import { backupsRepository } from "@/client/apiClient";
 import { useAdmin } from "@/context/AdminContext";
+import { DriveBackupPanel } from "@/components/admin/DriveBackupPanel";
 
 type BackupType = "database" | "uploads" | "full";
 
@@ -114,6 +115,8 @@ export default function AdminBackups() {
           {t("admin_backups.refresh")}
         </Button>
       </div>
+
+      <DriveBackupPanel onBackupFinished={fetchBackups} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Button

@@ -15,7 +15,8 @@ const AccountAuth = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
+  const redirectParam = new URLSearchParams(location.search).get("redirect");
+  const redirectTo = redirectParam || "/dashboard";
 
   const [isMounted, setIsMounted] = useState(false);
   const [authConfig, setAuthConfig] = useState({
@@ -426,6 +427,34 @@ const AccountAuth = () => {
                   )}
                 </div>
               )}
+
+              {/* Continue as Guest Option */}
+              <div className="mt-8 pt-6 border-t border-zinc-100 space-y-4">
+                <div className="relative flex items-center justify-center">
+                  <span className="bg-white px-3 text-xs uppercase tracking-wider text-zinc-400 font-semibold">
+                    {t("auth_pages.login.or_divider", "OR")}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    localStorage.setItem("guest_checkout", "true");
+                    window.dispatchEvent(new CustomEvent("customer-auth-changed"));
+                    const target = (redirectParam && redirectParam !== "/dashboard") ? redirectParam : "/checkout";
+                    navigate(target, { replace: true });
+                  }}
+                  className="w-full h-11 border-zinc-200 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 font-semibold rounded-xl flex items-center justify-center gap-2 group transition-all"
+                >
+                  <span>{t("auth_pages.login.continue_as_guest", "Continue as Guest")}</span>
+                  <ArrowRight className="w-4 h-4 text-zinc-400 group-hover:translate-x-1 group-hover:text-zinc-700 transition-all" />
+                </Button>
+                <p className="text-xs text-center text-zinc-400">
+                  {t("auth_pages.login.guest_subtitle", "Checkout without creating an account")}
+                </p>
+              </div>
             </div>
           )}
 

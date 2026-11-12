@@ -16,6 +16,8 @@ import { getClientBaseUrl } from "@/utils/siteUrl";
 import { cmsPagesRepository } from "@/client/apiClient";
 import { normalizeCmsHtmlForStorage } from "@/utils/cmsHtml";
 import { SectionLoader } from "@/components/ui/PageLoader";
+import { TranslatableEditor } from "@/components/admin/TranslatableEditor";
+import { ContentTranslationPanel } from "@/components/admin/ContentTranslationPanel";
 
 type ImgState = string | null;
 type LegalKind = "privacy-policy" | "terms-conditions";
@@ -69,7 +71,7 @@ const presets: Record<LegalKind, { title: string; slug: string; body: string }> 
   },
 };
 
-const CMSLegal = () => {
+const CMSLegalEditor = () => {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const kind: LegalKind = pathname.includes("terms-conditions")
@@ -264,4 +266,23 @@ const CMSLegal = () => {
   );
 };
 
+/** Translation tab: the legal text is a CMS page (slug privacy-policy / terms-conditions) */
+function LegalTranslation({ lang }: { lang: string }) {
+  const { pathname } = useLocation();
+  const slug = pathname.includes("terms-conditions") ? "terms-conditions" : "privacy-policy";
+  const [pageId, setPageId] = useState<string | null>(null);
+  useEffect(() => {
+    cmsPagesRepository.getBySlug(slug).then((res: any) => setPageId(res.page?.id || null)).catch(() => setPageId(null));
+  }, [slug]);
+  return pageId ? <ContentTranslationPanel type="cmsPage" id={pageId} lang={lang} /> : null;
+}
+
+
+/** Original editor + "Nederlands | English" tabs with the AI translations */
+const CMSLegal = () => (
+  <TranslatableEditor panels={(lang) => <LegalTranslation lang={lang} />}>
+    <CMSLegalEditor />
+  </TranslatableEditor>
+);
 export default CMSLegal;
+

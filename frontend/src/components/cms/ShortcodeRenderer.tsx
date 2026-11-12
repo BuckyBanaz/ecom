@@ -533,14 +533,26 @@ export function ShortcodeRenderer({ content, prefetchedData }: ShortcodeRenderer
 
           case "product-block": {
             let productsToRender = [];
-            const filteredDb = attributes.type === "deals"
-              ? dbProducts.filter((p) => p.oldPrice !== null)
-              : dbProducts.filter((p) => p.isBestSelling).slice(0, 8);
+            const type = attributes.type || "bestsellers";
 
-            if (filteredDb.length > 0) {
-              productsToRender = filteredDb;
+            if (type.startsWith("series:")) {
+              const seriesSlug = type.replace("series:", "").toLowerCase();
+              const matched = dbProducts.filter((p) => {
+                const pSeries = (p.series?.slug || p.series?.name || p.specs?.Collection || "").toString().toLowerCase();
+                const pDesc = ((p.description || "") + " " + (p.name || "") + " " + (p.shortDescription || "")).toLowerCase();
+                return pSeries === seriesSlug || pDesc.includes(seriesSlug);
+              });
+              productsToRender = matched.length > 0 ? matched.slice(0, 12) : dbProducts.slice(0, 8);
             } else {
-              productsToRender = dbProducts.slice(0, 8);
+              const filteredDb = (type === "sale" || type === "deals")
+                ? dbProducts.filter((p) => p.oldPrice !== null)
+                : type === "new-arrivals"
+                ? dbProducts.filter((p) => p.isNewArrival)
+                : type === "featured"
+                ? dbProducts.filter((p) => p.isBestSelling || p.rating >= 4.5)
+                : dbProducts.filter((p) => p.isBestSelling).slice(0, 8);
+
+              productsToRender = filteredDb.length > 0 ? filteredDb : dbProducts.slice(0, 8);
             }
             return (
               <section key={index} className="container-page min-w-0 py-6 md:py-8">

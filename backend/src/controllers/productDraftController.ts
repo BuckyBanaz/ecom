@@ -1,4 +1,5 @@
 import { Response, NextFunction } from "express";
+import { copyDraftTranslations } from "../services/productTranslationService";
 import { prisma } from "../config/db";
 import { AppError } from "../middlewares/errorMiddleware";
 import { AuthenticatedRequest } from "../middlewares/authMiddleware";
@@ -56,6 +57,9 @@ export const markDraftPublished = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    // The published product inherits the translation made for the draft (re-checked against its final text)
+    const productId = typeof req.body?.productId === "string" ? req.body.productId : "";
+    if (productId) await copyDraftTranslations(req.params.id, productId).catch(() => false);
     await prisma.productDraft.update({
       where: { id: req.params.id },
       data: { status: "published" },

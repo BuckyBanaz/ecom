@@ -1,26 +1,32 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Plus, ImageIcon, Trash2, Sparkles, Loader2, Maximize2, ZoomIn, ZoomOut, RotateCcw, Warehouse, QrCode, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAdmin } from "@/context/AdminContext";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { ProductTranslationPanel } from "@/components/admin/ProductTranslationPanel";
 import { Brand, Series } from "@/data/brands";
 import { Attribute } from "@/data/attributes";
 import { brandRepository, categoryRepository, attributeRepository, productRepository, seriesRepository } from "@/client/apiClient";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { QrCodePreviewModal } from "@/components/admin/inventory/QrCodePreviewModal";
 import { cn } from "@/lib/utils";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
+import { dimensionSlugForSpecKey, isDimensionAttributeSlug, pickDimensionBucket } from "@/utils/dimensionBuckets";
 import { getApiV1Url } from "@/utils/endpoints";
+import { Checkbox } from "@/components/ui/checkbox";
 
+// Labels / prompt texts live in admin_quick_edit.presets.<key> (en + nl)
+const PRESET_ISSUE_KEYS = ["crystal", "table_lamp", "pendant", "silver", "gold", "sop", "fitting"] as const;
 
 export interface SpecItem {
   id: string;
@@ -28,6 +34,39 @@ export interface SpecItem {
   value: string;
   link?: string;
 }
+
+const CATEGORY_ALIAS_MAP: Record<string, string> = {
+  "hanglampen": "pendant-lights",
+  "hanglamp": "pendant-lights",
+  "pendant": "pendant-lights",
+  "pendant-lamps": "pendant-lights",
+  "pendant-lights": "pendant-lights",
+  "tafellampen": "table-lamps",
+  "tafellamp": "table-lamps",
+  "table-lamps": "table-lamps",
+  "table-lamp": "table-lamps",
+  "table-lights": "table-lamps",
+  "plafondlampen": "ceiling-lights",
+  "plafondlamp": "ceiling-lights",
+  "ceiling-lamps": "ceiling-lights",
+  "ceiling-lights": "ceiling-lights",
+  "wandlampen": "wall-lights",
+  "wandlamp": "wall-lights",
+  "wall-lamps": "wall-lights",
+  "wall-lights": "wall-lights",
+  "vloerlampen": "floor-lamps",
+  "vloerlamp": "floor-lamps",
+  "floor-lamps": "floor-lamps",
+  "floor-lights": "floor-lamps",
+  "spots": "spotlights",
+  "spot": "spotlights",
+  "spotlights": "spotlights",
+  "opbouwspots": "spotlights",
+  "buitenverlichting": "outdoor-lighting",
+  "outdoor-lighting": "outdoor-lighting",
+  "lichtbronnen": "light-sources",
+  "light-sources": "light-sources",
+};
 
 const AdminProductForm = () => {
   const { t } = useTranslation();
@@ -37,6 +76,8 @@ const AdminProductForm = () => {
   const { hasPermission } = useAdmin();
 
   const isDraftMode = Boolean(draftId);
+  /** Content language tab: NL = the source form, EN = the AI translation */
+  const [contentTab, setContentTab] = useState<"nl" | "en">("nl");
   const isEdit = id !== undefined && id !== "new" && !isDraftMode;
   const canRegenerate = Boolean(draftId || (id && id !== "new"));
 
@@ -55,10 +96,21 @@ const AdminProductForm = () => {
   const [optimizePromptOpen, setOptimizePromptOpen] = useState(false);
   const [optimizePromptText, setOptimizePromptText] = useState("");
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [quickEditFields, setQuickEditFields] = useState({
+    name: true,
+    category: true,
+    description: true,
+    specs: true,
+    attributes: true,
+    seo: true,
+    price: false,
+  });
 
   // Loading states
   const [isMetadataLoading, setIsMetadataLoading] = useState(true);
   const [isProductLoading, setIsProductLoading] = useState(isEdit || isDraftMode);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [mediaDialogTarget, setMediaDialogTarget] = useState<"thumbnail" | "gallery" | null>(null);
 
   // Lightbox & Zoom states
@@ -103,14 +155,315 @@ const AdminProductForm = () => {
   const [isNewArrival, setIsNewArrival] = useState(false);
   const [isBestSelling, setIsBestSelling] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
+
+  // Inventory & Warehouse States
+  const [storageStock, setStorageStock] = useState("10");
+  const [webshopStock, setWebshopStock] = useState("5");
+  const [binLocation, setBinLocation] = useState("A-01-1");
+  const [lowStockThreshold, setLowStockThreshold] = useState("5");
+  const [currentInventoryItem, setCurrentInventoryItem] = useState<any>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+
+  // Color Siblings & Linked Variants States
+  const [linkedSiblings, setLinkedSiblings] = useState<any[]>([]);
+  const [siblingSearchQuery, setSiblingSearchQuery] = useState("");
+  const [siblingSearchResults, setSiblingSearchResults] = useState<any[]>([]);
+  const [isSearchingSiblings, setIsSearchingSiblings] = useState(false);
+  const [isBrowseCatalogOpen, setIsBrowseCatalogOpen] = useState(false);
+  const [catalogFilterCategory, setCatalogFilterCategory] = useState<string>("all");
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [siblingFilterCategory, setSiblingFilterCategory] = useState<string>("same"); // "same" | "all"
+
+  const searchSiblings = async (query = siblingSearchQuery, categoryMode = siblingFilterCategory) => {
+    setSiblingSearchQuery(query);
+    setIsSearchingSiblings(true);
+    try {
+      const filters: Record<string, any> = { limit: 50 };
+      if (query && query.trim().length > 0) {
+        filters.search = query.trim();
+      }
+      if (categoryMode === "same" && selectedCategory) {
+        filters.category = selectedCategory;
+      }
+      const currentId = id || draftId || "";
+      const linkedIds = new Set(linkedSiblings.map((s) => s.id));
+
+      const [res, draftsData] = await Promise.all([
+        productRepository.getAll(filters).catch(() => ({ success: false, products: [] })),
+        fetch(`${getApiV1Url()}/ai/drafts`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+        })
+          .then((r) => r.json())
+          .catch(() => ({ success: false, drafts: [] })),
+      ]);
+
+      let combined: any[] = [];
+      if (res.success && res.products) {
+        combined = res.products.filter(
+          (p: any) => p.id !== currentId && !linkedIds.has(p.id)
+        );
+      }
+
+      if (draftsData.success && Array.isArray(draftsData.drafts)) {
+        const queryLower = query ? query.toLowerCase().trim() : "";
+        const formattedDrafts = draftsData.drafts
+          .filter((d: any) => {
+            if (d.id === currentId || linkedIds.has(d.id) || d.status === "published") return false;
+            const p = d.payload || {};
+            const dName = (d.name || p.name || "").toLowerCase();
+            const dCat = (p.category || "").toLowerCase();
+            if (categoryMode === "same" && selectedCategory && dCat && !dCat.includes(selectedCategory.toLowerCase()) && !selectedCategory.toLowerCase().includes(dCat)) {
+              return false;
+            }
+            if (queryLower && !dName.includes(queryLower)) return false;
+            return true;
+          })
+          .map((d: any) => {
+            const p = d.payload || {};
+            const colorVal = p.visualInspection?.finishColor || p.attributes?.color?.[0] || "";
+            return {
+              id: d.id,
+              name: `${d.name || p.name || "Draft Product"} (Draft)`,
+              slug: `drafts/${d.id}`,
+              price: Number(p.price) || 0,
+              image: p.image || p.images?.[0] || "",
+              isDraft: true,
+              category: { name: p.category || "Draft", slug: p.category || "" },
+              productAttributeValues: colorVal
+                ? [
+                    {
+                      attribute: { slug: "color", name: "Color" },
+                      attributeValue: { value: colorVal, colorCode: "#333333" },
+                    },
+                  ]
+                : [],
+            };
+          });
+
+        combined = [...combined, ...formattedDrafts];
+      }
+
+      setSiblingSearchResults(combined);
+    } catch (err) {
+      console.error("Failed to search siblings:", err);
+    } finally {
+      setIsSearchingSiblings(false);
+    }
+  };
+
+  const loadCatalogProducts = async (catSlug = catalogFilterCategory, search = catalogSearchQuery) => {
+    setIsLoadingCatalog(true);
+    try {
+      const filters: Record<string, any> = { limit: 100 };
+      if (catSlug && catSlug !== "all") {
+        filters.category = catSlug;
+      }
+      if (search && search.trim()) {
+        filters.search = search.trim();
+      }
+      const currentId = id || draftId || "";
+
+      const [res, draftsData] = await Promise.all([
+        productRepository.getAll(filters).catch(() => ({ success: false, products: [] })),
+        fetch(`${getApiV1Url()}/ai/drafts`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+        })
+          .then((r) => r.json())
+          .catch(() => ({ success: false, drafts: [] })),
+      ]);
+
+      let combined: any[] = [];
+      if (res.success && res.products) {
+        combined = res.products.filter((p: any) => p.id !== currentId);
+      }
+
+      if (draftsData.success && Array.isArray(draftsData.drafts)) {
+        const searchLower = search ? search.toLowerCase().trim() : "";
+        const formattedDrafts = draftsData.drafts
+          .filter((d: any) => {
+            if (d.id === currentId || d.status === "published") return false;
+            const p = d.payload || {};
+            const dName = (d.name || p.name || "").toLowerCase();
+            const dCat = (p.category || "").toLowerCase();
+            if (catSlug && catSlug !== "all" && dCat && !dCat.includes(catSlug.toLowerCase()) && !catSlug.toLowerCase().includes(dCat)) {
+              return false;
+            }
+            if (searchLower && !dName.includes(searchLower)) return false;
+            return true;
+          })
+          .map((d: any) => {
+            const p = d.payload || {};
+            const colorVal = p.visualInspection?.finishColor || p.attributes?.color?.[0] || "";
+            return {
+              id: d.id,
+              name: `${d.name || p.name || "Draft Product"} (Draft)`,
+              slug: `drafts/${d.id}`,
+              price: Number(p.price) || 0,
+              image: p.image || p.images?.[0] || "",
+              isDraft: true,
+              category: { name: p.category || "Draft", slug: p.category || "" },
+              productAttributeValues: colorVal
+                ? [
+                    {
+                      attribute: { slug: "color", name: "Color" },
+                      attributeValue: { value: colorVal, colorCode: "#333333" },
+                    },
+                  ]
+                : [],
+            };
+          });
+
+        combined = [...combined, ...formattedDrafts];
+      }
+
+      setCatalogProducts(combined);
+    } catch (err) {
+      console.error("Failed to load catalog products:", err);
+    } finally {
+      setIsLoadingCatalog(false);
+    }
+  };
+
+  const addSibling = (productToAdd: any) => {
+    const colorAttr = productToAdd.productAttributeValues?.find(
+      (pav: any) =>
+        pav.attribute?.slug === "color" ||
+        pav.attribute?.name?.toLowerCase() === "color" ||
+        pav.attribute?.name?.toLowerCase() === "kleur"
+    );
+    const formattedSibling = {
+      id: productToAdd.id,
+      name: productToAdd.name,
+      slug: productToAdd.slug,
+      image: productToAdd.image,
+      price: productToAdd.price,
+      colorName: colorAttr?.attributeValue?.value || "Color",
+      colorCode: colorAttr?.attributeValue?.colorCode || "#333333",
+    };
+    setLinkedSiblings((prev) => [...prev, formattedSibling]);
+    setSiblingSearchResults((prev) => prev.filter((p) => p.id !== productToAdd.id));
+    setSiblingSearchQuery("");
+  };
+
+  const removeSibling = (siblingId: string) => {
+    setLinkedSiblings((prev) => prev.filter((s) => s.id !== siblingId));
+  };
+
+  // AI Sibling Suggestion States & Methods
+  const [isAiSuggesting, setIsAiSuggesting] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+
+  const handleAiSuggestSiblings = async () => {
+    if (!id || id === "new") {
+      toast.info(t("admin_product_form.save_first_for_ai", "Please save this product first before running AI sibling detection."));
+      return;
+    }
+    setIsAiSuggesting(true);
+    setAiSuggestions([]);
+    try {
+      const apiUrl = getApiV1Url();
+      const res = await fetch(`${apiUrl}/ai/products/${id}/suggest-siblings`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+      });
+      const data = await res.json();
+      if (data.success && data.suggestions) {
+        if (data.suggestions.length === 0) {
+          toast.info(t("admin_product_form.no_ai_siblings_found", "AI analyzed your catalog but found no matching color variations for this product."));
+        } else {
+          setAiSuggestions(data.suggestions);
+          toast.success(t("admin_product_form.ai_siblings_found", "AI found {{count}} matching color variation(s)!", { count: data.suggestions.length }));
+        }
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to find siblings with AI");
+    } finally {
+      setIsAiSuggesting(false);
+    }
+  };
+
+  const linkAllAiSuggestions = () => {
+    aiSuggestions.forEach((s) => {
+      if (!linkedSiblings.some((ls) => ls.id === s.id)) {
+        addSibling(s);
+      }
+    });
+    setAiSuggestions([]);
+    toast.success(t("admin_product_form.linked_all_ai", "Linked all AI suggested siblings! Remember to click Save."));
+  };
+  const resolveCategorySlug = (raw: string, list: any[] = categoriesList): string => {
+    if (!raw) return "";
+    const clean = raw.toLowerCase().trim().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+    const aliased = CATEGORY_ALIAS_MAP[clean] || CATEGORY_ALIAS_MAP[raw.toLowerCase().trim()] || clean;
+
+    // Check if matches by id directly
+    const idMatch = list.find((c: any) => c.id === raw);
+    if (idMatch) return idMatch.slug;
+
+    // Check if directly in list by slug
+    const directMatch = list.find((c: any) => c.slug?.toLowerCase() === aliased.toLowerCase());
+    if (directMatch) return directMatch.slug;
+
+    // Check if matches by name
+    const nameMatch = list.find((c: any) => c.name?.toLowerCase() === raw.toLowerCase().trim() || c.name?.toLowerCase() === aliased.toLowerCase());
+    if (nameMatch) return nameMatch.slug;
+
+    // Check if partial slug match
+    const partialMatch = list.find((c: any) => c.slug?.toLowerCase().includes(aliased.toLowerCase()) || aliased.toLowerCase().includes(c.slug?.toLowerCase()));
+    if (partialMatch) return partialMatch.slug;
+
+    return aliased;
+  };
+
+  // Prevent parent categories from being set — auto-resolves to first child
+  const safeSetCategory = (slug: string, cats?: any[]) => {
+    const list = cats || categoriesList;
+    if (!slug) { setSelectedCategory(""); return; }
+    const resolved = resolveCategorySlug(slug, list);
+    const parent = (list as any[]).find((p: any) => p.slug === resolved || p.id === slug);
+    const isParent = parent && (list as any[]).some((ch: any) => ch.parentId === parent.id);
+    if (isParent) {
+      const firstChild = (list as any[]).find((ch: any) => ch.parentId === parent.id);
+      setSelectedCategory((firstChild as any)?.slug || "");
+    } else {
+      setSelectedCategory(resolved);
+    }
+  };
   const [selectedBrand, setSelectedBrand] = useState("");
   const [selectedSeries, setSelectedSeries] = useState("");
   const [numberOfLights, setNumberOfLights] = useState("");
   const [selectedAttributeValues, setSelectedAttributeValues] = useState<Record<string, string[]>>({});
-  
+
   // Dynamic Specification states
   const [specs, setSpecs] = useState<SpecItem[]>([]);
   const [newParamName, setNewParamName] = useState("");
+
+  const handleStorageStockChange = (val: string) => {
+    setStorageStock(val);
+    const storageNum = Math.max(0, parseInt(val, 10) || 0);
+    const currentWebshopNum = parseInt(webshopStock, 10) || 0;
+    if (currentWebshopNum > storageNum) {
+      setWebshopStock(String(storageNum));
+    }
+  };
+
+  const handleWebshopStockChange = (val: string) => {
+    const maxStorage = Math.max(0, parseInt(storageStock, 10) || 0);
+    if (val === "") {
+      setWebshopStock("");
+      return;
+    }
+    const inputNum = parseInt(val, 10) || 0;
+    if (inputNum > maxStorage) {
+      toast.error(t("admin_product_form.cannot_exceed_storage", "Webshop quota cannot exceed physical storage ({{max}} units)", { max: maxStorage }));
+      setWebshopStock(String(maxStorage));
+    } else {
+      setWebshopStock(String(Math.max(0, inputNum)));
+    }
+  };
 
   // Set mounted flag on component mount
   useEffect(() => {
@@ -149,7 +502,7 @@ const AdminProductForm = () => {
           setInStock(p.inStock ?? true);
           setIsNewArrival(p.isNewArrival ?? false);
           setIsBestSelling(p.isBestSelling ?? false);
-          setSelectedCategory(p.category?.slug || "");
+          safeSetCategory(p.category?.slug || "");
           setSelectedBrand(typeof p.brand === "string" ? p.brand : (p.brand?.name || ""));
 
           const initialAttrVals: Record<string, string[]> = {};
@@ -178,6 +531,30 @@ const AdminProductForm = () => {
 
           const parsed = parseSpecs(p.specs || {});
           setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+
+          const firstVariant = p.variants?.[0];
+          const firstInv = firstVariant?.inventoryItems?.[0];
+          if (firstInv) {
+            setStorageStock(String(firstInv.quantityOnHand ?? 10));
+            setWebshopStock(String(firstInv.webshopAllocated ?? 5));
+            setBinLocation(firstInv.binLocation || "A-01-1");
+            setLowStockThreshold(String(firstInv.reorderPoint ?? p.lowStockThreshold ?? 5));
+            setCurrentInventoryItem({
+              ...firstInv,
+              variant: {
+                ...firstVariant,
+                product: p,
+              },
+            });
+          } else if (firstVariant) {
+            setStorageStock(String(firstVariant.stock ?? 10));
+            setWebshopStock(String(firstVariant.stock ?? 5));
+            setLowStockThreshold(String(p.lowStockThreshold ?? 5));
+          }
+
+          if (p.siblings && Array.isArray(p.siblings)) {
+            setLinkedSiblings(p.siblings.filter((s: any) => s.id !== p.id));
+          }
         }
       } catch (err) {
         console.error("Failed to reload product details:", err);
@@ -192,12 +569,18 @@ const AdminProductForm = () => {
     try {
       const activeRegen = JSON.parse(activeRegenStr);
       const currentId = draftId || id;
+      const isFresh = activeRegen.timestamp && Date.now() - activeRegen.timestamp < 60000;
+      if (!isFresh || activeRegen.id !== currentId) {
+        localStorage.removeItem("active_regen");
+        return;
+      }
       if (activeRegen.id === currentId) {
         if (activeRegen.targetIndex !== null) {
           setRegeneratingIndexes([activeRegen.targetIndex]);
         } else {
           setIsGlobalRegenerating(true);
         }
+
 
         let attempts = 0;
         const intervalId = setInterval(async () => {
@@ -263,7 +646,7 @@ const AdminProductForm = () => {
   // Poll background optimization job status
   useEffect(() => {
     if (!id || id === "new") return;
-    
+
     let intervalId: any;
     let toastId: string | null = null;
 
@@ -275,25 +658,27 @@ const AdminProductForm = () => {
         });
         if (!res.ok) return;
         const data = await res.json();
-        
+
         if (data.success && data.job) {
           const { type, status, progress, targetEntityId, error } = data.job;
-          
-          if (type === "product_optimize" && targetEntityId === id) {
+
+          if (
+            ((type === "product_optimize" || type === "bulk_product_edit") && (!targetEntityId || targetEntityId === id))
+          ) {
             if (status === "queued" || status === "running") {
               setIsOptimizing(true);
-              const label = progress.label || "Optimizing content with AI...";
-              
+              const label = progress?.label || t("admin_quick_edit.toast_progress_default");
+
               if (!toastId) {
                 toastId = "product-optimize-toast";
-                toast.loading(`AI Optimization: ${label}`, { id: toastId });
+                toast.loading(t("admin_quick_edit.toast_progress", { label }), { id: toastId });
               } else {
-                toast.loading(`AI Optimization: ${label}`, { id: toastId });
+                toast.loading(t("admin_quick_edit.toast_progress", { label }), { id: toastId });
               }
             } else if (status === "completed") {
               setIsOptimizing(false);
               if (toastId) {
-                toast.success(t("admin_product_form.optimize_toast_success"), { id: toastId });
+                toast.success(data.job.summary || t("admin_quick_edit.toast_done_single"), { id: toastId });
                 toastId = null;
               }
               await fetch(`${apiUrl}/ai/seo/job/dismiss`, {
@@ -333,27 +718,38 @@ const AdminProductForm = () => {
   }, [id, draftId]);
 
   const handleTriggerOptimize = async () => {
+    if (!optimizePromptText.trim()) {
+      toast.error(t("admin_quick_edit.toast_prompt_required"));
+      return;
+    }
+
     setOptimizePromptOpen(false);
     setIsOptimizing(true);
     const toastId = "product-optimize-toast";
-    toast.loading(t("admin_product_form.optimize_toast_start"), { id: toastId });
-    
+    toast.loading(t("admin_quick_edit.toast_queueing"), { id: toastId });
+
     try {
       const apiUrl = getApiV1Url();
-      const res = await fetch(`${apiUrl}/ai/seo/product-optimize`, {
+      const res = await fetch(`${apiUrl}/ai/products/bulk-edit`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          productId: id,
-          customPrompt: optimizePromptText
+          productIds: [id],
+          issuePrompt: optimizePromptText.trim(),
+          scope: "selected",
+          fields: quickEditFields
         })
       });
       const data = await res.json();
       if (data.success) {
-        toast.info(t("admin_product_form.optimize_toast_queued"), { id: toastId });
+        if (data.alreadyRunning) {
+          toast.warning(t("admin_quick_edit.toast_already_running"), { id: toastId });
+        } else {
+          toast.info(t("admin_quick_edit.toast_queued_single"), { id: toastId });
+        }
       } else {
         throw new Error(data.error);
       }
@@ -408,13 +804,30 @@ const AdminProductForm = () => {
         // 2. Categories
         try {
           const data = await categoryRepository.getAll();
-          if (data.success && data.categories) setCategoriesList(data.categories);
+          if (data.success && data.categories) {
+            setCategoriesList(data.categories);
+            setSelectedCategory((prev) => {
+              if (!prev) return prev;
+              const resolved = resolveCategorySlug(prev, data.categories);
+              const parent = data.categories.find((p: any) => p.slug === resolved || p.id === prev);
+              const isParent = parent && data.categories.some((ch: any) => ch.parentId === parent.id);
+              if (isParent) {
+                const firstChild = data.categories.find((ch: any) => ch.parentId === parent.id);
+                return (firstChild as any)?.slug || resolved;
+              }
+              return resolved;
+            });
+          }
         } catch (e) {
           const saved = localStorage.getItem("categories_data");
-          if (saved) setCategoriesList(JSON.parse(saved));
-          else {
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            setCategoriesList(parsed);
+            setSelectedCategory((prev) => prev ? resolveCategorySlug(prev, parsed) : prev);
+          } else {
             const { categories: initialCategories } = await import("@/data/categories");
             setCategoriesList(initialCategories);
+            setSelectedCategory((prev) => prev ? resolveCategorySlug(prev, initialCategories) : prev);
           }
         }
 
@@ -473,7 +886,7 @@ const AdminProductForm = () => {
         .filter(s => s.key !== "Number of lights" && s.key !== "Series")
         .map(s => ({ ...s, id: s.id || `item-${Math.random()}` }));
     }
-    
+
     // Legacy support
     if (typeof specsObj === "object" && specsObj !== null) {
       const items: SpecItem[] = [];
@@ -496,6 +909,61 @@ const AdminProductForm = () => {
     }));
   };
 
+  // Maps Dutch/alternative attribute names → canonical DB slug
+  const ATTR_ALIAS_MAP: Record<string, string> = {
+    // fitting / bulb socket
+    "fitting": "fitting", "bulb-fitting": "fitting", "socket": "fitting",
+    "type-lichtbron": "fitting", "lichtbron": "fitting", "fitting-type": "fitting",
+    "lamp-fitting": "fitting", "lampfitting": "fitting", "fassung": "fitting",
+    // color
+    "color": "color", "colour": "color", "kleur": "color", "farbe": "color",
+    "afwerking": "color", "finish": "color",
+    // dimmable
+    "dimmable": "dimmable", "dimbaar": "dimmable", "dimmbar": "dimmable",
+    // material
+    "material": "material", "materiaal": "material", "materials": "material",
+    // style
+    "style": "style", "stijl": "style", "stil": "style",
+    // room
+    "room": "room", "ruimte": "room", "kamer": "room", "rooms": "room",
+    // ip-rating
+    "ip-rating": "ip-rating", "ip": "ip-rating", "ip-waarde": "ip-rating",
+    // diameter
+    "diameter": "diameter",
+    // length
+    "length": "length", "lengte": "length",
+    // width
+    "width": "width", "breedte": "width",
+  };
+
+  // Normalize fitting values: G10 not in DB → closest match GU10
+  const FITTING_ALIAS: Record<string, string> = {
+    "g10": "GU10", "gu10": "GU10",
+    "e27": "E27", "e14": "E14", "g9": "G9",
+    "integrated led": "Integrated LED", "integrated-led": "Integrated LED",
+    "geïntegreerd led": "Integrated LED",
+  };
+
+  const resolveAttrSlug = (raw: string): string => {
+    const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    return ATTR_ALIAS_MAP[slug] || ATTR_ALIAS_MAP[raw.toLowerCase()] || slug;
+  };
+
+  const normalizeAttrValue = (slug: string, val: string): string => {
+    // Length / Diameter / Width: raw sizes ("36cm") map onto the attribute's bucket ("20-40 cm")
+    if (isDimensionAttributeSlug(slug)) {
+      const labels = attributes.find((a) => a.slug === slug)?.values.map((v) => v.value) ?? [];
+      // Attributes not loaded yet: keep the raw size, the backend maps it to the bucket on save
+      if (labels.length === 0) return val;
+      return pickDimensionBucket(val, labels) ?? "";
+    }
+    if (slug === "fitting") {
+      const normalized = FITTING_ALIAS[val.toLowerCase().trim()];
+      return normalized || val;
+    }
+    return val;
+  };
+
   const applyDraftToForm = (draft: Record<string, any>) => {
     setName(draft.name || "");
     setPrice(String(draft.price || ""));
@@ -504,18 +972,81 @@ const AdminProductForm = () => {
     setDescription(draft.description || "");
     setShortDescription(draft.shortDescription || "");
     setInStock(draft.inStock ?? true);
-    setSelectedCategory(draft.category || "");
+
+    // Resolve category slug — match by slug, alias, id OR name (case-insensitive)
+    const rawCat = (draft.category || draft.categorySlug || draft.categoryId || "").trim();
+    if (rawCat) {
+      safeSetCategory(rawCat);
+    } else {
+      safeSetCategory("");
+    }
+
     setSelectedBrand(draft.brand || "");
     setSeoTitle(draft.seoTitle || "");
     setSeoDescription(draft.seoDescription || "");
     setSeoKeywords(draft.seoKeywords || "");
-    setSelectedAttributeValues(draft.attributes || {});
+
+    // ── Parse EAV Attribute Values ──────────────────────────────────────────
+    // Use alias map to normalize keys → DB slugs and values → allowed values
+    const initialAttrVals: Record<string, string[]> = {};
+
+    const addAttrVal = (rawKey: string, rawVals: string[]) => {
+      const slug = resolveAttrSlug(rawKey);
+      const normalized = rawVals.map(v => normalizeAttrValue(slug, v)).filter(Boolean);
+      if (normalized.length > 0) {
+        initialAttrVals[slug] = normalized;
+      }
+    };
+
+    // 1. From draft.attributes (AI-generated, should now use DB slugs directly)
+    if (draft.attributes && typeof draft.attributes === "object") {
+      Object.entries(draft.attributes).forEach(([key, val]) => {
+        const valArr = Array.isArray(val) ? val.map(String) : [String(val)];
+        addAttrVal(key, valArr);
+      });
+    }
+
+    // 2. From draft.specs (fallback: scan for known attribute keys)
+    if (Array.isArray(draft.specs)) {
+      draft.specs.forEach((s: any) => {
+        if (s && s.key && s.value) {
+          const slug = resolveAttrSlug(s.key);
+          // Only add if slug is a known DB attribute and not already set from draft.attributes
+          if (ATTR_ALIAS_MAP[slug] !== undefined || Object.values(ATTR_ALIAS_MAP).includes(slug)) {
+            if (!initialAttrVals[slug]) {
+              addAttrVal(s.key, [String(s.value)]);
+            }
+          }
+        }
+      });
+    }
+
+    setSelectedAttributeValues(initialAttrVals);
+
     const parsed = parseSpecs(draft.specs || {});
     parsed.forEach((s) => {
       if (s.key === "Number of lights") setNumberOfLights(s.value);
-      if (s.key === "Series") setSelectedSeries(s.value);
     });
+
+    let draftSeries = "";
+    if (draft.series) draftSeries = draft.series;
+    else if (draft.seriesName) draftSeries = draft.seriesName;
+    else if (draft.seriesSlug) draftSeries = draft.seriesSlug;
+    else if (Array.isArray(draft.specs)) {
+      const sItem = draft.specs.find((s: any) => s && (s.key === "Series" || s.key === "Collection" || s.key === "Collectie"));
+      if (sItem) draftSeries = sItem.value;
+    }
+    if (draftSeries && draftSeries !== "null" && draftSeries !== "none") {
+      setSelectedSeries(draftSeries);
+    } else {
+      setSelectedSeries("none");
+    }
+
     setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+    if (draft.storageStock !== undefined) setStorageStock(String(draft.storageStock));
+    if (draft.webshopStock !== undefined) setWebshopStock(String(draft.webshopStock));
+    if (draft.binLocation) setBinLocation(draft.binLocation);
+    if (draft.lowStockThreshold !== undefined) setLowStockThreshold(String(draft.lowStockThreshold));
     toast.info(t("admin_product_form.draft_loaded"));
   };
 
@@ -579,7 +1110,7 @@ const AdminProductForm = () => {
             setInStock(p.inStock ?? true);
             setIsNewArrival(p.isNewArrival ?? false);
             setIsBestSelling(p.isBestSelling ?? false);
-            setSelectedCategory(p.category?.slug || "");
+            safeSetCategory(p.category?.slug || "");
             setSelectedBrand(typeof p.brand === "string" ? p.brand : (p.brand?.name || ""));
 
             // Parse existing EAV attribute values
@@ -620,6 +1151,30 @@ const AdminProductForm = () => {
 
             const parsed = parseSpecs(p.specs || {});
             setSpecs(parsed.length > 0 ? parsed : DEFAULT_SPECS_STRUCTURE);
+
+            const firstVariant = p.variants?.[0];
+            const firstInv = firstVariant?.inventoryItems?.[0];
+            if (firstInv) {
+              setStorageStock(String(firstInv.quantityOnHand ?? 10));
+              setWebshopStock(String(firstInv.webshopAllocated ?? 5));
+              setBinLocation(firstInv.binLocation || "A-01-1");
+              setLowStockThreshold(String(firstInv.reorderPoint ?? p.lowStockThreshold ?? 5));
+              setCurrentInventoryItem({
+                ...firstInv,
+                variant: {
+                  ...firstVariant,
+                  product: p,
+                },
+              });
+            } else if (firstVariant) {
+              setStorageStock(String(firstVariant.stock ?? 10));
+              setWebshopStock(String(firstVariant.stock ?? 5));
+              setLowStockThreshold(String(p.lowStockThreshold ?? 5));
+            }
+
+            if (p.siblings && Array.isArray(p.siblings)) {
+              setLinkedSiblings(p.siblings.filter((s: any) => s.id !== p.id));
+            }
             return;
           }
         } catch (e) {
@@ -630,7 +1185,7 @@ const AdminProductForm = () => {
         const savedProducts = localStorage.getItem("products_data");
         let allProducts = [];
         if (savedProducts) {
-          try { allProducts = JSON.parse(savedProducts); } catch (e) {}
+          try { allProducts = JSON.parse(savedProducts); } catch (e) { }
         } else {
           const { products: initialProducts } = await import("@/data/products");
           allProducts = initialProducts;
@@ -651,7 +1206,7 @@ const AdminProductForm = () => {
           setInStock(p.inStock ?? true);
           setIsNewArrival(p.isNewArrival ?? false);
           setIsBestSelling(p.isBestSelling ?? false);
-          setSelectedCategory(p.category || "");
+          safeSetCategory(p.category || "");
           setSelectedBrand(p.brand || "");
 
           // Initialize from local flat fields
@@ -713,12 +1268,24 @@ const AdminProductForm = () => {
     toast.success(t("admin_product_form.toast_param_added", { name: newParamName.trim() }));
   };
 
+  // Typing a size into a Length / Diameter / Width spec selects the matching bucket in the attributes panel
+  const syncDimensionFromSpec = (key: string, value: string) => {
+    const slug = dimensionSlugForSpecKey(key);
+    if (!slug) return;
+    const bucket = normalizeAttrValue(slug, value);
+    if (bucket) setSelectedAttributeValues((prev) => ({ ...prev, [slug]: [bucket] }));
+  };
+
   const handleUpdateItemKey = (itemId: string, newKey: string) => {
     setSpecs((prev) => prev.map((item) => item.id === itemId ? { ...item, key: newKey } : item));
+    const item = specs.find((s) => s.id === itemId);
+    if (item) syncDimensionFromSpec(newKey, item.value);
   };
 
   const handleUpdateItemValue = (itemId: string, newVal: string) => {
     setSpecs((prev) => prev.map((item) => item.id === itemId ? { ...item, value: newVal } : item));
+    const item = specs.find((s) => s.id === itemId);
+    if (item) syncDimensionFromSpec(item.key, newVal);
   };
 
   const handleUpdateItemLink = (itemId: string, newLink: string) => {
@@ -732,7 +1299,7 @@ const AdminProductForm = () => {
   const moveSpecItem = (index: number, direction: "up" | "down") => {
     if (direction === "up" && index === 0) return;
     if (direction === "down" && index === specs.length - 1) return;
-    
+
     setSpecs((prev) => {
       const newSpecs = [...prev];
       const targetIndex = direction === "up" ? index - 1 : index + 1;
@@ -756,7 +1323,7 @@ const AdminProductForm = () => {
   if (isLoading) {
     return (
 
-      <div className="container-page space-y-8 pb-12">
+      <div className="space-y-8 pb-12">
 
         {/* Header Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/45 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
@@ -868,7 +1435,7 @@ const AdminProductForm = () => {
     if (attr.visibility === "filter") return false;
 
     const activeCatObj = categoriesList.find((c) => c.slug === selectedCategory);
-    
+
     // DB categories attributes mapping
     if (activeCatObj?.categoryAttributes && activeCatObj.categoryAttributes.length > 0) {
       return activeCatObj.categoryAttributes.some((ca: any) => ca.attribute.slug === attr.slug);
@@ -889,6 +1456,10 @@ const AdminProductForm = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (submittingRef.current || isSubmitting) {
+      return;
+    }
+
     if (!name.trim()) {
       toast.error(t("admin_product_form.toast_name_required"));
       return;
@@ -898,103 +1469,93 @@ const AdminProductForm = () => {
       return;
     }
 
-    const serializedSpecs = serializeSpecs(specs);
-    if (numberOfLights) {
-      serializedSpecs.push({ key: "Number of lights", value: numberOfLights, link: "" });
-    }
-    if (selectedSeries && selectedSeries !== "none") {
-      serializedSpecs.push({ key: "Series", value: selectedSeries, link: "" });
-    }
+    submittingRef.current = true;
+    setIsSubmitting(true);
 
-    // Build flat parameters payload & backend relational EAV mapping
-    const finalBrand = selectedBrand && selectedBrand !== "none" ? selectedBrand : "";
-    const finalBrandId = selectedBrand && selectedBrand !== "none" ? brands.find((b) => b.name === selectedBrand)?.id || null : null;
-    
-    const payload = {
-      title: name,
-      name: name,
-      brand: finalBrand,
-      brandId: finalBrandId,
-      category: selectedCategory,
-      categoryId: categoriesList.find((c) => c.slug === selectedCategory)?.id || null,
-      price: parseFloat(price) || 0,
-      oldPrice: oldPrice ? parseFloat(oldPrice) : null,
-      inStock,
-      isNewArrival,
-      isBestSelling,
-      description,
-      shortDescription,
-      seoTitle,
-      seoDescription,
-      seoKeywords,
-      image: thumbnail || "",
-      images: galleryImages,
-      attributes: selectedAttributeValues, // EAV dynamic mapping
-      specs: serializedSpecs,
-    };
-
-    // 1. Try saving to backend API
     try {
-      const data = isEdit
-        ? await productRepository.update(id, payload)
-        : await productRepository.create(payload);
+      const serializedSpecs = serializeSpecs(specs);
+      if (numberOfLights) {
+        serializedSpecs.push({ key: "Number of lights", value: numberOfLights, link: "" });
+      }
+      if (selectedSeries && selectedSeries !== "none") {
+        serializedSpecs.push({ key: "Series", value: selectedSeries, link: "" });
+      }
 
-      if (data.success) {
-        if (isDraftMode && draftId) {
-          try {
-            const apiUrl = getApiV1Url();
-            await fetch(`${apiUrl}/ai/drafts/${draftId}/published`, {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
-            });
-          } catch {
-            /* non-blocking */
+      // Build flat parameters payload & backend relational EAV mapping
+      const finalBrand = selectedBrand && selectedBrand !== "none" ? selectedBrand : "";
+      const finalBrandId = selectedBrand && selectedBrand !== "none" ? brands.find((b) => b.name === selectedBrand)?.id || null : null;
+
+      const matchedCat = categoriesList.find(
+        (c) => c.slug === selectedCategory || c.id === selectedCategory || c.name?.toLowerCase() === selectedCategory?.toLowerCase()
+      );
+      const finalCategoryId = matchedCat?.id || categoriesList[0]?.id || null;
+
+      const payload = {
+        title: name,
+        name: name,
+        brand: finalBrand,
+        brandId: finalBrandId,
+        category: matchedCat?.slug || selectedCategory || "",
+        categoryId: finalCategoryId,
+        price: parseFloat(price) || 0,
+        oldPrice: oldPrice ? parseFloat(oldPrice) : null,
+        inStock,
+        isNewArrival,
+        isBestSelling,
+        storageStock: Math.max(0, parseInt(storageStock, 10) || 0),
+        webshopStock: Math.min(Math.max(0, parseInt(storageStock, 10) || 0), Math.max(0, parseInt(webshopStock, 10) || 0)),
+        binLocation: binLocation.trim() || "A-01-1",
+        lowStockThreshold: Math.max(1, parseInt(lowStockThreshold, 10) || 5),
+        description,
+        shortDescription,
+        seoTitle,
+        seoDescription,
+        seoKeywords,
+        image: thumbnail || "",
+        images: galleryImages,
+        attributes: selectedAttributeValues, // EAV dynamic mapping
+        specs: serializedSpecs,
+        siblingProductIds: linkedSiblings.map((s) => s.id),
+      };
+
+      // 1. Try saving to backend API
+      try {
+        const data = isEdit
+          ? await productRepository.update(id, payload)
+          : await productRepository.create(payload);
+
+        if (data.success) {
+          if (isDraftMode && draftId) {
+            try {
+              const apiUrl = getApiV1Url();
+              await fetch(`${apiUrl}/ai/drafts/${draftId}/published`, {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ productId: data.product?.id }),
+              });
+            } catch {
+              /* non-blocking */
+            }
           }
+          toast.success(isEdit ? t("admin_product_form.toast_product_updated", { name }) : t("admin_product_form.toast_product_created", { name }));
+          navigate("/admin/products");
+          return;
+        } else {
+          throw new Error(data.message || data.error || "Failed to save product");
         }
-        toast.success(isEdit ? t("admin_product_form.toast_product_updated", { name }) : t("admin_product_form.toast_product_created", { name }));
-        navigate("/admin/products");
+      } catch (err: any) {
+        console.error("Backend API save failed:", err);
+        toast.error(err.message || "Failed to save product to database. Please check required fields.");
         return;
       }
-    } catch (err) {
-      console.warn("Backend API save failed, syncing to local storage / mock data only.");
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
-
-    // 2. Sync to local storage for static mockup fallback
-    const savedProducts = localStorage.getItem("products_data");
-    let allProducts = [];
-    if (savedProducts) {
-      try { allProducts = JSON.parse(savedProducts); } catch (e) {}
-    } else {
-      const { products: initialProducts } = await import("@/data/products");
-      allProducts = initialProducts;
-    }
-
-    // Flatten values for legacy compatibility
-    const flatProduct = {
-      ...payload,
-      id: isEdit ? id : `p-${Date.now()}`,
-      color: selectedAttributeValues["color"]?.[0] || "",
-      material: selectedAttributeValues["material"]?.[0] || "",
-      style: selectedAttributeValues["style"]?.[0] || "",
-      fitting: selectedAttributeValues["fitting"]?.[0] || "",
-      dimmable: selectedAttributeValues["dimmable"]?.[0] || "",
-      shortDescription,
-    };
-
-    let updatedProducts = [];
-    if (isEdit) {
-      updatedProducts = allProducts.map((p: any) => String(p.id) === id ? flatProduct : p);
-    } else {
-      updatedProducts = [...allProducts, flatProduct];
-    }
-
-    localStorage.setItem("products_data", JSON.stringify(updatedProducts));
-    toast.success(isEdit ? t("admin_product_form.toast_local_updated") : t("admin_product_form.toast_local_created"));
-    navigate("/admin/products");
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-12">
+    <div className="space-y-8 pb-12">
 
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/45 backdrop-blur-md p-6 rounded-2xl border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]">
@@ -1018,14 +1579,52 @@ const AdminProductForm = () => {
             </p>
           </div>
         </div>
+
+        {isEdit && (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOptimizePromptOpen(true)}
+              disabled={isOptimizing}
+              className="gap-2 rounded-full border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium transition-all shadow-sm"
+            >
+              {isOptimizing ? (
+                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+              ) : (
+                <Sparkles className="h-4 w-4 text-amber-500" />
+              )}
+              <span>{isOptimizing ? t("admin_quick_edit.editing") : t("admin_quick_edit.button")}</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
+
           {/* LEFT COLUMN — Main Forms (2/3 Width) */}
           <div className="lg:col-span-2 space-y-8">
-            
+
+            {/* NL (source) / EN (AI translation) */}
+            <div className="inline-flex rounded-full border bg-muted/40 p-1" role="tablist">
+              {(["nl", "en"] as const).map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  role="tab"
+                  aria-selected={contentTab === code}
+                  onClick={() => setContentTab(code)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${contentTab === code ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {t(`admin_translations.tab_${code}`)}
+                </button>
+              ))}
+            </div>
+
+            {/* Source content stays mounted (hidden) while the EN tab is open, so nothing typed is lost */}
+            <div className={contentTab === "nl" ? "space-y-8" : "hidden"}>
+
             {/* Basic Info */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4">
@@ -1402,10 +2001,10 @@ const AdminProductForm = () => {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Input 
-                    placeholder={t("admin_product_form.specs_new_param_placeholder")} 
-                    value={newParamName} 
-                    onChange={e => setNewParamName(e.target.value)} 
+                  <Input
+                    placeholder={t("admin_product_form.specs_new_param_placeholder")}
+                    value={newParamName}
+                    onChange={e => setNewParamName(e.target.value)}
                     className="h-8 text-xs w-48 bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg"
                     onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAddItem())}
                   />
@@ -1426,7 +2025,7 @@ const AdminProductForm = () => {
                             <button type="button" onClick={() => moveSpecItem(index, 'up')} disabled={index === 0} className="h-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">▲</button>
                             <button type="button" onClick={() => moveSpecItem(index, 'down')} disabled={index === specs.length - 1} className="h-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">▼</button>
                           </div>
-                          
+
                           <div className="grid grid-cols-[1fr_1.5fr_1.5fr] gap-3 flex-grow items-center">
                             <div className="space-y-1">
                               <Label className="text-[10px] text-muted-foreground uppercase px-1">{t("admin_product_form.specs_label_name")}</Label>
@@ -1471,11 +2070,135 @@ const AdminProductForm = () => {
                 </div>
               </CardContent>
             </Card>
+
+            </div>
+
+            {/* EN tab: AI translation of the saved product / Quick Add draft; new products are translated after saving */}
+            {contentTab === "en" &&
+              (isEdit && id ? (
+                <ProductTranslationPanel productId={id} />
+              ) : isDraftMode && draftId ? (
+                <ProductTranslationPanel productId={draftId} kind="draft" />
+              ) : (
+                <p className="rounded-2xl border bg-muted/30 p-6 text-sm text-muted-foreground">{t("admin_translations.new_product_hint")}</p>
+              ))}
           </div>
 
           {/* RIGHT COLUMN — Organisation, EAV Attributes & Sticky Action Panel (1/3 Width) */}
           <div className="space-y-8 lg:sticky lg:top-8">
-            
+
+            {/* Inventory & Warehouse Storage Card */}
+            <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
+              <CardHeader className="border-b pb-4 mb-4">
+                <CardTitle className="text-lg font-bold flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Warehouse className="h-5 w-5 text-primary" />
+                    <span>{t("admin_product_form.inventory_title", "Inventory & Storage")}</span>
+                  </div>
+                  {isEdit && currentInventoryItem && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQrModalOpen(true)}
+                      className="h-7 px-2 text-xs font-semibold gap-1.5 rounded-lg border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800"
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                      <span>{t("admin_product_form.btn_print_qr", "QR Label")}</span>
+                    </Button>
+                  )}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {t("admin_product_form.inventory_subtitle", "Manage warehouse physical count & live webshop quota")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="storageStock" className="text-xs font-bold text-foreground/80 flex items-center gap-1">
+                      <span>{t("admin_product_form.label_storage_stock", "Storage (Godown)")}</span>
+                    </Label>
+                    <Input
+                      id="storageStock"
+                      type="number"
+                      min="0"
+                      value={storageStock}
+                      onChange={(e) => handleStorageStockChange(e.target.value)}
+                      placeholder="0"
+                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg font-mono font-bold"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("admin_product_form.storage_stock_hint", "Total physical units in warehouse")}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="webshopStock" className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <span>{t("admin_product_form.label_webshop_stock", "Webshop (Online)")}</span>
+                    </Label>
+                    <Input
+                      id="webshopStock"
+                      type="number"
+                      min="0"
+                      max={Math.max(0, parseInt(storageStock, 10) || 0)}
+                      value={webshopStock}
+                      onChange={(e) => handleWebshopStockChange(e.target.value)}
+                      placeholder="0"
+                      className="h-10 text-xs bg-emerald-50/50 dark:bg-emerald-950/20 focus-visible:ring-1 border-emerald-300/40 dark:border-emerald-700/40 rounded-lg font-mono font-bold text-emerald-700 dark:text-emerald-300"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("admin_product_form.webshop_stock_hint", "Live checkout quota for website")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="binLocation" className="text-xs font-bold text-foreground/80">
+                      {t("admin_product_form.label_bin_location", "Storage Rack / Bin Location")}
+                    </Label>
+                    <Input
+                      id="binLocation"
+                      value={binLocation}
+                      onChange={(e) => setBinLocation(e.target.value)}
+                      placeholder="e.g. A-01-1, Shelf-B4"
+                      className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="lowStockThreshold" className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <span>{t("admin_product_form.label_low_stock_threshold", "Low Stock Alert (Threshold)")}</span>
+                    </Label>
+                    <Input
+                      id="lowStockThreshold"
+                      type="number"
+                      min="1"
+                      value={lowStockThreshold}
+                      onChange={(e) => setLowStockThreshold(e.target.value)}
+                      placeholder="5"
+                      className="h-10 text-xs bg-amber-50/50 dark:bg-amber-950/20 focus-visible:ring-1 border-amber-300/40 dark:border-amber-700/40 rounded-lg font-mono font-bold text-amber-700 dark:text-amber-300"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("admin_product_form.low_stock_threshold_hint", "Shows 'Only X left' badge when stock <= threshold")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/50 text-[11px] text-muted-foreground space-y-1">
+                  <div className="flex items-center justify-between font-medium">
+                    <span>{t("admin_product_form.offline_reserve", "Offline Safety Reserve:")}</span>
+                    <span className="font-mono font-bold text-foreground">
+                      {Math.max(0, (parseInt(storageStock, 10) || 0) - (parseInt(webshopStock, 10) || 0))} {t("admin_product_form.units", "units")}
+                    </span>
+                  </div>
+                  <p className="text-[10px] leading-tight text-muted-foreground/80">
+                    {t("admin_product_form.dual_layer_note", "Protected offline in godown. Not purchasable on webshop.")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Organisation & Category attributes */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
               <CardHeader className="border-b pb-4 mb-4">
@@ -1486,16 +2209,37 @@ const AdminProductForm = () => {
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-foreground/80">{t("admin_product_form.label_category")}</Label>
                   {isMounted && (
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <Select value={selectedCategory || undefined} onValueChange={setSelectedCategory}>
                       <SelectTrigger className="h-10 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
                         <SelectValue placeholder={t("admin_product_form.placeholder_category")} />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl">
-                        {categoriesList.map((c) => (
-                          <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
-                            {c.name}
-                          </SelectItem>
-                        ))}
+                        {/* First show orphan/standalone categories (no parent) that aren't parents themselves */}
+                        {categoriesList
+                          .filter((c: any) => !c.parentId && !categoriesList.some((ch: any) => ch.parentId === c.id))
+                          .map((c) => (
+                            <SelectItem key={c.slug} value={c.slug} className="text-xs rounded-lg">
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        {/* Then show parent categories with their children grouped */}
+                        {categoriesList
+                          .filter((c: any) => !c.parentId && categoriesList.some((ch: any) => ch.parentId === c.id))
+                          .map((parent: any) => {
+                            const children = categoriesList.filter((ch: any) => ch.parentId === parent.id);
+                            return (
+                              <SelectGroup key={parent.id}>
+                                <SelectLabel className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50">
+                                  {parent.name}
+                                </SelectLabel>
+                                {children.map((child: any) => (
+                                  <SelectItem key={child.slug} value={child.slug} className="text-xs rounded-lg pl-5">
+                                    ↳ {child.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            );
+                          })}
                       </SelectContent>
                     </Select>
                   )}
@@ -1545,11 +2289,10 @@ const AdminProductForm = () => {
                                     <button
                                       key={v.id}
                                       type="button"
-                                      className={`relative h-7 w-7 rounded-full border transition-all duration-300 ${
-                                        isChecked
+                                      className={`relative h-7 w-7 rounded-full border transition-all duration-300 ${isChecked
                                           ? "ring-2 ring-primary ring-offset-2 scale-110 shadow-sm"
                                           : "border-muted-foreground/20 hover:scale-105"
-                                      }`}
+                                        }`}
                                       style={{ background: v.colorCode || "#cccccc" }}
                                       title={v.value}
                                       onClick={() => {
@@ -1608,10 +2351,10 @@ const AdminProductForm = () => {
                               <Select
                                 value={currentVals[0] || ""}
                                 onValueChange={(val) => {
-                                    setSelectedAttributeValues((prev) => ({
-                                      ...prev,
-                                      [attr.slug]: [val],
-                                    }));
+                                  setSelectedAttributeValues((prev) => ({
+                                    ...prev,
+                                    [attr.slug]: [val],
+                                  }));
                                 }}
                               >
                                 <SelectTrigger className="h-9 text-xs bg-background/50 border-muted-foreground/20 rounded-lg">
@@ -1689,13 +2432,26 @@ const AdminProductForm = () => {
               </CardContent>
             </Card>
 
-             {/* Actions Card */}
+            {/* Actions Card */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl p-6 space-y-3">
-              <Button type="submit" className="w-full gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300">
-                <Save className="h-4 w-4" />
-                {isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>{isEdit ? (t("admin_product_form.action_saving") || "Opslaan...") : (t("admin_product_form.action_creating") || "Product aanmaken...")}</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    <span>{isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}</span>
+                  </>
+                )}
               </Button>
-              {canRegenerate && (
+              {canRegenerate && isEdit && (
                 <Button
                   type="button"
                   onClick={(e) => {
@@ -1704,16 +2460,17 @@ const AdminProductForm = () => {
                   }}
                   variant="outline"
                   className="w-full gap-2 h-10 text-xs font-bold rounded-lg border-amber-600/30 text-amber-700 bg-amber-600/5 hover:bg-amber-600/15 hover:text-amber-800 transition-all duration-300"
-                  disabled={isGlobalRegenerating || regeneratingIndexes.length > 0 || isOptimizing}
+                  disabled={isSubmitting || isGlobalRegenerating || regeneratingIndexes.length > 0 || isOptimizing}
                 >
-                  {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 animate-bounce" />}
-                  {t("admin_product_form.action_optimize")}
+                  {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  <span>{isOptimizing ? t("admin_quick_edit.editing") : t("admin_quick_edit.button")}</span>
                 </Button>
               )}
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-10 text-xs font-bold rounded-lg border-muted-foreground/25 hover:bg-destructive/10 hover:text-destructive transition-all duration-300"
+                disabled={isSubmitting}
+                className="w-full h-10 text-xs font-bold rounded-lg border-muted-foreground/25 hover:bg-destructive/10 hover:text-destructive transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={() => navigate("/admin/products")}
               >
                 {t("admin_product_form.action_cancel")}
@@ -1721,6 +2478,365 @@ const AdminProductForm = () => {
             </Card>
 
           </div>
+        </div>
+
+        {/* BOTTOM SECTION — Color Siblings & Linked Products (Full Width below Specs) */}
+        <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
+          <CardHeader className="border-b pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <Boxes className="h-5 w-5 text-primary" />
+                <span>{t("admin_product_form.siblings_title", "Color Siblings / Linked Products")}</span>
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                {t("admin_product_form.siblings_desc", "Connect existing standalone products as color variations. When saved, all linked products will display clickable color swatches on their storefront pages.")}
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isAiSuggesting || !id || id === "new"}
+              onClick={handleAiSuggestSiblings}
+              className="h-8 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 gap-1.5 rounded-lg shadow-2xs shrink-0"
+              title={!id || id === "new" ? "Save product first to use AI detection" : "AI analyzes catalog to find matching color variations"}
+            >
+              {isAiSuggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
+              <span>{isAiSuggesting ? "AI Scanning..." : "✨ AI Find Siblings"}</span>
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* AI Suggestions Box (if matches found) */}
+            {aiSuggestions.length > 0 && (
+              <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3 animate-in fade-in-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <span className="text-xs font-bold text-foreground">
+                      AI Detected {aiSuggestions.length} Color Variation{aiSuggestions.length > 1 ? "s" : ""}:
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg gap-1 shadow-2xs"
+                    onClick={linkAllAiSuggestions}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Link All ({aiSuggestions.length})</span>
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                  {aiSuggestions.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-background border border-border/60 text-xs shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img
+                          src={resolveImgUrl(s.image)}
+                          alt=""
+                          className="w-8 h-8 rounded-md object-cover border border-border/40 shrink-0"
+                        />
+                        <div className="truncate">
+                          <p className="font-semibold text-foreground truncate">{s.name}</p>
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <span
+                              className="w-2 h-2 rounded-full border border-black/15 shrink-0"
+                              style={{ background: s.colorCode || "#666" }}
+                            />
+                            <span className="font-medium text-foreground">{s.colorName}</span>
+                            <span>·</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                              {s.confidence}% match
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs font-bold text-primary hover:bg-primary/10 rounded-md"
+                        onClick={() => {
+                          addSibling(s);
+                          setAiSuggestions((prev) => prev.filter((item) => item.id !== s.id));
+                        }}
+                      >
+                        + Link
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Search & Add Sibling */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-bold text-foreground/80">
+                  {t("admin_product_form.search_sibling_label", "Search or browse products to link as color:")}
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsBrowseCatalogOpen(true);
+                    loadCatalogProducts(selectedCategory || "all");
+                  }}
+                  className="h-7 text-xs font-bold border-primary/30 text-primary hover:bg-primary/10 gap-1.5 shadow-2xs"
+                >
+                  <Boxes className="h-3.5 w-3.5" />
+                  <span>Browse All Products</span>
+                </Button>
+              </div>
+
+              {/* Quick Category Filter Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-muted-foreground font-medium">Show:</span>
+                {selectedCategory && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiblingFilterCategory("same");
+                      searchSiblings(siblingSearchQuery, "same");
+                    }}
+                    className={cn(
+                      "px-2.5 py-0.5 rounded-full border transition-all font-medium",
+                      siblingFilterCategory === "same"
+                        ? "bg-primary text-white border-primary shadow-xs"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted border-border"
+                    )}
+                  >
+                    Same Category ({selectedCategory})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSiblingFilterCategory("all");
+                    searchSiblings(siblingSearchQuery, "all");
+                  }}
+                  className={cn(
+                    "px-2.5 py-0.5 rounded-full border transition-all font-medium",
+                    siblingFilterCategory === "all"
+                      ? "bg-primary text-white border-primary shadow-xs"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted border-border"
+                  )}
+                >
+                  All Products Catalog
+                </button>
+              </div>
+
+              <div className="relative">
+                <Input
+                  value={siblingSearchQuery}
+                  onFocus={() => {
+                    if (siblingSearchResults.length === 0) {
+                      searchSiblings(siblingSearchQuery, siblingFilterCategory);
+                    }
+                  }}
+                  onChange={(e) => searchSiblings(e.target.value, siblingFilterCategory)}
+                  placeholder={t("admin_product_form.search_sibling_placeholder", "Click to see products, or type name/SKU...")}
+                  className="h-10 text-xs bg-background/50 focus-visible:ring-1 border-muted-foreground/20 rounded-lg pr-9"
+                />
+                {siblingSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => searchSiblings("", siblingFilterCategory)}
+                    className="absolute right-8 top-3 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {isSearchingSiblings && (
+                  <div className="absolute right-3 top-3">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+
+              {/* Search results dropdown */}
+              {siblingSearchResults.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-2 shadow-lg space-y-1 max-h-72 overflow-y-auto">
+                  <div className="flex items-center justify-between px-2 py-1 text-[11px] text-muted-foreground border-b border-border/40 font-medium">
+                    <span>{siblingSearchResults.length} product(s) available to link:</span>
+                    <button
+                      type="button"
+                      onClick={() => setSiblingSearchResults([])}
+                      className="text-[10px] hover:text-foreground font-semibold"
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-1">
+                    {siblingSearchResults.map((sr) => {
+                      const colorVal = sr.productAttributeValues?.find(
+                        (pav: any) =>
+                          pav.attribute?.slug === "color" ||
+                          pav.attribute?.name?.toLowerCase() === "color" ||
+                          pav.attribute?.name?.toLowerCase() === "kleur"
+                      )?.attributeValue;
+                      return (
+                        <div
+                          key={sr.id}
+                          className="flex items-center justify-between p-2 rounded-lg bg-background border border-border/60 hover:border-primary/40 transition-colors text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={resolveImgUrl(sr.image)}
+                              alt=""
+                              className="w-9 h-9 rounded-md object-cover border border-border/50 shrink-0"
+                            />
+                            <div className="truncate">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <p className="font-semibold text-foreground truncate">{sr.name}</p>
+                                {sr.isDraft && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                                    Draft
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                {colorVal && (
+                                  <span className="flex items-center gap-1">
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full border border-black/15 inline-block shrink-0"
+                                      style={{ background: colorVal.colorCode || "#666" }}
+                                    />
+                                    <span className="font-medium text-foreground">{colorVal.value}</span>
+                                  </span>
+                                )}
+                                <span>·</span>
+                                <span>€{Number(sr.price).toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs font-semibold shrink-0 gap-1 rounded-lg hover:bg-primary hover:text-white"
+                            onClick={() => addSibling(sr)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>{t("admin_product_form.link_btn", "Link")}</span>
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Linked Siblings List */}
+            <div className="space-y-2 pt-2">
+              <Label className="text-xs font-bold text-foreground/80 flex items-center justify-between">
+                <span>{t("admin_product_form.currently_linked", "Currently Connected Siblings:")}</span>
+                <span className="text-[11px] font-mono font-normal text-muted-foreground">
+                  {linkedSiblings.length} {t("admin_product_form.products_linked", "product(s) linked")}
+                </span>
+              </Label>
+
+              {linkedSiblings.length === 0 ? (
+                <div className="p-4 rounded-xl border border-dashed border-muted-foreground/20 text-center text-xs text-muted-foreground">
+                  {t("admin_product_form.no_siblings_linked", "No color siblings linked yet. Search above to link other variations of this item.")}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {linkedSiblings.map((sibling) => (
+                    <div
+                      key={sibling.id}
+                      className="flex items-center justify-between p-2.5 rounded-xl border border-border/70 bg-background/50 hover:bg-muted/40 transition-colors shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={resolveImgUrl(sibling.image)}
+                          alt=""
+                          className="w-10 h-10 rounded-lg object-cover border border-border/60 shrink-0"
+                        />
+                        <div className="truncate">
+                          <p className="font-semibold text-xs text-foreground truncate">{sibling.name}</p>
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                              style={{ background: sibling.colorCode || "#666" }}
+                            />
+                            <span className="font-medium text-foreground/90">{sibling.colorName}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0 rounded-full"
+                        onClick={() => removeSibling(sibling.id)}
+                        title="Disconnect sibling"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {linkedSiblings.length > 0 && (
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium pt-1">
+                  ✓ {t("admin_product_form.auto_sync_hint", "2-Way Sync Active: Saving will automatically link all selected products together.")}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bottom Actions Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSubmitting}
+            className="w-full sm:w-auto px-6 h-10 text-xs font-bold rounded-lg border-muted-foreground/25 hover:bg-destructive/10 hover:text-destructive transition-all duration-300"
+            onClick={() => navigate("/admin/products")}
+          >
+            {t("admin_product_form.action_cancel")}
+          </Button>
+
+          {canRegenerate && isEdit && (
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setOptimizePromptOpen(true);
+              }}
+              variant="outline"
+              className="w-full sm:w-auto px-6 gap-2 h-10 text-xs font-bold rounded-lg border-amber-600/30 text-amber-700 bg-amber-600/5 hover:bg-amber-600/15 hover:text-amber-800 transition-all duration-300"
+              disabled={isSubmitting || isGlobalRegenerating || regeneratingIndexes.length > 0 || isOptimizing}
+            >
+              {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              <span>{isOptimizing ? t("admin_quick_edit.editing") : t("admin_quick_edit.button")}</span>
+            </Button>
+          )}
+
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full sm:w-auto px-8 gap-2 h-10 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-shadow duration-300 disabled:opacity-60"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>{isEdit ? (t("admin_product_form.action_saving") || "Opslaan...") : (t("admin_product_form.action_creating") || "Product aanmaken...")}</span>
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                <span>{isEdit ? t("admin_product_form.action_save") : t("admin_product_form.action_create")}</span>
+              </>
+            )}
+          </Button>
         </div>
       </form>
 
@@ -1773,7 +2889,7 @@ const AdminProductForm = () => {
                 setRegenPromptOpen(false);
                 const toastId = regenTargetIndex !== null ? `regen-${regenTargetIndex}` : "regen-all";
                 toast.info(t("admin_product_form.regen_toast_start"), { id: toastId });
-                
+
                 if (regenTargetIndex !== null) {
                   setRegeneratingIndexes(prev => [...prev, regenTargetIndex]);
                 } else {
@@ -1782,21 +2898,21 @@ const AdminProductForm = () => {
 
                 try {
                   const apiUrl = getApiV1Url();
-                  const targetUrl = draftId 
+                  const targetUrl = draftId
                     ? `${apiUrl}/ai/drafts/${draftId}/regenerate-images`
                     : `${apiUrl}/ai/products/${id}/regenerate-images`;
                   const res = await fetch(targetUrl, {
                     method: "POST",
-                    headers: { 
+                    headers: {
                       Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
                       "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ 
-                      prompt: regenPromptText, 
-                      index: regenTargetIndex !== null ? regenTargetIndex : undefined 
+                    body: JSON.stringify({
+                      prompt: regenPromptText,
+                      index: regenTargetIndex !== null ? regenTargetIndex : undefined
                     })
                   });
-                  
+
                   const data = await res.json();
                   if (data.success && data.images) {
                     setGalleryImages(prev => {
@@ -1875,34 +2991,358 @@ const AdminProductForm = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Optimization Prompt Dialog */}
+      {/* Quick Edit (AI) Modal */}
       <Dialog open={optimizePromptOpen} onOpenChange={setOptimizePromptOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
-              {t("admin_product_form.optimize_prompt_title")}
-            </DialogTitle>
+            <div className="flex items-center gap-2 text-amber-600">
+              <Sparkles className="h-5 w-5" />
+              <DialogTitle className="text-xl">{t("admin_quick_edit.title_smart")}</DialogTitle>
+            </div>
             <DialogDescription>
-              {t("admin_product_form.optimize_prompt_desc")}
+              {t("admin_quick_edit.desc_single_form")}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <textarea
-              className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-              placeholder='e.g. "Focus on wooden textures", "Translate description to clear Dutch"'
-              value={optimizePromptText}
-              onChange={(e) => setOptimizePromptText(e.target.value)}
-            />
+
+          <div className="space-y-4 py-2">
+            {/* Target Product Preview */}
+            <div className="flex items-center gap-3 p-3 rounded-xl border bg-muted/30">
+              {thumbnail ? (
+                <img
+                  src={resolveImgUrl(thumbnail)}
+                  alt={name}
+                  className="h-12 w-12 rounded-lg object-cover border shrink-0"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-lg border bg-muted flex items-center justify-center shrink-0">
+                  <Sparkles className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-muted-foreground uppercase font-bold">{t("admin_quick_edit.target_product")}</p>
+                <p className="font-semibold text-sm truncate">{name || t("admin_quick_edit.untitled_product")}</p>
+                <p className="text-xs text-muted-foreground">
+                  €{price || "0.00"} · {selectedCategory ? selectedCategory.replace(/-/g, " ") : t("admin_quick_edit.no_category")}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Presets / Tags */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                {t("admin_quick_edit.presets_label")}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_ISSUE_KEYS.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      const text = t(`admin_quick_edit.presets.${key}.text_single`);
+                      setOptimizePromptText((prev) => (prev ? `${prev}\n${text}` : text));
+                    }}
+                    className="text-xs rounded-full border border-border bg-muted/60 px-2.5 py-1 hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-800 dark:hover:text-amber-300 transition-colors text-left"
+                  >
+                    {t(`admin_quick_edit.presets.${key}.label`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Issue Description Textarea */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                  {t("admin_quick_edit.prompt_label")} <span className="text-destructive">*</span>
+                </label>
+                <span className="text-[11px] text-muted-foreground">{t("admin_quick_edit.prompt_hint")}</span>
+              </div>
+              <textarea
+                value={optimizePromptText}
+                onChange={(e) => setOptimizePromptText(e.target.value)}
+                rows={4}
+                placeholder={t("admin_quick_edit.placeholder_single")}
+                className="w-full rounded-xl border border-input bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 resize-y"
+              />
+            </div>
+
+            {/* Fields to Update Selection */}
+            <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t("admin_quick_edit.fields_label")}
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuickEditFields({
+                      name: true,
+                      category: true,
+                      description: true,
+                      specs: true,
+                      attributes: true,
+                      seo: true,
+                      price: false,
+                    })
+                  }
+                  className="text-[11px] text-amber-600 hover:underline"
+                >
+                  {t("admin_quick_edit.reset_defaults")}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.name}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, name: !!c }))
+                    }
+                  />
+                  <span>{t("admin_quick_edit.field_name")}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.category}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, category: !!c }))
+                    }
+                  />
+                  <span>{t("admin_quick_edit.field_category")}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.description}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, description: !!c }))
+                    }
+                  />
+                  <span>{t("admin_quick_edit.field_description")}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.specs}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, specs: !!c }))
+                    }
+                  />
+                  <span>{t("admin_quick_edit.field_specs")}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.attributes}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, attributes: !!c }))
+                    }
+                  />
+                  <span>{t("admin_quick_edit.field_attributes")}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.seo}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, seo: !!c }))
+                    }
+                  />
+                  <span>{t("admin_quick_edit.field_seo")}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={quickEditFields.price}
+                    onCheckedChange={(c) =>
+                      setQuickEditFields((f) => ({ ...f, price: !!c }))
+                    }
+                  />
+                  <span className="text-muted-foreground">{t("admin_quick_edit.field_price")}</span>
+                </label>
+              </div>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOptimizePromptOpen(false)}>{t("admin_product_form.action_cancel")}</Button>
+
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              className="gap-2"
-              onClick={handleTriggerOptimize}
+              type="button"
+              variant="outline"
+              onClick={() => setOptimizePromptOpen(false)}
+              disabled={isOptimizing}
             >
-              <Sparkles className="h-4 w-4" />
-              {t("admin_product_form.regen_generate")}
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleTriggerOptimize}
+              disabled={isOptimizing || !optimizePromptText.trim()}
+              className="gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium"
+            >
+              {isOptimizing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t("admin_quick_edit.queueing")}
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  {t("admin_quick_edit.submit")}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code Thermal Preview Modal */}
+      {currentInventoryItem && (
+        <QrCodePreviewModal
+          item={currentInventoryItem}
+          isOpen={qrModalOpen}
+          onClose={() => setQrModalOpen(false)}
+        />
+      )}
+
+      {/* Browse All Products Dialog for Manual Sibling Linking */}
+      <Dialog open={isBrowseCatalogOpen} onOpenChange={setIsBrowseCatalogOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl">
+          <DialogHeader className="p-5 border-b bg-muted/30">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Boxes className="h-5 w-5 text-primary" />
+              Browse Product Catalog to Link as Color
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Select any product from your catalog to link as a color variation sibling.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-4 border-b bg-background flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1">
+              <Input
+                placeholder="Filter catalog by product name or SKU..."
+                value={catalogSearchQuery}
+                onChange={(e) => {
+                  setCatalogSearchQuery(e.target.value);
+                  loadCatalogProducts(catalogFilterCategory, e.target.value);
+                }}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="w-full sm:w-56">
+              <Select
+                value={catalogFilterCategory}
+                onValueChange={(val) => {
+                  setCatalogFilterCategory(val);
+                  loadCatalogProducts(val, catalogSearchQuery);
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categoriesList.map((c) => (
+                    <SelectItem key={c.id || c.slug} value={c.slug}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {isLoadingCatalog ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground text-xs gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span>Loading catalog products...</span>
+              </div>
+            ) : catalogProducts.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                No products found in this category or search query.
+              </div>
+            ) : (
+              catalogProducts.map((p) => {
+                const isAlreadyLinked = linkedSiblings.some((ls) => ls.id === p.id);
+                const colorVal = p.productAttributeValues?.find(
+                  (pav: any) =>
+                    pav.attribute?.slug === "color" ||
+                    pav.attribute?.name?.toLowerCase() === "color" ||
+                    pav.attribute?.name?.toLowerCase() === "kleur"
+                )?.attributeValue;
+
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border transition-all text-xs",
+                      isAlreadyLinked
+                        ? "bg-muted/40 border-border/40 opacity-75"
+                        : "bg-card hover:bg-muted/50 border-border/70 shadow-2xs"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={resolveImgUrl(p.image)}
+                        alt=""
+                        className="w-10 h-10 rounded-lg object-cover border border-border/50 shrink-0"
+                      />
+                      <div className="truncate">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <p className="font-semibold text-foreground truncate">{p.name}</p>
+                          {p.isDraft && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                              Draft
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                          {colorVal && (
+                            <span className="flex items-center gap-1 font-medium text-foreground">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                style={{ background: colorVal.colorCode || "#666" }}
+                              />
+                              {colorVal.value}
+                            </span>
+                          )}
+                          <span>·</span>
+                          <span className="font-mono">€{Number(p.price).toFixed(2)}</span>
+                          {p.category?.name && (
+                            <>
+                              <span>·</span>
+                              <span className="text-muted-foreground/80">{p.category.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isAlreadyLinked ? (
+                      <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-200 dark:border-emerald-900/50">
+                        ✓ Linked
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 text-xs font-bold gap-1 rounded-lg"
+                        onClick={() => addSibling(p)}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Link as Color</span>
+                      </Button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter className="p-4 border-t bg-muted/20">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBrowseCatalogOpen(false)}
+            >
+              Done Linking
             </Button>
           </DialogFooter>
         </DialogContent>

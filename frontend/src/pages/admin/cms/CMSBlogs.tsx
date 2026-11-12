@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { ContentLanguageTabs, ContentTranslationPanel } from "@/components/admin/ContentTranslationPanel";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { SeoJobBanner } from "@/components/admin/seo/SeoJobBanner";
 import { SuggestionActions } from "@/components/admin/SuggestionActions";
@@ -49,6 +50,9 @@ const CMSBlogs = () => {
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [edit, setEdit] = useState<Blog | null>(null);
+  /** Editor tab: "source" = the post as written, "nl" / "en" = its AI translations */
+  const [langTab, setLangTab] = useState("source");
+  useEffect(() => setLangTab("source"), [edit?.id, isEditorOpen]);
   const [form, setForm] = useState<Omit<Blog, "id" | "date">>({
     title: "", slug: "", excerpt: "", body: "", cover: null, author: "", published: true,
     seoTitle: "", seoDescription: "", seoKeywords: "",
@@ -352,6 +356,12 @@ const CMSBlogs = () => {
             <h2 className="text-lg font-semibold">{edit ? "Edit Post" : "New Post"}</h2>
             <Button type="button" variant="outline" size="sm" onClick={() => setIsEditorOpen(false)}>Close</Button>
           </div>
+          <div className="mt-4 space-y-4">
+            <ContentLanguageTabs value={langTab} onChange={setLangTab} disabled={!edit?.id} />
+            {langTab !== "source" && edit?.id && <ContentTranslationPanel type="blog" id={edit.id} lang={langTab} />}
+          </div>
+          {/* Source form stays mounted (hidden) on the translation tabs so nothing typed is lost */}
+          <div className={langTab === "source" ? "" : "hidden"}>
           <form onSubmit={save} className="space-y-4 mt-4">
             <div>
               <Label>Cover image</Label>
@@ -397,6 +407,7 @@ const CMSBlogs = () => {
             <div className="flex items-center gap-2"><Switch checked={form.published} onCheckedChange={(v) => setForm({ ...form, published: v })} /><Label>Published</Label></div>
             <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setIsEditorOpen(false)}>Cancel</Button><Button type="submit">{edit ? "Update" : "Create"}</Button></div>
           </form>
+          </div>
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

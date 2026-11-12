@@ -15,7 +15,7 @@ import {
   sanitizeCmsAiHtml,
 } from "../utils/cmsAiContent";
 import { saveCompressedBlogCoverToDir, saveCompressedImageToDir } from "../utils/imageOptimize";
-import { sanitizeRobotsTxt, normalizeRobotsTxtFromAi } from "../utils/robotsTxt";
+import { normalizeRobotsTxtFromAi } from "../utils/robotsTxt";
 import { unwrapAiPlainTextPayload } from "../utils/aiPlainTextOutput";
 import { getSeoCanonicalBaseUrl } from "./settingsStore";
 
@@ -39,46 +39,67 @@ async function callGeminiRest(
     }
   };
 
-  // If the prompt explicitly asks for JSON, or it's a known JSON function, we could pass responseMimeType: "application/json".
-  // But many of our prompts (llms.txt, email generation, blog generation) ask for Markdown or plain text.
-  // We'll let the prompt handle the format request, removing the hardcoded responseMimeType constraint.
-  
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
+  let lastErr = "";
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(GEMINI_TEXT_TIMEOUT_MS),
+      });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`[${response.status} ${response.statusText}] ${errText}`);
+      if (response.ok) {
+        const result: any = await response.json();
+        const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error("Empty response from Gemini REST API.");
+        return text;
+      }
+
+      const errText = await response.text();
+      lastErr = `[${response.status} ${response.statusText}] ${errText}`;
+
+      // Retry on 429 Rate Limit, 503 Service Unavailable, or 500 Internal Error
+      if ((response.status === 429 || response.status === 503 || response.status === 500) && attempt < 3) {
+        console.warn(`⚠️ Gemini REST (${modelName}) returned ${response.status} (attempt ${attempt}/3). Retrying in 2s...`);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+        continue;
+      }
+      break;
+    } catch (err: any) {
+      // Timed out: retrying the same slow model only waits longer, let the fallback try the next one
+      if (isTimeoutError(err)) {
+        throw new Error(`Gemini ${modelName} timed out after ${GEMINI_TEXT_TIMEOUT_MS / 1000}s`);
+      }
+      lastErr = err.message || String(err);
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
   }
 
-  const result: any = await response.json();
-  const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Empty response from Gemini REST API.");
-  return text;
+  throw new Error(lastErr || "Gemini REST API failed.");
 }
 
 // ---------------------------------------------------------------------------
 // Try models in order until one works
 // ---------------------------------------------------------------------------
-async function callGeminiWithFallback(
+export async function callGeminiWithFallback(
   parts: any[],
   temperature: number = 0.5
 ): Promise<string> {
-  // Build model list: user-selected first, then safe fallbacks
-  const configured = process.env.AI_MODEL || "gemini-2.0-flash";
+  // Build model list: user-selected first, then top-tier vision fallbacks
+  const configured = process.env.AI_MODEL || "gemini-2.5-flash";
   const modelsToTry = [...new Set([
     configured,
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
     "gemini-2.5-flash",
-    "gemini-2.5-flash-001",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-001",
+    "gemini-3.8-flash",
+    "gemini-2.5-pro",
+    "gemini-flash-latest",
   ])];
 
+  // One call per model: callGeminiRest already retries 429/503/500 on the same model, so retrying here
+  // too multiplied the attempts (up to 9 per model) whenever Gemini was busy
   let lastError: any = null;
   for (const model of modelsToTry) {
     try {
@@ -89,10 +110,6 @@ async function callGeminiWithFallback(
     } catch (err: any) {
       console.warn(`⚠️  Model ${model} failed: ${err.message?.slice(0, 120)}`);
       lastError = err;
-      // Only continue fallback on 404 / not-found errors
-      if (!err.message?.includes("404") && !err.message?.includes("not found") && !err.message?.includes("Not Found")) {
-        break;
-      }
     }
   }
   throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);
@@ -102,6 +119,12 @@ async function callGeminiWithFallback(
 // Gemini native image generation (reference photo → lifestyle scene, same product)
 // Models: gemini-2.5-flash-image, gemini-2.5-flash-image-preview, etc.
 // ---------------------------------------------------------------------------
+// A hung Gemini request must not block a whole Quick Add: give up and let the caller try the next model
+const GEMINI_TEXT_TIMEOUT_MS = 120_000;
+const GEMINI_IMAGE_TIMEOUT_MS = 75_000;
+
+const isTimeoutError = (err: any) => err?.name === "TimeoutError" || err?.name === "AbortError";
+
 async function callGeminiImageGeneration(
   productImageBuffer: Buffer,
   mimeType: string,
@@ -150,6 +173,7 @@ async function callGeminiImageGeneration(
           contents: [{ role: "user", parts }],
           generationConfig,
         }),
+        signal: AbortSignal.timeout(GEMINI_IMAGE_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -221,7 +245,7 @@ async function generateTextToImage(prompt: string, filenamePrefix: string): Prom
   return null;
 }
 
-function buildLifestylePrompt(productName: string, scene: string): string {
+export function buildLifestylePrompt(productName: string, scene: string): string {
   return `You are creating a product gallery photo for an e-commerce lighting store.
 
 REFERENCE IMAGE: The attached photo is the EXACT product being sold (${productName}).
@@ -239,7 +263,7 @@ Style: warm evening indoor lighting, professional interior photography, European
 // ---------------------------------------------------------------------------
 // Robust JSON extractor — handles markdown fences, trailing text, etc.
 // ---------------------------------------------------------------------------
-function extractJson(raw: string): any {
+export function extractJson(raw: string): any {
   // Remove markdown fences
   let text = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 
@@ -269,7 +293,7 @@ function extractJson(raw: string): any {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-function stripPlainAiText(raw: string): string {
+export function stripPlainAiText(raw: string): string {
   return raw
     .trim()
     .replace(/^```(?:txt|text|markdown|robots|json)?\s*/i, "")
@@ -295,6 +319,68 @@ function fixUtf8Mojibake(text: string): string {
     .replace(/\u00c3\u00b6/g, "\u00f6");
 }
 
+/** Clean & format AI-generated markdown product description into proper HTML paragraphs and lists. */
+function cleanAndFormatDescription(rawDesc: string): string {
+  if (!rawDesc) return "";
+
+  let cleaned = rawDesc.trim();
+
+  // Strip duplicate specifications section if Gemini inserted it into description
+  cleaned = cleaned.replace(/\*\*Specificaties\*\*[\s\S]*$/i, "");
+  cleaned = cleaned.replace(/Specificaties:[\s\S]*$/i, "");
+  cleaned = cleaned.replace(/<h3>Specificaties<\/h3>[\s\S]*$/i, "");
+
+  // Convert markdown bold **text** to <strong>text</strong>
+  cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // Format key features section header
+  cleaned = cleaned.replace(/<strong>Belangrijkste kenmerken<\/strong>/gi, "<h3 className=\"text-base font-semibold mt-4 mb-2\">Belangrijkste kenmerken</h3>");
+  cleaned = cleaned.replace(/Belangrijkste kenmerken:/gi, "<h3 className=\"text-base font-semibold mt-4 mb-2\">Belangrijkste kenmerken</h3>");
+
+  // Convert bullet lines (- item or • item) to HTML <ul><li>
+  if (cleaned.includes("- ") || cleaned.includes("• ")) {
+    const lines = cleaned.split("\n");
+    let inList = false;
+    const resultLines: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+        if (!inList) {
+          resultLines.push("<ul className=\"list-disc pl-5 my-3 space-y-1\">");
+          inList = true;
+        }
+        const text = trimmed.replace(/^[-•]\s*/, "").trim();
+        resultLines.push(`  <li>${text}</li>`);
+      } else {
+        if (inList) {
+          resultLines.push("</ul>");
+          inList = false;
+        }
+        if (trimmed) {
+          if (!trimmed.startsWith("<")) {
+            resultLines.push(`<p className="mb-3">${trimmed}</p>`);
+          } else {
+            resultLines.push(trimmed);
+          }
+        }
+      }
+    }
+    if (inList) resultLines.push("</ul>");
+    cleaned = resultLines.join("\n");
+  } else if (!cleaned.includes("<p>")) {
+    cleaned = cleaned
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => (p.startsWith("<") ? p : `<p className="mb-3">${p}</p>`))
+      .join("\n");
+  }
+
+  return cleaned.trim();
+}
+
+
 /** Gemini sometimes wraps llms.txt in JSON — unwrap to plain markdown. */
 function normalizeLlmsTxtOutput(raw: string, siteName: string): string {
   let text = fixUtf8Mojibake(unwrapAiPlainTextPayload(raw, ["llms_txt", "llms", "content", "text", "body"]));
@@ -306,38 +392,281 @@ function normalizeLlmsTxtOutput(raw: string, siteName: string): string {
   return text.endsWith("\n") ? text : `${text}\n`;
 }
 
+/** Fast robust search for duplicate or similar products across published products & drafts */
+export async function findDuplicateProducts(text: string, _imageFile?: any): Promise<Array<{
+  id: string;
+  name: string;
+  slug: string;
+  image?: string;
+  price: number;
+  type: "product" | "draft";
+}>> {
+  if (!text || text.trim().length < 2) return [];
+
+  // Normalize Unicode accents (e.g., Geïntegreerd -> Geintegreerd)
+  const normalizedText = text
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  const rawClean = normalizedText.replace(/[^a-z0-9\s]/gi, " ");
+  const tokens = rawClean.split(/\s+/).filter((w: string) => w.length >= 2);
+  if (tokens.length === 0) return [];
+
+  const stopWords = new Set(["met", "van", "voor", "een", "het", "and", "with", "the", "for", "in", "op", "is", "of"]);
+  const searchTokens = tokens.filter((t) => !stopWords.has(t));
+  const effectiveTokens = searchTokens.length > 0 ? searchTokens : tokens;
+
+  // 1. Published products check
+  const candidateProducts = await prisma.product.findMany({
+    where: {
+      OR: effectiveTokens.map((t) => ({
+        name: { contains: t, mode: "insensitive" },
+      })),
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      image: true,
+      price: true,
+    },
+    take: 20,
+  });
+
+  // 2. Product Drafts check
+  const candidateDrafts = await prisma.productDraft.findMany({
+    select: {
+      id: true,
+      name: true,
+      payload: true,
+    },
+    take: 25,
+    orderBy: { createdAt: "desc" },
+  });
+
+  const matches: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    image?: string;
+    price: number;
+    score: number;
+    type: "product" | "draft";
+  }> = [];
+
+  for (const p of candidateProducts) {
+    const pNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const pClean = pNorm.replace(/[^a-z0-9\s]/gi, " ");
+    const pTokens = pClean.split(/\s+/).filter((w: string) => w.length >= 2 && !stopWords.has(w));
+
+    if (pNorm.includes(normalizedText) || normalizedText.includes(pNorm)) {
+      matches.push({ id: p.id, name: p.name, slug: p.slug, image: p.image || undefined, price: p.price, score: 1.0, type: "product" });
+      continue;
+    }
+
+    const matchedTokens = effectiveTokens.filter((t) => pNorm.includes(t));
+    if (matchedTokens.length === 0) continue;
+
+    const minLen = Math.min(effectiveTokens.length, pTokens.length || 1);
+    const score = matchedTokens.length / minLen;
+
+    if (score >= 0.35 || matchedTokens.length >= 2) {
+      matches.push({ id: p.id, name: p.name, slug: p.slug, image: p.image || undefined, price: p.price, score, type: "product" });
+    }
+  }
+
+  for (const d of candidateDrafts) {
+    const payload: any = d.payload || {};
+    const dRaw = (d.name || payload.name || payload.hint || "").toLowerCase();
+    if (!dRaw || dRaw.length < 2) continue;
+
+    const dNorm = dRaw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const dClean = dNorm.replace(/[^a-z0-9\s]/gi, " ");
+    const dTokens = dClean.split(/\s+/).filter((w: string) => w.length >= 2 && !stopWords.has(w));
+    const displayName = `${d.name || payload.name || "Draft Product"} (Draft)`;
+
+    if (dNorm.includes(normalizedText) || normalizedText.includes(dNorm)) {
+      matches.push({
+        id: d.id,
+        name: displayName,
+        slug: `drafts/${d.id}`,
+        image: payload.image || undefined,
+        price: Number(payload.price) || 0,
+        score: 0.95,
+        type: "draft",
+      });
+      continue;
+    }
+
+    const matchedTokens = effectiveTokens.filter((t) => dNorm.includes(t));
+    if (matchedTokens.length === 0) continue;
+
+    const minLen = Math.min(effectiveTokens.length, dTokens.length || 1);
+    const score = matchedTokens.length / minLen;
+
+    if (score >= 0.35 || matchedTokens.length >= 2) {
+      matches.push({
+        id: d.id,
+        name: displayName,
+        slug: `drafts/${d.id}`,
+        image: payload.image || undefined,
+        price: Number(payload.price) || 0,
+        score,
+        type: "draft",
+      });
+    }
+  }
+
+  const uniqueMap = new Map<string, typeof matches[0]>();
+  matches
+    .sort((a, b) => b.score - a.score)
+    .forEach((m) => {
+      const key = `${m.type}-${m.id}`;
+      if (!uniqueMap.has(key)) uniqueMap.set(key, m);
+    });
+
+  return Array.from(uniqueMap.values()).slice(0, 4);
+}
+
 export const aiService = {
+  findDuplicateProducts,
   async quickAddProduct(
     imageFile: any,
     hint: string,
     price: string,
     brandName: string,
-    imagePromptOverride?: string
+    imagePromptOverride?: string,
+    seriesName?: string,
+    categoryName?: string
   ) {
     try {
       const imageCount = getAiImageCount();
       const defaultImagePrompt = process.env.AI_IMAGE_PROMPT || "in a clean modern aesthetic setting";
       const finalImageScene = imagePromptOverride?.trim() || defaultImagePrompt;
 
-      // Fetch categories & attributes dynamically
-      const categories = await prisma.category.findMany({ select: { slug: true, name: true } });
-      const categorySlugs = categories.map(c => c.slug).join(", ");
+      // Fetch categories with parent/child hierarchy
+      const categories = await prisma.category.findMany({ 
+        select: { id: true, slug: true, name: true, parentId: true } 
+      });
+
+      // Build hierarchical category context: only leaf (child) categories are selectable
+      const parentCats = categories.filter(c => !c.parentId);
+      const childCats = categories.filter(c => c.parentId);
+      
+      // Leaf categories = categories with no children of their own
+      const hasChildren = new Set(childCats.map(c => c.parentId));
+      const leafCategories = categories.filter(c => c.parentId && !hasChildren.has(c.id));
+      // Also include root-level categories that have NO children (standalone)
+      const standaloneCats = parentCats.filter(p => !childCats.some(c => c.parentId === p.id));
+      const selectableCategories = [...leafCategories, ...standaloneCats];
+      const categorySlugs = selectableCategories.map(c => c.slug).join(", ");
+
+      // Build grouped context string for the AI to understand hierarchy
+      const hierarchyContext = parentCats
+        .filter(p => childCats.some(c => c.parentId === p.id))
+        .map(parent => {
+          const children = childCats.filter(c => c.parentId === parent.id);
+          return `${parent.name}: [${children.map(c => c.slug).join(", ")}]`;
+        }).join("\n        ");
+
+
+      // Fetch series from DB
+      const seriesList = await prisma.series.findMany({
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          brandId: true,
+          brand: { select: { id: true, name: true } },
+        },
+      });
+
+      const seriesContext = seriesList
+        .map((s) => `- ${s.name} (slug: "${s.slug}") ${s.brand?.name ? `[Brand: ${s.brand.name}]` : ""}`)
+        .join("\n        ");
 
       const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
 
+      // Standard dimension buckets to prevent single-number filter explosion (e.g. 36cm, 65cm)
+      const STANDARD_DIMENSION_BUCKETS: Record<string, string[]> = {
+        diameter: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        width: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        breedte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+        length: ["Onder 40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "100-120 cm", "Boven 120 cm"],
+        lengte: ["Onder 40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "100-120 cm", "Boven 120 cm"],
+        height: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
+        hoogte: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
+      };
+
+      // Build attribute schema using EXACT DB slugs as keys so the AI returns slug-keyed JSON
       const dynamicAttributesSchema: Record<string, any> = {};
+      const attributeSlugMap: Record<string, string[]> = {}; // slug -> allowed values
       attributes.forEach(attr => {
-        if (attr.type === "boolean") {
-          dynamicAttributesSchema[attr.slug] = ["string array containing exactly 'Yes' or 'No'"];
+        const slugLower = attr.slug.toLowerCase();
+        const isDim = STANDARD_DIMENSION_BUCKETS[slugLower] != null;
+        const allowed = isDim ? STANDARD_DIMENSION_BUCKETS[slugLower] : attr.attributeValues.map(v => v.value);
+        attributeSlugMap[attr.slug] = allowed;
+
+        if (isDim) {
+          dynamicAttributesSchema[attr.slug] = [`one standard range bucket: ${allowed.join(" | ")}`];
+        } else if (attr.type === "boolean") {
+          dynamicAttributesSchema[attr.slug] = ["'Yes' or 'No'"];
         } else if (attr.type === "select") {
-          const allowedVals = attr.attributeValues.map(v => v.value).join(", ");
-          dynamicAttributesSchema[attr.slug] = [`string array containing one of exactly: ${allowedVals}`];
+          const allowedVals = allowed.join(" | ");
+          dynamicAttributesSchema[attr.slug] = [`one of: ${allowedVals}`];
+        } else if (attr.type === "multi_select") {
+          const allowedVals = allowed.join(" | ");
+          dynamicAttributesSchema[attr.slug] = [`array of: ${allowedVals}`];
         } else {
-          dynamicAttributesSchema[attr.slug] = [`string array of values for ${attr.name} in Title Case`];
+          dynamicAttributesSchema[attr.slug] = [`value for ${attr.name}`];
         }
       });
 
-      const userSystemPrompt = process.env.AI_SYSTEM_PROMPT || "You are an expert e-commerce catalog manager.";
+      // Build a readable attribute guide for the AI
+      const attributeGuide = attributes.map(attr => {
+        const slugLower = attr.slug.toLowerCase();
+        const isDim = STANDARD_DIMENSION_BUCKETS[slugLower] != null;
+        const vals = isDim ? STANDARD_DIMENSION_BUCKETS[slugLower].join(", ") : attr.attributeValues.map(v => v.value).join(", ");
+        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}${isDim ? " [CRITICAL: Pick ONLY one of the standard range buckets; put exact dimensions in specs!]" : ""}`;
+      }).join("\n");
+
+      // Built-in Schip en Ster SOP Brand & Collection Architecture
+      const activeSopRules = `
+        SCHIP EN STER BRAND & COLLECTION ARCHITECTURE (STRICT SOP):
+        Assign each product strictly to its corresponding collection based on the uploaded image —
+        UNLESS the user notes name the product, model or series — then the notes win.
+
+        1. "Ambiance" (or "Marrakech"):
+           - Key Models: Royale Noir, Royale Silver, Gold XL, Royale Gold
+           - Style / Baseline Features: Luxury crystal look with G9 prisms, faceted glass bars, sparkling crystal prisms.
+           - Product Types: Hanglamp (chandelier/pendant), Tafellamp (table lamp with crystal), Wandlamp.
+           - RULE: IF THE IMAGE SHOWS CRYSTAL PRISMS OR GLASS RODS, IT BELONGS TO "Ambiance" (Royale). NEVER CALL IT MARBELLA!
+
+        2. "Lisboa":
+           - Key Models: Cascade, Royale (4, 5, 6-lichts)
+           - Style / Baseline Features: Glass globes (glazen bollen) with acrylic bubble cylinders, brass/gold or chrome metalwork.
+
+        3. "Sofia":
+           - Key Models: Silver, Gold (formerly Porto)
+           - Style / Baseline Features: Curved chrome/gold loops, swirling ribbon arms, metallic spheres, crystal flowers.
+
+        4. "Stockholm":
+           - Key Models: Orbit Black, Orbit XL, Orbit Coffee, Orbit Bronze
+           - Style / Baseline Features: Modern geometric ring design (Orbit circular/elliptical halos), dimmable integrated LED, 3 light colors + remote.
+
+        5. "Iceland Tech":
+           - Key Models: Breeze Black, Breeze Gold
+           - Style / Baseline Features: Ceiling fans with LED ring (dimmable, 3 light colors + remote control).
+
+        6. "Marbella":
+           - Key Models: Cilinder, Modern Spot
+           - Style / Baseline Features: Modern architectural minimalist cylindrical or tubular pipe canisters.
+           - RULE: ONLY use "Marbella" if the lamp is composed of straight cylindrical tubes or canisters. NEVER use Marbella for crystal lamps!
+      `;
+
+      const userSystemPrompt = process.env.AI_SYSTEM_PROMPT || "You are an expert e-commerce catalog manager for a Dutch lighting webshop.";
       const languageInstruction = buildAiLanguageInstruction(getAiOutputLanguage());
 
       const promptText = `
@@ -345,31 +674,156 @@ export const aiService = {
 
         ${languageInstruction}
 
-        I am providing you with an image (if applicable) and a short descriptive hint, along with a target price and brand.
-        
-        Hint: ${hint}
-        Price: ${price}
-        Brand: ${brandName}
+        === YOUR TASK ===
+        Carefully analyze the provided product image (if supplied) and the hint below.
+        Generate a COMPLETE, ACCURATE, and 100% UNIQUE product listing for this specific item following the official Schip en Ster SOP.
+        Do NOT copy generic defaults. Every image represents a DIFFERENT physical lamp!
 
-        Please extract and infer the complete product details to fill an e-commerce product form.
-        Return ONLY a valid JSON object with the following structure, and nothing else (no markdown wrapping, no backticks).
-        
+        === USER NOTES (HIGHEST PRIORITY — OVERRIDE THE PHOTO, THE SOP AND ALL EXAMPLES BELOW) ===
+        ${hint || "(No notes provided — rely 100% on the image)"}
+        =========================================================================================
+        RULES FOR THE USER NOTES:
+        - The notes may be written in any language (English, Hindi, Hinglish, Dutch, ...). Understand them, but write ALL output text in the OUTPUT LANGUAGE above — never in the language of the notes. Only the product/model name stays exactly as written.
+        - Every fact in the notes is TRUE: product/model name, collection, colour, dimensions, number of lights, features.
+        - If the notes name the product or model (e.g. "Miami Orbit"), the title MUST start with exactly that name. NEVER rename it to another collection (e.g. do not turn "Miami Orbit" into "Stockholm Orbit").
+        - Put dimensions from the notes (e.g. "Ø45cm", "L100", "80 cm") in the title AND as specs.
+        - Every concrete feature from the notes (remote control, dimmable, light colours like 2700K/4000K/6400K, fitting) MUST appear in the specs and the description.
+        - Use the photo only for what the notes do not say.
+        Price: ${price || "89.95"}
+        Brand: ${brandName || "Schip en Ster"}
+        ${categoryName ? `Target Category: "${categoryName}" (MANDATORY: Assign this exact category to the product in "category" field)` : `Category Selection: Pick the best matching leaf category from the available store categories: ${categorySlugs}`}
+        ${seriesName ? `Series / Collection: "${seriesName}" (MANDATORY REQUIREMENT: This product belongs to the "${seriesName}" series. You must set "series": "${seriesName}" in your response)` : `Available Series / Collections in Database:\n        ${seriesContext || "(No series created yet)"}\n        Rule for Series: If the image or hint matches one of the above series/collections (e.g. an anime franchise, product line), set "series" to the exact matching series name and "seriesSlug" to its slug.`}
+
+        === CRITICAL VISUAL GROUNDING (THE IMAGE IS THE 100% GROUND TRUTH) ===
+        Inspect the uploaded photo closely before generating any text. You must detect:
+
+        1. LAMP TYPE & MOUNTING (CRITICAL — NEVER CONFUSE TAFELLAMP WITH HANGLAMP):
+           - TAFELLAMP (Table Lamp): The lamp rests on a flat base/stand on a table, desk, or bedside surface. Has a short stem or table-height base with cord/plug.
+             * Category MUST be: "table-lamps"
+             * Name MUST contain: "Tafellamp"
+             * NEVER call a table lamp a "hanglamp" or "pendant"!
+           - HANGLAMP (Pendant Light): The lamp is suspended from the ceiling by long cables, chains, or suspension wires.
+             * Category MUST be: "pendant-lights"
+             * Name MUST contain: "Hanglamp"
+           - PLAFONDLAMP (Ceiling Light): Mounted flush or semi-flush directly to the ceiling with no hanging cable.
+             * Category MUST be: "ceiling-lights"
+             * Name MUST contain: "Plafondlamp"
+           - WANDLAMP (Wall Light): Mounted on a vertical wall bracket.
+             * Category MUST be: "wall-lights"
+             * Name MUST contain: "Wandlamp"
+           - VLOERLAMP (Floor Lamp): Tall standing lamp with long pole reaching the floor.
+             * Category MUST be: "floor-lamps"
+             * Name MUST contain: "Vloerlamp"
+           - SPOTLIGHTS: Directional canister or spotlight.
+             * Category MUST be: "spotlights"
+             * Name MUST contain: "Spot" or "Opbouwspot"
+           - CRITICAL RULE: NEVER assign "lichtbronnen" (light bulbs / light sources) to any complete lamp or fixture (Hanglamp, Plafondlamp, Tafellamp, Wandlamp, Vloerlamp). "lichtbronnen" is ONLY for standalone replacement bulbs (E27, GU10, etc.)!
+
+        2. FINISH / COLOR (CRITICAL — NEVER CALL SILVER GOLD):
+           - Look at the actual color of the metal, body, and shades in the photo:
+             * ZILVER / CHROOM / NIKKEL (Silver / Chrome / Polished Nickel): Cool metallic, polished silver mirror finish, chrome, brushed nickel -> Attribute "color" MUST be "Silver". Name MUST contain "Zilver" or "Chroom". NEVER call this gold!
+             * GOUD / MESSING (Gold / Brass): Warm golden, brass, champagne, or bronze-gold finish -> Attribute "color" MUST be "Gold". Name MUST contain "Goud" or "Messing".
+             * ZWART (Black): Black metal, dark anthracite -> Attribute "color" MUST be "Black". Name MUST contain "Zwart".
+             * WIT (White): White metal, opal glass -> Attribute "color" MUST be "White". Name MUST contain "Wit".
+             * KOPER (Copper): Warm reddish metallic -> Attribute "color" MUST be "Copper". Name MUST contain "Koper".
+
+        3. SHAPE & SILHOUETTE (CRITICAL):
+           - Inspect the geometric shape of the shades and body:
+             * OVAAL (Oval): Elliptical, stretched rounded form, oval rings -> Name & specs MUST include "Ovaal".
+             * ROND / BOL (Round / Sphere): Circular globes, round balls, circular drum -> Name & specs MUST include "Rond" or "Bol".
+             * CILINDER (Cylinder): Straight tube, pipe, canister -> Name & specs MUST include "Cilinder".
+             * RING / ORBIT: Circular or elliptical continuous halo/loop -> Name & specs MUST include "Ring".
+             * KROONLUCHTER / MEERVOUDIG: Multi-arm crystal chandelier or branched fixture.
+
+        4. NUMBER OF LIGHTS:
+           - Visually count the bulbs/light points:
+             * Single bulb / table lamp -> "1" (1-lichts)
+             * Multi-bulb -> count accurately: "2", "3", "4", "5", etc.
+
+        4.1. DIMENSION CODES IN FILENAMES & MODELS (CRITICAL):
+           - If the image filename, model code, or hint contains "-L100", "L100", "L-100", "L120", "D60", "D80", "D100":
+             * "L" = Lengte / Length in cm (e.g. "C2609-L100" / "L100" = 100 cm length, elongated oval/racetrack eettafel hanglamp):
+               Set attribute "length": "80-100 cm", and in specs include {"key": "Lengte", "value": "100 cm"}.
+             * "L120" = 120 cm length -> attribute "length": "100-120 cm", specs: {"key": "Lengte", "value": "120 cm"}.
+             * "D60" = 60 cm diameter -> attribute "diameter": "40-60 cm", specs: {"key": "Diameter", "value": "60 cm"}.
+             * "D80" = 80 cm diameter -> attribute "diameter": "60-80 cm", specs: {"key": "Diameter", "value": "80 cm"}.
+             * "D100" = 100 cm diameter -> attribute "diameter": "80-100 cm", specs: {"key": "Diameter", "value": "100 cm"}.
+
+        5. COLLECTION SELECTION (STRICT SOP):
+           ${activeSopRules}
+           - Existing DB series:
+           ${seriesContext || "(No series in database yet)"}
+           - If image has crystal prisms / faceted glass: Collection is "Ambiance" (Royale), NOT Marbella!
+
+        6. PRODUCT TITLE FORMAT (SOP SECTION 4):
+           Format: "[Collection Name] [Model Name] [Color] – [Short Description]"
+           - If the lamp is a table lamp, include "Tafellamp" in the title!
+           - Realistic SOP Examples:
+             * Gold crystal chandelier: "Ambiance Royale Gold – Luxe Hanglamp met Kristallen Prisma's"
+             * Silver crystal chandelier: "Ambiance Royale Silver – Elegante Hanglamp Chroom met Kristalglas"
+             * Gold crystal table lamp: "Ambiance Royale Gold Tafellamp – Exclusieve Tafellamp met Kristallen Prisma's"
+             * Silver crystal table lamp: "Ambiance Royale Silver Tafellamp – Moderne Tafellamp Chroom Zilver"
+             * Curved chrome loops: "Sofia Silver – Moderne Design Hanglamp Chroom"
+             * Geometric LED ring: "Stockholm Orbit Zwart – Moderne LED Ring Hanglamp"
+             * Ceiling fan: "Iceland Tech Breeze Zwart – Plafondventilator met LED Ring"
+             * Cylindrical canister spot: "Marbella Cilinder Zwart – Minimalistische Opbouwspot"
+           - EVERY SINGLE PRODUCT MUST BE UNIQUE AND MATCH ITS EXACT VISUAL IMAGE! NEVER NAME EVERYTHING MARBELLA!
+
+        7. CATEGORY SELECTION:
+           - MUST match the detected lamp type:
+             * table lamp -> "table-lamps"
+             * pendant lamp -> "pendant-lights"
+             * ceiling lamp -> "ceiling-lights"
+             * wall lamp -> "wall-lights"
+             * floor lamp -> "floor-lamps"
+             * spotlight -> "spotlights"
+           - Hierarchy:
+             ${hierarchyContext}
+           - Valid leaf category slugs: ${categorySlugs}
+
+        8. ATTRIBUTES:
+           - Use EXACTLY these DB slug keys with allowed values:
+           ${attributeGuide}
+
+        9. SPECS ARRAY:
+           - Provide rich, realistic specifications matching the detected lamp type, color, shape, materials, fitting, and light points.
+
+        10. LANGUAGE: All customer-facing text (name, description, shortDescription, seoTitle, seoDescription, specs) MUST be in ${getAiOutputLanguage() === "nl" ? "Dutch (Nederlands)" : getAiOutputLanguage()}.
+
+        Return ONLY a valid JSON object — no markdown, no backticks:
+
         {
-          "name": "Full product title",
-          "shortDescription": "1-2 sentences summarizing the product",
-          "description": "A detailed multi-paragraph description suitable for a product page.",
-          "price": "number",
-          "brand": "string",
-          "category": "string (one of EXACTLY: ${categorySlugs})",
-          "seoTitle": "A catchy SEO title for the product page (max 60 chars)",
-          "seoDescription": "A compelling meta description for search engines (max 160 chars)",
-          "seoKeywords": "comma separated keywords like 'modern, lighting, pendant'",
+          "visualInspection": {
+            "lampType": "tafellamp | hanglamp | plafondlamp | wandlamp | vloerlamp | spotlights",
+            "finishColor": "Silver | Gold | Black | White | Copper",
+            "shape": "Ovaal | Rond | Cilinder | Ring | Meervoudig",
+            "lightPoints": 1,
+            "materials": ["Metaal", "Glas"]
+          },
+          "name": "Unique Dutch product title based on visual inspection",
+          "series": "Collection name or null",
+          "seriesSlug": "collection-slug or null",
+          "shortDescription": "1-2 sentence Dutch product summary describing the exact lamp type and finish",
+          "description": "<p>Detailed Dutch description accurately describing the lamp type, color, shape, and styling...</p><h3>Belangrijkste kenmerken</h3><ul><li>Exacte eigenschap 1</li><li>Exacte eigenschap 2</li></ul>",
+          "price": ${price || 89.95},
+          "brand": "${brandName || "Schip en Ster"}",
+          "category": "table-lamps | pendant-lights | ceiling-lights | wall-lights | floor-lamps | spotlights",
+          "seoTitle": "Unique Dutch SEO title max 60 chars",
+          "seoDescription": "Unique Dutch meta description max 160 chars",
+          "seoKeywords": "dutch,comma,separated,keywords",
           "inStock": true,
-          "attributes": ${JSON.stringify(dynamicAttributesSchema, null, 12).trim()},
+          "attributes": ${JSON.stringify(dynamicAttributesSchema, null, 10).trim()},
           "specs": [
-            { "key": "string", "value": "string" }
+            { "key": "Collectie", "value": "Series Name" },
+            { "key": "Type verlichting", "value": "Tafellamp | Hanglamp | Plafondlamp | Wandlamp | Vloerlamp" },
+            { "key": "Kleur", "value": "Zilver / Chroom | Goud / Messing | Zwart | Wit" },
+            { "key": "Vorm", "value": "Ovaal | Rond | Cilinder | Ring" },
+            { "key": "Materiaal", "value": "Metaal / Glas" },
+            { "key": "Fitting", "value": "E27 | E14 | G9 | GU10 | Geïntegreerd LED" },
+            { "key": "Aantal lichtpunten", "value": "1" },
+            { "key": "Dimbaar", "value": "Ja (met geschikte dimmer en lichtbron) | Nee" }
           ],
-          "needsReview": ["array of keys like 'price', 'category' that you are unsure about"]
+          "needsReview": []
         }
       `;
 
@@ -385,8 +839,321 @@ export const aiService = {
       }
       parts.push({ text: promptText });
 
-      const responseText = await callGeminiWithFallback(parts, 0.5);
+      const responseText = await callGeminiWithFallback(parts, 0.4);
       const parsedData = extractJson(responseText);
+
+      // Sanitize price
+      let finalPrice = parseFloat(String(parsedData.price || "").replace(/[^0-9.]/g, ""));
+      if (isNaN(finalPrice) || finalPrice <= 0) {
+        finalPrice = parseFloat(price) || 89.95;
+      }
+      parsedData.price = finalPrice;
+
+      // Clean HTML formatting of description
+      if (parsedData.description) {
+        parsedData.description = cleanAndFormatDescription(parsedData.description);
+      }
+
+      // Check if Collection / Series was mentioned in specs or hint/SOP
+      if (!Array.isArray(parsedData.specs)) parsedData.specs = [];
+
+      const collectionSpec = parsedData.specs.find(
+        (s: any) => s && (s.key === "Collection" || s.key === "Series" || s.key === "Collectie" || s.key === "Serie")
+      );
+      
+      let rawSeries = seriesName?.trim() || parsedData.seriesSlug || parsedData.series || collectionSpec?.value;
+
+      // Also scan hint and activeSopRules for explicit Collection: [Name] pattern if AI missed it
+      if (!rawSeries) {
+        const sopMatch = (hint + "\n" + activeSopRules).match(/Collection:\s*([A-Za-z0-9\s-]+)/i);
+        if (sopMatch && sopMatch[1]) {
+          rawSeries = sopMatch[1].trim();
+        }
+      }
+
+      if (rawSeries && String(rawSeries).toLowerCase() !== "null" && String(rawSeries).toLowerCase() !== "none") {
+        const strVal = String(rawSeries).trim();
+        const slugVal = strVal.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+        let matched = seriesList.find(
+          s => s.slug.toLowerCase() === slugVal ||
+               s.name.toLowerCase() === strVal.toLowerCase() ||
+               s.slug.toLowerCase().includes(slugVal) ||
+               slugVal.includes(s.slug.toLowerCase())
+        );
+
+        // Auto-create Series in DB if it does not exist yet so relational queries work!
+        if (!matched && strVal.length >= 2) {
+          try {
+            const firstBrand = await prisma.brand.findFirst({
+              where: brandName ? { name: { contains: brandName, mode: "insensitive" } } : undefined,
+            });
+
+            if (firstBrand) {
+              matched = await prisma.series.create({
+                data: {
+                  name: strVal,
+                  slug: slugVal,
+                  brandId: firstBrand.id,
+                },
+                select: { id: true, name: true, slug: true, brandId: true, brand: { select: { id: true, name: true } } },
+              });
+              console.log(`✨ Auto-created new Series in DB: "${matched.name}" (${matched.id})`);
+            }
+          } catch (createSeriesErr) {
+            console.warn("Could not auto-create Series:", createSeriesErr);
+          }
+        }
+
+        if (matched) {
+          parsedData.seriesId = matched.id;
+          parsedData.seriesSlug = matched.slug;
+          parsedData.series = matched.name;
+        } else {
+          parsedData.seriesSlug = slugVal;
+          parsedData.series = strVal;
+        }
+
+        // Sync Series / Collection / Collectie in specs array
+        const syncKeys = ["Collection", "Series", "Collectie"];
+        syncKeys.forEach((k) => {
+          const idx = parsedData.specs.findIndex((s: any) => s && s.key === k);
+          if (idx >= 0) {
+            parsedData.specs[idx].value = parsedData.series;
+          } else {
+            parsedData.specs.push({ key: k, value: parsedData.series });
+          }
+        });
+      } else {
+        parsedData.seriesId = null;
+        parsedData.seriesSlug = null;
+        parsedData.series = null;
+      }
+
+      // Audit Light Source / Socket: Fix "Geïntegreerd LED" if hint/SOP specified socket like G10, GU10, E27, E14, G9
+      const combinedInput = (hint + "\n" + activeSopRules).toLowerCase();
+      const socketMatch = combinedInput.match(/\b(g10|gu10|e27|e14|g9|e12|b22)\b/i);
+      const isExplicitNoLed = combinedInput.includes("integrated led: no") || combinedInput.includes("geïntegreerd led: nee") || combinedInput.includes("geen geïntegreerde led");
+
+      if (socketMatch || isExplicitNoLed) {
+        const correctSocket = socketMatch ? socketMatch[1].toUpperCase() : "Fitting (G10/E27)";
+        parsedData.specs.forEach((s: any) => {
+          if (s && s.key && (s.key.toLowerCase().includes("lichtbron") || s.key.toLowerCase().includes("type"))) {
+            if (s.value && s.value.toLowerCase().includes("geïntegreerd")) {
+              s.value = correctSocket;
+            }
+          }
+        });
+      }
+
+      // ── Safety Guardrails: Force visual synchronization between image facts, categories & attributes ──
+      const detectedType = (parsedData.visualInspection?.lampType || "").toLowerCase();
+      const detectedColor = (parsedData.visualInspection?.finishColor || "").toLowerCase();
+      const detectedShape = (parsedData.visualInspection?.shape || "").toLowerCase();
+      const titleLower = (parsedData.name || "").toLowerCase();
+
+      // 1. Resolve & Force Category
+      let resolvedCategorySlug = "";
+      let resolvedCategoryId: string | null = null;
+
+      // Check if user explicitly provided a category from Quick Add
+      if (categoryName && categoryName.trim() && categoryName !== "auto") {
+        const catStr = categoryName.trim();
+        const matched = categories.find(
+          (c) => c.slug.toLowerCase() === catStr.toLowerCase() ||
+                 c.name.toLowerCase() === catStr.toLowerCase() ||
+                 c.id === catStr
+        );
+        if (matched) {
+          resolvedCategorySlug = matched.slug;
+          resolvedCategoryId = matched.id;
+        } else {
+          resolvedCategorySlug = catStr.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        }
+      }
+
+      // If no explicit category or not matched, use visual inspection & AI output
+      if (!resolvedCategorySlug) {
+        const aiCat = (parsedData.category || "").toLowerCase();
+
+        // Try to match AI's category directly against DB categories
+        const directCatMatch = selectableCategories.find(
+          (c) => c.slug.toLowerCase() === aiCat ||
+                 c.name.toLowerCase() === aiCat ||
+                 aiCat.includes(c.slug.toLowerCase()) ||
+                 c.slug.toLowerCase().includes(aiCat)
+        );
+
+        if (directCatMatch) {
+          resolvedCategorySlug = directCatMatch.slug;
+          resolvedCategoryId = directCatMatch.id;
+        } else if (detectedType.includes("tafel") || titleLower.includes("tafellamp") || titleLower.includes("table lamp")) {
+          resolvedCategorySlug = "table-lamps";
+        } else if (detectedType.includes("hang") || titleLower.includes("hanglamp") || titleLower.includes("pendant")) {
+          resolvedCategorySlug = "pendant-lights";
+        } else if (detectedType.includes("plafond") || titleLower.includes("plafondlamp") || titleLower.includes("ceiling")) {
+          resolvedCategorySlug = "ceiling-lights";
+        } else if (detectedType.includes("wand") || titleLower.includes("wandlamp") || titleLower.includes("wall")) {
+          resolvedCategorySlug = "wall-lights";
+        } else if (detectedType.includes("vloer") || titleLower.includes("vloerlamp") || titleLower.includes("floor")) {
+          resolvedCategorySlug = "floor-lamps";
+        } else if (detectedType.includes("spot") || titleLower.includes("spot")) {
+          resolvedCategorySlug = "spotlights";
+        } else if (selectableCategories.length > 0) {
+          resolvedCategorySlug = selectableCategories[0].slug;
+          resolvedCategoryId = selectableCategories[0].id;
+        }
+      }
+
+      // Guarantee categoryId is mapped to real category in DB
+      if (!resolvedCategoryId && resolvedCategorySlug) {
+        const matchedDbCat = categories.find(
+          (c) => c.slug.toLowerCase() === resolvedCategorySlug.toLowerCase() ||
+                 c.name.toLowerCase() === resolvedCategorySlug.toLowerCase() ||
+                 resolvedCategorySlug.toLowerCase().includes(c.slug.toLowerCase()) ||
+                 c.slug.toLowerCase().includes(resolvedCategorySlug.toLowerCase())
+        );
+        if (matchedDbCat) {
+          resolvedCategoryId = matchedDbCat.id;
+          resolvedCategorySlug = matchedDbCat.slug;
+        } else if (selectableCategories.length > 0) {
+          resolvedCategoryId = selectableCategories[0].id;
+          resolvedCategorySlug = selectableCategories[0].slug;
+        }
+      }
+
+      parsedData.category = resolvedCategorySlug;
+      parsedData.categoryId = resolvedCategoryId;
+      parsedData.categorySlug = resolvedCategorySlug;
+
+      // 2. Force Color Attribute to match actual Visual Finish (Silver vs Gold vs Black vs White)
+      if (!parsedData.attributes || typeof parsedData.attributes !== "object") {
+        parsedData.attributes = {};
+      }
+
+      const isSilver = detectedColor.includes("silver") || detectedColor.includes("zilver") || detectedColor.includes("chroom") || detectedColor.includes("chrome") || titleLower.includes("zilver") || titleLower.includes("chroom") || titleLower.includes("silver");
+      const isGold = detectedColor.includes("gold") || detectedColor.includes("goud") || detectedColor.includes("messing") || detectedColor.includes("brass") || titleLower.includes("goud") || titleLower.includes("messing");
+      const isBlack = detectedColor.includes("black") || detectedColor.includes("zwart") || titleLower.includes("zwart");
+      const isWhite = detectedColor.includes("white") || detectedColor.includes("wit") || titleLower.includes("wit");
+
+      if (isSilver && !isGold) {
+        parsedData.attributes.color = "Silver";
+      } else if (isGold && !isSilver) {
+        parsedData.attributes.color = "Gold";
+      } else if (isBlack) {
+        parsedData.attributes.color = "Black";
+      } else if (isWhite) {
+        parsedData.attributes.color = "White";
+      }
+
+      // Sanitize Attributes: Strip out any accidental SKUs, barcodes, or URLs
+      if (parsedData.attributes && typeof parsedData.attributes === "object") {
+        for (const [k, val] of Object.entries(parsedData.attributes)) {
+          if (Array.isArray(val)) {
+            parsedData.attributes[k] = val.filter(
+              (item: any) => typeof item === "string" && !/^sku[-_]/i.test(item.trim()) && !/^https?:\/\//i.test(item.trim())
+            );
+          } else if (typeof val === "string") {
+            if (/^sku[-_]/i.test(val.trim()) || /^https?:\/\//i.test(val.trim())) {
+              delete parsedData.attributes[k];
+            }
+          }
+        }
+      }
+
+      // 3. Synchronize Specs Array with Visual Facts
+      if (!Array.isArray(parsedData.specs)) parsedData.specs = [];
+
+      const setOrUpdateSpec = (key: string, value: string) => {
+        const idx = parsedData.specs.findIndex((s: any) => s && s.key && s.key.toLowerCase() === key.toLowerCase());
+        if (idx >= 0) {
+          parsedData.specs[idx].value = value;
+        } else {
+          parsedData.specs.push({ key, value });
+        }
+      };
+
+      if (parsedData.category === "table-lamps") {
+        setOrUpdateSpec("Type verlichting", "Tafellamp");
+      } else if (parsedData.category === "pendant-lights") {
+        setOrUpdateSpec("Type verlichting", "Hanglamp");
+      } else if (parsedData.category === "ceiling-lights") {
+        setOrUpdateSpec("Type verlichting", "Plafondlamp");
+      } else if (parsedData.category === "wall-lights") {
+        setOrUpdateSpec("Type verlichting", "Wandlamp");
+      } else if (parsedData.category === "floor-lamps") {
+        setOrUpdateSpec("Type verlichting", "Vloerlamp");
+      } else if (parsedData.category === "spotlights") {
+        setOrUpdateSpec("Type verlichting", "Spot");
+      }
+
+      if (isSilver && !isGold) {
+        setOrUpdateSpec("Kleur", "Zilver / Chroom");
+      } else if (isGold && !isSilver) {
+        setOrUpdateSpec("Kleur", "Goud / Messing");
+      } else if (isBlack) {
+        setOrUpdateSpec("Kleur", "Zwart");
+      } else if (isWhite) {
+        setOrUpdateSpec("Kleur", "Wit");
+      }
+
+      if (detectedShape.includes("ovaal") || titleLower.includes("ovaal") || titleLower.includes("oval")) {
+        setOrUpdateSpec("Vorm", "Ovaal");
+      } else if (detectedShape.includes("rond") || titleLower.includes("rond") || titleLower.includes("bol") || titleLower.includes("round")) {
+        setOrUpdateSpec("Vorm", "Rond");
+      } else if (detectedShape.includes("cilinder") || titleLower.includes("cilinder") || titleLower.includes("cylinder")) {
+        setOrUpdateSpec("Vorm", "Cilinder");
+      } else if (detectedShape.includes("ring") || titleLower.includes("ring")) {
+        setOrUpdateSpec("Vorm", "Ring");
+      }
+
+      // 4. Force Series: Crystal / glass prism lamps belong to Ambiance (or Royale), NEVER Marbella!
+      const hasCrystal = titleLower.includes("kristal") || titleLower.includes("crystal") || titleLower.includes("prisma") || (parsedData.description || "").toLowerCase().includes("kristal") || (parsedData.description || "").toLowerCase().includes("prisma");
+      if (hasCrystal && (!parsedData.series || parsedData.series.toLowerCase().includes("marbella"))) {
+        parsedData.series = "Ambiance";
+        parsedData.seriesSlug = "ambiance";
+        if (parsedData.name && parsedData.name.toLowerCase().includes("marbella")) {
+          parsedData.name = parsedData.name.replace(/marbella\s*cilinder/gi, "Ambiance Royale").replace(/marbella/gi, "Ambiance");
+        }
+      }
+
+      // 5. Table Lamp Title & Description Guardrail: Never let a table lamp say "Hanglamp"
+      if (parsedData.category === "table-lamps") {
+        if (parsedData.name && parsedData.name.toLowerCase().includes("hanglamp")) {
+          parsedData.name = parsedData.name.replace(/hanglamp/gi, "Tafellamp");
+        }
+        if (parsedData.shortDescription) {
+          parsedData.shortDescription = parsedData.shortDescription.replace(/hanglamp/gi, "tafellamp");
+        }
+      }
+
+      // 6. Silver Color Guardrail: Never let a silver lamp say "Goud" or "Messing"
+      if (isSilver && !isGold && parsedData.name) {
+        if (parsedData.name.toLowerCase().includes("messing goud") || parsedData.name.toLowerCase().includes("goud")) {
+          parsedData.name = parsedData.name.replace(/messing\s*goud/gi, "Zilver Chroom").replace(/goud/gi, "Zilver");
+        }
+      }
+      try {
+        const textToSearch = [parsedData.name, hint].filter(Boolean).join(" ");
+        const dupMatches = await findDuplicateProducts(textToSearch, imageFile);
+        if (dupMatches.length > 0) {
+          console.log(`⚠️ Early duplicate warning for "${parsedData.name}": ${dupMatches.length} match(es) found`);
+          parsedData.duplicateWarning = true;
+          parsedData.existingMatches = dupMatches.map(({ id, name, slug, image, price }) => ({
+            id,
+            name,
+            slug,
+            image,
+            price,
+          }));
+          if (!Array.isArray(parsedData.needsReview)) parsedData.needsReview = [];
+          if (!parsedData.needsReview.includes("possible_duplicate")) {
+            parsedData.needsReview.push("possible_duplicate");
+          }
+        }
+      } catch (dupErr) {
+        console.warn("Early duplicate check warning:", dupErr);
+      }
 
       // ── Image handling ────────────────────────────────────────────────────
       const aiImagesDir = path.join(__dirname, "../../public/uploads/ai-images");
@@ -409,21 +1176,16 @@ export const aiService = {
 
         console.log(`🎨 Generating up to ${imageCount} Gemini lifestyle image(s) from reference photo...`);
 
-        for (let i = 0; i < imageCount; i++) {
-          const imageBuffer = await callGeminiImageGeneration(
-            imageFile.buffer,
-            imageFile.mimetype,
-            lifestylePrompt
-          );
-          if (!imageBuffer) continue;
-          const saved = await saveCompressedImageToDir(
-            imageBuffer,
-            aiImagesDir,
-            aiImagesUrlPrefix,
-            `gemini-lifestyle-${i}`,
-          );
-          parsedData.images.push(saved.publicPath);
-        }
+        // All images at once instead of one after another (each takes ~10-20s); order is kept
+        const generated = await Promise.all(
+          Array.from({ length: imageCount }, async (_, i) => {
+            const imageBuffer = await callGeminiImageGeneration(imageFile.buffer, imageFile.mimetype, lifestylePrompt);
+            if (!imageBuffer) return null;
+            const saved = await saveCompressedImageToDir(imageBuffer, aiImagesDir, aiImagesUrlPrefix, `gemini-lifestyle-${i}`);
+            return saved.publicPath;
+          })
+        );
+        parsedData.images.push(...generated.filter((p): p is string => !!p));
 
         if (parsedData.images.length === 0) {
           console.warn("⚠️  Gemini lifestyle generation failed — using uploaded photo as cover only.");
@@ -444,9 +1206,7 @@ export const aiService = {
         if (apiKey && imageCount > 0) {
           const configured = process.env.AI_IMAGE_MODEL || "gemini-2.5-flash-image";
           const modelsToTry = [...new Set([configured, "gemini-2.5-flash-image", "gemini-2.5-flash-image-preview"])];
-          const urls: string[] = [];
-
-          for (let i = 0; i < imageCount; i++) {
+          const generateOne = async (i: number): Promise<string | null> => {
             for (const model of modelsToTry) {
               try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -457,6 +1217,7 @@ export const aiService = {
                     contents: [{ role: "user", parts: [{ text: textOnlyPrompt }] }],
                     generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
                   }),
+                  signal: AbortSignal.timeout(GEMINI_IMAGE_TIMEOUT_MS),
                 });
                 if (!response.ok) continue;
                 const result: any = await response.json();
@@ -469,13 +1230,18 @@ export const aiService = {
                   aiImagesUrlPrefix,
                   `gemini-product-${i}`,
                 );
-                urls.push(saved.publicPath);
-                break;
+                return saved.publicPath;
               } catch {
                 /* try next model */
               }
             }
-          }
+            return null;
+          };
+
+          // All images at once instead of one after another; order is kept
+          const urls = (await Promise.all(Array.from({ length: imageCount }, (_, i) => generateOne(i)))).filter(
+            (p): p is string => !!p
+          );
 
           if (urls.length > 0) {
             parsedData.image = urls[0];
@@ -486,8 +1252,8 @@ export const aiService = {
 
       return parsedData;
 
-    } catch (error) {
-      console.error("AI Quick-Add Generation failed:", error);
+    } catch (error: any) {
+      console.error("[QuickAdd ERROR]", error?.message || String(error));
       throw error;
     }
   },
@@ -513,7 +1279,6 @@ export const aiService = {
     if (overridePrompt) {
         scene = overridePrompt;
     }
-    const textOnlyPrompt = `Generate a photorealistic product photo of: ${productName}. Setting: ${scene}. Professional e-commerce photography, high quality, no text, no watermark.`;
 
     let referenceImageBuffer: Buffer | null = null;
     let referenceMimeType = "image/jpeg";
@@ -1351,4 +2116,555 @@ ${contextBlock.slice(0, 50000)}
     return normalizeLlmsTxtOutput(responseText, playbook.siteName);
   },
 
+  /**
+   * AI-powered Color Siblings Auto-Detection
+   * Analyzes product title, attributes, category, and uses Gemini to find sibling variations.
+   */
+  async suggestSiblingsForProduct(productId: string, mode: "color" | "size" | "all" = "all"): Promise<any[]> {
+    const targetProduct = await prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        category: true,
+        brand: true,
+        productAttributeValues: {
+          include: {
+            attribute: true,
+            attributeValue: true,
+          },
+        },
+      },
+    });
+
+    let targetName = "";
+    let targetColor = "";
+    let targetSize = "";
+    let targetCategoryId: string | null = null;
+    let targetBrandId: string | null = null;
+    let targetColorGroupId: string | null = null;
+
+    if (targetProduct) {
+      targetName = targetProduct.name;
+      targetCategoryId = targetProduct.categoryId;
+      targetBrandId = targetProduct.brandId;
+      targetColorGroupId = targetProduct.colorGroupId;
+      const targetColorAttr = targetProduct.productAttributeValues.find(
+        (pav) =>
+          pav.attribute.slug === "color" ||
+          pav.attribute.name.toLowerCase() === "color" ||
+          pav.attribute.name.toLowerCase() === "kleur"
+      );
+      targetColor = targetColorAttr?.attributeValue?.value || "";
+      const sizeMatch = targetProduct.name.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/i);
+      targetSize = sizeMatch ? sizeMatch[0].trim() : "";
+    } else {
+      // Check if productId is a ProductDraft ID
+      const targetDraft = await prisma.productDraft.findUnique({
+        where: { id: productId },
+      });
+      if (!targetDraft) return [];
+      const payload: any = targetDraft.payload || {};
+      targetName = targetDraft.name || payload.name || "";
+      if (!targetName) return [];
+      targetColor = payload.visualInspection?.finishColor || payload.attributes?.color?.[0] || "";
+      const sizeMatch = targetName.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/i);
+      targetSize = sizeMatch ? sizeMatch[0].trim() : "";
+    }
+
+    // Common color words in Dutch & English
+    const colorRegex = /\b(zwart|black|wit|white|goud|gold|brons|bronze|nikkel|nickel|staal|steel|chroom|chrome|messing|brass|koper|copper|antraciet|anthracite|zilver|silver|grijs|grey|gray|taupe|beige|groen|green|blauw|blue|rood|red|geel|yellow|oranje|orange|amber|smoke|rookglas|helder|clear|mat|matte|glans|glossy|hout|wood|naturel|natural)\b/gi;
+    const sizeRegex = /(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/gi;
+
+    const cleanBaseName = (name: string) => {
+      return name
+        .replace(colorRegex, "")
+        .replace(sizeRegex, "")
+        .replace(/[|\-\/,]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+
+    const targetBase = cleanBaseName(targetName);
+    const firstWord = targetBase.split(" ")[0] || "";
+
+    // 1. Fetch published Product candidates
+    const candidateProducts = await prisma.product.findMany({
+      where: {
+        id: { not: productId },
+        OR: [
+          ...(targetCategoryId ? [{ categoryId: targetCategoryId }] : []),
+          ...(targetBrandId ? [{ brandId: targetBrandId }] : []),
+          ...(firstWord.length > 2 ? [{ name: { contains: firstWord, mode: "insensitive" as const } }] : []),
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        image: true,
+        colorGroupId: true,
+        productAttributeValues: {
+          include: {
+            attribute: true,
+            attributeValue: true,
+          },
+        },
+      },
+      take: 40,
+    });
+
+    // 2. Fetch candidate ProductDrafts
+    const candidateDrafts = await prisma.productDraft.findMany({
+      where: {
+        id: { not: productId },
+        status: { not: "published" },
+      },
+      take: 25,
+      orderBy: { createdAt: "desc" },
+    });
+
+    const combinedCandidates: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      price: number;
+      image: string;
+      colorName: string;
+      colorCode: string;
+      sizeName: string;
+      colorGroupId?: string | null;
+      isDraft?: boolean;
+    }> = [];
+
+    // Map published products
+    candidateProducts.forEach((c) => {
+      const cColorAttr = c.productAttributeValues.find(
+        (pav) =>
+          pav.attribute.slug === "color" ||
+          pav.attribute.name.toLowerCase() === "color" ||
+          pav.attribute.name.toLowerCase() === "kleur"
+      );
+      const cSizeAttr = c.productAttributeValues.find(
+        (pav) =>
+          pav.attribute.slug === "size" ||
+          pav.attribute.slug === "afmeting" ||
+          pav.attribute.name.toLowerCase() === "size" ||
+          pav.attribute.name.toLowerCase() === "afmeting" ||
+          pav.attribute.name.toLowerCase() === "maat" ||
+          pav.attribute.name.toLowerCase() === "diameter"
+      );
+      const sizeMatch = c.name.match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/i);
+      const sizeName = cSizeAttr?.attributeValue?.value || (sizeMatch ? sizeMatch[0].trim() : "");
+
+      combinedCandidates.push({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        price: c.price,
+        image: c.image || "",
+        colorName: cColorAttr?.attributeValue?.value || "Variant",
+        colorCode: cColorAttr?.attributeValue?.colorCode || "#333333",
+        sizeName: sizeName || "",
+        colorGroupId: c.colorGroupId,
+        isDraft: false,
+      });
+    });
+
+    // Map drafts
+    candidateDrafts.forEach((d) => {
+      const payload: any = d.payload || {};
+      const draftColor = payload.visualInspection?.finishColor || payload.attributes?.color?.[0] || "";
+      const sizeMatch = (d.name || payload.name || "").match(/(?:Ø\s*\d+\s*(?:cm|mm)?|\b\d+\s*(?:cm|mm)\b|\b\d+[- ](?:ring|lichts|rings)\b)/i);
+      combinedCandidates.push({
+        id: d.id,
+        name: `${d.name || payload.name || "Draft Product"} (Draft)`,
+        slug: `drafts/${d.id}`,
+        price: Number(payload.price) || 0,
+        image: payload.image || payload.images?.[0] || "",
+        colorName: draftColor || "Draft Variant",
+        colorCode: "#333333",
+        sizeName: sizeMatch ? sizeMatch[0].trim() : "",
+        colorGroupId: null,
+        isDraft: true,
+      });
+    });
+
+    if (combinedCandidates.length === 0) return [];
+
+    const scoredCandidates = combinedCandidates
+      .map((c) => {
+        const cBase = cleanBaseName(c.name);
+        const targetWords = new Set(targetBase.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
+        const cWords = new Set(cBase.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
+        let matchCount = 0;
+        targetWords.forEach((tw) => {
+          if (cWords.has(tw)) matchCount++;
+        });
+
+        const overlapScore = targetWords.size > 0 ? (matchCount / Math.max(targetWords.size, cWords.size)) * 100 : 0;
+
+        return {
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          price: c.price,
+          image: c.image,
+          colorName: c.colorName,
+          colorCode: c.colorCode,
+          sizeName: c.sizeName,
+          score: Math.round(overlapScore),
+          alreadyLinked: Boolean(targetColorGroupId && c.colorGroupId === targetColorGroupId),
+          isDraft: Boolean(c.isDraft),
+        };
+      })
+      .filter((c) => c.score >= 35 && !c.alreadyLinked)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 15);
+
+    if (scoredCandidates.length === 0) return [];
+
+    // Use Gemini AI for semantic verification & accurate confidence score
+    try {
+      const modeInstruction =
+        mode === "size"
+          ? "We are matching Size / Dimension Siblings (same design/model, but differing in diameter, dimensions, or ring/light count)."
+          : mode === "color"
+            ? "We are matching Color Siblings (same design/model, but differing in color finish, e.g. Black vs Gold vs White)."
+            : "We are matching Color and Size Siblings (same design/model, but differing in color finish or dimensions/size).";
+
+      const prompt = `You are an expert e-commerce catalog AI.
+${modeInstruction}
+
+Target Product:
+Name: "${targetName}"
+Color: "${targetColor}"
+Size: "${targetSize}"
+
+Candidates:
+${scoredCandidates.map((c, i) => `[${i}] ID: ${c.id} | Name: "${c.name}" | Color: "${c.colorName}" | Size: "${c.sizeName}"`).join("\n")}
+
+Determine which candidates are true variations (${mode === "size" ? "size variations" : mode === "color" ? "color variations" : "color or size variations"}) of the Target Product.
+Return a valid JSON array of matches with confidence score (0-100) and short reason.
+Format:
+[
+  { "id": "candidate-id", "confidence": 95, "colorName": "Goud", "sizeName": "Ø 60 cm", "reason": "Identical model in 60cm dimension" }
+]
+Output ONLY the JSON array. No markdown code blocks.`;
+
+      const aiResponse = await callGeminiWithFallback([{ text: prompt }], 0.1);
+      const cleaned = aiResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
+      const verified = JSON.parse(cleaned);
+
+      if (Array.isArray(verified) && verified.length > 0) {
+        return scoredCandidates
+          .filter((c) => verified.some((v: any) => v.id === c.id && v.confidence >= 60))
+          .map((c) => {
+            const vMatch = verified.find((v: any) => v.id === c.id);
+            return {
+              ...c,
+              colorName: vMatch.colorName || c.colorName,
+              sizeName: vMatch.sizeName || c.sizeName,
+              confidence: vMatch.confidence || c.score,
+              matchReason: vMatch.reason || (mode === "size" ? "Matching size variation" : "Matching variation"),
+            };
+          });
+      }
+    } catch (aiErr) {
+      console.warn("Gemini refinement failed, falling back to rule-based scored candidates:", aiErr);
+    }
+
+    return scoredCandidates.map((c) => ({
+      ...c,
+      confidence: c.score,
+      matchReason: `High title similarity (${c.score}%)`,
+    }));
+  },
+
+  async quickEditProduct(input: {
+    product: any;
+    issuePrompt: string;
+    fields?: {
+      name?: boolean;
+      category?: boolean;
+      description?: boolean;
+      specs?: boolean;
+      attributes?: boolean;
+      seo?: boolean;
+      price?: boolean;
+    };
+  }) {
+    const { product, issuePrompt, fields } = input;
+    const allowFields = fields || {
+      name: true,
+      category: true,
+      description: true,
+      specs: true,
+      attributes: true,
+      seo: true,
+      price: false,
+    };
+
+    // 1. Fetch category slugs & hierarchy
+    const categories = await prisma.category.findMany({
+      select: { id: true, slug: true, name: true, parentId: true },
+    });
+    const parentCats = categories.filter((c) => !c.parentId);
+    const childCats = categories.filter((c) => c.parentId);
+    const hasChildren = new Set(childCats.map((c) => c.parentId));
+    const selectableCategories = [
+      ...categories.filter((c) => c.parentId && !hasChildren.has(c.id)),
+      ...parentCats.filter((p) => !childCats.some((c) => c.parentId === p.id)),
+    ];
+    const categorySlugs = selectableCategories.map((c) => c.slug).join(", ");
+
+    // 2. Fetch series & brands
+    const seriesList = await prisma.series.findMany({
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        brand: { select: { id: true, name: true } },
+      },
+    });
+    const seriesContext = seriesList
+      .map((s) => `- ${s.name} (slug: "${s.slug}") ${s.brand?.name ? `[Brand: ${s.brand.name}]` : ""}`)
+      .join("\n        ");
+
+    // 3. Fetch attributes
+    const attributes = await prisma.attribute.findMany({ include: { attributeValues: true } });
+    const STANDARD_DIMENSION_BUCKETS: Record<string, string[]> = {
+      diameter: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      width: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      breedte: ["Onder 20 cm", "20-40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "Boven 100 cm"],
+      length: ["Onder 40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "100-120 cm", "Boven 120 cm"],
+      lengte: ["Onder 40 cm", "40-60 cm", "60-80 cm", "80-100 cm", "100-120 cm", "Boven 120 cm"],
+      height: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
+      hoogte: ["Onder 20 cm", "20-50 cm", "50-100 cm", "100-150 cm", "Boven 150 cm"],
+    };
+    const attributeGuide = attributes
+      .map((attr) => {
+        const slugLower = attr.slug.toLowerCase();
+        const isDim = STANDARD_DIMENSION_BUCKETS[slugLower] != null;
+        const vals = isDim ? STANDARD_DIMENSION_BUCKETS[slugLower].join(", ") : attr.attributeValues.map((v) => v.value).join(", ");
+        return `  "${attr.slug}" (${attr.name}, type: ${attr.type})${vals ? ` > allowed: ${vals}` : ""}${isDim ? " [CRITICAL: Pick ONLY one of the standard range buckets; put exact dimensions in specs!]" : ""}`;
+      })
+      .join("\n");
+
+    // Extract current attributes mapping from productAttributeValues
+    const currentAttributes: Record<string, string[]> = {};
+    if (product.productAttributeValues && Array.isArray(product.productAttributeValues)) {
+      for (const pav of product.productAttributeValues) {
+        const slug = pav.attribute?.slug;
+        const val = pav.attributeValue?.value;
+        if (slug && val) {
+          if (!currentAttributes[slug]) currentAttributes[slug] = [];
+          if (!currentAttributes[slug].includes(val)) currentAttributes[slug].push(val);
+        }
+      }
+    }
+
+    const currentSpecs = Array.isArray(product.specs) ? product.specs : [];
+
+    const promptText = `
+You are an expert e-commerce catalog manager for Schip en Ster, a premium Dutch lighting webshop.
+Your task is to EDIT and FIX this product based on the user's reported issue / instruction below.
+
+${buildAiLanguageInstruction(getAiOutputLanguage())}
+
+=== USER REPORTED ISSUE / FIX INSTRUCTION ===
+"${issuePrompt}"
+=============================================
+(The instruction may be written in any language; write your output in the OUTPUT LANGUAGE above.)
+
+MINIMAL CHANGE RULES (MOST IMPORTANT):
+- Change ONLY what the instruction asks for, plus what directly follows from it (e.g. a new colour also changes the colour word in the title, the colour spec and the "color" attribute).
+- Return ONLY the fields you change. Leave out every field that stays the same.
+- Do NOT rewrite, rephrase, shorten, "improve" or translate any text the instruction is not about. Do NOT fix other things you notice.
+- "specs": ONLY the specs you add or change, as {key, value}. Put the keys of specs that must be deleted in "removeSpecs". Never repeat unchanged specs.
+- "attributes": ONLY the attributes you change.
+- You may ONLY change these fields: ${Object.entries(allowFields).filter(([, on]) => on).map(([f]) => f).join(", ") || "(none)"}. Never return any other field.
+
+REFERENCE RULES — apply them ONLY to the fields the instruction is about:
+SCHIP EN STER BRAND & COLLECTION ARCHITECTURE (STRICT SOP):
+1. "Ambiance" (or "Marrakech"):
+   - Models: Royale Noir, Royale Silver, Gold XL, Royale Gold
+   - Baseline: Luxury crystal look with G9 prisms, faceted glass bars, sparkling crystal rods.
+   - Types: Hanglamp (chandelier/pendant), Tafellamp (table lamp with crystals), Wandlamp.
+   - STRICT RULE: IF THE LAMP HAS CRYSTAL PRISMS OR GLASS RODS, IT BELONGS TO "Ambiance" (Royale). NEVER CALL IT MARBELLA!
+2. "Lisboa":
+   - Glass globes (glazen bollen) with acrylic bubble cylinders, brass/gold or chrome metalwork.
+3. "Sofia":
+   - Curved chrome/gold loops, swirling ribbon arms, metallic spheres, floral crystal accents.
+4. "Stockholm":
+   - Modern geometric ring Orbit designs (circular/elliptical halos), dimmable integrated LED.
+5. "Iceland Tech":
+   - Ceiling fans with LED ring (dimmable, 3 light colors + remote control).
+6. "Marbella":
+   - Strictly cylindrical tubular pipe canisters or spots. NEVER use Marbella for crystal lamps!
+
+LAMP TYPE RULES:
+- If it has a table base / short stem resting on a surface: category MUST be "table-lamps", title MUST contain "Tafellamp".
+- If it hangs from the ceiling on cables: category MUST be "pendant-lights", title MUST contain "Hanglamp".
+- If mounted flush to ceiling without cables: category MUST be "ceiling-lights", title MUST contain "Plafondlamp".
+- If wall mounted: category MUST be "wall-lights", title MUST contain "Wandlamp".
+
+COLOR FINISH RULES:
+- Zilver / Chroom: cool silver chrome -> attribute "color" MUST be "Silver". NEVER say Gold/Goud!
+- Goud / Messing: warm golden -> attribute "color" MUST be "Gold". NEVER say Silver/Zilver!
+
+CURRENT PRODUCT STATE:
+- ID: "${product.id}"
+- Current Name: "${product.name}"
+- Current Category: "${product.category?.slug || product.category?.name || 'none'}"
+- Current Brand: "${product.brand?.name || 'Schip en Ster'}"
+- Current Price: €${product.price}
+- Current Short Description: "${product.shortDescription || ''}"
+- Current Description: "${product.description || ''}"
+- Current Specs: ${JSON.stringify(currentSpecs)}
+- Current Attributes: ${JSON.stringify(currentAttributes)}
+- Current SEO Title: "${product.seoTitle || ''}"
+- Current SEO Description: "${product.seoDescription || ''}"
+
+Valid Category Slugs: ${categorySlugs}
+Available Collections:
+${seriesContext}
+Allowed Attributes Guide:
+${attributeGuide}
+
+Return ONLY a valid JSON object. EVERY property is optional — include a property ONLY if you change it
+(changeSummary is always included):
+{
+  "name": "new product title",
+  "category": "one of the valid leaf category slugs",
+  "series": "collection name",
+  "seriesSlug": "collection slug",
+  "price": 0,
+  "shortDescription": "1-2 sentence summary",
+  "description": "<p>...</p><h3>Belangrijkste kenmerken</h3><ul><li>...</li></ul>",
+  "specs": [{ "key": "Kleur", "value": "Goud / Messing" }],
+  "removeSpecs": ["key of a spec to delete"],
+  "attributes": { "color": ["Gold"] },
+  "seoTitle": "SEO title max 60 chars",
+  "seoDescription": "SEO meta description max 160 chars",
+  "changeSummary": "1-sentence explanation of what was changed"
+}
+`;
+
+    const parts: any[] = [];
+    if (product.image) {
+      try {
+        const publicPath = product.image;
+        const relativePath = publicPath.replace(/^\//, "");
+        const absolutePath = path.join(__dirname, "../../public", relativePath);
+        if (fs.existsSync(absolutePath)) {
+          const buffer = fs.readFileSync(absolutePath);
+          let mimeType = "image/jpeg";
+          if (absolutePath.toLowerCase().endsWith(".png")) mimeType = "image/png";
+          else if (absolutePath.toLowerCase().endsWith(".webp")) mimeType = "image/webp";
+          parts.push({
+            inlineData: {
+              data: buffer.toString("base64"),
+              mimeType,
+            },
+          });
+        }
+      } catch (e) {
+        console.warn("Could not load product photo for vision-based quick edit", e);
+      }
+    }
+
+    parts.push({ text: promptText });
+    const responseText = await callGeminiWithFallback(parts, 0.3);
+    const parsed = extractJson(responseText);
+
+    // SOP guardrails — only on fields the AI actually changed, so they never add edits nobody asked for
+    const titleLower = (parsed.name || product.name || "").toLowerCase();
+    const hasCrystal =
+      titleLower.includes("kristal") ||
+      titleLower.includes("crystal") ||
+      titleLower.includes("prisma") ||
+      (parsed.description || "").toLowerCase().includes("kristal");
+    if (hasCrystal && parsed.series && String(parsed.series).toLowerCase().includes("marbella")) {
+      parsed.series = "Ambiance";
+      parsed.seriesSlug = "ambiance";
+    }
+    if (hasCrystal && parsed.name && parsed.name.toLowerCase().includes("marbella")) {
+      parsed.name = parsed.name
+        .replace(/marbella\s*cilinder/gi, "Ambiance Royale")
+        .replace(/marbella/gi, "Ambiance");
+    }
+
+    if (parsed.category === "table-lamps" && parsed.name && parsed.name.toLowerCase().includes("hanglamp")) {
+      parsed.name = parsed.name.replace(/hanglamp/gi, "Tafellamp");
+    }
+    if (parsed.category && parsed.name && parsed.name.toLowerCase().includes("tafellamp")) {
+      parsed.category = "table-lamps";
+    }
+
+    return parsed;
+  },
+
+  async generateSalesCampaign(prompt: string): Promise<any> {
+    const brands = await prisma.brand.findMany({ select: { id: true, name: true, slug: true } });
+    const series = await prisma.series.findMany({ select: { id: true, name: true, slug: true, brandId: true } });
+    const categories = await prisma.category.findMany({ select: { id: true, name: true, slug: true, parentId: true } });
+
+    const brandList = brands.map((b) => `${b.name} (id: ${b.id})`).join(", ");
+    const seriesList = series.map((s) => `${s.name} (slug: ${s.slug})`).join(", ");
+    const categoryList = categories.map((c) => `${c.name} (id: ${c.id}, slug: ${c.slug}${c.parentId ? `, parent: ${c.parentId}` : ""})`).join(", ");
+
+    const systemPrompt = `
+You are an expert e-commerce promotional campaign strategist for Schip en Ster, a premium Dutch lighting brand.
+The user wants to create a sales offer / discount campaign.
+
+USER REQUEST:
+"${prompt}"
+
+AVAILABLE STORE CATALOG ASSETS:
+- Brands: ${brandList || "Schip en Ster"}
+- Collections/Series: ${seriesList || "Ambiance, Lisboa, Sofia, Stockholm, Iceland Tech, Marbella"}
+- Categories & Subcategories: ${categoryList}
+
+Analyze the user's intent:
+1. Determine the best targetScope:
+   - "all": Storewide sale across all products
+   - "brand": When a brand is targeted
+   - "series": When a collection/series is targeted (e.g. Ambiance crystal, Lisboa globes, Stockholm rings)
+   - "category": When a lighting type is targeted (e.g. Hanglampen, Tafellampen, Plafondlampen, Wandlampen)
+   - "subcategory": When a specific child category is targeted
+   - "products": When specific individual products are requested
+2. Determine discountType: "percentage" (default) or "fixed" (for flat € off).
+3. Determine discountValue: numeric value (e.g. 15 for 15%, 25 for €25). If not specified in prompt, suggest an optimal 15% or 20%.
+4. Generate an engaging Dutch Campaign Name (e.g., "Ambiance Luxe Kristal Deals", "Zomerse Uitverkoop", "Weekend Flash Sale").
+5. Generate a punchy Badge Text (e.g., "🔥 SALE -20%", "LENTE DEAL", "15% KORTING", "EXTRA VOORDEEL").
+6. Set matched target IDs and slugs based on the catalog assets provided.
+7. Duration in days (e.g. 7 or 14).
+
+Return ONLY a valid JSON object matching this schema:
+{
+  "name": "Campaign Name in Dutch",
+  "badgeText": "🔥 SALE -20%",
+  "discountType": "percentage",
+  "discountValue": 20,
+  "targetScope": "series",
+  "targetBrandId": "brand id or null",
+  "targetBrandName": "brand name or null",
+  "targetSeriesSlug": "series slug or null",
+  "targetSeriesName": "series name or null",
+  "targetCategoryId": "category id or null",
+  "targetCategoryName": "category name or null",
+  "targetSubcategoryId": "subcategory id or null",
+  "targetSubcategoryName": "subcategory name or null",
+  "durationDays": 7,
+  "explanation": "Short Dutch summary of the campaign"
+}
+`;
+
+    const parts = [{ text: systemPrompt }];
+    const responseText = await callGeminiWithFallback(parts, 0.3);
+    const parsed = extractJson(responseText);
+
+    return parsed;
+  },
 };
+

@@ -492,3 +492,53 @@ export const deleteDuplicates = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error?.message || "Server error" });
   }
 };
+
+// Storage Audit: Identify unused images and duplicate images across entire storage
+export const auditMedia = async (req: Request, res: Response) => {
+  try {
+    const { auditMediaStorage } = await import("../services/mediaAuditService");
+    const report = await auditMediaStorage();
+    res.status(200).json({
+      success: true,
+      data: report,
+    });
+  } catch (error: any) {
+    console.error("Error auditing media storage:", error);
+    res.status(500).json({ success: false, message: error?.message || "Failed to audit media storage" });
+  }
+};
+
+// Delete unused / orphaned media files safely
+export const deleteUnusedMedia = async (req: Request, res: Response) => {
+  try {
+    const { paths, all } = req.body || {};
+    const { deleteUnusedMediaFiles } = await import("../services/mediaAuditService");
+    const result = await deleteUnusedMediaFiles(paths, Boolean(all));
+    res.status(200).json({
+      success: true,
+      message: `Deleted ${result.deletedCount} unused file(s), freed ${result.mbSaved} MB.`,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error("Error deleting unused media:", error);
+    res.status(500).json({ success: false, message: error?.message || "Failed to delete unused media" });
+  }
+};
+
+// Deduplicate media files (merge duplicates into master)
+export const deduplicateMedia = async (req: Request, res: Response) => {
+  try {
+    const { hash } = req.body || {};
+    const { deduplicateMediaFiles } = await import("../services/mediaAuditService");
+    const result = await deduplicateMediaFiles(hash);
+    res.status(200).json({
+      success: true,
+      message: `Merged and removed ${result.duplicatesRemoved} duplicate file(s), freed ${result.mbSaved} MB.`,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error("Error deduplicating media:", error);
+    res.status(500).json({ success: false, message: error?.message || "Failed to deduplicate media" });
+  }
+};
+

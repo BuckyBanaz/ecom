@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { getGA4Data } from "../services/analyticsService";
+import { getGA4Data, getGA4Realtime } from "../services/analyticsService";
 import { getGoogleIntegrationStatus } from "../utils/googleCredentials";
 import { AppError } from "../middlewares/errorMiddleware";
 import {
@@ -615,6 +615,27 @@ export const getAnalyticsDashboardData = async (
         connected: false,
         error: error?.message || "Failed to fetch GA4 data",
       });
+    }
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+// Visitors on the site right now (GA4 realtime, last 30 minutes) by country / city
+export const getAnalyticsRealtime = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!getGoogleIntegrationStatus().ga4Ready) {
+      res.status(200).json({ success: true, connected: false, realtime: null });
+      return;
+    }
+    try {
+      res.status(200).json({ success: true, connected: true, realtime: await getGA4Realtime() });
+    } catch (error: any) {
+      res.status(200).json({ success: true, connected: false, realtime: null, error: error?.message || "Failed to fetch GA4 realtime data" });
     }
   } catch (error: any) {
     next(error);

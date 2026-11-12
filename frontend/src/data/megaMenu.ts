@@ -5,6 +5,8 @@ export interface MegaMenuItem {
 
 export interface MegaMenuSection {
   title: string;
+  type?: 'custom' | 'dynamic' | 'both';
+  categoryId?: string;
   items: MegaMenuItem[];
 }
 
@@ -12,6 +14,7 @@ export interface MegaMenu {
   menu: string;
   slug: string;
   sections: MegaMenuSection[];
+  isFoldedMobile?: boolean;
 }
 
 export const megaMenuData: MegaMenu[] = [

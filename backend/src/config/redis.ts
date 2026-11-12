@@ -2,6 +2,11 @@ import Redis from "ioredis";
 import { env } from "./env";
 
 export let redis: Redis | null = null;
+/**
+ * Separate connection for the rate limiter, which runs on EVERY request: it gives up fast (500 ms, one
+ * retry) so a slow or reconnecting Redis cannot stall the whole site. OTP/caching keep the patient client.
+ */
+export let rateLimitRedis: Redis | null = null;
 
 if (env.ENABLE_REDIS === "true") {
   // Initialize the Redis Client instance
@@ -14,6 +19,11 @@ if (env.ENABLE_REDIS === "true") {
       console.warn("⚠️ Redis reconnecting due to error:", err.message);
       return true;
     },
+  });
+
+  rateLimitRedis = redis.duplicate({ commandTimeout: 500, maxRetriesPerRequest: 1 });
+  rateLimitRedis.on("error", (error) => {
+    console.error("❌ Redis (rate limiter) error:", error.message);
   });
 
   // Redis connection event listeners
@@ -29,6 +39,9 @@ if (env.ENABLE_REDIS === "true") {
   process.on("beforeExit", async () => {
     if (redis) {
       await redis.quit();
+    }
+    if (rateLimitRedis) {
+      await rateLimitRedis.quit();
     }
   });
 } else {

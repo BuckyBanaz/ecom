@@ -1,11 +1,15 @@
 import { prisma } from "../config/db";
+import { enqueueEntityTranslation } from "./contentTranslationService";
+import { enqueueProductTranslation } from "./productTranslationService";
 import { aiService } from "./aiService";
 import { loadSeoEntityContext, runSeoAudit, saveSeoFields, SeoEntityType } from "./seoAuditService";
 import { runSeoAutopilot } from "./seoAutopilotService";
+import { resolveAttributeValue } from "./productAttributeService";
+import { deriveDimensionBucketsFromSpecs, isDimensionSlug } from "../utils/dimensionAttributes";
 
 export const SEO_JOB_KEY = "seo_job_state";
 
-export type SeoJobType = "bulk_optimize" | "autopilot" | "blog_generate" | "faq_generate" | "product_optimize";
+export type SeoJobType = "bulk_optimize" | "autopilot" | "blog_generate" | "faq_generate" | "product_optimize" | "bulk_product_edit";
 
 export type SeoJobStatus = "idle" | "queued" | "running" | "completed" | "failed";
 
@@ -230,6 +234,7 @@ async function runBlogGenerateJob(payload: {
       },
     });
     blogId = blog.id;
+    enqueueEntityTranslation("blog", blog.id);
   }
 
   const summary = publish ? `Published: "${generated.title}"` : `Draft ready: "${generated.title}"`;
@@ -336,6 +341,343 @@ async function runProductOptimizeJob(payload: { productId: string; customPrompt?
   });
 }
 
+async function runBulkProductEditJob(payload: {
+  productIds?: string[];
+  issuePrompt: string;
+  scope?: "selected" | "all" | "category";
+  categoryId?: string;
+  fields?: {
+    name?: boolean;
+    category?: boolean;
+    description?: boolean;
+    specs?: boolean;
+    attributes?: boolean;
+    seo?: boolean;
+    price?: boolean;
+  };
+}) {
+  const { issuePrompt, fields, scope, categoryId } = payload;
+  let targetIds: string[] = Array.isArray(payload.productIds) ? [...payload.productIds] : [];
+
+  if (targetIds.length === 0) {
+    if (scope === "category" && categoryId) {
+      const prods = await prisma.product.findMany({
+        where: { categoryId },
+        select: { id: true },
+      });
+      targetIds = prods.map((p) => p.id);
+    } else {
+      const prods = await prisma.product.findMany({
+        select: { id: true },
+      });
+      targetIds = prods.map((p) => p.id);
+    }
+  }
+
+  const total = targetIds.length;
+  if (total === 0) {
+    await patchJob({
+      status: "completed",
+      finishedAt: new Date().toISOString(),
+      summary: "No products found to edit.",
+      progress: { current: 0, total: 0, label: null },
+    });
+    return;
+  }
+
+  await patchJob({
+    progress: { current: 0, total, label: `Starting AI edit for ${total} product(s)...` },
+  });
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (let i = 0; i < targetIds.length; i++) {
+    const productId = targetIds[i];
+
+    try {
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        include: {
+          category: true,
+          brand: true,
+          productAttributeValues: {
+            include: { attribute: true, attributeValue: true },
+          },
+        },
+      });
+
+      if (!product) {
+        failed++;
+        continue;
+      }
+
+      await patchJob({
+        progress: {
+          current: i,
+          total,
+          label: `Editing "${product.name}" (${i + 1}/${total})...`,
+        },
+      });
+
+      // Call AI Service to compute changes
+      const edited = await aiService.quickEditProduct({
+        product,
+        issuePrompt,
+        fields,
+      });
+
+      // Only checked fields are saved, and the AI returns just what it changed — nothing else is touched
+      const allow = fields || {
+        name: true,
+        category: true,
+        description: true,
+        specs: true,
+        attributes: true,
+        seo: true,
+        price: false,
+      };
+      const updateData: any = {};
+      const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+      if (allow.name && text(edited.name) && text(edited.name) !== product.name) {
+        updateData.name = text(edited.name);
+      }
+
+      if (allow.price && edited.price !== undefined) {
+        const cleanPrice = parseFloat(edited.price);
+        if (!isNaN(cleanPrice) && cleanPrice > 0 && cleanPrice !== product.price) {
+          updateData.price = cleanPrice;
+        }
+      }
+
+      if (allow.description) {
+        if (text(edited.shortDescription)) updateData.shortDescription = text(edited.shortDescription);
+        if (text(edited.description)) updateData.description = text(edited.description);
+      }
+
+      if (allow.seo) {
+        if (text(edited.seoTitle)) updateData.seoTitle = text(edited.seoTitle);
+        if (text(edited.seoDescription)) updateData.seoDescription = text(edited.seoDescription);
+      }
+
+      // Specs are merged: the AI sends only added/changed specs and the keys to remove
+      const specs: Array<{ key: string; value: string; link?: string }> = Array.isArray(product.specs)
+        ? (product.specs as any[]).map((sp) => ({ ...sp }))
+        : product.specs && typeof product.specs === "object"
+        ? Object.entries(product.specs as Record<string, unknown>).map(([key, value]) => ({ key, value: String(value ?? "") }))
+        : [];
+      let specsChanged = false;
+      const setSpec = (key: string, value: string) => {
+        const existing = specs.find((sp) => String(sp?.key || "").toLowerCase() === key.toLowerCase());
+        if (existing) {
+          if (String(existing.value) !== value) {
+            existing.value = value;
+            specsChanged = true;
+          }
+        } else {
+          specs.push({ key, value, link: "" });
+          specsChanged = true;
+        }
+      };
+
+      if (allow.specs) {
+        if (Array.isArray(edited.removeSpecs)) {
+          const remove = new Set(edited.removeSpecs.map((k: unknown) => String(k).trim().toLowerCase()));
+          for (let j = specs.length - 1; j >= 0; j--) {
+            if (remove.has(String(specs[j]?.key || "").trim().toLowerCase())) {
+              specs.splice(j, 1);
+              specsChanged = true;
+            }
+          }
+        }
+        if (Array.isArray(edited.specs)) {
+          for (const sp of edited.specs) {
+            const key = text(sp?.key);
+            const value = sp?.value === undefined || sp?.value === null ? null : String(sp.value).trim();
+            if (key && value) setSpec(key, value);
+          }
+        }
+      }
+
+      if (allow.category) {
+        // Handle Category update if changed
+        if (edited.category) {
+          const targetCategory = await prisma.category.findFirst({
+            where: {
+              OR: [
+                { slug: String(edited.category).trim() },
+                { name: { equals: String(edited.category).trim(), mode: "insensitive" } },
+                { slug: { contains: String(edited.category).trim(), mode: "insensitive" } },
+              ],
+            },
+          });
+          if (targetCategory && targetCategory.id !== product.categoryId) {
+            updateData.categoryId = targetCategory.id;
+          }
+        }
+
+        // Handle Series / Collection update if returned
+        if (edited.series) {
+          const seriesName = String(edited.series).trim();
+          const seriesSlug = (edited.seriesSlug || seriesName).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          let matchedSeries = await prisma.series.findFirst({
+            where: {
+              OR: [
+                { slug: seriesSlug },
+                { name: { equals: seriesName, mode: "insensitive" } },
+              ],
+            },
+          });
+
+          if (!matchedSeries && seriesName.length >= 2) {
+            try {
+              const firstBrand = await prisma.brand.findFirst();
+              if (firstBrand) {
+                matchedSeries = await prisma.series.create({
+                  data: {
+                    name: seriesName,
+                    slug: seriesSlug,
+                    brandId: firstBrand.id,
+                  },
+                });
+              }
+            } catch {
+              /* ignore duplicate */
+            }
+          }
+
+          if (matchedSeries && matchedSeries.brandId) {
+            updateData.brandId = matchedSeries.brandId;
+          }
+          // The product's collection lives in its specs ("Series" / "Collectie" / "Collection")
+          if (matchedSeries) {
+            const seriesKeys = specs.filter((sp) => /^(series|collectie|collection)$/i.test(String(sp?.key || "")));
+            if (seriesKeys.length === 0) setSpec("Series", matchedSeries.name);
+            else for (const sp of seriesKeys) setSpec(String(sp.key), matchedSeries.name);
+          }
+        }
+      }
+
+      if (specsChanged) updateData.specs = specs;
+
+      // Execute product table update
+      if (Object.keys(updateData).length > 0) {
+        await prisma.product.update({
+          where: { id: productId },
+          data: updateData,
+        });
+        enqueueProductTranslation(productId);
+      }
+
+      // Handle EAV attribute values update (e.g. color, fitting, etc.)
+      const dimensionSlugsSet = new Set<string>();
+      if (allow.attributes && edited.attributes && typeof edited.attributes === "object") {
+        for (const [attrSlug, val] of Object.entries(edited.attributes)) {
+          const attribute = await prisma.attribute.findUnique({
+            where: { slug: attrSlug },
+          });
+          if (!attribute) continue;
+
+          const valList = Array.isArray(val) ? val : [val];
+          for (const rawVal of valList) {
+            const singleVal = String(rawVal).trim();
+            if (!singleVal) continue;
+
+            // Length / Diameter / Width only link to an existing bucket — never create raw sizes
+            if (isDimensionSlug(attribute.slug)) {
+              const bucketValue = await resolveAttributeValue(attribute, singleVal);
+              if (!bucketValue) continue;
+              await prisma.productAttributeValue.deleteMany({ where: { productId, attributeId: attribute.id } });
+              await prisma.productAttributeValue.create({
+                data: { productId, attributeId: attribute.id, attributeValueId: bucketValue.id },
+              });
+              dimensionSlugsSet.add(attribute.slug);
+              break;
+            }
+
+            let attrValue = await prisma.attributeValue.findFirst({
+              where: {
+                attributeId: attribute.id,
+                value: { equals: singleVal, mode: "insensitive" },
+              },
+            });
+
+            if (!attrValue) {
+              attrValue = await prisma.attributeValue.create({
+                data: {
+                  attributeId: attribute.id,
+                  value: singleVal,
+                },
+              });
+            }
+
+            // Remove previous values for single-select attributes like color
+            if (attribute.type === "select" || attribute.type === "boolean") {
+              await prisma.productAttributeValue.deleteMany({
+                where: {
+                  productId,
+                  attributeId: attribute.id,
+                },
+              });
+            }
+
+            await prisma.productAttributeValue.upsert({
+              where: {
+                productId_attributeId_attributeValueId: {
+                  productId,
+                  attributeId: attribute.id,
+                  attributeValueId: attrValue.id,
+                },
+              },
+              create: {
+                productId,
+                attributeId: attribute.id,
+                attributeValueId: attrValue.id,
+              },
+              update: {},
+            });
+          }
+        }
+      }
+
+      // Rewritten specs ("Lengte: 100 cm") set Length / Diameter / Width the attributes map left out
+      if (updateData.specs) {
+        for (const [slug, label] of Object.entries(deriveDimensionBucketsFromSpecs(updateData.specs))) {
+          if (dimensionSlugsSet.has(slug)) continue;
+          const attribute = await prisma.attribute.findUnique({ where: { slug } });
+          if (!attribute) continue;
+          const bucketValue = await resolveAttributeValue(attribute, label);
+          if (!bucketValue) continue;
+          await prisma.productAttributeValue.deleteMany({ where: { productId, attributeId: attribute.id } });
+          await prisma.productAttributeValue.create({
+            data: { productId, attributeId: attribute.id, attributeValueId: bucketValue.id },
+          });
+        }
+      }
+
+      succeeded++;
+      await patchJob({ succeeded, failed });
+
+      // Small 250ms breather so we don't overwhelm external API / event loop
+      await new Promise((r) => setTimeout(r, 250));
+    } catch (err: any) {
+      console.error(`AI Quick Edit failed for product ${productId}:`, err);
+      failed++;
+      await patchJob({ succeeded, failed });
+    }
+  }
+
+  await patchJob({
+    status: "completed",
+    finishedAt: new Date().toISOString(),
+    summary: `AI Quick Edit finished! ${succeeded} product(s) updated successfully.${failed > 0 ? ` (${failed} failed)` : ""}`,
+    progress: { current: total, total, label: null },
+    succeeded,
+    failed,
+  });
+}
+
 async function processJob(type: SeoJobType, payload: Record<string, unknown>) {
   if (processing) return;
   processing = true;
@@ -357,6 +699,8 @@ async function processJob(type: SeoJobType, payload: Record<string, unknown>) {
       await runFaqGenerateJob(payload as Parameters<typeof runFaqGenerateJob>[0]);
     } else if (type === "product_optimize") {
       await runProductOptimizeJob(payload as { productId: string; customPrompt?: string });
+    } else if (type === "bulk_product_edit") {
+      await runBulkProductEditJob(payload as any);
     } else {
       await runAutopilotJob(payload.force !== false);
     }
@@ -509,7 +853,45 @@ export async function enqueueProductOptimize(payload: {
   return { job, alreadyRunning: false };
 }
 
-export async function clearSeoJobIfDone(): Promise<SeoJobState> {
+export async function enqueueBulkProductEdit(payload: {
+  productIds?: string[];
+  issuePrompt: string;
+  scope?: "selected" | "all" | "category";
+  categoryId?: string;
+  fields?: {
+    name?: boolean;
+    category?: boolean;
+    description?: boolean;
+    specs?: boolean;
+    attributes?: boolean;
+    seo?: boolean;
+    price?: boolean;
+  };
+}): Promise<{ job: SeoJobState; alreadyRunning: boolean }> {
+  const current = await loadJobState();
+  if (current.status === "running" || current.status === "queued") {
+    return { job: current, alreadyRunning: true };
+  }
+
+  const job: SeoJobState = {
+    ...DEFAULT_JOB,
+    id: newJobId(),
+    type: "bulk_product_edit",
+    status: "queued",
+    startedAt: new Date().toISOString(),
+    progress: { current: 0, total: payload.productIds?.length || 1, label: "Queued for AI Edit…" },
+    targetEntityId: payload.productIds?.length === 1 ? payload.productIds[0] : null,
+  };
+  await saveJobState(job);
+
+  setImmediate(() => {
+    processJob("bulk_product_edit", payload as Record<string, unknown>).catch(console.error);
+  });
+
+  return { job, alreadyRunning: false };
+}
+
+export async function clearSeoJobIfDone(): Promise<SeoJobState> { 
   const state = await loadJobState();
   if (state.status === "completed" || state.status === "failed") {
     await saveJobState(DEFAULT_JOB);

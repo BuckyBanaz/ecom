@@ -17,7 +17,35 @@ export const getSeries = async (req: Request, res: Response, next: NextFunction)
       },
       orderBy: { name: "asc" },
     });
-    res.status(200).json({ success: true, series: seriesList });
+
+    // Products have no series relation: the product form stores it as spec "Series", Quick Add also as
+    // "Collectie" / "Collection". Count a product once, matching the series name or slug exactly.
+    const seriesIdByValue = new Map<string, string>();
+    for (const s of seriesList) {
+      seriesIdByValue.set(s.name.trim().toLowerCase(), s.id);
+      seriesIdByValue.set(s.slug.trim().toLowerCase(), s.id);
+    }
+    const products = await prisma.product.findMany({ select: { specs: true } });
+    const counts = new Map<string, number>();
+    for (const { specs } of products) {
+      const pairs: Array<[unknown, unknown]> = Array.isArray(specs)
+        ? (specs as any[]).map((s) => [s?.key, s?.value])
+        : specs && typeof specs === "object"
+        ? Object.entries(specs as Record<string, unknown>)
+        : [];
+      const seriesIds = new Set(
+        pairs
+          .filter(([k]) => /^(series|collectie|collection)$/i.test(String(k ?? "").trim()))
+          .map(([, v]) => seriesIdByValue.get(String(v ?? "").trim().toLowerCase()))
+          .filter((id): id is string => Boolean(id))
+      );
+      for (const id of seriesIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+
+    res.status(200).json({
+      success: true,
+      series: seriesList.map((s) => ({ ...s, productCount: counts.get(s.id) ?? 0 })),
+    });
   } catch (error) {
     next(error);
   }

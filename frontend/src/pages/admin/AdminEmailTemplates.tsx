@@ -97,6 +97,24 @@ const TEMPLATE_PARAMETERS: Record<string, { param: string; desc: string }[]> = {
     { param: "{{refund_eta_days}}", desc: "Refund ETA days" },
     { param: "{{refund_expected_date}}", desc: "Expected refund date" },
   ],
+  // Shop team alert (Settings → Order alerts); always sent by email, the channel switches below do not apply
+  admin_new_order: [
+    { param: "{{order_id}}", desc: "Order number" },
+    { param: "{{order_date}}", desc: "Order date & time" },
+    { param: "{{customer_name}}", desc: "Customer name" },
+    { param: "{{customer_email}}", desc: "Customer email" },
+    { param: "{{customer_phone}}", desc: "Customer phone" },
+    { param: "{{shipping_address}}", desc: "Shipping address (HTML lines)" },
+    { param: "{{order_items}}", desc: "HTML table rows of items" },
+    { param: "{{item_count}}", desc: "Number of items" },
+    { param: "{{subtotal}}", desc: "Order subtotal" },
+    { param: "{{shipping}}", desc: "Shipping cost" },
+    { param: "{{discount}}", desc: "Discount amount" },
+    { param: "{{total}}", desc: "Grand total" },
+    { param: "{{payment_method}}", desc: "Payment method" },
+    { param: "{{payment_status}}", desc: "Payment status" },
+    { param: "{{admin_order_url}}", desc: "Order page in admin" },
+  ],
 };
 
 export default function AdminEmailTemplates() {

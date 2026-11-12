@@ -27,6 +27,10 @@ async function fetchAndParse<T>(url: string, config: RequestInit): Promise<T> {
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
+  // Storefront asks for content in its language (AI translations); the admin always edits the source text
+  if (!isAdminPanel) {
+    (headers as Record<string, string>)["X-Content-Language"] = (localStorage.getItem("i18nextLng") || "nl").split("-")[0];
+  }
 
   const response = await fetch(url, { ...config, headers });
 
@@ -183,7 +187,7 @@ export const productRepository = {
 // 2. Categories Repository
 export const categoryRepository = {
   getAll: async () => {
-    return request<any>(ENDPOINTS.CATEGORIES, { method: "GET", cacheTtl: CACHE.LONG });
+    return request<any>(ENDPOINTS.CATEGORIES, { method: "GET" });
   },
   
   create: async (data: any) => {
@@ -633,6 +637,24 @@ export const mediaRepository = {
   deleteDuplicates: async () => {
     return request<any>(`${ENDPOINTS.MEDIA}/duplicates`, { method: "DELETE" });
   },
+
+  audit: async () => {
+    return request<any>(`${ENDPOINTS.MEDIA}/audit`, { method: "GET" });
+  },
+
+  deleteUnused: async (options: { paths?: string[]; all?: boolean }) => {
+    return request<any>(`${ENDPOINTS.MEDIA}/unused`, {
+      method: "DELETE",
+      body: JSON.stringify(options),
+    });
+  },
+
+  deduplicate: async (options: { hash?: string } = {}) => {
+    return request<any>(`${ENDPOINTS.MEDIA}/deduplicate`, {
+      method: "POST",
+      body: JSON.stringify(options),
+    });
+  },
 };
 
 // 11. Blogs Repository
@@ -706,6 +728,21 @@ export const adminSettingsRepository = {
     return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/smtp/test`, {
       method: "POST",
       body: JSON.stringify({ to }),
+    });
+  },
+  getOrderAlertSettings: async () => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/order-alerts`, { method: "GET" });
+  },
+  updateOrderAlertSettings: async (data: { enabled: boolean; recipients: string[] }) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/order-alerts`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  testOrderAlertSettings: async (recipients: string[]) => {
+    return request<any>(`${ENDPOINTS.ADMIN_SETTINGS}/order-alerts/test`, {
+      method: "POST",
+      body: JSON.stringify({ recipients }),
     });
   },
   getPaymentSettings: async () => {
@@ -939,25 +976,66 @@ export const backupsRepository = {
     }),
   remove: async (id: string) =>
     request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  // Scheduled backups to Google Drive
+  getSchedule: async () => request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/schedule`, { method: "GET" }),
+  saveSchedule: async (settings: Record<string, unknown>) =>
+    request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/schedule`, { method: "PUT", body: JSON.stringify(settings) }),
+  runScheduledNow: async () => request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/schedule/run`, { method: "POST" }),
+  saveDriveCredentials: async (clientId: string, clientSecret: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/google/credentials`, {
+      method: "PUT",
+      body: JSON.stringify({ clientId, clientSecret }),
+    }),
+  getDriveAuthUrl: async (origin: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/google/auth-url?origin=${encodeURIComponent(origin)}`, { method: "GET" }),
+  disconnectDrive: async () => request<any>(`${ENDPOINTS.ADMIN_BACKUPS}/google/disconnect`, { method: "POST" }),
+  // Native browser download via a 2-minute link: streams to disk with the browser's own progress bar,
+  // instead of buffering the whole archive in memory first (large backups never finished that way).
   download: async (id: string, filename: string) => {
-    const token = localStorage.getItem("admin_token") || localStorage.getItem("customer_token");
-    const response = await fetch(`${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}/download`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
-      throw new Error(errorBody.message || `Download failed (${response.status})`);
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
+    const path = `${ENDPOINTS.ADMIN_BACKUPS}/${encodeURIComponent(id)}`;
+    const data = await request<{ success: boolean; token: string }>(`${path}/download-link`, { method: "POST" });
     const anchor = document.createElement("a");
-    anchor.href = url;
+    anchor.href = `${path}/download?dl=${encodeURIComponent(data.token)}`;
     anchor.download = filename;
+    anchor.rel = "noopener";
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    URL.revokeObjectURL(url);
   },
+};
+
+// AI content translations (products; CMS pages and blogs later)
+export const translationsRepository = {
+  productsStatus: async () => request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/status`, { method: "GET" }),
+  translateAllProducts: async (force = false) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/translate-all`, { method: "POST", body: JSON.stringify({ force }) }),
+  getProduct: async (idOrSlug: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/${encodeURIComponent(idOrSlug)}`, { method: "GET" }),
+  translateProduct: async (idOrSlug: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/${encodeURIComponent(idOrSlug)}/translate`, { method: "POST" }),
+  contentStatus: async () => request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/status`, { method: "GET" }),
+  translateAllContent: async (force = false) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/translate-all`, { method: "POST", body: JSON.stringify({ force }) }),
+  // Settings / menus line by line: target = "config:<key>" or "megaMenu:<id>"
+  getLines: async (target: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/lines/${encodeURIComponent(target)}`, { method: "GET" }),
+  saveLines: async (target: string, lang: string, lines: Record<string, string>) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/lines/${encodeURIComponent(target)}/${lang}`, { method: "PUT", body: JSON.stringify({ lines }) }),
+  // Quick Add drafts (translation stored in the draft until it is published)
+  getDraft: async (id: string) => request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/drafts/${encodeURIComponent(id)}`, { method: "GET" }),
+  translateDraft: async (id: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/drafts/${encodeURIComponent(id)}/translate`, { method: "POST" }),
+  saveDraft: async (id: string, lang: string, data: Record<string, unknown>) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/drafts/${encodeURIComponent(id)}/${lang}`, { method: "PUT", body: JSON.stringify(data) }),
+  // CMS pages / blogs / categories / menus
+  getContent: async (type: string, id: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/${type}/${encodeURIComponent(id)}`, { method: "GET" }),
+  translateContent: async (type: string, id: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/${type}/${encodeURIComponent(id)}/translate`, { method: "POST" }),
+  saveContent: async (type: string, id: string, lang: string, data: Record<string, unknown>) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/${type}/${encodeURIComponent(id)}/${lang}`, { method: "PUT", body: JSON.stringify(data) }),
+  saveProduct: async (idOrSlug: string, lang: string, data: Record<string, unknown>) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/${encodeURIComponent(idOrSlug)}/${lang}`, { method: "PUT", body: JSON.stringify(data) }),
 };
 
 // 28. Admin Logs Repository
@@ -1061,6 +1139,48 @@ export const returnsRepository = {
   processRefund: async (id: string) => {
     return request<any>(`${ENDPOINTS.RETURNS}/${id}/refund`, {
       method: "PATCH",
+    });
+  },
+};
+
+// 21. Sales Campaigns Repository
+export const salesCampaignRepository = {
+  getAll: async () => {
+    return request<any>(ENDPOINTS.SALES_CAMPAIGNS, { method: "GET" });
+  },
+  preview: async (data: any) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/preview`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  create: async (data: any) => {
+    return request<any>(ENDPOINTS.SALES_CAMPAIGNS, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: any) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  toggle: async (id: string, isActive: boolean) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/${id}/toggle`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
+  },
+  delete: async (id: string) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/${id}`, {
+      method: "DELETE",
+    });
+  },
+  generateAi: async (prompt: string) => {
+    return request<any>(`${ENDPOINTS.SALES_CAMPAIGNS}/ai-generate`, {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
     });
   },
 };

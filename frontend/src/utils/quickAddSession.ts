@@ -5,7 +5,14 @@ export type StoredRow = {
   hint: string;
   price: string;
   brand: string;
+  series?: string;
+  category?: string;
   imagePreview: string | null;
+  sizeGroupId?: string;
+  sizeLabel?: string;
+  color?: string;
+  specDiff?: string;
+  siblingGroupId?: string;
 };
 
 export type StoredProgress = {
@@ -13,6 +20,8 @@ export type StoredProgress = {
   error?: string;
   draftId?: string;
   productName?: string;
+  duplicateWarning?: boolean;
+  existingMatches?: Array<{ id: string; name: string; slug: string; image: string; price: number }>;
 };
 
 export type QuickAddSession = {
@@ -20,30 +29,95 @@ export type QuickAddSession = {
   imagePromptOverride: string;
   rowProgress: Record<string, StoredProgress>;
   batchSummary: { ok: number; failed: number; total: number } | null;
+  isProcessing?: boolean;
   interrupted?: boolean;
   savedAt: number;
 };
 
+export function sanitizeSession(parsed: QuickAddSession): QuickAddSession {
+  const age = Date.now() - (parsed.savedAt || 0);
+  const activeKeys = new Set((parsed.rows || []).map((r) => r.key));
+  const progress: Record<string, StoredProgress> = {};
+
+  // Purge any old or orphaned row keys from previous sessions/batches
+  if (parsed.rowProgress) {
+    Object.keys(parsed.rowProgress).forEach((k) => {
+      if (activeKeys.has(k)) {
+        progress[k] = parsed.rowProgress[k];
+      }
+    });
+  }
+  parsed.rowProgress = progress;
+
+  const rowKeys = Object.keys(progress);
+  const allTerminal =
+    rowKeys.length > 0 &&
+    rowKeys.every((k) => ["done", "failed"].includes(progress[k]?.status));
+
+  // If actively processing and not all rows terminal, batchSummary MUST be null
+  if (parsed.isProcessing && !allTerminal) {
+    parsed.batchSummary = null;
+    return parsed;
+  }
+
+  // If all rows are finished or session is stale (> 2 mins) without active generator, batch is done
+  if (allTerminal || parsed.isProcessing === false || age > 120000) {
+    parsed.isProcessing = false;
+    rowKeys.forEach((k) => {
+      if (["queued", "analyzing", "images", "saving"].includes(progress[k]?.status)) {
+        if (progress[k]?.draftId) {
+          progress[k].status = "done";
+        } else {
+          progress[k].status = "failed";
+          progress[k].error = progress[k].error || "Batch completed";
+        }
+      }
+    });
+
+    const ok = rowKeys.filter((k) => progress[k]?.status === "done").length;
+    const failed = rowKeys.filter((k) => progress[k]?.status === "failed").length;
+    if (rowKeys.length > 0) {
+      parsed.batchSummary = { ok, failed, total: rowKeys.length };
+    } else {
+      parsed.batchSummary = null;
+    }
+  }
+
+  return parsed;
+}
+
 export function loadQuickAddSession(): QuickAddSession | null {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as QuickAddSession;
+    let parsed = JSON.parse(raw) as QuickAddSession;
     if (!parsed?.rows?.length) return null;
-    // Expire after 24h
-    if (Date.now() - (parsed.savedAt || 0) > 24 * 60 * 60 * 1000) {
-      sessionStorage.removeItem(SESSION_KEY);
+
+    const age = Date.now() - (parsed.savedAt || 0);
+
+    // If batch is already completed or stale (> 2 mins), clear session so page opens fresh
+    if (parsed.batchSummary || age > 120000) {
+      localStorage.removeItem(SESSION_KEY);
       return null;
     }
+
+    parsed = sanitizeSession(parsed);
+
+    if (parsed.batchSummary || !parsed.isProcessing) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
     return parsed;
   } catch {
+    localStorage.removeItem(SESSION_KEY);
     return null;
   }
 }
 
 export function saveQuickAddSession(data: Omit<QuickAddSession, "savedAt">) {
   try {
-    sessionStorage.setItem(
+    localStorage.setItem(
       SESSION_KEY,
       JSON.stringify({ ...data, savedAt: Date.now() }),
     );
@@ -56,7 +130,7 @@ export function saveQuickAddSession(data: Omit<QuickAddSession, "savedAt">) {
           ...data,
           rows: data.rows.map(r => ({ ...r, imagePreview: null }))
         };
-        sessionStorage.setItem(
+        localStorage.setItem(
           SESSION_KEY,
           JSON.stringify({ ...textOnlyData, savedAt: Date.now() }),
         );
@@ -68,7 +142,7 @@ export function saveQuickAddSession(data: Omit<QuickAddSession, "savedAt">) {
 }
 
 export function clearQuickAddSession() {
-  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_KEY);
 }
 
 /** Restore a File from session-stored data URL (imageFile is not persisted). */

@@ -311,6 +311,46 @@ const DEFAULT_TEMPLATES = [
     smsBody: `Hi {{name}}, refund of €{{refund_amount}} processed for order #{{order_id}}. ETA {{refund_eta_days}} business days.`,
     whatsappBody: `Hello {{name}},\n\nRefund of €{{refund_amount}} for order *#{{order_id}}* has been processed.\n\nExpected within {{refund_eta_days}} business days.`,
   },
+  {
+    // Shop team alert (Settings → Order alerts), sent for every confirmed order
+    name: "admin_new_order",
+    subject: "New order #{{order_id}} - {{customer_name}}",
+    body: `<h2 style="margin:0 0 4px;">New order #{{order_id}}</h2>
+<p style="margin:0 0 20px;color:#666;">{{order_date}} &middot; {{item_count}} item(s) &middot; <strong>&euro;{{total}}</strong></p>
+
+<h3 style="margin:0 0 8px;">Customer</h3>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+  <tr><td style="padding:3px 0;color:#666;width:120px;">Name</td><td style="padding:3px 0;">{{customer_name}}</td></tr>
+  <tr><td style="padding:3px 0;color:#666;">Email</td><td style="padding:3px 0;"><a href="mailto:{{customer_email}}" style="color:#000;">{{customer_email}}</a></td></tr>
+  <tr><td style="padding:3px 0;color:#666;">Phone</td><td style="padding:3px 0;">{{customer_phone}}</td></tr>
+  <tr><td style="padding:3px 0;color:#666;vertical-align:top;">Shipping address</td><td style="padding:3px 0;">{{shipping_address}}</td></tr>
+</table>
+
+<h3 style="margin:0 0 8px;">Items</h3>
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 12px;">
+  <thead>
+    <tr style="background:#f4f4f5;text-align:left;">
+      <th style="padding:8px;border-bottom:1px solid #ddd;">Product</th>
+      <th style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">Qty</th>
+      <th style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{order_items}}
+  </tbody>
+</table>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+  <tr><td style="padding:3px 0;text-align:right;color:#666;">Subtotal</td><td style="padding:3px 0;text-align:right;width:110px;">&euro;{{subtotal}}</td></tr>
+  <tr><td style="padding:3px 0;text-align:right;color:#666;">Shipping</td><td style="padding:3px 0;text-align:right;">&euro;{{shipping}}</td></tr>
+  <tr><td style="padding:3px 0;text-align:right;color:#666;">Discount</td><td style="padding:3px 0;text-align:right;">-&euro;{{discount}}</td></tr>
+  <tr><td style="padding:6px 0;text-align:right;"><strong>Total</strong></td><td style="padding:6px 0;text-align:right;"><strong>&euro;{{total}}</strong></td></tr>
+</table>
+
+<p style="margin:0 0 20px;"><span style="color:#666;">Payment:</span> {{payment_method}} &middot; {{payment_status}}</p>
+
+<a href="{{admin_order_url}}" style="display:inline-block;padding:10px 20px;background-color:#000;color:#fff;text-decoration:none;border-radius:5px;">Open order in admin</a>
+<p style="margin:20px 0 0;color:#888;font-size:13px;">Reply to this email to contact the customer directly.</p>`,
+  },
 ];
 
 export const seedTemplates = async () => {

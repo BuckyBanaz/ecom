@@ -150,7 +150,7 @@ const AdminAttributes = () => {
       }
     } catch (err) {
       console.error("Failed to save attribute via API:", err);
-      toast.error(t("admin_attributes.toast_save_error"));
+      toast.error(err instanceof Error && err.message ? err.message : t("admin_attributes.toast_save_error"));
     }
   };
 

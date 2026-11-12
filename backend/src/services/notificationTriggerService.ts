@@ -2,6 +2,7 @@ import { prisma } from "../config/db";
 import { emailService } from "./emailService";
 import { twilioService } from "./twilioService";
 import { firebaseService } from "./firebaseService";
+import { sendNewOrderAlert } from "./orderAlertService";
 import jwt from "jsonwebtoken";
 
 // Helper to format Order Items into an HTML table for order_confirmed template
@@ -194,6 +195,11 @@ export const notificationTriggerService = {
       if (!order) {
         console.error(`[NotificationTrigger] Order ${orderId} not found.`);
         return;
+      }
+
+      // Shop team "new order" mail (Settings → Order alerts), independent of the customer's channels
+      if (templateName === "order_confirmed") {
+        void sendNewOrderAlert(order);
       }
 
       // Skip status update emails for ready_to_ship / ready to ship

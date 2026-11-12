@@ -37,19 +37,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   const add = (p: Product, qty = 1) => {
+    const maxStock = (p as any).webshopStock !== undefined ? (p as any).webshopStock : ((p as any).stock !== undefined ? (p as any).stock : 9999);
     setItems((prev) => {
       const existing = prev.find((i) => i.id === p.id);
       if (existing) {
-        return prev.map((i) => (i.id === p.id ? { ...i, qty: i.qty + qty } : i));
+        const nextQty = Math.min(maxStock, existing.qty + qty);
+        return prev.map((i) => (i.id === p.id ? { ...i, qty: nextQty } : i));
       }
-      return [...prev, { id: p.id, product: p, qty }];
+      return [...prev, { id: p.id, product: p, qty: Math.min(maxStock, qty) }];
     });
     setDrawerOpen(true);
   };
 
   const remove = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
   const setQty = (id: string, qty: number) =>
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, qty) } : i)));
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id !== id) return i;
+        const maxStock = (i.product as any).webshopStock !== undefined ? (i.product as any).webshopStock : ((i.product as any).stock !== undefined ? (i.product as any).stock : 9999);
+        return { ...i, qty: Math.max(1, Math.min(maxStock, qty)) };
+      })
+    );
   const clear = () => setItems([]);
 
   const value = useMemo<CartCtx>(

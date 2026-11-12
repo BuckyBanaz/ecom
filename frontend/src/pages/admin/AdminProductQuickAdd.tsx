@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,6 +14,14 @@ import {
   Clock,
   XCircle,
   ExternalLink,
+  Ruler,
+  Layers,
+  RefreshCw,
+  Copy,
+  Sliders,
+  Link2,
+  Unlink,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +30,17 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAdmin } from "@/context/AdminContext";
-import { brandRepository } from "@/client/apiClient";
+import { brandRepository, seriesRepository, categoryRepository, productRepository } from "@/client/apiClient";
 import {
   clearQuickAddSession,
   fileFromDataUrl,
@@ -34,14 +50,31 @@ import {
 import { getApiV1Url } from "@/utils/endpoints";
 import { resolveImgUrl } from "@/utils/image";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
+import { cn } from "@/lib/utils";
 
 interface ProductRow {
   key: string;
   hint: string;
   price: string;
+  category?: string;
   brand: string;
+  series?: string;
   imageFile: File | null;
   imagePreview: string | null;
+  sizeGroupId?: string;
+  sizeLabel?: string;
+  color?: string;
+  specDiff?: string;
+  siblingGroupId?: string;
+  linkedExistingProduct?: {
+    id: string;
+    name: string;
+    image?: string;
+    price?: number;
+    category?: string;
+    brand?: string;
+    colorGroupId?: string;
+  };
 }
 
 type RowProcessStatus =
@@ -60,13 +93,50 @@ interface RowProgress {
   productName?: string;
 }
 
+const GROUP_THEMES = [
+  {
+    border: "border-blue-500/40",
+    bg: "bg-blue-500/10",
+    text: "text-blue-700 dark:text-blue-300",
+    dot: "bg-blue-500",
+  },
+  {
+    border: "border-purple-500/40",
+    bg: "bg-purple-500/10",
+    text: "text-purple-700 dark:text-purple-300",
+    dot: "bg-purple-500",
+  },
+  {
+    border: "border-emerald-500/40",
+    bg: "bg-emerald-500/10",
+    text: "text-emerald-700 dark:text-emerald-300",
+    dot: "bg-emerald-500",
+  },
+  {
+    border: "border-amber-500/40",
+    bg: "bg-amber-500/10",
+    text: "text-amber-700 dark:text-amber-300",
+    dot: "bg-amber-500",
+  },
+  {
+    border: "border-rose-500/40",
+    bg: "bg-rose-500/10",
+    text: "text-rose-700 dark:text-rose-300",
+    dot: "bg-rose-500",
+  },
+];
+
 const emptyRow = (): ProductRow => ({
   key: `row-${Date.now()}-${Math.random()}`,
   hint: "",
   price: "",
+  category: "",
   brand: "",
+  series: "",
   imageFile: null,
   imagePreview: null,
+  color: "",
+  specDiff: "",
 });
 
 const restoredSession = loadQuickAddSession();
@@ -89,13 +159,9 @@ const AdminProductQuickAdd = () => {
   const [bulkLimit, setBulkLimit] = useState(5);
   const [imageCountLimit, setImageCountLimit] = useState(1);
   const [aiOutputLanguageLabel, setAiOutputLanguageLabel] = useState("Dutch (Nederlands)");
-  const [rowProgress, setRowProgress] = useState<Record<string, RowProgress>>(
-    (restoredSession?.rowProgress as Record<string, RowProgress>) || {},
-  );
+  const [rowProgress, setRowProgress] = useState<Record<string, RowProgress>>({});
   const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
-  const [batchSummary, setBatchSummary] = useState<{ ok: number; failed: number; total: number } | null>(
-    restoredSession?.batchSummary || null,
-  );
+  const [batchSummary, setBatchSummary] = useState<{ ok: number; failed: number; total: number } | null>(null);
   
   // Media Picker states for specific rows
   const [mediaPickerRowKey, setMediaPickerRowKey] = useState<string | null>(null);
@@ -109,7 +175,7 @@ const AdminProductQuickAdd = () => {
     const rowKey = mediaPickerRowKey;
     setMediaPickerRowKey(null);
 
-    const toastId = toast.loading("Loading image from media library...");
+    const toastId = toast.loading(t("admin_quick_add.loading_media_image"));
     try {
       const resolvedUrl = resolveImgUrl(url);
       const filename = url.split("/").pop() || "media-image.jpg";
@@ -123,16 +189,78 @@ const AdminProductQuickAdd = () => {
         imageFile: file,
         imagePreview: resolvedUrl,
       });
-      toast.success("Image selected from media library", { id: toastId });
+      toast.success(t("admin_quick_add.media_image_selected"), { id: toastId });
     } catch (error) {
       console.error("Failed to load image from media library:", error);
-      toast.error("Failed to select image from media library", { id: toastId });
+      toast.error(t("admin_quick_add.media_image_failed"), { id: toastId });
     }
   };
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
+  const [seriesList, setSeriesList] = useState<Array<{ id: string; name: string; brandId: string }>>([]);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; slug: string; parentId?: string | null }>>([]);
   const imagePhaseTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const generatingRef = useRef(false);
   const sessionNotified = useRef(false);
+  const groupLeaderMap = useRef<Map<string, { name: string; color?: string; category?: string }>>(new Map());
+
+  // Link to Existing Live Catalog Product States
+  const [isLinkExistingModalOpen, setIsLinkExistingModalOpen] = useState(false);
+  const [linkExistingTargetRowKey, setLinkExistingTargetRowKey] = useState<string | null>(null);
+  const [existingSearchQuery, setExistingSearchQuery] = useState("");
+  const [existingFilterCategory, setExistingFilterCategory] = useState<string>("all");
+  const [existingCatalogProducts, setExistingCatalogProducts] = useState<any[]>([]);
+  const [isLoadingExistingCatalog, setIsLoadingExistingCatalog] = useState(false);
+
+  const loadExistingCatalogProducts = async (catSlug = existingFilterCategory, search = existingSearchQuery) => {
+    setIsLoadingExistingCatalog(true);
+    try {
+      const filters: Record<string, any> = { limit: 80 };
+      if (catSlug && catSlug !== "all") {
+        filters.category = catSlug;
+      }
+      if (search && search.trim()) {
+        filters.search = search.trim();
+      }
+      const res = await productRepository.getAll(filters);
+      if (res.success && res.products) {
+        setExistingCatalogProducts(res.products);
+      } else {
+        setExistingCatalogProducts([]);
+      }
+    } catch (err) {
+      console.error("Failed to load existing catalog products:", err);
+      setExistingCatalogProducts([]);
+    } finally {
+      setIsLoadingExistingCatalog(false);
+    }
+  };
+
+  const handleSelectExistingProductAsSibling = (prod: any) => {
+    if (!linkExistingTargetRowKey) return;
+    const assignedGid = prod.colorGroupId || `grp-prod-${prod.id}`;
+    const patch: Partial<ProductRow> = {
+      siblingGroupId: assignedGid,
+      // only overwrite when the store product has one (row.brand is read with .trim())
+      ...(prod.brand?.name ? { brand: prod.brand.name } : {}),
+      ...(prod.category?.slug || prod.category?.name ? { category: prod.category?.slug || prod.category?.name } : {}),
+      linkedExistingProduct: {
+        id: prod.id,
+        name: prod.name,
+        image: prod.image,
+        price: prod.price,
+        category: prod.category?.slug || prod.category?.name,
+        colorGroupId: assignedGid,
+      },
+    };
+    // The whole colour group (e.g. Gold + Black rows) becomes variants of the store product, not just this row
+    const targetGid = rows.find((r) => r.key === linkExistingTargetRowKey)?.siblingGroupId;
+    rows
+      .filter((r) => r.key === linkExistingTargetRowKey || (targetGid && r.siblingGroupId === targetGid))
+      .forEach((r) => updateRow(r.key, patch));
+    setIsLinkExistingModalOpen(false);
+    setLinkExistingTargetRowKey(null);
+    toast.success(t("admin_quick_add.toast_linked_to_product", { name: prod.name }) || `Gekoppeld aan: ${prod.name}`);
+  };
 
   const apiUrl = getApiV1Url();
   const authHeaders = { Authorization: `Bearer ${localStorage.getItem("admin_token")}` };
@@ -155,7 +283,64 @@ const AdminProductQuickAdd = () => {
         if (data.success && data.brands) setBrands(data.brands);
       })
       .catch(() => {});
+
+    seriesRepository
+      .getAll()
+      .then((data) => {
+        if (data.success && data.series) setSeriesList(data.series);
+      })
+      .catch(() => {});
+
+    categoryRepository
+      .getAll()
+      .then((data) => {
+        if (data.success && data.categories) setCategories(data.categories);
+      })
+      .catch(() => {});
   }, []);
+
+  const [liveDuplicates, setLiveDuplicates] = useState<Record<string, Array<{ id: string; name: string; slug: string; price: number }>>>({});
+
+  // Real-time debounced check as admin types in product hint
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    rows.forEach((row) => {
+      const hintText = row.hint.trim();
+      if (hintText.length >= 3) {
+        const timer = setTimeout(() => {
+          fetch(`${apiUrl}/ai/products/check-duplicate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({ text: hintText }),
+          })
+            .then((r) => r.json())
+            .then((res) => {
+              if (res.success && res.existingMatches?.length) {
+                setLiveDuplicates((prev) => ({ ...prev, [row.key]: res.existingMatches }));
+              } else {
+                setLiveDuplicates((prev) => {
+                  const next = { ...prev };
+                  delete next[row.key];
+                  return next;
+                });
+              }
+            })
+            .catch(() => {});
+        }, 400);
+        timers.push(timer);
+      } else {
+        setLiveDuplicates((prev) => {
+          const next = { ...prev };
+          delete next[row.key];
+          return next;
+        });
+      }
+    });
+
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+    };
+  }, [rows.map((r) => `${r.key}:${r.hint}`).join("|")]);
 
   useEffect(() => {
     return () => {
@@ -173,43 +358,91 @@ const AdminProductQuickAdd = () => {
     }
   }, [t]);
 
+  // Listen to localStorage changes across tabs for live progress sync
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "admin_quick_add_session" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.rowProgress) setRowProgress(parsed.rowProgress);
+          if (parsed.batchSummary) setBatchSummary(parsed.batchSummary);
+          if (parsed.isProcessing !== undefined) setIsGenerating(parsed.isProcessing);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
   useEffect(() => {
     const hasContent = rows.some((r) => r.hint.trim() || r.imagePreview || r.price.trim());
     const hasProgress = Object.keys(rowProgress).length > 0 || batchSummary;
     if (!hasContent && !hasProgress) return;
 
+    // Filter rowProgress to only include keys for current active rows
+    const validKeys = new Set(rows.map((r) => r.key));
+    const cleanRowProgress: Record<string, RowProgress> = {};
+    Object.keys(rowProgress).forEach((k) => {
+      if (validKeys.has(k)) {
+        cleanRowProgress[k] = rowProgress[k];
+      }
+    });
+
     saveQuickAddSession({
-      rows: rows.map(({ key, hint, price, brand, imagePreview }) => ({
+      rows: rows.map(({ key, hint, price, brand, series, category, imagePreview, sizeGroupId, sizeLabel, color, specDiff, siblingGroupId, linkedExistingProduct }) => ({
         key,
         hint,
         price,
         brand,
+        series,
+        category,
         imagePreview,
+        sizeGroupId,
+        sizeLabel,
+        color,
+        specDiff,
+        siblingGroupId,
+        linkedExistingProduct,
       })),
       imagePromptOverride,
-      rowProgress,
+      rowProgress: cleanRowProgress,
       batchSummary,
+      isProcessing: isGenerating,
     });
+  }, [rows, imagePromptOverride, rowProgress, batchSummary, isGenerating]);
+
+  const latestStateRef = useRef({ rows, imagePromptOverride, rowProgress, batchSummary });
+  useEffect(() => {
+    latestStateRef.current = { rows, imagePromptOverride, rowProgress, batchSummary };
   }, [rows, imagePromptOverride, rowProgress, batchSummary]);
 
   useEffect(() => {
-    return () => {
-      if (!generatingRef.current) return;
-      saveQuickAddSession({
-        rows: rows.map(({ key, hint, price, brand, imagePreview }) => ({
-          key,
-          hint,
-          price,
-          brand,
-          imagePreview,
-        })),
-        imagePromptOverride,
-        rowProgress,
-        batchSummary,
-        interrupted: true,
-      });
+    const handleUnload = () => {
+      if (generatingRef.current) {
+        const { rows, imagePromptOverride, rowProgress, batchSummary } = latestStateRef.current;
+        saveQuickAddSession({
+          rows: rows.map(({ key, hint, price, brand, imagePreview }) => ({
+            key,
+            hint,
+            price,
+            brand,
+            imagePreview,
+          })),
+          imagePromptOverride,
+          rowProgress,
+          batchSummary,
+          interrupted: true,
+        });
+      }
     };
-  }, [rows, imagePromptOverride, rowProgress, batchSummary]);
+
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+      handleUnload();
+    };
+  }, []);
 
   if (!hasPermission("products") && !hasPermission("ai")) {
     return (
@@ -221,6 +454,134 @@ const AdminProductQuickAdd = () => {
 
   const updateRow = (key: string, patch: Partial<ProductRow>) => {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  };
+
+  // Multi-Size Generator states & presets
+  interface SizeVariationItem {
+    id: string;
+    label: string;
+    price: string;
+  }
+
+  const SIZE_PRESETS = [
+    {
+      label: "🔘 Diameter (Ø 40cm, 60cm, 80cm)",
+      sizes: ["Ø 40 cm", "Ø 60 cm", "Ø 80 cm"],
+    },
+    {
+      label: "📏 Lengte (80cm, 100cm, 120cm)",
+      sizes: ["80 cm", "100 cm", "120 cm"],
+    },
+    {
+      label: "💍 Ringen (2-Ring, 3-Ring, 4-Ring)",
+      sizes: ["2-Ring", "3-Ring", "4-Ring"],
+    },
+    {
+      label: "💡 Lichts (3-Lichts, 5-Lichts, 7-Lichts)",
+      sizes: ["3-Lichts", "5-Lichts", "7-Lichts"],
+    },
+    {
+      label: "🏷️ Maten (Small, Medium, Large)",
+      sizes: ["Small", "Medium", "Large"],
+    },
+    {
+      label: "🏷️ Maten (S, M, L, XL)",
+      sizes: ["S", "M", "L", "XL"],
+    },
+    {
+      label: "🏷️ Maten (Klein, Groot)",
+      sizes: ["Klein", "Groot"],
+    },
+  ];
+
+  const [isSizeModalOpen, setIsSizeModalOpen] = useState(false);
+  const [sizeTargetRowKey, setSizeTargetRowKey] = useState<string | null>(null);
+  const [sizeBaseHint, setSizeBaseHint] = useState("");
+  const [sizeVariations, setSizeVariations] = useState<SizeVariationItem[]>([
+    { id: "1", label: "Ø 40 cm", price: "69.95" },
+    { id: "2", label: "Ø 60 cm", price: "89.95" },
+    { id: "3", label: "Ø 80 cm", price: "119.95" },
+  ]);
+
+  const openMultiSizeModal = (row: ProductRow) => {
+    setSizeTargetRowKey(row.key);
+    // Strip common size suffixes from hint to get clean base title if present
+    const cleanHint = row.hint.replace(/[-–—]?\s*(?:Ø\s*\d+(?:[-/]\d+)?\s*(?:cm|mm)?|\b\d+(?:[-/]\d+)?\s*(?:cm|mm)\b|\b\d+\s*x\s*\d+(?:\s*x\s*\d+)?\s*(?:cm|mm)?|\b\d+[- ](?:ring|lichts|rings)\b|\b(?:extra\s+large|small|medium|large|xs|xl|xxl|xxxl|2xl|3xl|klein|groot|middel)\b).*$/i, "").trim();
+    setSizeBaseHint(cleanHint || row.hint.trim());
+
+    const baseP = row.price.trim() ? parseFloat(row.price) : 89.95;
+    setSizeVariations([
+      { id: "1", label: "Ø 40 cm", price: isNaN(baseP) ? "69.95" : (baseP * 0.8).toFixed(2) },
+      { id: "2", label: "Ø 60 cm", price: isNaN(baseP) ? "89.95" : baseP.toFixed(2) },
+      { id: "3", label: "Ø 80 cm", price: isNaN(baseP) ? "119.95" : (baseP * 1.35).toFixed(2) },
+    ]);
+    setIsSizeModalOpen(true);
+  };
+
+  const applySizePreset = (presetSizes: string[]) => {
+    const baseP = parseFloat(sizeVariations[0]?.price || "89.95") || 89.95;
+    const newItems: SizeVariationItem[] = presetSizes.map((sz, idx) => {
+      const multiplier = idx === 0 ? 0.85 : idx === 1 ? 1 : 1 + idx * 0.3;
+      return {
+        id: `sz-${Date.now()}-${idx}`,
+        label: sz,
+        price: (baseP * multiplier).toFixed(2),
+      };
+    });
+    setSizeVariations(newItems);
+  };
+
+  const handleApplySizesToBatch = () => {
+    if (!sizeTargetRowKey) return;
+    const validSizes = sizeVariations.filter((s) => s.label.trim().length > 0);
+    if (validSizes.length === 0) {
+      toast.error(t("admin_quick_add.toast_min_one_size"));
+      return;
+    }
+
+    const targetIndex = rows.findIndex((r) => r.key === sizeTargetRowKey);
+    if (targetIndex === -1) return;
+
+    const baseRow = rows[targetIndex];
+    const cleanBaseHint = sizeBaseHint.trim() || baseRow.hint.trim();
+    const groupId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    // Update the base row to be size 1
+    const firstSize = validSizes[0];
+    const updatedBaseRow: ProductRow = {
+      ...baseRow,
+      hint: cleanBaseHint ? `${cleanBaseHint} - ${firstSize.label}` : firstSize.label,
+      price: firstSize.price || baseRow.price,
+      sizeGroupId: groupId,
+      sizeLabel: firstSize.label,
+    };
+
+    // Create rows for the remaining sizes
+    const newSizeRows: ProductRow[] = validSizes.slice(1).map((s) => ({
+      key: `row-${Date.now()}-${Math.random()}`,
+      hint: cleanBaseHint ? `${cleanBaseHint} - ${s.label}` : s.label,
+      price: s.price || baseRow.price,
+      category: baseRow.category,
+      brand: baseRow.brand,
+      series: baseRow.series,
+      imageFile: baseRow.imageFile,
+      imagePreview: baseRow.imagePreview,
+      sizeGroupId: groupId,
+      sizeLabel: s.label,
+    }));
+
+    const totalAfterAdding = rows.length - 1 + validSizes.length;
+    if (totalAfterAdding > bulkLimit) {
+      toast.warning(t("admin_quick_add.toast_bulk_limit_warning", { sizes: validSizes.length, total: totalAfterAdding }));
+    }
+
+    // Insert new size rows immediately following the base row
+    const newRows = [...rows];
+    newRows.splice(targetIndex, 1, updatedBaseRow, ...newSizeRows);
+    setRows(newRows);
+
+    setIsSizeModalOpen(false);
+    toast.success(t("admin_quick_add.toast_sizes_generated", { count: validSizes.length }));
   };
 
   const patchRowProgress = (key: string, patch: Partial<RowProgress>) => {
@@ -239,7 +600,7 @@ const AdminProductQuickAdd = () => {
         if (!current || current.status !== "analyzing") return prev;
         return { ...prev, [key]: { ...current, status: "images" } };
       });
-    }, 3500);
+    }, 7000);
     imagePhaseTimers.current.set(key, timer);
   };
 
@@ -253,6 +614,10 @@ const AdminProductQuickAdd = () => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error(t("admin_quick_add.toast_invalid_image"));
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error(t("admin_quick_add.toast_image_too_large"));
       return;
     }
     const reader = new FileReader();
@@ -275,7 +640,80 @@ const AdminProductQuickAdd = () => {
     setRows((prev) => prev.filter((r) => r.key !== key));
   };
 
+  const duplicateRow = (key: string) => {
+    if (rows.length >= bulkLimit) {
+      toast.error(t("admin_quick_add.toast_bulk_limit", { limit: bulkLimit }));
+      return;
+    }
+    const targetIdx = rows.findIndex((r) => r.key === key);
+    if (targetIdx < 0) return;
+    const target = rows[targetIdx];
+
+    const existingGroup = target.siblingGroupId || target.sizeGroupId;
+    const assignedGroup = existingGroup || `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    const updatedTarget: ProductRow = {
+      ...target,
+      siblingGroupId: assignedGroup,
+    };
+
+    const clonedRow: ProductRow = {
+      key: `row-${Date.now()}-${Math.random()}`,
+      hint: target.hint,
+      price: target.price,
+      brand: target.brand,
+      series: target.series,
+      category: target.category,
+      imageFile: target.imageFile,
+      imagePreview: target.imagePreview,
+      // Colour / spec differences now come from the hint; a copied (hidden) colour would override it
+      color: "",
+      specDiff: "",
+      siblingGroupId: assignedGroup,
+    };
+
+    const nextRows = [...rows];
+    nextRows.splice(targetIdx, 1, updatedTarget, clonedRow);
+    setRows(nextRows);
+    toast.success(t("admin_quick_add.toast_duplicated"));
+  };
+
+  const toggleSiblingLink = (key: string) => {
+    const target = rows.find((r) => r.key === key);
+    if (!target) return;
+
+    if (target.siblingGroupId || target.sizeGroupId) {
+      updateRow(key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined });
+      toast.info(t("admin_quick_add.toast_sibling_unlinked"));
+    } else {
+      const otherGroup = rows.find((r) => r.key !== key && (r.siblingGroupId || r.sizeGroupId));
+      const newGroup =
+        otherGroup?.siblingGroupId ||
+        otherGroup?.sizeGroupId ||
+        `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      updateRow(key, { siblingGroupId: newGroup });
+      toast.success(t("admin_quick_add.toast_sibling_linked"));
+    }
+  };
+
   const validRows = rows.filter((r) => r.imageFile || r.imagePreview || r.hint.trim());
+
+  const groupInfoMap = useMemo(() => {
+    const map = new Map<string, { groupNum: number; count: number; theme: (typeof GROUP_THEMES)[0] }>();
+    let num = 1;
+    rows.forEach((r) => {
+      const gid = r.siblingGroupId || r.sizeGroupId;
+      if (gid) {
+        if (!map.has(gid)) {
+          const theme = GROUP_THEMES[(num - 1) % GROUP_THEMES.length];
+          map.set(gid, { groupNum: num++, count: 1, theme });
+        } else {
+          map.get(gid)!.count++;
+        }
+      }
+    });
+    return map;
+  }, [rows]);
 
   const resolveRowImageFile = (row: ProductRow): File | null => {
     if (row.imageFile) return row.imageFile;
@@ -292,6 +730,184 @@ const AdminProductQuickAdd = () => {
     setBatchSummary(null);
     setActiveRowKey(null);
     setImagePromptOverride("");
+    groupLeaderMap.current.clear();
+  };
+
+  const processRow = async (row: ProductRow, index: number = 0): Promise<boolean> => {
+    // Stagger request start by 600ms per row to prevent API rate spikes while running in parallel
+    if (index > 0) {
+      await new Promise((r) => setTimeout(r, index * 600));
+    }
+
+    patchRowProgress(row.key, { status: "analyzing", error: undefined });
+    startImagePhaseTimer(row.key);
+
+    const formData = new FormData();
+    const imageFile = resolveRowImageFile(row);
+    if (imageFile) formData.append("image", imageFile);
+    if (row.hint.trim()) formData.append("hint", row.hint.trim());
+    if (row.price.trim()) formData.append("price", row.price.trim());
+    if (row.brand.trim()) formData.append("brandName", row.brand.trim());
+    if (row.series?.trim()) formData.append("seriesName", row.series.trim());
+    if (row.category?.trim()) formData.append("category", row.category.trim());
+    if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
+    const effGroupId = row.siblingGroupId || row.sizeGroupId;
+    if (effGroupId) {
+      formData.append("siblingGroupId", effGroupId);
+      // A linked store product is the leader; sending both would turn these fields into arrays
+      const leader = row.linkedExistingProduct ? undefined : groupLeaderMap.current.get(effGroupId);
+      if (leader) {
+        if (leader.name) formData.append("baseProductTitle", leader.name);
+        if (leader.color) formData.append("leaderColor", leader.color);
+        if (leader.category) formData.append("leaderCategory", leader.category);
+      }
+    }
+    if (row.linkedExistingProduct) {
+      formData.append("linkedExistingProductId", row.linkedExistingProduct.id);
+      formData.append("baseProductTitle", row.linkedExistingProduct.name);
+      if (row.linkedExistingProduct.category) {
+        formData.append("leaderCategory", row.linkedExistingProduct.category);
+      }
+    }
+    if (row.sizeGroupId) formData.append("sizeGroupId", row.sizeGroupId);
+    if (row.sizeLabel) formData.append("sizeLabel", row.sizeLabel);
+
+    let lastErrorMsg = "";
+
+    // Allow 1 retry per row in case of transient network or rate limit error
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        if (attempt > 1) {
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+
+        const response = await fetch(`${apiUrl}/ai/products/quick-add`, {
+          method: "POST",
+          body: formData,
+          headers: authHeaders,
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Failed");
+        }
+
+        if (effGroupId && !groupLeaderMap.current.has(effGroupId)) {
+          groupLeaderMap.current.set(effGroupId, {
+            name: data.draft?.name || "",
+            color: row.color?.trim() || "",
+            category: data.draft?.category || row.category?.trim() || "",
+          });
+        }
+
+        clearImagePhaseTimer(row.key);
+        patchRowProgress(row.key, {
+          status: "done",
+          draftId: data.draftId,
+          productName: data.draft?.name || row.hint.trim() || t("admin_drafts.untitled"),
+        });
+        return true;
+      } catch (error: any) {
+        lastErrorMsg = error.message || t("admin_quick_add.toast_failed");
+      }
+    }
+
+    clearImagePhaseTimer(row.key);
+    patchRowProgress(row.key, {
+      status: "failed",
+      error: lastErrorMsg,
+    });
+    return false;
+  };
+
+  const retrySingleRow = async (rowKey: string) => {
+    if (isGenerating) return;
+    const targetRow = rows.find((r) => r.key === rowKey);
+    if (!targetRow) return;
+
+    if (!targetRow.imageFile && !targetRow.imagePreview && !targetRow.hint.trim()) {
+      toast.error(t("admin_quick_add.toast_missing_info"));
+      return;
+    }
+
+    setIsGenerating(true);
+    generatingRef.current = true;
+    setActiveRowKey(rowKey);
+    patchRowProgress(rowKey, { status: "queued", error: undefined });
+
+    const success = await processRow(targetRow, 0);
+
+    setActiveRowKey(null);
+    setIsGenerating(false);
+    generatingRef.current = false;
+
+    // Recalculate summary with latest status
+    setBatchSummary(() => {
+      let okCount = 0;
+      let failedCount = 0;
+      validRows.forEach((r) => {
+        const s = r.key === rowKey ? (success ? "done" : "failed") : rowProgress[r.key]?.status;
+        if (s === "done") okCount++;
+        else if (s === "failed") failedCount++;
+      });
+      return { ok: okCount, failed: failedCount, total: validRows.length };
+    });
+
+    if (success) {
+      toast.success(
+        targetRow.sizeLabel
+          ? t("admin_quick_add.toast_size_success", { size: targetRow.sizeLabel })
+          : t("admin_quick_add.toast_bulk_success", { ok: 1, total: 1 })
+      );
+    } else {
+      toast.error(t("admin_quick_add.toast_retry_failed"));
+    }
+  };
+
+  const retryAllFailedRows = async () => {
+    if (isGenerating) return;
+    const failedRows = validRows.filter((r) => rowProgress[r.key]?.status === "failed");
+    if (failedRows.length === 0) return;
+
+    setIsGenerating(true);
+    generatingRef.current = true;
+    setActiveRowKey(null);
+
+    failedRows.forEach((r) => {
+      patchRowProgress(r.key, { status: "queued", error: undefined });
+    });
+
+    let newlyOk = 0;
+    for (let i = 0; i < failedRows.length; i++) {
+      const row = failedRows[i];
+      setActiveRowKey(row.key);
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+      const ok = await processRow(row, i);
+      if (ok) newlyOk++;
+    }
+
+    setActiveRowKey(null);
+    setIsGenerating(false);
+    generatingRef.current = false;
+
+    setBatchSummary(() => {
+      let okCount = 0;
+      let failedCount = 0;
+      validRows.forEach((r) => {
+        const s = rowProgress[r.key]?.status;
+        if (s === "done") okCount++;
+        else if (s === "failed") failedCount++;
+      });
+      return { ok: okCount, failed: failedCount, total: validRows.length };
+    });
+
+    if (newlyOk > 0) {
+      toast.success(t("admin_quick_add.toast_retry_success", { count: newlyOk }));
+    } else {
+      toast.error(t("admin_quick_add.toast_retry_failed"));
+    }
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -301,7 +917,10 @@ const AdminProductQuickAdd = () => {
       return;
     }
 
+    clearQuickAddSession();
     setBatchSummary(null);
+    setRowProgress({});
+    groupLeaderMap.current.clear();
     setIsGenerating(true);
     generatingRef.current = true;
     setActiveRowKey(null);
@@ -313,52 +932,24 @@ const AdminProductQuickAdd = () => {
     setRowProgress(initial);
 
     let ok = 0;
-
-    for (const row of validRows) {
+    for (let rowIndex = 0; rowIndex < validRows.length; rowIndex++) {
+      const row = validRows[rowIndex];
       setActiveRowKey(row.key);
-      patchRowProgress(row.key, { status: "analyzing", error: undefined });
-      startImagePhaseTimer(row.key);
-
-      const formData = new FormData();
-      const imageFile = resolveRowImageFile(row);
-      if (imageFile) formData.append("image", imageFile);
-      if (row.hint.trim()) formData.append("hint", row.hint.trim());
-      if (row.price.trim()) formData.append("price", row.price.trim());
-      if (row.brand.trim()) formData.append("brandName", row.brand.trim());
-      if (imagePromptOverride.trim()) formData.append("imagePromptOverride", imagePromptOverride.trim());
-
-      try {
-        const response = await fetch(`${apiUrl}/ai/products/quick-add`, {
-          method: "POST",
-          body: formData,
-          headers: authHeaders,
-        });
-        const data = await response.json();
-        clearImagePhaseTimer(row.key);
-
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || "Failed");
-        }
-
-        patchRowProgress(row.key, {
-          status: "done",
-          draftId: data.draftId,
-          productName: data.draft?.name || row.hint.trim() || t("admin_drafts.untitled"),
-        });
-        ok += 1;
-      } catch (error: any) {
-        clearImagePhaseTimer(row.key);
-        patchRowProgress(row.key, {
-          status: "failed",
-          error: error.message || t("admin_quick_add.toast_failed"),
-        });
+      if (rowIndex > 0) {
+        await new Promise((r) => setTimeout(r, 1200));
       }
+      const success = await processRow(row, rowIndex);
+      if (success) ok += 1;
     }
 
     setActiveRowKey(null);
     setIsGenerating(false);
     generatingRef.current = false;
     setBatchSummary({ ok, failed: validRows.length - ok, total: validRows.length });
+
+    if (ok === validRows.length) {
+      clearQuickAddSession();
+    }
 
     if (ok > 0) {
       toast.success(t("admin_quick_add.toast_bulk_success", { ok, total: validRows.length }));
@@ -482,6 +1073,9 @@ const AdminProductQuickAdd = () => {
               {validRows.map((row, index) => {
                 const prog = rowProgress[row.key];
                 const isActive = row.key === activeRowKey;
+                const origIdx = rows.findIndex((r) => r.key === row.key);
+                const displayNum = origIdx >= 0 ? origIdx + 1 : index + 1;
+
                 return (
                   <div
                     key={`prog-${row.key}`}
@@ -498,7 +1092,7 @@ const AdminProductQuickAdd = () => {
                     <StatusIcon status={prog?.status} />
                     <div className="min-w-0 flex-1 overflow-hidden">
                       <p className="font-semibold truncate">
-                        {t("admin_quick_add.product_row", { n: index + 1 })}
+                        {t("admin_quick_add.product_row", { n: displayNum })}
                         {row.hint.trim() ? `: ${row.hint.trim()}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">{statusLabel(prog?.status)}</p>
@@ -514,8 +1108,23 @@ const AdminProductQuickAdd = () => {
                           <ExternalLink className="h-3 w-3 shrink-0" />
                         </a>
                       )}
-                      {prog?.status === "failed" && prog.error && (
-                        <p className="text-xs text-destructive mt-1 line-clamp-2">{prog.error}</p>
+                      {prog?.status === "failed" && (
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <p className="text-xs text-destructive break-all flex-1">
+                            {prog.error || "Unknown error — check backend logs"}
+                          </p>
+                          {!isGenerating && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[11px] text-destructive hover:bg-destructive/10 border-destructive/30 px-2 rounded-md shrink-0 flex items-center gap-1"
+                              onClick={() => retrySingleRow(row.key)}
+                            >
+                              <RefreshCw className="h-3 w-3" /> {t("admin_quick_add.btn_retry")}
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -525,6 +1134,16 @@ const AdminProductQuickAdd = () => {
 
             {batchSummary && !isGenerating && (
               <div className="flex flex-wrap gap-2 pt-2">
+                {failedCount > 0 && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="rounded-xl gap-2 shadow-sm"
+                    onClick={retryAllFailedRows}
+                  >
+                    <RefreshCw className="h-4 w-4" /> {t("admin_quick_add.btn_retry_all", { count: failedCount })}
+                  </Button>
+                )}
                 <Button type="button" className="rounded-xl gap-2" onClick={() => navigate("/admin/product-drafts")}>
                   <FileText className="h-4 w-4" /> {t("admin_quick_add.view_drafts")}
                 </Button>
@@ -542,11 +1161,19 @@ const AdminProductQuickAdd = () => {
           <CardContent className="p-6 space-y-6 min-w-0">
             {rows.map((row, index) => {
               const prog = rowProgress[row.key];
+              const effectiveGid = row.siblingGroupId || row.sizeGroupId;
+              const groupInfo = effectiveGid ? groupInfoMap.get(effectiveGid) : null;
               return (
                 <div key={row.key} className={`p-4 rounded-xl border space-y-4 transition-all min-w-0 overflow-hidden ${rowBorderClass(row.key)}`}>
                   <div className="flex items-center justify-between gap-2 min-w-0">
                     <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                       <span className="text-sm font-bold">{t("admin_quick_add.product_row", { n: index + 1 })}</span>
+                      {row.sizeLabel && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1 shrink-0">
+                          <Ruler className="h-3 w-3 text-amber-600" />
+                          <span>{row.sizeLabel}</span>
+                        </span>
+                      )}
                       {prog?.status && prog.status !== "idle" && (
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
@@ -564,22 +1191,196 @@ const AdminProductQuickAdd = () => {
                         </span>
                       )}
                     </div>
-                    {rows.length > 1 && !isGenerating && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(row.key)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {prog?.status === "failed" && !isGenerating && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => retrySingleRow(row.key)}
+                          className="h-7 text-xs rounded-lg gap-1.5 font-semibold shrink-0 shadow-sm"
+                          title={t("admin_quick_add.btn_retry")}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          <span>{t("admin_quick_add.btn_retry")}</span>
+                        </Button>
+                      )}
+                      {isGenerating && activeRowKey === row.key && (
+                        <span className="text-xs text-primary flex items-center gap-1 font-medium px-2 py-0.5 bg-primary/10 rounded-md">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("admin_quick_add.processing_indicator")}
+                        </span>
+                      )}
+                      <Select
+                        value={row.linkedExistingProduct ? "link_existing_active" : effectiveGid || "none"}
+                        onValueChange={(val) => {
+                          if (val === "none") {
+                            updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined, linkedExistingProduct: undefined });
+                            toast.info(t("admin_quick_add.toast_sibling_unlinked"));
+                          } else if (val === "link_existing") {
+                            setLinkExistingTargetRowKey(row.key);
+                            setIsLinkExistingModalOpen(true);
+                            loadExistingCatalogProducts(existingFilterCategory, "");
+                          } else if (val === "new_group") {
+                            const newGid = `grp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+                            updateRow(row.key, { siblingGroupId: newGid, linkedExistingProduct: undefined });
+                            toast.success(t("admin_quick_add.toast_new_group_created"));
+                          } else if (val !== "link_existing_active") {
+                            updateRow(row.key, { siblingGroupId: val, linkedExistingProduct: undefined });
+                            toast.success(t("admin_quick_add.toast_sibling_linked"));
+                          }
+                        }}
+                        disabled={isGenerating}
+                      >
+                        <SelectTrigger
+                          className={cn(
+                            "h-7 text-[11px] font-semibold rounded-lg border gap-1.5 px-2.5 py-0 shadow-2xs transition-all w-auto max-w-[210px]",
+                            row.linkedExistingProduct
+                              ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                              : groupInfo
+                              ? cn(groupInfo.theme.bg, groupInfo.theme.border, groupInfo.theme.text)
+                              : "bg-background/80 hover:bg-muted text-muted-foreground border-border/70 border-dashed"
+                          )}
+                        >
+                          <Link2 className="h-3 w-3 shrink-0" />
+                          <SelectValue>
+                            {row.linkedExistingProduct ? (
+                              <span className="truncate max-w-[140px] block">
+                                🔗 {row.linkedExistingProduct.name}
+                              </span>
+                            ) : groupInfo ? (
+                              groupInfo.count > 1
+                                ? t("admin_quick_add.badge_group_linked", {
+                                    num: groupInfo.groupNum,
+                                    count: groupInfo.count,
+                                  })
+                                : t("admin_quick_add.badge_group_single", {
+                                    num: groupInfo.groupNum,
+                                  })
+                            ) : (
+                              t("admin_quick_add.select_group_none")
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                          <SelectItem value="none" className="text-xs">
+                            {t("admin_quick_add.opt_standalone")}
+                          </SelectItem>
+                          {Array.from(groupInfoMap.entries()).map(([gid, info]) => (
+                            <SelectItem key={gid} value={gid} className="text-xs font-semibold">
+                              <div className="flex items-center gap-2">
+                                <span className={cn("w-2 h-2 rounded-full", info.theme.dot)} />
+                                <span>
+                                  {t("admin_quick_add.badge_group_linked", {
+                                    num: info.groupNum,
+                                    count: info.count,
+                                  })}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="new_group" className="text-xs text-primary font-bold">
+                            <div className="flex items-center gap-1.5">
+                              <Plus className="h-3 w-3" />
+                              <span>
+                                {t("admin_quick_add.opt_start_new_group", {
+                                  num: groupInfoMap.size + (effectiveGid && groupInfo?.count === 1 ? 0 : 1),
+                                })}
+                              </span>
+                            </div>
+                          </SelectItem>
+                          {row.linkedExistingProduct && (
+                            <SelectItem value="link_existing_active" className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                              🔗 {row.linkedExistingProduct.name}
+                            </SelectItem>
+                          )}
+                          <SelectItem value="link_existing" className="text-xs text-amber-600 dark:text-amber-400 font-bold border-t mt-1 pt-1.5 cursor-pointer">
+                            <div className="flex items-center gap-1.5">
+                              <Search className="h-3 w-3" />
+                              <span>{t("admin_quick_add.opt_link_existing", "🔍 Koppel aan winkelproduct...")}</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {!row.linkedExistingProduct && !isGenerating && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setLinkExistingTargetRowKey(row.key);
+                            setIsLinkExistingModalOpen(true);
+                            loadExistingCatalogProducts(existingFilterCategory, "");
+                          }}
+                          className="h-7 text-xs rounded-lg gap-1 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-medium shrink-0"
+                          title="Kies een bestaand winkelproduct als referentie; dit product wordt er als variant aan gekoppeld"
+                        >
+                          <Search className="h-3.5 w-3.5" />
+                          <span>Referentie</span>
+                        </Button>
+                      )}
+                      {(effectiveGid || row.linkedExistingProduct) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            updateRow(row.key, { siblingGroupId: undefined, sizeGroupId: undefined, sizeLabel: undefined, linkedExistingProduct: undefined });
+                            toast.info(t("admin_quick_add.toast_sibling_unlinked"));
+                          }}
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0"
+                          title={t("admin_quick_add.unlink_sibling_tooltip")}
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {!isGenerating && rows.length < bulkLimit && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => duplicateRow(row.key)}
+                          className="h-7 text-xs rounded-lg gap-1 border-border/80 hover:bg-muted text-foreground font-medium shrink-0"
+                          title={t("admin_quick_add.duplicate_tooltip")}
+                        >
+                          <Copy className="h-3.5 w-3.5 text-primary" />
+                          <span>{t("admin_quick_add.btn_duplicate")}</span>
+                        </Button>
+                      )}
+                      {!isGenerating && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openMultiSizeModal(row)}
+                          className="h-7 text-xs rounded-lg gap-1 border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium shrink-0"
+                          title={t("admin_quick_add.add_sizes_tooltip")}
+                        >
+                          <Ruler className="h-3.5 w-3.5 text-amber-500" />
+                          <span>{row.sizeLabel ? t("admin_quick_add.size_label_badge", { size: row.sizeLabel }) : t("admin_quick_add.btn_add_sizes")}</span>
+                        </Button>
+                      )}
+                      {rows.length > 1 && !isGenerating && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(row.key)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {(prog?.status === "analyzing" || prog?.status === "images") && row.key === activeRowKey && (
                     <div className="flex flex-wrap gap-2 text-[11px]">
-                      <StepPill done={true} active={prog.status === "analyzing"} label={t("admin_quick_add.step_analyze")} />
                       <StepPill
-                        done={prog.status === "images"}
+                        done={prog.status === "images" || prog.status === "done"}
+                        active={prog.status === "analyzing"}
+                        label={t("admin_quick_add.step_analyze")}
+                      />
+                      <StepPill
+                        done={prog.status === "done"}
                         active={prog.status === "images"}
                         label={t("admin_quick_add.step_images", { count: imageCountLimit })}
                       />
-                      <StepPill done={false} active={false} label={t("admin_quick_add.step_save")} />
+                      <StepPill done={prog.status === "done"} active={false} label={t("admin_quick_add.step_save")} />
                     </div>
                   )}
 
@@ -600,7 +1401,7 @@ const AdminProductQuickAdd = () => {
                             disabled={isGenerating}
                             onClick={() => openMediaSelectorForRow(row.key)}
                           >
-                            <ImageIcon className="h-3 w-3 text-primary/80" /> Media Library
+                            <ImageIcon className="h-3 w-3 text-primary/80" /> {t("admin_quick_add.btn_media_library")}
                           </Button>
                         </div>
                       ) : (
@@ -641,31 +1442,191 @@ const AdminProductQuickAdd = () => {
                           ))}
                         </div>
                       )}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                        {/* Price */}
                         <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
-                          <Input value={row.price} onChange={(e) => updateRow(row.key, { price: e.target.value })} placeholder="89.95" className="pl-6 h-9 text-sm" disabled={isGenerating} />
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">€</span>
+                          <Input
+                            value={row.price}
+                            onChange={(e) => updateRow(row.key, { price: e.target.value })}
+                            placeholder="89.95"
+                            className="pl-7 h-9 text-xs"
+                            disabled={isGenerating}
+                          />
                         </div>
+
+                        {/* Category */}
                         <Select
-                          value={row.brand || "none"}
-                          onValueChange={(v) => updateRow(row.key, { brand: v === "none" ? "" : v })}
+                          value={row.category || "auto"}
+                          onValueChange={(v) => updateRow(row.key, { category: v === "auto" ? "" : v })}
                           disabled={isGenerating}
                         >
-                          <SelectTrigger className="h-9 text-sm">
-                            <SelectValue placeholder={t("admin_product_form.placeholder_brand")} />
+                          <SelectTrigger className="h-9 text-xs truncate">
+                            <SelectValue placeholder={t("admin_quick_add.category_placeholder")} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            <SelectItem value="auto" className="text-xs italic text-muted-foreground">
+                              {t("admin_quick_add.category_auto")}
+                            </SelectItem>
+                            {(() => {
+                              const hasChildren = new Set(categories.filter((c) => c.parentId).map((c) => c.parentId));
+                              const selectable = categories.filter((c) => !hasChildren.has(c.id));
+                              const list = selectable.length > 0 ? selectable : categories;
+                              return list.map((c) => (
+                                <SelectItem key={c.id || c.slug} value={c.slug} className="text-xs">
+                                  {c.name}
+                                </SelectItem>
+                              ));
+                            })()}
+                          </SelectContent>
+                        </Select>
+
+                        {/* Brand */}
+                        <Select
+                          value={row.brand || "none"}
+                          onValueChange={(v) => {
+                            const brandVal = v === "none" ? "" : v;
+                            updateRow(row.key, { brand: brandVal });
+                          }}
+                          disabled={isGenerating}
+                        >
+                          <SelectTrigger className="h-9 text-xs truncate">
+                            <SelectValue placeholder={t("admin_product_form.placeholder_brand", "Select Brand")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none" className="text-sm italic text-muted-foreground">
-                              {t("admin_product_form.brand_none")}
+                            <SelectItem value="none" className="text-xs italic text-muted-foreground">
+                              {t("admin_product_form.brand_none", "Auto / No Brand")}
                             </SelectItem>
                             {brands.map((b) => (
-                              <SelectItem key={b.id} value={b.name} className="text-sm">
+                              <SelectItem key={b.id} value={b.name} className="text-xs">
                                 {b.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+
+                        {/* Series (Collection) */}
+                        <Select
+                          value={row.series || "auto"}
+                          onValueChange={(v) => updateRow(row.key, { series: v === "auto" ? "" : v })}
+                          disabled={isGenerating}
+                        >
+                          <SelectTrigger className="h-9 text-xs truncate">
+                            <SelectValue placeholder={t("admin_quick_add.series_placeholder")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto" className="text-xs italic text-muted-foreground">
+                              {t("admin_quick_add.series_auto")}
+                            </SelectItem>
+                            {(() => {
+                              const selectedBrandId = brands.find((b) => b.name === row.brand)?.id;
+                              const filteredSeries = selectedBrandId
+                                ? seriesList.filter((s) => s.brandId === selectedBrandId)
+                                : seriesList;
+                              const listToShow = filteredSeries.length > 0 ? filteredSeries : seriesList;
+                              return listToShow.map((s) => (
+                                <SelectItem key={s.id} value={s.name} className="text-xs">
+                                  {s.name}
+                                </SelectItem>
+                              ));
+                            })()}
+                          </SelectContent>
+                        </Select>
                       </div>
+
+                      {/* Linked Existing Product Banner */}
+                      {row.linkedExistingProduct && (
+                        <div className="mt-3 flex items-center justify-between gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {row.linkedExistingProduct.image ? (
+                              <img
+                                src={resolveImgUrl(row.linkedExistingProduct.image)}
+                                alt=""
+                                className="w-7 h-7 rounded object-cover border border-amber-500/30 shrink-0"
+                              />
+                            ) : (
+                              <Layers className="h-4 w-4 text-amber-500 shrink-0" />
+                            )}
+                            <div className="truncate">
+                              <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 block leading-tight">
+                                Gekoppeld live winkelproduct
+                              </span>
+                              <span className="font-semibold text-foreground truncate block text-xs">
+                                {row.linkedExistingProduct.name}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => {
+                              updateRow(row.key, {
+                                linkedExistingProduct: undefined,
+                                siblingGroupId: undefined,
+                              });
+                              toast.info("Koppeling met winkelproduct verwijderd");
+                            }}
+                            title="Ontkoppel product"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
+
+                      {((prog?.existingMatches && prog.existingMatches.length > 0) || (liveDuplicates[row.key] && liveDuplicates[row.key].length > 0)) && (
+                        <div className="mt-3 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 text-xs space-y-1.5">
+                          <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                            <span>⚠️</span> {t("admin_quick_add.duplicate_warning_title")}
+                          </p>
+                          <div className="space-y-1 pt-1">
+                            {(prog?.existingMatches || liveDuplicates[row.key] || []).map((m) => (
+                              <div key={m.id} className="flex items-center justify-between gap-2 border-t border-amber-500/20 pt-1.5">
+                                <span className="font-semibold truncate max-w-[260px]" title={m.name}>
+                                  • {m.name} (€{m.price})
+                                </span>
+                                <a
+                                  href={m.slug.startsWith("drafts/") ? `/admin/product-drafts/${m.id}` : `/product/${m.slug}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] text-amber-900 underline hover:text-amber-950 font-bold shrink-0 flex items-center gap-1"
+                                >
+                                  {t("admin_quick_add.view_product")}
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {prog?.status === "failed" && (
+                        <div className="mt-3 p-3.5 rounded-xl border border-destructive/40 bg-destructive/10 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+                            <div className="min-w-0">
+                              <p className="font-bold text-sm">
+                                {row.sizeLabel ? t("admin_quick_add.generation_failed_size_title", { size: row.sizeLabel }) : t("admin_quick_add.generation_failed_title")}
+                              </p>
+                              <p className="text-[11px] opacity-90 truncate">
+                                {prog.error || t("admin_quick_add.generation_failed_desc")}
+                              </p>
+                            </div>
+                          </div>
+                          {!isGenerating && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              className="h-8 text-xs rounded-lg gap-1.5 shrink-0 shadow-sm"
+                              onClick={() => retrySingleRow(row.key)}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              <span>{t("admin_quick_add.btn_retry")}</span>
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -705,9 +1666,307 @@ const AdminProductQuickAdd = () => {
         </form>
       </Card>
 
+      {/* ========================================================================= */}
+      {/* MODAL: MULTI-SIZE VARIATIONS GENERATOR                                    */}
+      {/* ========================================================================= */}
+      <Dialog open={isSizeModalOpen} onOpenChange={setIsSizeModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-amber-600">
+              <Ruler className="h-5 w-5" />
+              <DialogTitle className="text-lg font-bold">{t("admin_quick_add.size_modal_title")}</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs">
+              {t("admin_quick_add.size_modal_desc")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Target Row Context Header */}
+            {(() => {
+              const targetRow = rows.find((r) => r.key === sizeTargetRowKey);
+              const previewImg = targetRow?.imagePreview;
+              const hintText = sizeBaseHint || targetRow?.hint?.trim();
+              return (
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/40 border border-border/70 text-xs">
+                  {previewImg && (
+                    <img
+                      src={previewImg}
+                      alt=""
+                      className="w-10 h-10 rounded-lg object-cover border border-border/80 shrink-0"
+                    />
+                  )}
+                  <div className="truncate flex-1">
+                    <p className="text-[11px] text-muted-foreground font-medium">{t("admin_quick_add.adding_sizes_to")}</p>
+                    <p className="font-semibold text-foreground truncate">
+                      {hintText || t("admin_quick_add.current_product_row")}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 shrink-0">
+                    {t("admin_quick_add.badge_sibling_group")}
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Quick Presets */}
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                {t("admin_quick_add.quick_size_presets")}
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {SIZE_PRESETS.map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => applySizePreset(p.sizes)}
+                    className="text-[11px] rounded-full border border-border bg-muted/50 px-2.5 py-1 hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-800 dark:hover:text-amber-300 transition-colors"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sizes & Prices Table */}
+            <div className="space-y-2 border rounded-xl p-3 bg-muted/20">
+              <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                <span>{t("admin_quick_add.sizes_and_prices")}</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSizeVariations((prev) => [
+                      ...prev,
+                      { id: `sz-${Date.now()}`, label: "", price: "" },
+                    ])
+                  }
+                  className="text-amber-600 hover:underline flex items-center gap-1 text-[11px] font-medium"
+                >
+                  <Plus className="h-3 w-3" /> {t("admin_quick_add.add_size_row")}
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {sizeVariations.map((sz, idx) => (
+                  <div key={sz.id} className="flex items-center gap-2">
+                    <span className="w-5 text-muted-foreground font-semibold text-center">{idx + 1}.</span>
+                    <Input
+                      value={sz.label}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSizeVariations((prev) =>
+                          prev.map((item) => (item.id === sz.id ? { ...item, label: val } : item))
+                        );
+                      }}
+                      placeholder={t("admin_quick_add.size_placeholder")}
+                      className="h-8 text-xs flex-1"
+                    />
+                    <div className="relative w-28 shrink-0">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">€</span>
+                      <Input
+                        value={sz.price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSizeVariations((prev) =>
+                            prev.map((item) => (item.id === sz.id ? { ...item, price: val } : item))
+                          );
+                        }}
+                        placeholder="89.95"
+                        className="pl-6 h-8 text-xs"
+                      />
+                    </div>
+                    {sizeVariations.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() =>
+                          setSizeVariations((prev) => prev.filter((item) => item.id !== sz.id))
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg border bg-amber-500/10 border-amber-500/20 text-[11px] text-amber-900 dark:text-amber-300">
+              {t("admin_quick_add.linked_siblings_info")}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSizeModalOpen(false)}
+            >
+              {t("admin_quick_add.btn_cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleApplySizesToBatch}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-medium gap-1.5"
+            >
+              <Ruler className="h-3.5 w-3.5" />
+              <span>{t("admin_quick_add.btn_generate_sizes", { count: sizeVariations.filter((s) => s.label.trim()).length })}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Link Quick-Add Row to Existing Store Product */}
+      <Dialog
+        open={isLinkExistingModalOpen}
+        onOpenChange={(open) => {
+          setIsLinkExistingModalOpen(open);
+          if (!open) setLinkExistingTargetRowKey(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b bg-muted/30">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Search className="h-5 w-5 text-amber-500" />
+              <span>{t("admin_quick_add.link_existing_title", "Koppel aan Bestaand Live Winkelproduct")}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {t(
+                "admin_quick_add.link_existing_desc",
+                "Kies een bestaand winkelproduct als referentie. Naam, categorie, merk, prijs, specificaties en beschrijving worden als basis gebruikt (alleen de kleur volgt je eigen notitie), en het nieuwe product wordt er als kleurvariant aan gekoppeld. Zit de rij in een groep, dan wordt de hele groep gekoppeld."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Search & Category Filter */}
+          <div className="p-3 border-b bg-background flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Zoek winkelproduct op naam..."
+                value={existingSearchQuery}
+                onChange={(e) => {
+                  setExistingSearchQuery(e.target.value);
+                  loadExistingCatalogProducts(existingFilterCategory, e.target.value);
+                }}
+                className="pl-8 h-9 text-xs"
+              />
+            </div>
+            <div className="w-full sm:w-52">
+              <Select
+                value={existingFilterCategory}
+                onValueChange={(val) => {
+                  setExistingFilterCategory(val);
+                  loadExistingCatalogProducts(val, existingSearchQuery);
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Alle Categorieën" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Categorieën</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id || c.slug} value={c.slug}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Catalog Results List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {isLoadingExistingCatalog ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground text-xs gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span>Producten laden uit catalogus...</span>
+              </div>
+            ) : existingCatalogProducts.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                Geen producten gevonden voor deze zoekopdracht. Typ een naam of kies een categorie.
+              </div>
+            ) : (
+              existingCatalogProducts.map((p) => {
+                const targetRow = rows.find((r) => r.key === linkExistingTargetRowKey);
+                const isSelected = targetRow?.linkedExistingProduct?.id === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "flex items-center justify-between p-2.5 rounded-xl border transition-all text-xs",
+                      isSelected
+                        ? "bg-amber-500/10 border-amber-500/40"
+                        : "bg-card hover:bg-muted/50 border-border/70 shadow-2xs"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={resolveImgUrl(p.image)}
+                        alt=""
+                        className="w-10 h-10 rounded-lg object-cover border border-border/50 shrink-0"
+                      />
+                      <div className="truncate">
+                        <p className="font-semibold text-foreground truncate">{p.name}</p>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+                          <span className="font-mono font-medium text-foreground">€{Number(p.price).toFixed(2)}</span>
+                          {p.category?.name && (
+                            <>
+                              <span>·</span>
+                              <span>{p.category.name}</span>
+                            </>
+                          )}
+                          {p.brand?.name && (
+                            <>
+                              <span>·</span>
+                              <span className="font-medium text-foreground/80">{p.brand.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleSelectExistingProductAsSibling(p)}
+                      className="h-8 text-xs font-bold gap-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white shrink-0 ml-2"
+                    >
+                      <Link2 className="h-3.5 w-3.5" />
+                      <span>{isSelected ? "Gekoppeld" : "Gebruik als referentie"}</span>
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter className="p-3 border-t bg-muted/20">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsLinkExistingModalOpen(false);
+                setLinkExistingTargetRowKey(null);
+              }}
+            >
+              {t("common.cancel", "Sluiten")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {mediaPickerRowKey && (
         <MediaLibraryDialog
           open={Boolean(mediaPickerRowKey)}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setMediaPickerRowKey(null);
+          }}
           onClose={() => setMediaPickerRowKey(null)}
           onSelect={handleSelectMediaImage}
         />

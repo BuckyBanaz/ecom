@@ -100,13 +100,26 @@ const Checkout = () => {
 
   // Auth check
   const [user, setUser] = useState<any>(null);
+  const [isGuest, setIsGuest] = useState<boolean>(false);
   useEffect(() => {
     const token = localStorage.getItem("customer_token");
     const stored = localStorage.getItem("customer_user");
-    if (!token || !stored) {
-      navigate("/account?redirect=/checkout", { replace: true });
+    const guestFlag = localStorage.getItem("guest_checkout");
+    if (token && stored) {
+      try {
+        setUser(JSON.parse(stored));
+        setIsGuest(false);
+      } catch {
+        if (guestFlag === "true") {
+          setIsGuest(true);
+        } else {
+          navigate("/account?redirect=/checkout", { replace: true });
+        }
+      }
+    } else if (guestFlag === "true") {
+      setIsGuest(true);
     } else {
-      try { setUser(JSON.parse(stored)); } catch { navigate("/account?redirect=/checkout"); }
+      navigate("/account?redirect=/checkout", { replace: true });
     }
   }, [navigate]);
 
@@ -219,6 +232,14 @@ const Checkout = () => {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | number | null>(null);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [guestAddr, setGuestAddr] = useState({
+    street: "",
+    houseNumber: "",
+    city: "",
+    pincode: "",
+    country: "Netherlands",
+    state: ""
+  });
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addingAddress, setAddingAddress] = useState(false);
@@ -229,6 +250,10 @@ const Checkout = () => {
   const [showMap, setShowMap] = useState(false);
 
   const fetchAddresses = async () => {
+    if (isGuest) {
+      setLoadingAddresses(false);
+      return;
+    }
     try {
       setLoadingAddresses(true);
       const res = await addressRepository.getAll();
@@ -307,6 +332,10 @@ const Checkout = () => {
   const next = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 0) {
+      if (!contact.firstName || !contact.lastName || !contact.email || !contact.phone) {
+        toast.error("Please fill in all contact information fields.");
+        return;
+      }
       const validation = parseAndValidateFullPhone(contact.phone);
       if (!validation.isValid) {
         setContactPhoneError(t("auth_pages.login.toast_invalid_phone"));
@@ -316,9 +345,16 @@ const Checkout = () => {
       setContactPhoneError("");
       setContact(prev => ({ ...prev, phone: validation.cleanedFullPhone }));
     }
-    if (step === 1 && !selectedAddressId) {
-      toast.error(t("checkout.toast_select_address"));
-      return;
+    if (step === 1) {
+      if (isGuest) {
+        if (!guestAddr.street || !guestAddr.houseNumber || !guestAddr.city || !guestAddr.pincode) {
+          toast.error("Please fill in your complete shipping address.");
+          return;
+        }
+      } else if (!selectedAddressId) {
+        toast.error(t("checkout.toast_select_address"));
+        return;
+      }
     }
     if (step < steps.length - 1) {
       setStep(step + 1);
@@ -327,7 +363,18 @@ const Checkout = () => {
       setIsSubmitting(true);
       // Final step: Place Order via Stripe
       try {
-        const selectedAddr = addresses.find(a => a.id === selectedAddressId);
+        const selectedAddr = isGuest ? {
+          label: "Shipping Address",
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          street: `${guestAddr.street} ${guestAddr.houseNumber}`.trim(),
+          city: guestAddr.city,
+          state: guestAddr.state || "",
+          pincode: guestAddr.pincode,
+          country: guestAddr.country || "Netherlands",
+          phone: contact.phone
+        } : addresses.find(a => String(a.id) === String(selectedAddressId));
+
         if (!selectedAddr) {
           toast.error(t("checkout.toast_invalid_address"));
           setIsSubmitting(false);
@@ -337,9 +384,13 @@ const Checkout = () => {
         const res = await ordersRepository.initiateCheckout({
           items,
           customer: {
-            ...user,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            email: contact.email,
+            phone: contact.phone,
             address: selectedAddr,
           },
+          isGuest,
           paymentMethod: payment, // Pass selected payment method!
           shippingConfig: shipConfig,
           charges,
@@ -401,7 +452,7 @@ const Checkout = () => {
     );
   }
 
-  if (!user) return null;
+  if (!user && !isGuest) return null;
 
   return (
     <div className="container-page py-6 md:py-10">
@@ -438,8 +489,19 @@ const Checkout = () => {
           {step === 0 && (
             <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-5">
               <div>
-                <h2 className="text-xl font-bold">{t("checkout.contact_info_heading")}</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">{t("checkout.contact_info_desc")}</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold">{t("checkout.contact_info_heading")}</h2>
+                  {isGuest && (
+                    <span className="text-xs bg-primary/10 text-primary font-semibold px-2.5 py-0.5 rounded-full">
+                      {t("checkout.guest_checkout_badge", "Guest Checkout")}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {isGuest
+                    ? t("checkout.guest_contact_desc", "Enter your contact information for order confirmation and tracking")
+                    : t("checkout.contact_info_desc")}
+                </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label={t("checkout.field_first_name")} value={contact.firstName} onChange={v => setContact({ ...contact, firstName: v })} required />
@@ -447,6 +509,11 @@ const Checkout = () => {
                 <Field label={t("checkout.field_email")} type="email" value={contact.email} onChange={v => setContact({ ...contact, email: v })} required />
                 <Field label={t("checkout.field_phone")} type="tel" value={contact.phone} onChange={v => { setContact({ ...contact, phone: v }); setContactPhoneError(""); }} required error={contactPhoneError} />
               </div>
+              {isGuest && (
+                <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-xl border border-border/50">
+                  💡 {t("checkout.guest_email_hint", "Order receipt and tracking link will be sent to this email")}
+                </p>
+              )}
             </div>
           )}
 
@@ -457,15 +524,48 @@ const Checkout = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-bold">{t("checkout.shipping_address_heading")}</h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">{t("checkout.shipping_address_desc")}</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {isGuest
+                        ? t("checkout.guest_shipping_desc", "Enter your delivery address below")
+                        : t("checkout.shipping_address_desc")}
+                    </p>
                   </div>
-                  <Button type="button" variant="outline" size="sm" className="rounded-full gap-1.5 shrink-0"
-                    onClick={() => { setAddrForm(emptyAddressForm); setShowAddDialog(true); }}>
-                    <Plus className="h-4 w-4" /> {t("checkout.button_add_address")}
-                  </Button>
+                  {!isGuest && (
+                    <Button type="button" variant="outline" size="sm" className="rounded-full gap-1.5 shrink-0"
+                      onClick={() => { setAddrForm(emptyAddressForm); setShowAddDialog(true); }}>
+                      <Plus className="h-4 w-4" /> {t("checkout.button_add_address")}
+                    </Button>
+                  )}
                 </div>
 
-                {loadingAddresses ? (
+                {isGuest ? (
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <Label className="mb-1.5 block text-sm">
+                        {t("checkout.label_location")} <span className="text-muted-foreground font-normal">{t("checkout.label_location_help")}</span>
+                      </Label>
+                      <button
+                        type="button"
+                        onClick={() => setShowMap(true)}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-all py-3 text-sm text-muted-foreground hover:text-primary"
+                      >
+                        <Map className="h-4 w-4" />
+                        {guestAddr.lat
+                          ? `📍 ${parseFloat(guestAddr.lat).toFixed(4)}, ${parseFloat(guestAddr.lng).toFixed(4)} — ${t("checkout.button_change_location")}`
+                          : t("checkout.button_pick_location")}
+                      </button>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label={t("checkout.field_street")} value={guestAddr.street} onChange={v => setGuestAddr({ ...guestAddr, street: v })} required />
+                      <Field label={t("checkout.field_house_number")} value={guestAddr.houseNumber} onChange={v => setGuestAddr({ ...guestAddr, houseNumber: v })} required />
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label={t("checkout.field_city")} value={guestAddr.city} onChange={v => setGuestAddr({ ...guestAddr, city: v })} required />
+                      <Field label={t("checkout.field_postal_code")} value={guestAddr.pincode} onChange={v => setGuestAddr({ ...guestAddr, pincode: v })} required />
+                    </div>
+                    <Field label={t("checkout.field_country")} value={guestAddr.country} onChange={v => setGuestAddr({ ...guestAddr, country: v })} required />
+                  </div>
+                ) : loadingAddresses ? (
                   <div className="flex justify-center py-8"><Loader2 className="animate-spin text-muted-foreground h-6 w-6" /></div>
                 ) : addresses.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
@@ -776,6 +876,18 @@ const Checkout = () => {
         <ErrorBoundary fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center"><div className="bg-white p-4 rounded">Map failed to load. Please refresh.</div></div>}>
           <MapSelector
             onSelect={(loc) => {
+              if (isGuest) {
+                setGuestAddr(prev => ({
+                  ...prev,
+                  lat: loc.lat,
+                  lng: loc.lng,
+                  street: loc.street || prev.street,
+                  city: loc.city || prev.city,
+                  state: loc.state || prev.state,
+                  pincode: loc.pincode || prev.pincode,
+                  country: loc.country || prev.country,
+                }));
+              }
               setAddrForm(prev => ({
                 ...prev,
                 lat: loc.lat,

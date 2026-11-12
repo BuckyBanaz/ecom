@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { brandRepository, categoryRepository, attributeRepository, productRepository } from "@/client/apiClient";
+import { brandRepository, categoryRepository, attributeRepository, productRepository, megaMenuRepository } from "@/client/apiClient";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -22,6 +22,10 @@ import { resolveImgUrl } from "@/utils/image";
 import { getProductBrandName, getProductCategorySlug } from "@/utils/formatters";
 import { countProductsWithFilterValue, productMatchesAttributeFilter } from "@/utils/productFilters";
 import { CategorySkeleton } from "@/components/ui/SkeletonLoader";
+import { SectionLoader } from "@/components/ui/PageLoader";
+import { useInfiniteList } from "@/hooks/useInfiniteList";
+
+const PRODUCTS_PER_PAGE = 24;
 import {
   applyPageMeta,
   buildBreadcrumbSchema,
@@ -29,20 +33,16 @@ import {
   removeJsonLd,
   upsertJsonLd,
 } from "@/utils/seoMeta";
+import { normalizeCategorySlug, isIndoorParentCategory } from "@/utils/categoryAliases";
 
 
 
-const GROUP_CATEGORY_SLUGS = new Set([
-  "interior-lighting",
-  "outdoor-lighting",
-  "light-sources",
-  "commercial-lighting",
-  "all-lamps",
-]);
+
 
 const Category = () => {
   const { t } = useTranslation();
-  const { slug = "" } = useParams();
+  const { slug: legacySlug, parentSlug, childSlug } = useParams();
+  const slug = childSlug || legacySlug || parentSlug || "";
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const isRelief = location.pathname.startsWith("/relief");
@@ -173,19 +173,20 @@ const Category = () => {
 
   // Load products for the active category (server-filtered when possible)
   useEffect(() => {
-    const targetCategory = landingPage?.categorySlug || slug;
+    const rawTarget = landingPage?.categorySlug || slug;
+    const targetCategory = normalizeCategorySlug(rawTarget);
     const searchQuery = searchParams.get("search");
 
     const loadProducts = async () => {
       setProductsLoading(true);
       try {
-        const filters: Record<string, string | number | boolean> = { limit: 120 };
+        const filters: Record<string, string | number | boolean> = { limit: 500, view: "card" };
         if (targetCategory === "bestsellers") {
           filters.isBestSelling = true;
-        } else if (targetCategory && targetCategory !== "deals" && !GROUP_CATEGORY_SLUGS.has(targetCategory)) {
-          filters.category = targetCategory;
+        } else if (targetCategory && targetCategory !== "deals") {
+          filters.category = rawTarget || targetCategory;
         } else {
-          filters.limit = 180;
+          filters.limit = 500;
         }
 
         if (searchQuery) {
@@ -215,12 +216,31 @@ const Category = () => {
 
   // Sync CMS Landing Pages details
   useEffect(() => {
-    const saved = localStorage.getItem("landing_pages_data");
-    if (saved) {
-      try {
-        const pages = JSON.parse(saved);
-        if (pages[slug]) {
-          setLandingPage(pages[slug]);
+    const fetchLandingPage = async () => {
+      let pages: any = null;
+      const saved = localStorage.getItem("landing_pages_data");
+      
+      if (saved) {
+        try {
+          pages = JSON.parse(saved);
+        } catch (e) {}
+      }
+
+      // If no pages or missing the specific slug, fetch from backend
+      if (!pages || (slug && !pages[slug])) {
+        try {
+          const res = await megaMenuRepository.getAll();
+          if (res.success && res.landingPages) {
+            pages = res.landingPages;
+            localStorage.setItem("landing_pages_data", JSON.stringify(pages));
+          }
+        } catch (e) {
+          console.warn("Failed to fetch landing pages", e);
+        }
+      }
+
+      if (pages && pages[slug]) {
+        setLandingPage(pages[slug]);
           
           // Apply SEO Metadata dynamically
           const pageData = pages[slug];
@@ -243,13 +263,12 @@ const Category = () => {
             }
             metaKeywords.setAttribute('content', pageData.seoKeywords);
           }
-        } else {
-          setLandingPage(null);
-        }
-      } catch (e) {
+      } else {
         setLandingPage(null);
       }
-    }
+    };
+    
+    fetchLandingPage();
   }, [slug]);
 
   const resolvedSlug = slug;
@@ -352,8 +371,50 @@ const Category = () => {
   }, [resolvedSlug, categoriesList, attributes, productsList, landingPage]);
 
   // Faceted item counts calculator relative to the current category listing
+  const isProductInActiveCategory = (p: any, rawTarget: string) => {
+    if (!rawTarget) return true;
+    const targetCategory = normalizeCategorySlug(rawTarget);
+    if (!targetCategory || targetCategory === "deals" || targetCategory === "bestsellers") return true;
+
+    // Master Indoor lighting / Binnenverlichting
+    if (isIndoorParentCategory(rawTarget) || isIndoorParentCategory(targetCategory)) {
+      const pCatSlug = normalizeCategorySlug(getProductCategorySlug(p.category));
+      const categoryObj = categoriesList.find(c => normalizeCategorySlug(c.slug) === pCatSlug) || categories.find(c => normalizeCategorySlug(c.slug) === pCatSlug);
+      if (!categoryObj || categoryObj.group === "interior-lighting" || categoryObj.group === "indoor" || categoryObj.group === "commercial-lighting") {
+        return true;
+      }
+      return true;
+    }
+
+    const pCatSlug = normalizeCategorySlug(getProductCategorySlug(p.category));
+    if (pCatSlug === targetCategory || pCatSlug === normalizeCategorySlug(rawTarget)) {
+      return true;
+    }
+
+    // Check if product's category is a child of targetCategory
+    const parentCat = categoriesList.find(c => normalizeCategorySlug(c.slug) === targetCategory || c.id === rawTarget || normalizeCategorySlug(c.name) === targetCategory);
+    if (parentCat) {
+      const productCatObj = categoriesList.find(c => normalizeCategorySlug(c.slug) === pCatSlug || c.id === p.categoryId);
+      if (productCatObj?.parentId === parentCat.id) return true;
+    }
+
+    // Check group match
+    const categoryObj = categoriesList.find(c => normalizeCategorySlug(c.slug) === pCatSlug) || categories.find(c => normalizeCategorySlug(c.slug) === pCatSlug);
+    if (categoryObj && (normalizeCategorySlug(categoryObj.group) === targetCategory || categoryObj.group === rawTarget)) {
+      return true;
+    }
+
+    // If productsList was already returned specifically by backend for this category, retain it
+    if (productsList.length > 0 && productsList.some(item => item.id === p.id)) {
+      return true;
+    }
+
+    return false;
+  };
+
   const getOptionCount = (type: "brand" | "attribute", slugName: string, value: string, attributeName?: string) => {
-    const targetCategory = landingPage?.categorySlug || resolvedSlug;
+    const rawTarget = landingPage?.categorySlug || resolvedSlug;
+    const targetCategory = normalizeCategorySlug(rawTarget);
     const isDeals = targetCategory === "deals";
     const isBestsellers = targetCategory === "bestsellers";
 
@@ -364,22 +425,7 @@ const Category = () => {
       : isBestsellers
         ? allProductsList.filter((p) => p.isBestSelling)
         : targetCategory
-          ? allProductsList.filter((p) => {
-              const pCatSlug = getProductCategorySlug(p.category);
-              if (pCatSlug === targetCategory) return true;
-              
-              if (targetCategory === "interior-lighting" || targetCategory === "all-lamps") {
-                const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
-                return categoryObj?.group === "interior-lighting";
-              }
-
-              const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
-              if (categoryObj && categoryObj.group === targetCategory) {
-                return true;
-              }
-
-              return false;
-            })
+          ? allProductsList.filter((p) => isProductInActiveCategory(p, rawTarget))
           : allProductsList;
     
     if (isBestsellers && list.length === 0) {
@@ -420,7 +466,8 @@ const Category = () => {
   };
 
   const filtered = useMemo(() => {
-    const targetCategory = landingPage?.categorySlug || resolvedSlug;
+    const rawTarget = landingPage?.categorySlug || resolvedSlug;
+    const targetCategory = normalizeCategorySlug(rawTarget);
     const isDeals = targetCategory === "deals";
     const isBestsellers = targetCategory === "bestsellers";
 
@@ -432,22 +479,7 @@ const Category = () => {
       : isBestsellers
         ? allProductsList.filter((p) => p.isBestSelling)
         : targetCategory
-          ? allProductsList.filter((p) => {
-              const pCatSlug = getProductCategorySlug(p.category);
-              if (pCatSlug === targetCategory) return true;
-              
-              if (targetCategory === "interior-lighting" || targetCategory === "all-lamps") {
-                const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
-                return categoryObj?.group === "interior-lighting";
-              }
-
-              const categoryObj = categoriesList.find(c => c.slug === pCatSlug) || categories.find(c => c.slug === pCatSlug);
-              if (categoryObj && categoryObj.group === targetCategory) {
-                return true;
-              }
-
-              return false;
-            })
+          ? allProductsList.filter((p) => isProductInActiveCategory(p, rawTarget))
           : allProductsList;
     
     if (isBestsellers && list.length === 0) {
@@ -513,6 +545,28 @@ const Category = () => {
     return list;
   }, [resolvedSlug, landingPage, price, selectedBrands, selectedFilters, sort, productsList, attributes, searchParams]);
 
+  // Infinite scroll: render the filtered list in pages of 24; the next page appears when the
+  // sentinel below the grid scrolls into view
+  const listedProducts = useMemo(() => filtered.filter((p) => p?.id && p?.name), [filtered]);
+  const {
+    visibleItems: visibleProducts,
+    hasMore: hasMoreProducts,
+    loadingMore,
+    sentinelRef: loadMoreRef,
+  } = useInfiniteList(listedProducts, PRODUCTS_PER_PAGE);
+
+  // Sticky filter sidebar sits just below the (sticky, variable-height) site header
+  const [stickyTop, setStickyTop] = useState(112);
+  useEffect(() => {
+    const header = document.querySelector("header");
+    if (!header) return;
+    const update = () => setStickyTop(Math.round(header.getBoundingClientRect().height) + 16);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
   const getDealsTitle = () => {
     const priceMax = searchParams.get("price-max");
     const clearance = searchParams.get("clearance");
@@ -543,11 +597,11 @@ const Category = () => {
       ? getDealsTitle()
       : slug === "bestsellers" 
         ? t("category.bestsellers", { defaultValue: "Bestsellers" }) 
-        : slug === "interior-lighting"
-          ? t("category.interior_lighting", { defaultValue: "Interior Lighting" })
+        : isIndoorParentCategory(slug)
+          ? cat?.name || t("category.interior_lighting", { defaultValue: "Binnenverlichting" })
           : slug === "light-sources"
             ? t("category.light_sources", { defaultValue: "Light Sources" })
-            : cat?.name ?? t("category.all_products")
+            : cat?.name || categoriesList.find((c) => normalizeCategorySlug(c.slug) === normalizeCategorySlug(slug))?.name || categories.find((c) => c.slug === normalizeCategorySlug(slug))?.name || (slug ? slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, " ") : t("category.all_products", { defaultValue: "Alle producten" }))
   );
 
   useEffect(() => {
@@ -581,7 +635,7 @@ const Category = () => {
       "breadcrumb-schema",
       buildBreadcrumbSchema([
         { name: "Home", url: "/" },
-        { name: "Categories", url: "/categories" },
+        ...(parentSlug && childSlug ? [{ name: categoriesList.find(c => c.slug === parentSlug)?.name || parentSlug, url: `/${parentSlug}` }] : []),
         { name: title, url: categoryUrl },
       ])
     );
@@ -666,7 +720,11 @@ const Category = () => {
     <div className="container-page py-6">
       <nav className="mb-4 text-xs text-muted-foreground">
         <Link to="/" className="hover:text-primary transition-colors">{t("breadcrumb.home")}</Link> /{" "}
-        {isRelief ? (
+        {parentSlug && childSlug ? (
+          <>
+            <Link to={`/${parentSlug}`} className="hover:text-primary transition-colors">{categoriesList.find(c => c.slug === parentSlug)?.name || parentSlug}</Link> /{" "}
+          </>
+        ) : isRelief ? (
           <>
             <Link to="/relief" className="hover:text-primary transition-colors">{t("breadcrumb.relief")}</Link> /{" "}
           </>
@@ -679,32 +737,15 @@ const Category = () => {
       </nav>
       <h1 className="text-3xl font-bold md:text-4xl mb-2">{title}</h1>
       
-      {landingPage?.description && (
-        <div 
-          className="mt-4 mb-6 p-6 border rounded-xl bg-card shadow-xs prose max-w-none dark:prose-invert"
-          dangerouslySetInnerHTML={{ __html: landingPage.description }}
-        />
-      )}
-      
-      {landingPage?.content || landingPage?.blocks?.length > 0 ? (
-        <div className="mt-8">
-          <ShortcodeRenderer 
-            content={
-              landingPage.content || 
-              (Array.isArray(landingPage.blocks) 
-                ? landingPage.blocks.map((b: any) => b.description || "").filter(Boolean).join("<br/>") 
-                : "")
-            } 
-            prefetchedData={{ products: productsList, categories: categoriesList, blogs: blogsList }}
-          />
-        </div>
-      ) : (
-        <>
-          <p className="mt-1 text-sm text-muted-foreground">{t("category.products_count", { count: filtered.length })}</p>
+      {/* Title & Product Count */}
+      <p className="mt-1 text-sm text-muted-foreground">{t("category.products_count", { count: filtered.length })}</p>
           <div className="mt-6 grid gap-8 lg:grid-cols-[260px_1fr]">
             
             {/* SIDEBAR FILTERS - DESKTOP */}
-            <aside className="hidden lg:block">
+            <aside
+              className="hidden lg:block lg:sticky lg:self-start lg:overflow-y-auto overscroll-contain pr-1"
+              style={{ top: stickyTop, maxHeight: `calc(100vh - ${stickyTop + 16}px)` }}
+            >
               {filtersSidebar}
             </aside>
 
@@ -752,14 +793,19 @@ const Category = () => {
                 ) : filtered.length === 0 ? (
                   <div className="rounded-xl border bg-muted/30 p-10 text-center text-muted-foreground">{t("category.no_results")}</div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                    {filtered.filter((p) => p?.id && p?.name).map((p) => <ProductCard key={p.id} product={p} />)}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                      {visibleProducts.map((p) => <ProductCard key={p.id} product={p} />)}
+                    </div>
+                    {hasMoreProducts && (
+                      <div ref={loadMoreRef} className="flex min-h-24 items-center justify-center py-6" aria-live="polite">
+                        {loadingMore && <SectionLoader size={72} />}
+                      </div>
+                    )}
+                  </>
                 )}
             </div>
           </div>
-        </>
-      )}
     </div>
   );
 };
@@ -827,7 +873,16 @@ function CheckBlock({
 }) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
-  const visibleOptions = showAll ? options : options.slice(0, 4);
+
+  // Filter out options with 0 products unless already selected by the user
+  const availableOptions = useMemo(() => {
+    if (!getOptionCount) return options;
+    return options.filter((o) => selected.includes(o) || getOptionCount(o) > 0);
+  }, [options, selected, getOptionCount]);
+
+  if (availableOptions.length === 0) return null;
+
+  const visibleOptions = showAll ? availableOptions : availableOptions.slice(0, 4);
 
   return (
     <FilterBlock title={title} hasInfo={hasInfo} isOpen={isOpen} onToggle={onToggleSection}>
@@ -869,7 +924,7 @@ function CheckBlock({
         })}
       </ul>
       
-      {options.length > 4 && (
+      {availableOptions.length > 4 && (
         <button
           type="button"
           className="mt-3 text-xs font-semibold text-primary hover:underline flex items-center gap-1 transition-all"
@@ -881,7 +936,7 @@ function CheckBlock({
             </>
           ) : (
             <>
-              {t("category.show_more", { count: options.length - 4 })} <ChevronDown className="h-3.5 w-3.5" />
+              {t("category.show_more", { count: availableOptions.length - 4 })} <ChevronDown className="h-3.5 w-3.5" />
             </>
           )}
         </button>

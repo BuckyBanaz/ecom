@@ -7,6 +7,7 @@ import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { cmsReliefRepository } from "@/client/apiClient";
 import { getClientBaseUrl } from "@/utils/siteUrl";
 import { SectionLoader } from "@/components/ui/PageLoader";
+import { LineTranslationPanel, TranslatableEditor } from "@/components/admin/TranslatableEditor";
 
 interface ReliefPageData {
   title?: string;
@@ -25,7 +26,7 @@ const DEFAULT_CONTENT = `[text-hero title="Relief" subtitle="Buying lighting? Ch
 [menu-category menu_slug="light-sources"][/menu-category]
 <p>Find the perfect bulb with the right fitting, temperature, and brightness for your home lights.</p>`;
 
-export default function CMSRelief() {
+function CMSReliefEditor() {
   const [pageContent, setPageContent] = useState<string>("");
 
   const [isLoading, setIsLoading] = useState(true);
@@ -112,3 +113,12 @@ export default function CMSRelief() {
     </div>
   );
 }
+
+
+/** Original editor + "Nederlands | English" tabs with the AI translations */
+const CMSRelief = () => (
+  <TranslatableEditor panels={(lang) => <LineTranslationPanel target="config:relief_page_data" lang={lang} />}>
+    <CMSReliefEditor />
+  </TranslatableEditor>
+);
+export default CMSRelief;

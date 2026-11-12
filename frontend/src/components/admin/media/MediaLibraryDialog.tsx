@@ -4,29 +4,35 @@ import { MediaLibraryCore } from "./MediaLibraryCore";
 
 interface MediaLibraryDialogProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
+  onClose?: () => void;
   onSelect: (url: string) => void;
   allowMultiple?: boolean;
   onSelectMultiple?: (urls: string[]) => void;
 }
 
-export function MediaLibraryDialog({ open, onOpenChange, onSelect, allowMultiple, onSelectMultiple }: MediaLibraryDialogProps) {
+export function MediaLibraryDialog({ open, onOpenChange, onClose, onSelect, allowMultiple, onSelectMultiple }: MediaLibraryDialogProps) {
   const { t } = useTranslation();
+  const handleClose = (isOpen: boolean) => {
+    if (onOpenChange) onOpenChange(isOpen);
+    if (!isOpen && onClose) onClose();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-6xl p-0 h-[65vh] overflow-hidden bg-white">
         <MediaLibraryCore 
           isDialog={true} 
           allowMultiple={allowMultiple}
           onSelect={(url) => {
             onSelect(url);
-            onOpenChange(false);
+            handleClose(false);
           }}
           onSelectMultiple={(urls) => {
             if (onSelectMultiple) onSelectMultiple(urls);
-            onOpenChange(false);
+            handleClose(false);
           }}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => handleClose(false)}
         />
       </DialogContent>
     </Dialog>

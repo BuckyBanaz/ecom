@@ -29,6 +29,8 @@ RUN rm -rf dist && (npm run build || true) \
 
 # Production stage
 FROM node:20-alpine
+# libuv pool (default 4) is shared by sharp image resizing, file reads and DNS lookups; 4 made image work stall API calls
+ENV UV_THREADPOOL_SIZE=16
 
 WORKDIR /app
 
