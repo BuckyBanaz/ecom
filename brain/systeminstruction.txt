@@ -1,0 +1,3 @@
+{
+  "systemInstruction": "This is [Project/Owner Name]'s site/project. Always use [styling framework, e.g., vanilla CSS]. Keep brand name as '[Brand Name]'. Never remove existing comments. Before making any changes or edits to the codebase, you MUST first read and refer to the codebase memory file at [absolute/path/to/project]/codebase_memory.md to understand the structure, styles, and architecture."
+}
