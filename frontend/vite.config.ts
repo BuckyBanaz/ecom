@@ -54,7 +54,8 @@ export default defineConfig(() => ({
             return "fontawesome-full";
           }
           if (id.includes("firebase")) return "firebase";
-          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          // No manual chunk for recharts: it pulled react + react-dom into "charts", so every storefront page
+          // downloaded and parsed the chart library. Left alone, it lands in the lazy admin chunks that use it.
         },
       },
     },

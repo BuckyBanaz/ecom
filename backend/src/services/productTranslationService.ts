@@ -170,6 +170,7 @@ export async function translateProduct(productId: string, opts: { force?: boolea
   if (translated.length) {
     // Write only the translations column: a concurrent admin save of the content must not be overwritten
     await prisma.product.update({ where: { id: productId }, data: { translations: map as any } });
+    invalidateTranslationCounts();
   }
   return { translated, skipped };
 }
@@ -195,25 +196,60 @@ export async function saveManualTranslation(productId: string, lang: string, inp
     manual: true,
   };
   await prisma.product.update({ where: { id: productId }, data: { translations: map as any } });
+  invalidateTranslationCounts();
   return map[lang];
+}
+
+// ---------------------------------------------------------------- overview counts (cached)
+
+export type TranslationCounts = { total: number; current: number; outdated: number; missing: number };
+let countsCache: { at: number; value: TranslationCounts } | null = null;
+const COUNTS_TTL_MS = 60_000;
+
+/** Any product content / translation change makes the cached counts stale */
+export const invalidateTranslationCounts = () => {
+  countsCache = null;
+};
+
+/**
+ * How many products are translated / outdated / missing. Needs every product's full content (to hash it),
+ * so the result is cached for a minute instead of being recomputed on every products page view.
+ */
+export async function productTranslationCounts(): Promise<TranslationCounts> {
+  if (countsCache && Date.now() - countsCache.at < COUNTS_TTL_MS) return countsCache.value;
+  const products = await prisma.product.findMany({ select: productSelect });
+  const value: TranslationCounts = { total: products.length, current: 0, outdated: 0, missing: 0 };
+  for (const p of products) {
+    const states = Object.values(translationStatus(p));
+    if (states.includes("missing")) value.missing++;
+    else if (states.includes("outdated")) value.outdated++;
+    else value.current++;
+  }
+  countsCache = { at: Date.now(), value };
+  return value;
 }
 
 // ---------------------------------------------------------------- auto queue (after a product save)
 
-const queue: string[] = [];
+type QueueItem = { kind: "product" | "draft"; id: string };
+const queue: QueueItem[] = [];
 let draining = false;
+/** Products wait this long before translating: several quick saves (or a draft publish that copies the draft's
+ *  translation right after creating the product) then cost one AI call or none. */
+const PRODUCT_DEBOUNCE_MS = 5_000;
+const pendingProducts = new Map<string, NodeJS.Timeout>();
 
 async function drain() {
   if (draining) return;
   draining = true;
   try {
     while (queue.length) {
-      const id = queue.shift() as string;
+      const item = queue.shift() as QueueItem;
       try {
-        const { translated } = await translateProduct(id);
-        if (translated.length) console.log(`[Translate] Product ${id} -> ${translated.join(", ")}`);
+        const { translated } = item.kind === "product" ? await translateProduct(item.id) : await translateDraft(item.id);
+        if (translated.length) console.log(`[Translate] ${item.kind} ${item.id} -> ${translated.join(", ")}`);
       } catch (err: any) {
-        console.error(`[Translate] Product ${id} failed:`, err?.message || err);
+        console.error(`[Translate] ${item.kind} ${item.id} failed:`, err?.message || err);
       }
     }
   } finally {
@@ -221,11 +257,126 @@ async function drain() {
   }
 }
 
-/** Fire-and-forget: translate after a save without slowing the admin down. One product at a time. */
-export function enqueueProductTranslation(productId: string) {
-  if (!productId || queue.includes(productId)) return;
-  queue.push(productId);
+function push(item: QueueItem) {
+  if (queue.some((q) => q.kind === item.kind && q.id === item.id)) return;
+  queue.push(item);
   void drain();
+}
+
+/** Fire-and-forget: translate after a save without slowing the admin down. One item at a time. */
+export function enqueueProductTranslation(productId: string) {
+  invalidateTranslationCounts();
+  if (!productId) return;
+  clearTimeout(pendingProducts.get(productId));
+  const timer = setTimeout(() => {
+    pendingProducts.delete(productId);
+    push({ kind: "product", id: productId });
+  }, PRODUCT_DEBOUNCE_MS);
+  timer.unref?.();
+  pendingProducts.set(productId, timer);
+}
+
+export function enqueueDraftTranslation(draftId: string) {
+  if (draftId) push({ kind: "draft", id: draftId });
+}
+
+// ---------------------------------------------------------------- Quick Add drafts
+
+const draftPayload = (payload: unknown): Record<string, any> =>
+  payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, any>) : {};
+
+/** Draft payload in the shape the hash / AI functions expect */
+const draftAsProduct = (id: string, p: Record<string, any>): SourceProduct => ({
+  id,
+  name: String(p.name || ""),
+  shortDescription: p.shortDescription ?? null,
+  description: p.description ?? null,
+  specs: p.specs,
+  seoTitle: p.seoTitle ?? null,
+  seoDescription: p.seoDescription ?? null,
+  seoKeywords: p.seoKeywords ?? null,
+  translations: p.translations,
+});
+
+/** Quick Add drafts get their translation right away (stored in payload.translations), so the admin can review
+ *  the English before publishing and the publish copies it to the product. */
+export async function translateDraft(draftId: string, opts: { force?: boolean } = {}) {
+  const draft = await prisma.productDraft.findUnique({ where: { id: draftId } });
+  if (!draft || draft.status !== "draft") return { translated: [] as string[] };
+  const payload = draftPayload(draft.payload);
+  const source = draftAsProduct(draftId, payload);
+  if (!source.name) return { translated: [] as string[] };
+  const hash = sourceHash(source);
+  const map = { ...translationsOf(source) };
+  const translated: string[] = [];
+  const fields = sourceFields(source);
+  const links = specRows(source.specs).map((s) => s.link);
+  for (const lang of targetLanguages()) {
+    if (!opts.force && map[lang]?.sourceHash === hash) continue;
+    const result = await aiTranslate(fields, sourceLanguage(), lang);
+    map[lang] = {
+      ...result,
+      specs: result.specs.map((s, i) => (links[i] ? { ...s, link: links[i] } : s)),
+      sourceHash: hash,
+      translatedAt: new Date().toISOString(),
+      manual: false,
+    };
+    translated.push(lang);
+  }
+  if (translated.length) {
+    // Re-read: the draft may have changed while the AI was busy; only the translations key is written
+    const fresh = await prisma.productDraft.findUnique({ where: { id: draftId } });
+    if (fresh) {
+      await prisma.productDraft.update({ where: { id: draftId }, data: { payload: { ...draftPayload(fresh.payload), translations: map } as any } });
+    }
+  }
+  return { translated };
+}
+
+export async function getDraftTranslations(draftId: string) {
+  const draft = await prisma.productDraft.findUnique({ where: { id: draftId } });
+  if (!draft) return null;
+  const source = draftAsProduct(draftId, draftPayload(draft.payload));
+  return { status: translationStatus(source), translations: translationsOf(source) };
+}
+
+export async function saveDraftTranslation(draftId: string, lang: string, input: Partial<ProductTranslation>) {
+  if (!targetLanguages().includes(lang)) throw new Error(`"${lang}" is not a translation language`);
+  const draft = await prisma.productDraft.findUnique({ where: { id: draftId } });
+  if (!draft) throw new Error("Draft not found");
+  const payload = draftPayload(draft.payload);
+  const source = draftAsProduct(draftId, payload);
+  const current = translationsOf(source)[lang];
+  const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : fallback);
+  const translation: ProductTranslation = {
+    name: str(input.name, current?.name),
+    shortDescription: str(input.shortDescription, current?.shortDescription),
+    description: str(input.description, current?.description),
+    specs: Array.isArray(input.specs) ? specRows(input.specs) : current?.specs || [],
+    seoTitle: str(input.seoTitle, current?.seoTitle),
+    seoDescription: str(input.seoDescription, current?.seoDescription),
+    seoKeywords: str(input.seoKeywords, current?.seoKeywords),
+    sourceHash: sourceHash(source),
+    translatedAt: new Date().toISOString(),
+    manual: true,
+  };
+  await prisma.productDraft.update({
+    where: { id: draftId },
+    data: { payload: { ...payload, translations: { ...translationsOf(source), [lang]: translation } } as any },
+  });
+  return translation;
+}
+
+/** Draft published as `productId`: give the product the draft's translations (still re-checked by hash) */
+export async function copyDraftTranslations(draftId: string, productId: string) {
+  const draft = await prisma.productDraft.findUnique({ where: { id: draftId } });
+  const map = translationsOf({ translations: draftPayload(draft?.payload).translations });
+  if (!Object.keys(map).length) return false;
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { translations: true } });
+  if (!product || Object.keys(translationsOf(product)).length) return false;
+  await prisma.product.update({ where: { id: productId }, data: { translations: map as any } });
+  invalidateTranslationCounts();
+  return true;
 }
 
 // ---------------------------------------------------------------- "translate all" background job

@@ -18,10 +18,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MediaLibraryDialog } from "@/components/admin/media/MediaLibraryDialog";
 import { normalizeUploadedUrl, resolveImgUrl } from "@/utils/image";
 import { getClientBaseUrl } from "@/utils/siteUrl";
+import { LineTranslationPanel, TranslatableEditor } from "@/components/admin/TranslatableEditor";
 
 type MegaMenuWithId = MegaMenu & { id?: string };
 
-export default function CMSMegaMenu() {
+function CMSMegaMenuEditor() {
   const { t } = useTranslation();
   const { hasPermission } = useAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1166,3 +1167,28 @@ export default function CMSMegaMenu() {
     </div>
   );
 }
+
+/** Translation tab: one panel per menu (names, section titles, items) + the landing page texts */
+function MegaMenuTranslations({ lang }: { lang: string }) {
+  const [menus, setMenus] = useState<Array<{ id: string; menu: string }>>([]);
+  useEffect(() => {
+    megaMenuRepository.getAll().then((res: any) => setMenus(res.menus || [])).catch(() => setMenus([]));
+  }, []);
+  return (
+    <>
+      {menus.map((m) => (
+        <LineTranslationPanel key={m.id} target={`megaMenu:${m.id}`} lang={lang} title={m.menu} />
+      ))}
+      <LineTranslationPanel target="config:landing_pages_data" lang={lang} title="Landing pages" />
+    </>
+  );
+}
+
+
+/** Original editor + "Nederlands | English" tabs with the AI translations */
+const CMSMegaMenu = () => (
+  <TranslatableEditor panels={(lang) => <MegaMenuTranslations lang={lang} />}>
+    <CMSMegaMenuEditor />
+  </TranslatableEditor>
+);
+export default CMSMegaMenu;

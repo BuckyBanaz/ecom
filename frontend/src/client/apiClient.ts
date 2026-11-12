@@ -1016,6 +1016,24 @@ export const translationsRepository = {
   contentStatus: async () => request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/status`, { method: "GET" }),
   translateAllContent: async (force = false) =>
     request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/translate-all`, { method: "POST", body: JSON.stringify({ force }) }),
+  // Settings / menus line by line: target = "config:<key>" or "megaMenu:<id>"
+  getLines: async (target: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/lines/${encodeURIComponent(target)}`, { method: "GET" }),
+  saveLines: async (target: string, lang: string, lines: Record<string, string>) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/lines/${encodeURIComponent(target)}/${lang}`, { method: "PUT", body: JSON.stringify({ lines }) }),
+  // Quick Add drafts (translation stored in the draft until it is published)
+  getDraft: async (id: string) => request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/drafts/${encodeURIComponent(id)}`, { method: "GET" }),
+  translateDraft: async (id: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/drafts/${encodeURIComponent(id)}/translate`, { method: "POST" }),
+  saveDraft: async (id: string, lang: string, data: Record<string, unknown>) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/drafts/${encodeURIComponent(id)}/${lang}`, { method: "PUT", body: JSON.stringify(data) }),
+  // CMS pages / blogs / categories / menus
+  getContent: async (type: string, id: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/${type}/${encodeURIComponent(id)}`, { method: "GET" }),
+  translateContent: async (type: string, id: string) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/${type}/${encodeURIComponent(id)}/translate`, { method: "POST" }),
+  saveContent: async (type: string, id: string, lang: string, data: Record<string, unknown>) =>
+    request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/content/${type}/${encodeURIComponent(id)}/${lang}`, { method: "PUT", body: JSON.stringify(data) }),
   saveProduct: async (idOrSlug: string, lang: string, data: Record<string, unknown>) =>
     request<any>(`${ENDPOINTS.ADMIN_TRANSLATIONS}/products/${encodeURIComponent(idOrSlug)}/${lang}`, { method: "PUT", body: JSON.stringify(data) }),
 };

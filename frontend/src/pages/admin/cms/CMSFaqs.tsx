@@ -15,6 +15,7 @@ import { ENDPOINTS } from "@/utils/endpoints";
 import { SeoJobBanner } from "@/components/admin/seo/SeoJobBanner";
 import { SuggestionActions } from "@/components/admin/SuggestionActions";
 import { useSeoJobStatus } from "@/hooks/useSeoJobStatus";
+import { LineTranslationPanel, TranslatableEditor } from "@/components/admin/TranslatableEditor";
 
 type FaqItem = { q: string; a: string; published: boolean };
 
@@ -33,7 +34,7 @@ const defaultFaqs: FaqItem[] = [
   { q: "Do you offer a warranty?", a: "All our lamps come with a 2-year warranty against manufacturing defects.", published: true },
 ];
 
-const CMSFaqs = () => {
+const CMSFaqsEditor = () => {
   const [faqs, setFaqs] = useState<FaqItem[]>(defaultFaqs);
   const [pendingAiFaqs, setPendingAiFaqs] = useState<FaqItem[]>([]);
   const [cmsSummary, setCmsSummary] = useState<CmsContextSummary | null>(null);
@@ -312,4 +313,12 @@ const CMSFaqs = () => {
   );
 };
 
+
+/** Original editor + "Nederlands | English" tabs with the AI translations */
+const CMSFaqs = () => (
+  <TranslatableEditor panels={(lang) => <LineTranslationPanel target="config:faq_data" lang={lang} />}>
+    <CMSFaqsEditor />
+  </TranslatableEditor>
+);
 export default CMSFaqs;
+

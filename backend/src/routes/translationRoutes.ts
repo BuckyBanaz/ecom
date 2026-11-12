@@ -10,6 +10,10 @@ import {
   translateProduct,
   translationStatus,
   translationsOf,
+  productTranslationCounts,
+  getDraftTranslations,
+  saveDraftTranslation,
+  translateDraft,
 } from "../services/productTranslationService";
 import { STOREFRONT_LANGUAGES } from "../services/productTranslationService";
 import {
@@ -18,6 +22,10 @@ import {
   type ContentType,
   contentOverview,
   getContentJob,
+  getEntityTranslations,
+  saveEntityTranslation,
+  getLeafTranslations,
+  saveLeafTranslations,
   startContentJob,
   translateConfig,
   translateEntity,
@@ -41,15 +49,7 @@ const wrap = (fn: (req: Request, res: Response) => Promise<void>) => (req: Reque
 
 // Overview + "translate all" job progress
 router.get("/products/status", wrap(async (_req, res) => {
-  const products = await prisma.product.findMany({ select: productSelect });
-  const counts = { total: products.length, current: 0, outdated: 0, missing: 0 };
-  for (const p of products) {
-    const states = Object.values(translationStatus(p));
-    if (states.includes("missing")) counts.missing++;
-    else if (states.includes("outdated")) counts.outdated++;
-    else counts.current++;
-  }
-  res.json({ success: true, source: sourceLanguage(), targets: targetLanguages(), counts, job: await getTranslationJob() });
+  res.json({ success: true, source: sourceLanguage(), targets: targetLanguages(), counts: await productTranslationCounts(), job: await getTranslationJob() });
 }));
 
 router.post("/products/translate-all", wrap(async (req, res) => {
@@ -112,6 +112,75 @@ router.post("/content/translate-all", wrap(async (req, res) => {
     return;
   }
   res.status(202).json({ success: true, job: await getContentJob() });
+}));
+
+// One CMS page / blog / category / menu: translations per language for the admin editor, manual correction
+router.get("/content/:type/:id", wrap(async (req, res) => {
+  const { type, id } = req.params;
+  if (!(type in ENTITIES)) {
+    res.status(400).json({ success: false, message: "Unknown content type" });
+    return;
+  }
+  const data = await getEntityTranslations(type as ContentType, id);
+  if (!data) {
+    res.status(404).json({ success: false, message: "Not found" });
+    return;
+  }
+  res.json({ success: true, ...data });
+}));
+
+router.put("/content/:type/:id/:lang", wrap(async (req, res) => {
+  const { type, id, lang } = req.params;
+  if (!(type in ENTITIES)) {
+    res.status(400).json({ success: false, message: "Unknown content type" });
+    return;
+  }
+  try {
+    res.json({ success: true, translation: await saveEntityTranslation(type as ContentType, id, lang, req.body || {}) });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err?.message || "Could not save translation" });
+  }
+}));
+
+// Settings (homepage, header & footer, FAQs, …) and mega menus, line by line: /lines/config:homepage_data
+router.get("/lines/:target", wrap(async (req, res) => {
+  try {
+    res.json({ success: true, ...(await getLeafTranslations(req.params.target)) });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err?.message || "Unknown target" });
+  }
+}));
+
+router.put("/lines/:target/:lang", wrap(async (req, res) => {
+  try {
+    res.json({ success: true, ...(await saveLeafTranslations(req.params.target, req.params.lang, req.body?.lines || {})) });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err?.message || "Could not save translation" });
+  }
+}));
+
+// Quick Add drafts
+router.get("/drafts/:id", wrap(async (req, res) => {
+  const data = await getDraftTranslations(req.params.id);
+  if (!data) {
+    res.status(404).json({ success: false, message: "Draft not found" });
+    return;
+  }
+  res.json({ success: true, source: sourceLanguage(), targets: targetLanguages(), ...data });
+}));
+
+router.post("/drafts/:id/translate", wrap(async (req, res) => {
+  const result = await translateDraft(req.params.id, { force: true });
+  const data = await getDraftTranslations(req.params.id);
+  res.json({ success: true, ...result, source: sourceLanguage(), targets: targetLanguages(), ...(data || {}) });
+}));
+
+router.put("/drafts/:id/:lang", wrap(async (req, res) => {
+  try {
+    res.json({ success: true, translation: await saveDraftTranslation(req.params.id, req.params.lang, req.body || {}) });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err?.message || "Could not save translation" });
+  }
 }));
 
 /** Re-translate one item now: /content/blog/<id>, /content/cmsPage/<id>, /content/config/homepage_data */

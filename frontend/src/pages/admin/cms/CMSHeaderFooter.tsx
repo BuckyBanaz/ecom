@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { IconPicker } from "@/components/admin/IconPicker";
 import { cmsHeaderFooterRepository } from "@/client/apiClient";
+import { LineTranslationPanel, TranslatableEditor } from "@/components/admin/TranslatableEditor";
 
 const HEADER_FOOTER_KEY = "header_footer_data";
 
@@ -89,7 +90,7 @@ const defaultConfig: HeaderFooterConfig = {
   ],
 };
 
-const CMSHeaderFooter = () => {
+const CMSHeaderFooterEditor = () => {
   const { t } = useTranslation();
   const [config, setConfig] = useState<HeaderFooterConfig>(defaultConfig);
   const [isSaving, setIsSaving] = useState(false);
@@ -524,4 +525,12 @@ const CMSHeaderFooter = () => {
   );
 };
 
+
+/** Original editor + "Nederlands | English" tabs with the AI translations */
+const CMSHeaderFooter = () => (
+  <TranslatableEditor panels={(lang) => <LineTranslationPanel target="config:header_footer_data" lang={lang} />}>
+    <CMSHeaderFooterEditor />
+  </TranslatableEditor>
+);
 export default CMSHeaderFooter;
+

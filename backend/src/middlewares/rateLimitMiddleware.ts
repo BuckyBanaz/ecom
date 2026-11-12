@@ -1,6 +1,6 @@
 import rateLimit, { type Options } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
-import redis from "../config/redis";
+import { rateLimitRedis as redis } from "../config/redis";
 import { env } from "../config/env";
 
 const limitMessage = {
@@ -25,6 +25,8 @@ const buildLimiter = (prefix: string, options: Partial<Options>) =>
     legacyHeaders: false,
     message: limitMessage,
     store: createStore(prefix),
+    // Redis down or slow: let the request through rather than failing / hanging it
+    passOnStoreError: true,
     ...options,
   });
 

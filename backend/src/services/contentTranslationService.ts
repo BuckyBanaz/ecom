@@ -156,6 +156,37 @@ ${JSON.stringify({ html })}`;
 }
 
 /** Walks a JSON value, translating text leaves in place; returns a new value */
+/** Whether a string at key `k` is human-readable text (translated) or data (links, ids, icons…) */
+function isTranslatableLeaf(k: string, node: string): boolean {
+  if (NON_TEXT_KEYS.has(k) || !node.trim() || looksLikeNonText(node)) return false;
+  // camelCase / snake_case text keys too: quoteButtonText, questionTitle, primary_button_text
+  return TEXT_KEYS.has(k) || /(text|title|label|subtitle|description|name|heading|caption)$/i.test(k) || /\s/.test(node.trim());
+}
+
+type LeafPath = Array<string | number>;
+
+/** Every translatable string in a JSON value with its path (same selection as translateJson) */
+function collectLeaves(value: unknown): Array<{ path: LeafPath; text: string; html: boolean }> {
+  const out: Array<{ path: LeafPath; text: string; html: boolean }> = [];
+  const visit = (node: any, path: LeafPath, key: string) => {
+    if (typeof node === "string") {
+      if (isTranslatableLeaf(key, node)) out.push({ path, text: node, html: looksLikeHtml(node) });
+      return;
+    }
+    if (Array.isArray(node)) node.forEach((child, i) => visit(child, [...path, i], key));
+    else if (node && typeof node === "object") for (const [k, child] of Object.entries(node)) visit(child, [...path, k], k);
+  };
+  visit(value, [], "root");
+  return out;
+}
+
+const getAt = (obj: any, path: LeafPath) => path.reduce((o, k) => (o == null ? undefined : o[k]), obj);
+function setAt(obj: any, path: LeafPath, value: unknown) {
+  let o = obj;
+  for (let i = 0; i < path.length - 1; i++) o = o?.[path[i]];
+  if (o && typeof o === "object") o[path[path.length - 1]] = value;
+}
+
 async function translateJson(value: unknown, lang: string): Promise<unknown> {
   const texts: string[] = [];
   const htmls: string[] = [];
@@ -165,10 +196,7 @@ async function translateJson(value: unknown, lang: string): Promise<unknown> {
   const visit = (node: any, parent: any, key: string | number, parentKey: string) => {
     if (typeof node === "string") {
       const k = typeof key === "number" ? parentKey : key;
-      if (NON_TEXT_KEYS.has(k) || !node.trim() || looksLikeNonText(node)) return;
-      // camelCase / snake_case text keys too: quoteButtonText, questionTitle, primary_button_text
-      const isText = TEXT_KEYS.has(k) || /(text|title|label|subtitle|description|name|heading|caption)$/i.test(k) || /\s/.test(node.trim());
-      if (!isText) return;
+      if (!isTranslatableLeaf(k, node)) return;
       const set = (v: string) => (parent[key] = v);
       if (looksLikeHtml(node)) slots.push({ set, kind: "html", index: htmls.push(node) - 1 });
       else slots.push({ set, kind: "text", index: texts.push(node) - 1 });
@@ -243,6 +271,44 @@ export function localizeEntity<T extends Record<string, any>>(type: ContentType,
   return out as T;
 }
 
+/** Admin editor: translations of one row per language, with status (current / outdated / missing) */
+export async function getEntityTranslations(type: ContentType, id: string) {
+  const row = await delegate(type).findUnique({ where: { id } });
+  if (!row) return null;
+  const map = translationsOf(row);
+  const hashes = Object.fromEntries(fieldsOf(type).map((f) => [f, hashOf(row[f] ?? null)]));
+  const status = Object.fromEntries(
+    STOREFRONT_LANGUAGES.map((lang) => {
+      const tr = map[lang];
+      if (!tr) return [lang, "missing"];
+      const current = fieldsOf(type).every((f) => tr.fieldHashes?.[f] === hashes[f]);
+      return [lang, current ? "current" : "outdated"];
+    })
+  );
+  const translations = Object.fromEntries(
+    STOREFRONT_LANGUAGES.filter((l) => map[l]).map((l) => [l, Object.fromEntries([...fieldsOf(type), "translatedAt", "manual"].map((f) => [f, map[l][f] ?? null]))])
+  );
+  return { languages: [...STOREFRONT_LANGUAGES], fields: ENTITIES[type], status, translations };
+}
+
+/** Hand-corrected translation for one language; counts as current for the source text it was made from */
+export async function saveEntityTranslation(type: ContentType, id: string, lang: string, input: Record<string, any>) {
+  if (!(STOREFRONT_LANGUAGES as readonly string[]).includes(lang)) throw new Error(`"${lang}" is not a storefront language`);
+  const row = await delegate(type).findUnique({ where: { id } });
+  if (!row) throw new Error("Not found");
+  const map = { ...translationsOf(row) };
+  const prev = map[lang] || {};
+  const next: Record<string, any> = { ...prev };
+  for (const f of [...ENTITIES[type].text, ...ENTITIES[type].html]) if (typeof input[f] === "string") next[f] = input[f];
+  next.fieldHashes = Object.fromEntries(fieldsOf(type).map((f) => [f, hashOf(row[f] ?? null)]));
+  next.sourceHash = entityHash(type, row);
+  next.translatedAt = new Date().toISOString();
+  next.manual = true;
+  map[lang] = next;
+  await delegate(type).update({ where: { id }, data: { translations: map } });
+  return next;
+}
+
 // ---------------------------------------------------------------- CMS settings (cms_config)
 
 export async function translateConfig(key: string, opts: { force?: boolean } = {}) {
@@ -275,6 +341,97 @@ export async function localizedConfig<T>(key: string, value: T, lang: string | n
 export function contentLanguage(req: { headers: Record<string, unknown> }): string | null {
   const raw = String(req.headers["x-content-language"] || "").split(/[-_,;]/)[0].trim().toLowerCase();
   return (STOREFRONT_LANGUAGES as readonly string[]).includes(raw) ? raw : null;
+}
+
+// ---------------------------------------------------------------- line-by-line editor (settings, menus)
+
+/**
+ * A JSON-shaped source ("config:homepage_data" or "megaMenu:<id>") with its translations, for the admin editor
+ * that lists every text line: original + translation per language.
+ */
+async function loadLeafTarget(target: string) {
+  const [kind, ...rest] = target.split(":");
+  const ref = rest.join(":");
+  if (kind === "config") {
+    if (!(CONFIG_KEYS as readonly string[]).includes(ref)) throw new Error("Unknown setting");
+    const row = await prisma.cmsConfig.findUnique({ where: { key: ref } });
+    const store = await prisma.cmsConfig.findUnique({ where: { key: CONFIG_PREFIX + ref } });
+    const map: Record<string, any> = { ...((store?.value as object) || {}) };
+    const source = row?.value ?? null;
+    return {
+      source,
+      translated: (lang: string) => map[lang]?.value,
+      isCurrent: (lang: string) => map[lang]?.sourceHash === hashOf(source),
+      manual: (lang: string) => Boolean(map[lang]?.manual),
+      translatedAt: (lang: string) => map[lang]?.translatedAt || null,
+      save: async (lang: string, value: unknown) => {
+        map[lang] = { value, sourceHash: hashOf(source), translatedAt: new Date().toISOString(), manual: true };
+        await prisma.cmsConfig.upsert({ where: { key: CONFIG_PREFIX + ref }, create: { key: CONFIG_PREFIX + ref, value: map }, update: { value: map } });
+      },
+    };
+  }
+  if (kind === "megaMenu") {
+    const row: any = await prisma.megaMenu.findUnique({ where: { id: ref } });
+    if (!row) throw new Error("Menu not found");
+    const map = { ...translationsOf(row) };
+    const source = { menu: row.menu, sections: row.sections };
+    const hashes = Object.fromEntries(fieldsOf("megaMenu").map((f) => [f, hashOf(row[f] ?? null)]));
+    return {
+      source,
+      translated: (lang: string) => (map[lang] ? { menu: map[lang].menu ?? row.menu, sections: map[lang].sections ?? row.sections } : undefined),
+      isCurrent: (lang: string) => fieldsOf("megaMenu").every((f) => map[lang]?.fieldHashes?.[f] === hashes[f]),
+      manual: (lang: string) => Boolean(map[lang]?.manual),
+      translatedAt: (lang: string) => map[lang]?.translatedAt || null,
+      save: async (lang: string, value: any) => {
+        map[lang] = { ...map[lang], menu: value.menu, sections: value.sections, fieldHashes: hashes, sourceHash: entityHash("megaMenu", row), translatedAt: new Date().toISOString(), manual: true };
+        await prisma.megaMenu.update({ where: { id: ref }, data: { translations: map } });
+      },
+    };
+  }
+  throw new Error("Unknown translation target");
+}
+
+export async function getLeafTranslations(target: string) {
+  const t = await loadLeafTarget(target);
+  const leaves = collectLeaves(t.source);
+  const languages = [...STOREFRONT_LANGUAGES];
+  return {
+    languages,
+    status: Object.fromEntries(languages.map((l) => [l, !t.translated(l) ? "missing" : t.isCurrent(l) ? "current" : "outdated"])),
+    manual: Object.fromEntries(languages.map((l) => [l, t.manual(l)])),
+    translatedAt: Object.fromEntries(languages.map((l) => [l, t.translatedAt(l)])),
+    leaves: leaves.map((leaf) => ({
+      key: JSON.stringify(leaf.path),
+      text: leaf.text,
+      html: leaf.html,
+      // a translation from another source structure has nothing usable at this path
+      ...Object.fromEntries(languages.map((l) => {
+        const v = getAt(t.translated(l), leaf.path);
+        return [l, typeof v === "string" ? v : null];
+      })),
+    })),
+  };
+}
+
+/** Saves hand-edited lines; lines not sent keep their current translation (or the original text) */
+export async function saveLeafTranslations(target: string, lang: string, edits: Record<string, string>) {
+  if (!(STOREFRONT_LANGUAGES as readonly string[]).includes(lang)) throw new Error(`"${lang}" is not a storefront language`);
+  const t = await loadLeafTarget(target);
+  const leaves = collectLeaves(t.source);
+  const base = JSON.parse(JSON.stringify(t.source));
+  const current = t.translated(lang);
+  for (const leaf of leaves) {
+    const key = JSON.stringify(leaf.path);
+    const prev = getAt(current, leaf.path);
+    const next = typeof edits[key] === "string" ? edits[key] : typeof prev === "string" ? prev : leaf.text;
+    // HTML lines must keep their tags / shortcodes / links
+    if (leaf.html && htmlSkeleton(next) !== htmlSkeleton(leaf.text)) {
+      throw new Error("A text with HTML or shortcodes lost or changed its tags/links — only change the visible text");
+    }
+    setAt(base, leaf.path, next);
+  }
+  await t.save(lang, base);
+  return { saved: true };
 }
 
 // ---------------------------------------------------------------- queue (after saves)

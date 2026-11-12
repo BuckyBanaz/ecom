@@ -3597,6 +3597,19 @@
     "group_count": "{{current}} / {{total}} up to date",
     "errors_one": "{{count}} item could not be translated",
     "errors_other": "{{count}} items could not be translated",
-    "toast_content_done": "Content translated: {{count}} items, {{failed}} failed"
+    "toast_content_done": "Content translated: {{count}} items, {{failed}} failed",
+    "tab_source": "Original",
+    "tab_nl": "Nederlands",
+    "tab_en": "English",
+    "new_product_hint": "Save the product first — AI then makes the English version automatically.",
+    "save_first": "Save first",
+    "content_panel_hint": "The {{lang}} version shown on the storefront. AI keeps it in sync with the original; corrections you save here are kept until the original changes.",
+    "field_title": "Title",
+    "field_excerpt": "Excerpt",
+    "field_body": "Content",
+    "field_seoTitle": "SEO title",
+    "field_seoDescription": "SEO description",
+    "field_seoDesc": "SEO description",
+    "field_seoKeywords": "SEO keywords"
   }
 }

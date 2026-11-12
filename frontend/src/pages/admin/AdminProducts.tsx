@@ -76,8 +76,8 @@ const AdminProducts = () => {
   const fetchProducts = async () => {
     setIsLoading(true);
     try {
-      // Fetch with limit: 500 so all products in the catalog are loaded for admin management
-      const data = await productRepository.getAll({ limit: 500 });
+      // All products (up to 500) for client-side search/paging; view=admin sends only the table columns
+      const data = await productRepository.getAll({ limit: 500, view: "admin" });
       if (data.success && data.products) {
         setProductsList(data.products);
         setTotalServerCount(data.pagination?.totalItems ?? data.products.length);

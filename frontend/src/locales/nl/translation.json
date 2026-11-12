@@ -3515,6 +3515,19 @@
     "group_count": "{{current}} / {{total}} actueel",
     "errors_one": "{{count}} item kon niet worden vertaald",
     "errors_other": "{{count}} items konden niet worden vertaald",
-    "toast_content_done": "Inhoud vertaald: {{count}} items, {{failed}} mislukt"
+    "toast_content_done": "Inhoud vertaald: {{count}} items, {{failed}} mislukt",
+    "tab_source": "Origineel",
+    "tab_nl": "Nederlands",
+    "tab_en": "English",
+    "new_product_hint": "Sla het product eerst op — daarna maakt AI automatisch de Engelse versie.",
+    "save_first": "Eerst opslaan",
+    "content_panel_hint": "De {{lang}}-versie die in de webshop wordt getoond. AI houdt hem gelijk met het origineel; correcties die je hier opslaat blijven staan tot het origineel wijzigt.",
+    "field_title": "Titel",
+    "field_excerpt": "Samenvatting",
+    "field_body": "Inhoud",
+    "field_seoTitle": "SEO-titel",
+    "field_seoDescription": "SEO-beschrijving",
+    "field_seoDesc": "SEO-beschrijving",
+    "field_seoKeywords": "SEO-zoekwoorden"
   }
 }

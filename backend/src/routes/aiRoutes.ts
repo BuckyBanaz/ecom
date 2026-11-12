@@ -1,4 +1,5 @@
 import express from "express";
+import { enqueueDraftTranslation } from "../services/productTranslationService";
 import { applyColorToTitle, colorSpecKey, detectProductColor, isColorSpecKey, stripColorWords } from "../utils/productColor";
 import multer from "multer";
 import { randomUUID } from "crypto";
@@ -389,6 +390,8 @@ ${effectiveHint}`;
     }
 
     const saved = await saveProductDraft(draft, { createdBy: (req as any).user?.id });
+    // English (etc.) for the draft in the background, so it can be reviewed before publishing
+    enqueueDraftTranslation(saved.id);
 
     res.json({ success: true, draft, draftId: saved.id });
   } catch (error: any) {
@@ -453,6 +456,7 @@ router.post(
             row.category || ""
           );
           const saved = await saveProductDraft(draft, { batchId, createdBy: userId });
+          enqueueDraftTranslation(saved.id);
           results.push({ status: "draft", draftId: saved.id, draft });
         } catch (err: any) {
           const failed = await saveProductDraft(

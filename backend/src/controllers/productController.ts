@@ -135,6 +135,7 @@ const parseFilters = (query: any) => {
     isBestSelling: isBestSelling === "true",
     includeFacets: facetsParam === "true",
     cardView: view === "card",
+    adminView: view === "admin",
     attributeFilters: filters,
   };
 };
@@ -154,6 +155,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       isBestSelling,
       includeFacets,
       cardView,
+      adminView,
       attributeFilters,
     } = parseFilters(req.query);
     const contentLang = contentLanguage(req);
@@ -404,9 +406,26 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       },
     };
 
+    // ?view=admin — admin product table: only what the table shows and searches (was ~2 MB for 235 products,
+    // 62% of it attribute values the table never reads)
+    const adminSelect = {
+      id: true,
+      slug: true,
+      name: true,
+      price: true,
+      oldPrice: true,
+      image: true,
+      inStock: true,
+      createdAt: true,
+      brand: { select: { id: true, name: true } },
+      category: { select: { id: true, name: true, slug: true } },
+    };
+
     const [totalItems, products] = await Promise.all([
       prisma.product.count({ where: whereConditions }),
-      cardView
+      adminView
+        ? prisma.product.findMany({ where: whereConditions, orderBy, skip, take: limit, select: adminSelect })
+        : cardView
         ? prisma.product.findMany({
             where: whereConditions,
             orderBy,
@@ -426,7 +445,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
     const response: Record<string, unknown> = {
       success: true,
       // Lists never need the raw translations blob (admin edits it on the product page); storefront gets its language
-      products: sanitizeProductsForClient(products).map((p) => localizeProduct(p, contentLang.lang, true)),
+      products: sanitizeProductsForClient(products as Record<string, any>[]).map((p) => localizeProduct(p, contentLang.lang, true)),
       pagination: {
         totalItems,
         page,

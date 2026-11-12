@@ -34,8 +34,11 @@ const STATUS_CLASS: Record<Status, string> = {
   missing: "bg-muted-foreground/60 hover:bg-muted-foreground/60",
 };
 
-/** Product edit page: the AI translation(s) of this product — view, correct by hand, or re-translate */
-export function ProductTranslationPanel({ productId }: { productId: string }) {
+/**
+ * Product edit page (or a Quick Add draft): the AI translation(s) — view, correct by hand, or re-translate.
+ * Drafts keep their translation in the draft; publishing copies it to the product.
+ */
+export function ProductTranslationPanel({ productId, kind = "product" }: { productId: string; kind?: "product" | "draft" }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [targets, setTargets] = useState<string[]>([]);
@@ -44,6 +47,12 @@ export function ProductTranslationPanel({ productId }: { productId: string }) {
   const [all, setAll] = useState<Record<string, Translation>>({});
   const [form, setForm] = useState<Translation>(EMPTY);
   const [busy, setBusy] = useState<"save" | "translate" | null>(null);
+  const api = {
+    get: () => (kind === "draft" ? translationsRepository.getDraft(productId) : translationsRepository.getProduct(productId)),
+    translate: () => (kind === "draft" ? translationsRepository.translateDraft(productId) : translationsRepository.translateProduct(productId)),
+    save: (l: string, data: Record<string, unknown>) =>
+      kind === "draft" ? translationsRepository.saveDraft(productId, l, data) : translationsRepository.saveProduct(productId, l, data),
+  };
 
   const apply = useCallback((res: any, selected?: string) => {
     const tgts: string[] = res.targets || [];
@@ -57,13 +66,14 @@ export function ProductTranslationPanel({ productId }: { productId: string }) {
 
   const load = useCallback(async () => {
     try {
-      apply(await translationsRepository.getProduct(productId));
+      apply(await api.get());
     } catch (err: any) {
       toast.error(err?.message || t("admin_translations.toast_load_failed"));
     } finally {
       setLoading(false);
     }
-  }, [productId, apply, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, kind, apply, t]);
 
   useEffect(() => {
     load();
@@ -78,7 +88,7 @@ export function ProductTranslationPanel({ productId }: { productId: string }) {
     if (all[lang]?.manual && !window.confirm(t("admin_translations.confirm_overwrite_manual"))) return;
     setBusy("translate");
     try {
-      apply(await translationsRepository.translateProduct(productId), lang);
+      apply(await api.translate(), lang);
       toast.success(t("admin_translations.toast_translated"));
     } catch (err: any) {
       toast.error(err?.message || t("admin_translations.toast_translate_failed"));
@@ -90,7 +100,7 @@ export function ProductTranslationPanel({ productId }: { productId: string }) {
   const save = async () => {
     setBusy("save");
     try {
-      const res = await translationsRepository.saveProduct(productId, lang, form as unknown as Record<string, unknown>);
+      const res = await api.save(lang, form as unknown as Record<string, unknown>);
       setAll((prev) => ({ ...prev, [lang]: res.translation }));
       setStatus((prev) => ({ ...prev, [lang]: "current" }));
       setForm({ ...EMPTY, ...res.translation });

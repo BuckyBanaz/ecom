@@ -76,6 +76,8 @@ const AdminProductForm = () => {
   const { hasPermission } = useAdmin();
 
   const isDraftMode = Boolean(draftId);
+  /** Content language tab: NL = the source form, EN = the AI translation */
+  const [contentTab, setContentTab] = useState<"nl" | "en">("nl");
   const isEdit = id !== undefined && id !== "new" && !isDraftMode;
   const canRegenerate = Boolean(draftId || (id && id !== "new"));
 
@@ -1528,7 +1530,8 @@ const AdminProductForm = () => {
               const apiUrl = getApiV1Url();
               await fetch(`${apiUrl}/ai/drafts/${draftId}/published`, {
                 method: "PATCH",
-                headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
+                headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ productId: data.product?.id }),
               });
             } catch {
               /* non-blocking */
@@ -1602,6 +1605,25 @@ const AdminProductForm = () => {
 
           {/* LEFT COLUMN — Main Forms (2/3 Width) */}
           <div className="lg:col-span-2 space-y-8">
+
+            {/* NL (source) / EN (AI translation) */}
+            <div className="inline-flex rounded-full border bg-muted/40 p-1" role="tablist">
+              {(["nl", "en"] as const).map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  role="tab"
+                  aria-selected={contentTab === code}
+                  onClick={() => setContentTab(code)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${contentTab === code ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {t(`admin_translations.tab_${code}`)}
+                </button>
+              ))}
+            </div>
+
+            {/* Source content stays mounted (hidden) while the EN tab is open, so nothing typed is lost */}
+            <div className={contentTab === "nl" ? "space-y-8" : "hidden"}>
 
             {/* Basic Info */}
             <Card className="border border-border/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] bg-card/50 backdrop-blur-md rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300">
@@ -2049,8 +2071,17 @@ const AdminProductForm = () => {
               </CardContent>
             </Card>
 
-            {/* AI translation (English) — only for saved products; new ones are translated right after saving */}
-            {isEdit && id && <ProductTranslationPanel productId={id} />}
+            </div>
+
+            {/* EN tab: AI translation of the saved product / Quick Add draft; new products are translated after saving */}
+            {contentTab === "en" &&
+              (isEdit && id ? (
+                <ProductTranslationPanel productId={id} />
+              ) : isDraftMode && draftId ? (
+                <ProductTranslationPanel productId={draftId} kind="draft" />
+              ) : (
+                <p className="rounded-2xl border bg-muted/30 p-6 text-sm text-muted-foreground">{t("admin_translations.new_product_hint")}</p>
+              ))}
           </div>
 
           {/* RIGHT COLUMN — Organisation, EAV Attributes & Sticky Action Panel (1/3 Width) */}
